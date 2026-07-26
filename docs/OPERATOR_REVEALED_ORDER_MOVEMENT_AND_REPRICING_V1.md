@@ -29,13 +29,25 @@ PostgreSQL owns:
 - unknown-outcome consumption and restart recovery.
 
 Plan preparation makes no Coinbase call. It revalidates the exact canonical
-runtime row, Product Catalog metadata and increments, remaining size, zero
-fill, the canonical `order_parent` movement target, strict profitability, and
-direct submitted/possible execution ceilings of `3.10/1.00 USDC`. A missing or
-changed canonical parent target fails closed; runtime-row target values are not
-accepted as a fallback. Planning does not run the legacy replacement-delta
-wallet guard. Both planning and execution require the source's
-`allow_partial_fills` policy to be exactly false.
+runtime row, Product Catalog metadata and increments, exhausted hidden
+remaining size, zero fill, the canonical `order_parent` movement target,
+strict profitability, and direct submitted/possible execution ceilings of
+`3.10/1.00 USDC`. Because
+`stealth_orders.remaining_size` is the still-hidden quantity and is zero for a
+real `REVEALED` placement, replacement size comes only from the exact active
+placement's durable `order_parent.size`. The backend also proves that row's
+source/root linkage, nonterminal status, product, side, price, exchange
+identity, portfolio scope, partial-fill policy, and system-owned root
+provenance at plan and execution boundaries. The root provenance must be the
+exact Goal 6 `ADMIN_MANUAL_ROOT`; automation and fill-follow-up roots are not
+accepted. For a Goal 6 root placement, `order_parent.price` remains its
+configured definition price while the protected anchor owns the possibly
+different TOP_OF_BOOK/MIDPOINT submitted price. Derived child placements must
+instead match parent-row and anchor price exactly. A missing or changed
+placement or canonical parent target fails closed; runtime-row size/target
+values are not accepted as a fallback. Planning does not run the legacy
+replacement-delta wallet guard. Both planning and execution require the
+source's `allow_partial_fills` policy to be exactly false.
 
 After authoritative source cancellation and before Create, the backend runs a
 non-configurable, fail-closed full current-wallet guard without crediting the
@@ -106,8 +118,14 @@ Analytics-only users may receive an empty `allowed_actions` list while still
 viewing the same verified authority and backend-supplied operator-intent label.
 
 The browser persists an unknown/unverifiable outcome freeze across remounts.
-It may clear that freeze only after exact completed command-cycle correlation
-evidence is present in call-free backend readback.
+It accepts a successful mutation only when the HTTP response correlation,
+body/cycle correlation, phase, backend service method, fixed operator intent,
+and SHA-256 of the exact sent idempotency key all agree. It may clear a freeze
+only after the same exact completed command-cycle bindings are present in
+call-free backend readback. Historical V1 freezes are migrated without
+weakening this proof: that UI used the correlation UUID as its exact
+idempotency key, so the browser deterministically derives the expected hash
+and fixed phase-specific intent/service method before allowing acknowledgment.
 
 ## Historical translation
 
@@ -123,8 +141,19 @@ and fixed sanitized evidence.
 ## Focused validation
 
 Focused backend coverage includes repository, service, runtime, manager, and
-route tests. Focused frontend coverage includes strict runtime validation,
-operator workflow behavior, generated route coverage, persistent unknown
-outcome quarantine, and installed review-stack feature configuration. Full
-regression, release/deployment gates, independent safety audit, and blind
-contextless audit remain required before MVP closeout.
+route tests, including realistic `REVEALED` state with zero hidden remaining
+size and canonical active-placement size evidence. Focused frontend coverage
+includes strict runtime validation, request/response correlation and
+idempotency binding, operator workflow behavior, generated route coverage,
+persistent unknown-outcome quarantine, and installed review-stack feature
+configuration.
+
+Terminal closeout passed `65` focused backend tests and `92` focused frontend
+tests. The canonical backend regression passed `1,294` tests with `6` skipped
+in its parallel lane and `908` tests with `150` skipped in its serial lane.
+The canonical frontend release gate passed all `1,786` unit/component tests,
+all `32` managed Playwright operator scenarios, generated-contract checks,
+installed deployment validation, and both Controlled-live and explicit
+No-live launcher checks. Independent safety and blind-contextless audits both
+returned `PASS`. All validation used synthetic no-network exchange boundaries
+and made zero Coinbase calls or exchange mutations.

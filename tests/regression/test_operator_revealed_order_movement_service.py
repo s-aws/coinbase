@@ -372,6 +372,8 @@ def test_prepare_persists_one_quantized_review_plan_without_live_calls() -> None
     assert response.plan.zero_fill_validated is True
     assert response.cancel_call_count == 0
     assert response.create_call_count == 0
+    assert response.operator_intent == "prepare_revealed_order_move"
+    assert response.command_service_method == "prepare_plan"
     assert runtime.calls == ["build_plan"]
     assert [name for name, _ in repository.calls] == ["create_plan"]
 
@@ -506,6 +508,10 @@ def test_execute_claims_cancel_before_create_and_reconciles_both_legs() -> None:
     assert response.cancel_call_count == 1
     assert response.create_call_count == 1
     assert response.read_call_count == 4
+    assert response.operator_intent == (
+        "execute_revealed_order_cancel_then_replace"
+    )
+    assert response.command_service_method == "execute_move"
     assert response.replacement_exchange_order_id_sha256 == "3" * 64
     names = [name for name, _ in repository.calls]
     assert names.index("claim_cancel") < names.index("claim_create")

@@ -74,6 +74,15 @@ def _response(state: str) -> OperatorRevealedOrderMovementResponse:
             if state == "UNCONSUMED"
             else "execute_revealed_order_cancel_then_replace"
         ),
+        command_service_method=(
+            "get_execution"
+            if state == "UNCONSUMED"
+            else (
+                "prepare_plan"
+                if state == "PLANNED"
+                else "execute_move"
+            )
+        ),
         correlation_id="goal7-correlation",
         plan_idempotency_key_sha256=None,
         execute_idempotency_key_sha256=None,

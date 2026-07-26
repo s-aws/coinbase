@@ -342,6 +342,12 @@ single-use Cancel/conditional Create allowance, exact read accounting,
 command-cycle evidence, exact replay, fixed operator-intent payload binding,
 and restart recovery.
 
+The active replacement size is read from the exact chain-linked
+`order_parent` placement, not `stealth_orders.remaining_size`; the latter is
+the still-hidden quantity and is zero for a real `REVEALED` state. Source and
+root rows must prove exact identity, nonterminal state, system ownership, and
+the approved Test portfolio before planning or execution can proceed.
+
 The runtime delegates both exchange mutations to typed
 `StealthOrderManager` entry points. It requires exact authoritative source
 readback before and after Cancel, permits Create only after `CANCELLED`, and
@@ -365,6 +371,14 @@ PostgreSQL and operator readback.
 Historical comparison covered `origin/prod:dashboard_server.py` and
 `origin/prod:core/stealth_order_manager.py`. See
 [Operator Revealed Order Movement and Repricing V1](OPERATOR_REVEALED_ORDER_MOVEMENT_AND_REPRICING_V1.md).
+
+Goal 7 closeout passed `65` focused backend tests, `92` focused frontend
+tests, the canonical backend regression (`1,294 passed, 6 skipped` parallel;
+`908 passed, 150 skipped` serial), the canonical frontend release gate
+(`1,786/1,786` unit/component tests and `32/32` managed Playwright scenarios),
+installed deployment validation, and independent safety plus
+blind-contextless audits. Validation used synthetic no-network exchange
+boundaries and made zero Coinbase calls or exchange mutations.
 
 ## Completed independent Goal 6 — Stealth reveal and exact closeout
 

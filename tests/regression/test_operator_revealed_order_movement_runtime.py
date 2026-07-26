@@ -103,6 +103,9 @@ class _Catalog:
 class _Manager:
     cancel_result: bool = True
     allow_partial_fills: bool = False
+    source_placement_size: str = "0.00001"
+    source_placement_status: str = "OPEN"
+    source_placement_exchange_id: str = RAW_SOURCE_EXCHANGE_ID
     create_result: dict[str, Any] = field(
         default_factory=lambda: {
             "outcome": "ACCEPTED",
@@ -121,7 +124,7 @@ class _Manager:
             "side": "BUY",
             "status": "REVEALED",
             "executed_size": 0,
-            "remaining_size": 0.00001,
+            "remaining_size": 0,
             "total_size": 0.00001,
             "limit_price": 50000,
             "target_movement": 0.01,
@@ -133,6 +136,24 @@ class _Manager:
                 "active_exchange_order_id": RAW_SOURCE_EXCHANGE_ID,
                 "active_exchange_price": 50000,
             },
+        }
+
+    def get_operator_stealth_move_source_placement(
+        self,
+        stealth_order_id: str,
+    ) -> dict[str, Any]:
+        assert stealth_order_id == STEALTH_ID
+        return {
+            "client_order_id": SOURCE_CLIENT_ID,
+            "product_id": "BTC-USDC",
+            "side": "BUY",
+            "size": self.source_placement_size,
+            "price": "50000",
+            "status": self.source_placement_status,
+            "parent_order_id": STEALTH_ID,
+            "retail_portfolio_id": PORTFOLIO_ID,
+            "exchange_order_id": self.source_placement_exchange_id,
+            "allow_partial_fills": False,
         }
 
     def build_operator_stealth_move_plan(
@@ -252,6 +273,59 @@ def test_build_plan_quantizes_and_withholds_exchange_identity() -> None:
         "build_operator_stealth_move_plan",
         "validate_profitability",
     ]
+
+
+def test_build_plan_uses_canonical_active_placement_size_after_reveal() -> None:
+    manager = _Manager(source_placement_size="0.00001234")
+    plan = _runtime(manager, _RestClient([])).build_plan(
+        _definition(),
+        requested_limit_price="50000.127",
+    )
+
+    assert plan["base_size"] == "0.00001234"
+    assert plan["base_size"] != str(
+        manager._get_stealth_order(STEALTH_ID)["remaining_size"]
+    )
+
+
+def test_build_plan_accepts_goal6_withheld_parent_exchange_identity() -> None:
+    plan = _runtime(
+        _Manager(source_placement_exchange_id=""),
+        _RestClient([]),
+    ).build_plan(
+        _definition(),
+        requested_limit_price="50000.127",
+    )
+
+    assert plan["source_exchange_order_id_sha256"] == hashlib.sha256(
+        RAW_SOURCE_EXCHANGE_ID.encode()
+    ).hexdigest()
+    assert RAW_SOURCE_EXCHANGE_ID not in str(plan)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("source_placement_size", "0"),
+        ("source_placement_status", "FILLED"),
+        ("source_placement_exchange_id", "different-exchange-order"),
+    ],
+)
+def test_build_plan_rejects_noncanonical_active_placement(
+    field: str,
+    value: str,
+) -> None:
+    manager = _Manager()
+    setattr(manager, field, value)
+
+    with pytest.raises(
+        RuntimeError,
+        match="operator_move_zero_fill_not_proven",
+    ):
+        _runtime(manager, _RestClient([])).build_plan(
+            _definition(),
+            requested_limit_price="50000.127",
+        )
 
 
 def test_build_plan_rejects_stale_catalog_binding() -> None:

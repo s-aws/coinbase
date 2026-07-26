@@ -165542,6 +165542,13 @@ components:
           - prepare_revealed_order_move
           - execute_revealed_order_cancel_then_replace
           title: Operator Intent
+        command_service_method:
+          type: string
+          enum:
+          - get_execution
+          - prepare_plan
+          - execute_move
+          title: Command Service Method
         correlation_id:
           anyOf:
           - type: string
@@ -165636,6 +165643,7 @@ components:
       - read_call_count
       - diagnostic_code
       - operator_intent
+      - command_service_method
       - command_cycle_status
       - command_cycle_phase
       - execution_authority_enabled

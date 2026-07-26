@@ -90,7 +90,8 @@ Completed independent Goal 7:
 Goal `operator_revealed_order_movement_and_repricing_v1` provides one explicit
 operator-reviewed zero-fill movement, immutable quantized post-only plan, one
 Cancel, conditional one replacement Create, exact linkage/reconciliation,
-restart recovery, single-use claims, and sanitized PostgreSQL readback.
+restart recovery, canonical active-placement size binding, single-use claims,
+and sanitized PostgreSQL readback.
 
 Completed independent Goal 6:
 [Operator Stealth Reveal and Exact Closeout V1](OPERATOR_STEALTH_REVEAL_AND_EXACT_CLOSEOUT_V1.md).

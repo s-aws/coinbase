@@ -1628,7 +1628,7 @@ class StealthOrderManager:
         *,
         notes: Optional[str] = None,
     ) -> "StealthMovePlan":
-        """Build Goal 7 terms without wallet, market, logging, or I/O."""
+        """Build Goal 7 terms without wallet, market, or Coinbase I/O."""
         from core.enums import (
             RevealPriceSource,
             RevealPricingPolicy,
@@ -1652,6 +1652,14 @@ class StealthOrderManager:
         state = self._normalize_anchor_repricing_state(
             order.get("anchor_repricing_state_json")
         )
+        try:
+            source_placement = (
+                self.get_operator_stealth_move_source_placement(
+                    stealth_order_id
+                )
+            )
+        except ValueError:
+            source_placement = None
         source_exchange_order_id = str(
             state.get("active_exchange_order_id") or ""
         )
@@ -1668,6 +1676,7 @@ class StealthOrderManager:
             or price <= 0
             or not source_exchange_order_id
             or not state.get("active_placement_client_order_id")
+            or not isinstance(source_placement, dict)
         ):
             raise StealthMoveError(
                 "operator_move_source_not_eligible",
@@ -1715,6 +1724,149 @@ class StealthOrderManager:
             market_bid=None,
             market_ask=None,
         )
+
+    def _get_operator_move_parent_order(
+        self,
+        client_order_id: str,
+    ) -> Optional[Dict[str, Any]]:
+        """Read one canonical placement/root row for Goal 7."""
+
+        return get_parent_order(client_order_id)
+
+    def get_operator_stealth_move_source_placement(
+        self,
+        stealth_order_id: str,
+        *,
+        allow_cancelled: bool = False,
+    ) -> Dict[str, Any]:
+        """Resolve active placement size from durable order truth.
+
+        ``stealth_orders.remaining_size`` is the quantity still hidden, so it
+        is zero once a real placement reaches ``REVEALED``. The active
+        placement's immutable size belongs to its chain-linked
+        ``order_parent`` row.
+        """
+
+        order = self._get_stealth_order(stealth_order_id)
+        if not isinstance(order, dict):
+            raise ValueError("operator_move_source_placement_invalid")
+        state = self._normalize_anchor_repricing_state(
+            order.get("anchor_repricing_state_json")
+        )
+        source_client_order_id = str(
+            state.get("active_placement_client_order_id") or ""
+        )
+        source_exchange_order_id = str(
+            state.get("active_exchange_order_id") or ""
+        )
+        try:
+            root_client_order_id = str(resolve_stealth_chain_root(order))
+            placement = self._get_operator_move_parent_order(
+                source_client_order_id
+            )
+            root = self._get_operator_move_parent_order(
+                root_client_order_id
+            )
+            placement = placement if isinstance(placement, dict) else {}
+            root = root if isinstance(root, dict) else {}
+            size = Decimal(str(placement["size"]))
+            placement_price = Decimal(str(placement["price"]))
+            active_price = Decimal(str(state["active_exchange_price"]))
+            configured_price = Decimal(str(order["limit_price"]))
+            remaining = Decimal(str(order.get("remaining_size") or "0"))
+        except (
+            InvalidOperation,
+            KeyError,
+            TypeError,
+            ValueError,
+        ):
+            raise ValueError(
+                "operator_move_source_placement_invalid"
+            ) from None
+        expected_portfolio = str(
+            getattr(self, "expected_retail_portfolio_id", "") or ""
+        )
+        root_provenance = str(
+            root.get("ownership_provenance") or ""
+        ).upper()
+        placement_provenance = str(
+            placement.get("ownership_provenance") or ""
+        ).upper()
+        allowed_placement_statuses = {
+            OrderStatus.PENDING.value,
+            OrderStatus.SUBMITTED.value,
+            OrderStatus.OPEN.value,
+        }
+        if allow_cancelled:
+            allowed_placement_statuses.add(OrderStatus.CANCELLED.value)
+        exact = bool(
+            source_client_order_id
+            and source_exchange_order_id
+            and expected_portfolio
+            and str(order.get("status") or "").upper()
+            == StealthOrderStatus.REVEALED.value
+            and remaining.is_finite()
+            and remaining == 0
+            and str(placement.get("client_order_id") or "")
+            == source_client_order_id
+            and str(placement.get("product_id") or "")
+            == str(order.get("product_id") or "")
+            and str(placement.get("side") or "").upper()
+            == str(order.get("side") or "").upper()
+            and str(placement.get("status") or "").upper()
+            in allowed_placement_statuses
+            and placement.get("allow_partial_fills") is False
+            and size.is_finite()
+            and size > 0
+            and placement_price.is_finite()
+            and placement_price > 0
+            and active_price.is_finite()
+            and active_price > 0
+            and configured_price.is_finite()
+            and configured_price > 0
+            and (
+                (
+                    source_client_order_id == root_client_order_id
+                    and placement_price == configured_price
+                )
+                or (
+                    source_client_order_id != root_client_order_id
+                    and placement_price == active_price
+                )
+            )
+            and (
+                not placement.get("exchange_order_id")
+                or str(placement.get("exchange_order_id"))
+                == source_exchange_order_id
+            )
+            and (
+                (
+                    source_client_order_id == root_client_order_id
+                    and not placement.get("parent_order_id")
+                )
+                or (
+                    source_client_order_id != root_client_order_id
+                    and str(placement.get("parent_order_id") or "")
+                    == root_client_order_id
+                )
+            )
+            and str(root.get("client_order_id") or "")
+            == root_client_order_id
+            and str(root.get("retail_portfolio_id") or "")
+            == expected_portfolio
+            and root_provenance
+            == OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value
+            and placement_provenance
+            != OrderOwnershipProvenance.EXTERNAL_WS_OBSERVED.value
+            and (
+                not placement.get("retail_portfolio_id")
+                or str(placement.get("retail_portfolio_id"))
+                == expected_portfolio
+            )
+        )
+        if not exact:
+            raise ValueError("operator_move_source_placement_invalid")
+        return dict(placement)
 
     def execute_stealth_move(self, plan: "StealthMovePlan") -> "StealthMoveResult":
         """Execute a previously-built :class:`StealthMovePlan`.
@@ -2105,7 +2257,16 @@ class StealthOrderManager:
         if not callable(derive) or not callable(validate):
             return False
         try:
-            size = safe_float(order.get("remaining_size"), default=0.0)
+            source_placement = (
+                self.get_operator_stealth_move_source_placement(
+                    stealth_order_id,
+                    allow_cancelled=True,
+                )
+            )
+            size = safe_float(
+                source_placement.get("size"),
+                default=0.0,
+            )
             target = safe_float(order.get("target_movement"), default=0.0)
             price = safe_float(replacement_limit_price, default=0.0)
             side = str(order.get("side") or "").upper()
@@ -2160,6 +2321,17 @@ class StealthOrderManager:
         state = self._normalize_anchor_repricing_state(
             order.get("anchor_repricing_state_json")
         )
+        try:
+            source_placement = (
+                self.get_operator_stealth_move_source_placement(
+                    authority.stealth_order_id,
+                    allow_cancelled=require_cancel_fence,
+                )
+            )
+        except ValueError:
+            raise ValueError(
+                "operator_move_authority_binding_invalid"
+            ) from None
         expected_portfolio = str(
             getattr(self, "expected_retail_portfolio_id", "") or ""
         )
@@ -2169,6 +2341,7 @@ class StealthOrderManager:
             new_price = Decimal(authority.replacement_limit_price)
             executed = Decimal(str(order.get("executed_size") or "0"))
             remaining = Decimal(str(order.get("remaining_size") or "0"))
+            placement_size = Decimal(str(source_placement.get("size")))
             source_hash = hashlib.sha256(
                 authority.source_exchange_order_id.encode()
             ).hexdigest()
@@ -2199,7 +2372,8 @@ class StealthOrderManager:
             and str(order.get("side") or "").upper() == authority.side
             and order.get("allow_partial_fills") is False
             and executed == 0
-            and remaining == size
+            and remaining == 0
+            and placement_size == size
             and size.is_finite()
             and size > 0
             and old_price.is_finite()

@@ -177,6 +177,11 @@ class OperatorRevealedOrderMovementResponse(BaseModel):
         "prepare_revealed_order_move",
         "execute_revealed_order_cancel_then_replace",
     ]
+    command_service_method: Literal[
+        "get_execution",
+        "prepare_plan",
+        "execute_move",
+    ]
     correlation_id: str | None = None
     plan_idempotency_key_sha256: str | None = Field(
         default=None, pattern=_SHA256
@@ -643,6 +648,7 @@ class OperatorRevealedOrderMovementService:
                 read_call_count=0,
                 diagnostic_code="operator_move_unconsumed",
                 operator_intent="prepare_revealed_order_move",
+                command_service_method="get_execution",
                 correlation_id=None,
                 plan_idempotency_key_sha256=None,
                 execute_idempotency_key_sha256=None,
@@ -697,7 +703,16 @@ class OperatorRevealedOrderMovementService:
                 row.get("diagnostic_code") or "operator_move_unknown"
             ),
             operator_intent=(
-                "execute_revealed_order_cancel_then_replace"
+                "prepare_revealed_order_move"
+                if str(row.get("command_cycle_phase") or "").upper()
+                == "PLAN"
+                else "execute_revealed_order_cancel_then_replace"
+            ),
+            command_service_method=(
+                "prepare_plan"
+                if str(row.get("command_cycle_phase") or "").upper()
+                == "PLAN"
+                else "execute_move"
             ),
             correlation_id=row.get("correlation_id"),
             plan_idempotency_key_sha256=row.get(

@@ -189,6 +189,7 @@ Controlled-live, approved Test-portfolio, policy, wallet, and exact current
 operator-controlled movement for an exact zero-fill revealed placement.
 PostgreSQL owns the immutable quantized post-only plan, definition and approved
 Test-portfolio bindings, source/root/replacement `client_order_id` linkage,
+canonical active-placement size and system-owned root evidence,
 single-use Cancel and conditional Create claims, exact read accounting, restart
 recovery, exact replay, and fixed sanitized readback. The canonical manager
 durably persists a background-mutation fence before Cancel and may run one

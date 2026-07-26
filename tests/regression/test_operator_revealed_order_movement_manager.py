@@ -56,7 +56,7 @@ def _manager() -> StealthOrderManager:
         "side": "BUY",
         "status": "REVEALED",
         "executed_size": 0.0,
-        "remaining_size": 0.00001,
+        "remaining_size": 0.0,
         "total_size": 0.00001,
         "limit_price": 50000.0,
         "target_movement": 0.01,
@@ -77,6 +77,31 @@ def _manager() -> StealthOrderManager:
     manager._get_stealth_order = lambda value: (
         manager.in_memory_orders.get(value)
     )
+    source_placement = {
+        "client_order_id": SOURCE_CLIENT_ID,
+        "product_id": "BTC-USDC",
+        "side": "BUY",
+        "size": "0.00001",
+        "price": "50000",
+        "status": "OPEN",
+        "parent_order_id": STEALTH_ID,
+        "retail_portfolio_id": PORTFOLIO_ID,
+        "exchange_order_id": None,
+        "allow_partial_fills": False,
+        "ownership_provenance": None,
+    }
+    root_order = {
+        "client_order_id": STEALTH_ID,
+        "retail_portfolio_id": PORTFOLIO_ID,
+        "ownership_provenance": "ADMIN_MANUAL_ROOT",
+    }
+    manager._get_operator_move_parent_order = MagicMock(
+        side_effect=lambda value: (
+            source_placement if value == SOURCE_CLIENT_ID else root_order
+        )
+    )
+    manager._source_placement = source_placement
+    manager._root_order = root_order
     manager._update_stealth_order = MagicMock(return_value=True)
     manager._record_reveal_event = MagicMock()
     manager._get_account_wallets_for_action_guard = MagicMock(
@@ -128,6 +153,82 @@ def test_operator_plan_is_call_free_and_skips_wallet_replacement_guard() -> None
     manager._evaluate_action_condition_guard.assert_not_called()
     manager._evaluate_replacement_action_condition_guard.assert_not_called()
     manager._get_current_market_data.assert_not_called()
+
+
+def test_operator_plan_rejects_terminal_or_drifted_source_placement() -> None:
+    manager = _manager()
+    placement = dict(manager._source_placement)
+    placement["status"] = "FILLED"
+    manager._source_placement.update(placement)
+
+    with patch(
+        "core.stealth_order_manager.evaluate_product_capability",
+        return_value=MagicMock(allowed=True),
+    ), pytest.raises(
+        Exception,
+        match="operator_move_source_not_eligible",
+    ):
+        manager.build_operator_stealth_move_plan(
+            STEALTH_ID,
+            50000.12,
+            notes="operator-goal7-reviewed-move",
+        )
+
+
+def test_operator_plan_rejects_non_goal6_root_provenance() -> None:
+    manager = _manager()
+    manager._root_order["ownership_provenance"] = "ADMIN_AUTOMATION_ROOT"
+
+    with patch(
+        "core.stealth_order_manager.evaluate_product_capability",
+        return_value=MagicMock(allowed=True),
+    ), pytest.raises(
+        Exception,
+        match="operator_move_source_not_eligible",
+    ):
+        manager.build_operator_stealth_move_plan(
+            STEALTH_ID,
+            50000.12,
+            notes="operator-goal7-reviewed-move",
+        )
+
+
+def test_operator_plan_accepts_goal6_root_placement_identity() -> None:
+    manager = _manager()
+    order = manager.in_memory_orders[STEALTH_ID]
+    order["anchor_repricing_state_json"][
+        "active_placement_client_order_id"
+    ] = STEALTH_ID
+    order["limit_price"] = 60000.0
+    root_placement = {
+        "client_order_id": STEALTH_ID,
+        "product_id": "BTC-USDC",
+        "side": "BUY",
+        "size": "0.00001",
+        "price": "60000",
+        "status": "OPEN",
+        "parent_order_id": None,
+        "retail_portfolio_id": PORTFOLIO_ID,
+        "exchange_order_id": None,
+        "allow_partial_fills": False,
+        "ownership_provenance": "ADMIN_MANUAL_ROOT",
+    }
+    manager._get_operator_move_parent_order.side_effect = (
+        lambda _value: root_placement
+    )
+
+    with patch(
+        "core.stealth_order_manager.evaluate_product_capability",
+        return_value=MagicMock(allowed=True),
+    ):
+        plan = manager.build_operator_stealth_move_plan(
+            STEALTH_ID,
+            50000.12,
+            notes="operator-goal7-reviewed-move",
+        )
+
+    assert plan.root_parent_client_order_id == STEALTH_ID
+    assert plan.old_exchange_order_id == RAW_SOURCE_ID
 
 
 def test_strict_profitability_never_fails_open() -> None:

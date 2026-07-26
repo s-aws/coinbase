@@ -73,7 +73,9 @@ class OperatorRevealedOrderMovementRuntime:
             quantized = (
                 requested / increment
             ).to_integral_value(rounding=rounding) * increment
-            base_size = Decimal(str(state["remaining_size"]))
+            base_size = Decimal(
+                str(state["_operator_move_source_placement"]["size"])
+            )
         except (InvalidOperation, KeyError, TypeError, ValueError):
             raise RuntimeError("operator_move_product_increment_invalid") from None
         if (
@@ -216,7 +218,10 @@ class OperatorRevealedOrderMovementRuntime:
             and str(plan["product_id"]) == str(definition["product_id"])
             and str(plan["side"]).upper()
             == str(definition["side"]).upper()
-            and size == Decimal(str(state["remaining_size"]))
+            and size
+            == Decimal(
+                str(state["_operator_move_source_placement"]["size"])
+            )
             and price % increment == 0
             and plan.get("post_only") is True
             and plan.get("zero_fill_validated") is True
@@ -552,6 +557,11 @@ class OperatorRevealedOrderMovementRuntime:
         state = state if isinstance(state, Mapping) else {}
         anchor = state.get("anchor_repricing_state_json")
         anchor = anchor if isinstance(anchor, Mapping) else {}
+        source_placement_reader = getattr(
+            self.manager,
+            "get_operator_stealth_move_source_placement",
+            None,
+        )
         try:
             executed = Decimal(str(state.get("executed_size") or "0"))
             remaining = Decimal(str(state["remaining_size"]))
@@ -562,6 +572,26 @@ class OperatorRevealedOrderMovementRuntime:
                 str(definition.get("target_movement") or "0")
             )
         except (InvalidOperation, KeyError, TypeError, ValueError):
+            raise RuntimeError("operator_move_zero_fill_not_proven") from None
+        try:
+            source_placement = (
+                source_placement_reader(str(definition["definition_id"]))
+                if callable(source_placement_reader)
+                else None
+            )
+            source_placement = (
+                source_placement
+                if isinstance(source_placement, Mapping)
+                else {}
+            )
+            source_size = Decimal(str(source_placement["size"]))
+        except (
+            InvalidOperation,
+            KeyError,
+            RuntimeError,
+            TypeError,
+            ValueError,
+        ):
             raise RuntimeError("operator_move_zero_fill_not_proven") from None
         if (
             str(state.get("status") or "").upper() != "REVEALED"
@@ -576,12 +606,33 @@ class OperatorRevealedOrderMovementRuntime:
             or not executed.is_finite()
             or executed != 0
             or not remaining.is_finite()
-            or remaining <= 0
+            or remaining != 0
+            or not source_size.is_finite()
+            or source_size <= 0
             or not str(anchor.get("active_placement_client_order_id") or "")
             or not str(anchor.get("active_exchange_order_id") or "")
+            or str(source_placement.get("client_order_id") or "")
+            != str(anchor.get("active_placement_client_order_id") or "")
+            or (
+                source_placement.get("exchange_order_id")
+                and str(source_placement.get("exchange_order_id"))
+                != str(anchor.get("active_exchange_order_id") or "")
+            )
+            or str(source_placement.get("product_id") or "")
+            != str(definition.get("product_id") or "")
+            or str(source_placement.get("side") or "").upper()
+            != str(definition.get("side") or "").upper()
+            or str(source_placement.get("status") or "").upper()
+            not in {"PENDING", "SUBMITTED", "OPEN"}
+            or source_placement.get("allow_partial_fills") is not False
+            or str(source_placement.get("retail_portfolio_id") or "")
+            != self.configured_portfolio_id
         ):
             raise RuntimeError("operator_move_zero_fill_not_proven")
-        return state
+        return {
+            **state,
+            "_operator_move_source_placement": dict(source_placement),
+        }
 
     @staticmethod
     def _require_size_product_bounds(
