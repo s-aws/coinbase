@@ -544,8 +544,8 @@ domain-separated credential-source names and regions only to the backend
 process, accepts no raw Futures portfolio UUID, makes no startup Coinbase
 call, passes no credential value to the frontend or BFF, and adds no action
 authority. Final exact-ref smoke evidence binds frontend
-`252a47bbcf50b261f236e6903b19bb59d7df3038` and backend
-`7ebe9de3325d8298c6517b5e6c851f8c1b187b3d`, reports Coinbase execution
+`fb79a49be1d0bbdf798def8dc5a3bca82a486e75` and backend
+`a0d1c3be3f57e9c6c744bf735b54b6e0a9722045`, reports Coinbase execution
 `not_run`, and reports notional `0`. Independent safety and blind-contextless
 delta audits found no P1/P2 issue.
 
