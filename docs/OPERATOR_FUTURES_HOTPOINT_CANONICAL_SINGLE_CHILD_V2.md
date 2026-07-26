@@ -509,9 +509,20 @@ source-blocker, and no-network tests are green. The canonical backend/frontend
 gates, installed deployment validation, independent safety and
 blind-contextless audits, and persistent Controlled-live handoff pass.
 Focused validation passed 196 backend tests and 156 frontend tests. Canonical
-regression passed 1,304 backend tests with 6 skipped in parallel and 976 with
-150 skipped and 1,310 deselected in serial, plus 1,904 frontend
+regression passed 1,315 backend tests with 6 skipped in parallel and 976 with
+150 skipped and 1,321 deselected in serial, plus 1,905 frontend
 unit/component tests and 34 authenticated managed browser tests.
+
+Installed launcher validation additionally proved that fixed allowlisted
+startup diagnostics may identify missing approved portfolio or
+credential-source bindings without exposing arbitrary exception text. The
+launcher supplies approved credential-source names and regions only to the
+backend process; it passes no credential value to the frontend or BFF and
+adds no action authority. Final exact-ref smoke evidence binds frontend
+`252a47bbcf50b261f236e6903b19bb59d7df3038` and backend
+`7ebe9de3325d8298c6517b5e6c851f8c1b187b3d`, reports Coinbase execution
+`not_run`, and reports notional `0`. Independent safety and blind-contextless
+delta audits found no P1/P2 issue.
 
 ## Historical translation
 

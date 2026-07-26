@@ -25,8 +25,8 @@ Implementation, generated-contract synchronization, focused and full
 backend/frontend gates, installed deployment validation, independent safety
 and blind-contextless audits, and persistent Controlled-live handoff pass.
 Focused validation passed 196 backend tests and 156 frontend tests. Canonical
-regression passed 1,304 backend tests with 6 skipped in parallel and 976 with
-150 skipped and 1,310 deselected in serial, plus 1,904 frontend
+regression passed 1,315 backend tests with 6 skipped in parallel and 976 with
+150 skipped and 1,321 deselected in serial, plus 1,905 frontend
 unit/component tests and 34 authenticated managed browser tests.
 The installed stack has no legitimately
 registered, reconciled, nonterminal Default-profile AVP source parent with
@@ -38,6 +38,18 @@ AVP position flat. The UI shows this durable source blocker, ARM/RUN remain
 unavailable, all ten eligibility cycles remain unused, and Preview, Create,
 reconciliation, and Cancel remain unconsumed. No Goal 13 Coinbase call or live
 proof occurred.
+
+The final installed-launcher remediation exposed only missing fixed
+configuration bindings: first the distinct Default Futures portfolio label,
+then the approved backend credential-source names and region. Startup
+readback is restricted to fixed allowlisted codes and arbitrary exception
+text remains withheld. The launcher passes no credential value to the
+frontend or BFF and does not broaden live authority. Independent safety and
+blind-contextless delta audits passed with no P1/P2 finding. Installed
+manifests and smoke evidence bind frontend
+`252a47bbcf50b261f236e6903b19bb59d7df3038` and backend
+`7ebe9de3325d8298c6517b5e6c851f8c1b187b3d`, with Coinbase execution
+`not_run` and notional `0`.
 
 Historical translation inspected
 `origin/prod:business/hotpoint_detector.py`,
