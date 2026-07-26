@@ -5,7 +5,7 @@ private model routing, private release planning, or internal research notes.
 
 ## Current Direction
 
-- Authorized Goal 12
+- Completed Goal 12
   `operator_spot_order_truth_and_exact_cancel_reconcile_v1` has completed its
   terminal implementation/validation checkpoint. It adds a normal
   authenticated Spot order inventory for exact approved-Test
@@ -20,8 +20,9 @@ private model routing, private release planning, or internal research notes.
   920/150-skipped/1,300-deselected serial; frontend validation passed 1,829
   unit/component and 33 authenticated E2E tests. Both independent audits pass,
   including the final remediation delta. Validation consumed no Coinbase call,
-  truth cycle, or Cancel allowance. Installed deployment and Controlled-live
-  status verification remain pending before operator-ready closeout. See
+  truth cycle, or Cancel allowance. The canonical release gate, installed
+  deployment, and persistent Controlled-live status verification pass with no
+  current service decision or eligible live path. See
   [Operator Spot Order Truth and Exact Cancel V1](OPERATOR_SPOT_ORDER_TRUTH_AND_EXACT_CANCEL_V1.md).
 
 - `operator_spot_automation_single_child_execution_adapter_v1` is at an

@@ -2,14 +2,15 @@
 
 Goal ID: `operator_spot_order_truth_and_exact_cancel_reconcile_v1`.
 
-Status: `terminal_implementation_validation_complete_deployment_pending`.
+Status: `terminal_operator_ready_controlled_live`.
 Focused and canonical regression validation plus independent safety and blind
-contextless audits pass, including the final remediation delta. The installed
-deployment and Controlled-live status verification remain pending, so this is
-not yet an operator-ready deployment closeout. The one global read-only truth
-cycle and the independent exact Cancel allowance are both unconsumed. No
-Coinbase call or exchange mutation was made during implementation,
-validation, or audit.
+contextless audits pass, including the final remediation delta. The canonical
+release gate, installed deployment check, and persistent Controlled-live
+status verification pass. The frontend listens on `0.0.0.0:3000`; the backend
+remains loopback-only on `127.0.0.1:8787`. The one global read-only truth cycle
+and the independent exact Cancel allowance are both unconsumed. No Coinbase
+call or exchange mutation was made during implementation, validation,
+deployment, or audit.
 
 ## Operator outcome
 
@@ -272,10 +273,10 @@ zero truth cycles, and zero exact Cancel allowances. Every immutable
 predecessor boundary remains unchanged, and R8 content and its hash remained
 inaccessible.
 
-The installed deployment check and Controlled-live status verification remain
-pending. Until they pass, Goal 12 must not be described as an operator-ready
-deployment closeout. A later deployment closeout must record those checks and
-continue to state that the truth-cycle and Cancel allowances remain
-unconsumed unless an independently authorized operator action actually spends
-them. An eligible Cancel must not be invented merely to consume the
-authorization.
+The installed deployment check and persistent Controlled-live status
+verification pass. Runtime execution authority is armed, while no current
+service decision or eligible path exists and deployment validation records
+zero Coinbase execution and zero notional. The truth-cycle and Cancel
+allowances remain unconsumed unless an independently authorized operator
+action actually spends them. An eligible Cancel must not be invented merely
+to consume the authorization.

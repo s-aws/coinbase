@@ -1,6 +1,6 @@
 # Maintainer Handoff
 
-## Current independent Goal 12 — terminal validation, deployment pending
+## Completed independent Goal 12 — operator-ready Controlled-live
 
 Goal `operator_spot_order_truth_and_exact_cancel_reconcile_v1` adds the
 approved-Test `CONSUMER` / `SPOT` order-operations workflow. A separate
@@ -51,9 +51,10 @@ remediation delta.
 Goal 12 made zero Coinbase calls during implementation, validation, and audit;
 its truth-cycle and exact Cancel allowances remain unconsumed. Every immutable
 predecessor evidence boundary remains preserved, and R8 content and its hash
-remained inaccessible. Installed deployment and Controlled-live status
-verification are still pending, so this is not yet an operator-ready
-deployment closeout. See
+remained inaccessible. The canonical release gate, installed deployment, and
+persistent Controlled-live status verification pass. The frontend listens on
+`0.0.0.0:3000`, the backend remains loopback-only, runtime authority is armed,
+and no current service decision or eligible path exists. See
 [Operator Spot Order Truth and Exact Cancel V1](OPERATOR_SPOT_ORDER_TRUTH_AND_EXACT_CANCEL_V1.md).
 
 ## Completed Goal 6 — Operator Spot recovery execution UI

@@ -1,5 +1,5 @@
 # Coinbase Admin MVP Goal
-## Current sequential Goal 12 — terminal validation, deployment pending
+## Completed sequential Goal 12 — operator-ready Controlled-live
 
 Goal ID: `operator_spot_order_truth_and_exact_cancel_reconcile_v1`.
 
@@ -21,9 +21,10 @@ passed 1,829 unit/component tests and 33 authenticated E2E tests. Independent
 safety and blind-contextless audits pass, including the final remediation
 delta. Implementation, validation, and audit made zero Coinbase calls. Every
 immutable predecessor boundary remains preserved and R8 content and its hash
-remained inaccessible. Installed deployment and Controlled-live status
-verification remain pending, so Goal 12 is not yet an operator-ready
-deployment closeout.
+remained inaccessible. The canonical release gate, installed deployment, and
+persistent Controlled-live status verification pass. The frontend listens on
+`0.0.0.0:3000`, the backend remains loopback-only, runtime authority is armed,
+and no current service decision or eligible live path exists.
 
 ## Completed sequential Goal 6
 

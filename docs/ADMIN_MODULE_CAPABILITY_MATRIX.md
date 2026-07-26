@@ -1,6 +1,6 @@
 # Admin Module Capability Matrix
 
-Current independent Goal 12 terminal implementation/validation checkpoint
+Completed independent Goal 12 operator-ready Controlled-live capability
 `operator_spot_order_truth_and_exact_cancel_reconcile_v1` adds
 PostgreSQL-backed approved-Test `CONSUMER` / `SPOT` order inventory, call-free
 list/detail/result reads, one goal-global no-retry catalog-refresh-or-exact-
@@ -15,8 +15,9 @@ regression passed 1,294 tests with 6 skipped in parallel and 920 tests with
 150 skipped and 1,300 deselected in serial. Frontend validation passed 1,829
 unit/component tests and 33 authenticated E2E tests. Independent safety and
 blind-contextless audits pass, including the final remediation delta. Zero
-Coinbase calls were made. Installed deployment and Controlled-live status
-verification remain pending before operator-ready closeout.
+Coinbase calls were made. The canonical release gate, installed deployment,
+and persistent Controlled-live status verification pass; no current service
+decision or eligible live path exists.
 
 Completed independent Goal 6
 `operator_spot_recovery_execution_ui_v1` provides the normal authenticated

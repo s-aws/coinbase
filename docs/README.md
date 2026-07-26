@@ -1,6 +1,6 @@
 # Documentation Index
 
-Current independent Goal 12 terminal implementation/validation checkpoint:
+Completed independent Goal 12 operator-ready Controlled-live closeout:
 [Operator Spot Order Truth and Exact Cancel V1](OPERATOR_SPOT_ORDER_TRUTH_AND_EXACT_CANCEL_V1.md).
 Goal `operator_spot_order_truth_and_exact_cancel_reconcile_v1` adds the normal
 authenticated approved-Test Spot inventory, one goal-global no-retry truth
@@ -14,8 +14,10 @@ canonical backend regression passed 1,294 tests with 6 skipped in parallel and
 passed 1,829 unit/component tests and 33 authenticated E2E tests. Independent
 safety and blind-contextless audits pass, including the final remediation
 delta. Zero Coinbase calls were made, and both allowances remain unconsumed.
-Installed deployment and Controlled-live status verification remain pending
-before operator-ready closeout.
+The canonical release gate, installed deployment check, and persistent
+Controlled-live status verification pass. The frontend is externally bound on
+port 3000 while the backend remains loopback-only; no current service decision
+or eligible path exists.
 
 Completed independent Goal 6:
 [Operator Spot Recovery Execution UI V1](OPERATOR_SPOT_RECOVERY_EXECUTION_UI_V1.md).
