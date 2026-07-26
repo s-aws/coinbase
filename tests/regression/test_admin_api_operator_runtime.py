@@ -588,6 +588,29 @@ def test_operator_runtime_withholds_unallowlisted_startup_error_text(
     assert "withheld private diagnostic" not in captured.err
 
 
+@pytest.mark.parametrize(
+    "diagnostic",
+    [
+        "operator_futures_default_credential_binding_missing",
+        "operator_coinbase_domain_credential_bindings_conflated",
+        "operator_futures_default_credential_binding_invalid",
+        "operator_spot_test_credential_binding_invalid",
+        "operator_coinbase_domain_credential_region_invalid",
+        "operator_futures_default_credential_resolution_failed",
+        "operator_futures_default_credential_source_invalid",
+        "operator_futures_default_credentials_missing",
+        "operator_futures_default_rest_client_unavailable",
+        "operator_futures_default_rest_client_not_configured",
+    ],
+)
+def test_operator_runtime_exposes_only_fixed_credential_diagnostics(
+    diagnostic: str,
+) -> None:
+    assert operator_runtime._startup_failure_diagnostic(
+        operator_runtime.OperatorAdminRuntimeError(diagnostic)
+    ) == diagnostic
+
+
 def test_operator_server_registers_uvicorn_ingress_as_runtime_stop_hook(
     monkeypatch,
 ) -> None:
