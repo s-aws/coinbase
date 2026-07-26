@@ -1,5 +1,36 @@
 # Maintainer Handoff
 
+## Completed operator Futures follow-up intent attachment
+
+Goal `operator_futures_follow_up_intent_attachment_v1` adds the local
+`GET/POST /api/v1/futures/order-operations/{client_order_id}/follow-up-intent`
+route pair and the normal authenticated Futures order-detail control.
+
+The backend revalidates an exact configured Default-profile source projection
+as `OPEN`, authoritative, one-contract, side-valid, observed, and
+exchange-hash-bound. It derives the opposite side, fixes one contract, and
+atomically stores one immutable intent/event. PostgreSQL owns source locking,
+unique-source duplicate prevention, payload-bound idempotency, root/source
+linkage, actor/roles, and audit correlation.
+
+This feature is local in either installed posture: it invokes no Coinbase
+client and creates no child. The operator acknowledgements do not become live
+authority. Historical comparison used `origin/prod:core/order_engine.py` and
+`origin/prod:dashboard_server.py`; no WebSocket or automatic execution path
+was copied. The separately authorized Goal 5 owns any later authoritative
+fill-triggered activation.
+
+Terminal closeout passed focused contracts, 1,286 parallel-safe plus 890
+serial backend regression tests, the complete frontend
+release/deployment/E2E gate, and both independent audits. Goal 4 made zero
+Coinbase calls.
+
+Current official CFM routes and installed
+`coinbase-advanced-py==1.8.4` signatures do not establish a published
+maintenance-era break. Goal 5 must still validate documented compatibility
+before a live-capable boundary and classify schema drift separately from
+credentials, entitlement, maintenance, and V3-policy ineligibility.
+
 ## Operator Futures product policy and selected ticket
 
 Goal `operator_futures_product_policy_and_ticket_expansion_v1` adds immutable

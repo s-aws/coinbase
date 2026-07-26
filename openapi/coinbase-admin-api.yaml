@@ -5941,6 +5941,200 @@ paths:
               schema:
                 $ref: '#/components/schemas/AdminApiErrorResponse'
           description: Service Unavailable
+  /api/v1/futures/order-operations/{client_order_id}/follow-up-intent:
+    get:
+      tags:
+      - futures
+      summary: Read one local Futures follow-up intent attachment
+      description: Read call-free attachment eligibility from PostgreSQL.
+      operationId: get_operator_futures_follow_up_intent_api_v1_futures_order_operations__client_order_id__follow_up_intent_get
+      parameters:
+      - name: client_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+          title: Client Order Id
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorFuturesFollowUpIntentReadResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unprocessable Content
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+    post:
+      tags:
+      - futures
+      summary: Attach one local backend-owned Futures follow-up intent
+      description: Persist an intent only; never invoke Coinbase or create a child.
+      operationId: attach_operator_futures_follow_up_intent_api_v1_futures_order_operations__client_order_id__follow_up_intent_post
+      parameters:
+      - name: client_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+          title: Client Order Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: attach_futures_follow_up_intent
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorFuturesFollowUpIntentAttachRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorFuturesFollowUpIntentAttachResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unprocessable Content
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
   /api/v1/futures/order-operations/refresh:
     post:
       tags:
@@ -161737,6 +161931,375 @@ components:
       - expected_revision
       title: OperatorFillInventoryRepairRefreshRequest
       description: Explicit consent for one no-retry logical fill-catalog read.
+    OperatorFuturesFollowUpIntentAttachRequest:
+      properties:
+        expected_source_observed_at:
+          type: string
+          maxLength: 128
+          minLength: 1
+          title: Expected Source Observed At
+        expected_source_evidence_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Expected Source Evidence Sha256
+        reason_code:
+          type: string
+          const: FULL_FILL_OPPOSITE_ONE_CONTRACT
+          title: Reason Code
+        acknowledge_future_materialization_requires_fresh_authorization:
+          type: boolean
+          const: true
+          title: Acknowledge Future Materialization Requires Fresh Authorization
+        acknowledge_no_coinbase_call_or_child_creation:
+          type: boolean
+          const: true
+          title: Acknowledge No Coinbase Call Or Child Creation
+      additionalProperties: false
+      type: object
+      required:
+      - expected_source_observed_at
+      - expected_source_evidence_sha256
+      - reason_code
+      - acknowledge_future_materialization_requires_fresh_authorization
+      - acknowledge_no_coinbase_call_or_child_creation
+      title: OperatorFuturesFollowUpIntentAttachRequest
+    OperatorFuturesFollowUpIntentAttachResponse:
+      properties:
+        type:
+          type: string
+          const: operator_futures_follow_up_intent_attach
+          title: Type
+          default: operator_futures_follow_up_intent_attach
+        goal_id:
+          type: string
+          const: operator_futures_follow_up_intent_attachment_v1
+          title: Goal Id
+        source_client_order_id:
+          type: string
+          title: Source Client Order Id
+        environment:
+          type: string
+          title: Environment
+        portfolio_profile_alias:
+          type: string
+          const: Default
+          title: Portfolio Profile Alias
+          default: Default
+        eligibility:
+          $ref: '#/components/schemas/OperatorFuturesFollowUpIntentEligibilityReadback'
+        follow_up_intent:
+          anyOf:
+          - $ref: '#/components/schemas/OperatorFuturesFollowUpIntentItem'
+          - type: 'null'
+        allowed_actions:
+          items:
+            type: string
+            const: ATTACH_FOLLOW_UP_INTENT
+          type: array
+          title: Allowed Actions
+        readback_source:
+          type: string
+          const: postgresql_projection
+          title: Readback Source
+          default: postgresql_projection
+        page_load_coinbase_calls:
+          type: integer
+          const: 0
+          title: Page Load Coinbase Calls
+          default: 0
+        coinbase_calls:
+          type: integer
+          const: 0
+          title: Coinbase Calls
+          default: 0
+        child_created:
+          type: boolean
+          const: false
+          title: Child Created
+          default: false
+        raw_responses_included:
+          type: boolean
+          const: false
+          title: Raw Responses Included
+          default: false
+        private_identifiers_included:
+          type: boolean
+          const: false
+          title: Private Identifiers Included
+          default: false
+        exception_text_included:
+          type: boolean
+          const: false
+          title: Exception Text Included
+          default: false
+        replayed:
+          type: boolean
+          title: Replayed
+      additionalProperties: false
+      type: object
+      required:
+      - goal_id
+      - source_client_order_id
+      - environment
+      - eligibility
+      - follow_up_intent
+      - allowed_actions
+      - replayed
+      title: OperatorFuturesFollowUpIntentAttachResponse
+    OperatorFuturesFollowUpIntentEligibilityReadback:
+      properties:
+        eligible:
+          type: boolean
+          title: Eligible
+        blockers:
+          items:
+            type: string
+          type: array
+          title: Blockers
+        source_found:
+          type: boolean
+          title: Source Found
+        source_product_configured:
+          type: boolean
+          title: Source Product Configured
+        source_status_open:
+          type: boolean
+          title: Source Status Open
+        source_authoritatively_nonterminal:
+          type: boolean
+          title: Source Authoritatively Nonterminal
+        source_exactly_one_contract:
+          type: boolean
+          title: Source Exactly One Contract
+        source_side_valid:
+          type: boolean
+          title: Source Side Valid
+        follow_up_intent_absent:
+          type: boolean
+          title: Follow Up Intent Absent
+        product_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Product Id
+        source_side:
+          anyOf:
+          - type: string
+            enum:
+            - BUY
+            - SELL
+          - type: 'null'
+          title: Source Side
+        derived_follow_up_side:
+          anyOf:
+          - type: string
+            enum:
+            - BUY
+            - SELL
+          - type: 'null'
+          title: Derived Follow Up Side
+        contract_count:
+          anyOf:
+          - type: string
+            const: '1'
+          - type: 'null'
+          title: Contract Count
+        source_status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source Status
+        source_observed_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source Observed At
+        source_evidence_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Source Evidence Sha256
+      additionalProperties: false
+      type: object
+      required:
+      - eligible
+      - blockers
+      - source_found
+      - source_product_configured
+      - source_status_open
+      - source_authoritatively_nonterminal
+      - source_exactly_one_contract
+      - source_side_valid
+      - follow_up_intent_absent
+      - product_id
+      - source_side
+      - derived_follow_up_side
+      - contract_count
+      - source_status
+      - source_observed_at
+      title: OperatorFuturesFollowUpIntentEligibilityReadback
+    OperatorFuturesFollowUpIntentItem:
+      properties:
+        goal_id:
+          type: string
+          const: operator_futures_follow_up_intent_attachment_v1
+          title: Goal Id
+        follow_up_intent_id:
+          type: string
+          title: Follow Up Intent Id
+        source_client_order_id:
+          type: string
+          title: Source Client Order Id
+        root_client_order_id:
+          type: string
+          title: Root Client Order Id
+        product_id:
+          type: string
+          title: Product Id
+        source_side:
+          type: string
+          enum:
+          - BUY
+          - SELL
+          title: Source Side
+        derived_follow_up_side:
+          type: string
+          enum:
+          - BUY
+          - SELL
+          title: Derived Follow Up Side
+        contract_count:
+          type: string
+          const: '1'
+          title: Contract Count
+        state:
+          type: string
+          const: ATTACHED
+          title: State
+        source_status_at_attach:
+          type: string
+          const: OPEN
+          title: Source Status At Attach
+        source_observed_at:
+          type: string
+          title: Source Observed At
+        source_evidence_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Source Evidence Sha256
+        reason_code:
+          type: string
+          const: FULL_FILL_OPPOSITE_ONE_CONTRACT
+          title: Reason Code
+        correlation_id:
+          type: string
+          title: Correlation Id
+        audit_id:
+          type: string
+          title: Audit Id
+        created_at:
+          type: string
+          title: Created At
+      additionalProperties: false
+      type: object
+      required:
+      - goal_id
+      - follow_up_intent_id
+      - source_client_order_id
+      - root_client_order_id
+      - product_id
+      - source_side
+      - derived_follow_up_side
+      - contract_count
+      - state
+      - source_status_at_attach
+      - source_observed_at
+      - source_evidence_sha256
+      - reason_code
+      - correlation_id
+      - audit_id
+      - created_at
+      title: OperatorFuturesFollowUpIntentItem
+    OperatorFuturesFollowUpIntentReadResponse:
+      properties:
+        type:
+          type: string
+          const: operator_futures_follow_up_intent_readback
+          title: Type
+          default: operator_futures_follow_up_intent_readback
+        goal_id:
+          type: string
+          const: operator_futures_follow_up_intent_attachment_v1
+          title: Goal Id
+        source_client_order_id:
+          type: string
+          title: Source Client Order Id
+        environment:
+          type: string
+          title: Environment
+        portfolio_profile_alias:
+          type: string
+          const: Default
+          title: Portfolio Profile Alias
+          default: Default
+        eligibility:
+          $ref: '#/components/schemas/OperatorFuturesFollowUpIntentEligibilityReadback'
+        follow_up_intent:
+          anyOf:
+          - $ref: '#/components/schemas/OperatorFuturesFollowUpIntentItem'
+          - type: 'null'
+        allowed_actions:
+          items:
+            type: string
+            const: ATTACH_FOLLOW_UP_INTENT
+          type: array
+          title: Allowed Actions
+        readback_source:
+          type: string
+          const: postgresql_projection
+          title: Readback Source
+          default: postgresql_projection
+        page_load_coinbase_calls:
+          type: integer
+          const: 0
+          title: Page Load Coinbase Calls
+          default: 0
+        coinbase_calls:
+          type: integer
+          const: 0
+          title: Coinbase Calls
+          default: 0
+        child_created:
+          type: boolean
+          const: false
+          title: Child Created
+          default: false
+        raw_responses_included:
+          type: boolean
+          const: false
+          title: Raw Responses Included
+          default: false
+        private_identifiers_included:
+          type: boolean
+          const: false
+          title: Private Identifiers Included
+          default: false
+        exception_text_included:
+          type: boolean
+          const: false
+          title: Exception Text Included
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - goal_id
+      - source_client_order_id
+      - environment
+      - eligibility
+      - follow_up_intent
+      - allowed_actions
+      title: OperatorFuturesFollowUpIntentReadResponse
     OperatorFuturesManualCallReadback:
       properties:
         outcome:

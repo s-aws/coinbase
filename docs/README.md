@@ -1,5 +1,17 @@
 # Documentation Index
 
+Completed independent Goal 4:
+[Operator Futures Follow-Up Intent V1](OPERATOR_FUTURES_FOLLOW_UP_INTENT_V1.md).
+Goal `operator_futures_follow_up_intent_attachment_v1` lets an authenticated
+operator attach one immutable backend-derived opposite-side, one-contract
+intent to one eligible Default-profile Futures source order. PostgreSQL owns
+source/root binding, one-slot duplicate prevention, exact idempotency, and
+audit. It makes zero Coinbase calls and creates no child.
+Focused/full backend and frontend gates plus independent safety and
+blind-contextless audits pass. The next authorized independent goal is
+`operator_futures_fill_triggered_follow_up_activation_v1`, with a documented
+post-maintenance CFM/SDK compatibility gate before any live-capable boundary.
+
 Current independent Goal 3:
 [Operator Futures Product Policy And Ticket V1](OPERATOR_FUTURES_PRODUCT_POLICY_AND_TICKET_V1.md).
 Goal `operator_futures_product_policy_and_ticket_expansion_v1` provides

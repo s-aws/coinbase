@@ -1,5 +1,28 @@
 # Coinbase Trading Backend
 
+## Operator Futures follow-up intent attachment
+
+Goal `operator_futures_follow_up_intent_attachment_v1` adds one normal
+authenticated local action to the exact Futures order-detail workflow. For an
+eligible configured Default-profile `OPEN`, authoritative, one-contract
+source projection, the backend derives the opposite side and persists one
+immutable root/source-bound intent plus audit event in PostgreSQL.
+
+The UI forwards only the exact backend observation/hash binding and two
+explicit acknowledgements. Duplicate source attachment and changed
+idempotency reuse fail closed. The action makes zero Coinbase calls, creates
+no child, and grants no materialization authority. See
+[the Goal 4 design](docs/OPERATOR_FUTURES_FOLLOW_UP_INTENT_V1.md).
+
+Goal 4 passed focused contracts, the full backend regression (1,286
+parallel-safe plus 890 serial tests), the full frontend
+release/deployment/E2E gate, and both independent audits. The next authorized
+goal is `operator_futures_fill_triggered_follow_up_activation_v1`. Current
+official CFM routes and pinned SDK signatures show no established published
+maintenance-era break, but the successor must still validate documented
+compatibility and fail closed on schema drift before any live-capable
+boundary.
+
 ## Operator Futures product policy and selected ticket
 
 Goal `operator_futures_product_policy_and_ticket_expansion_v1` adds an

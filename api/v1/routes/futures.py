@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import asdict
 from datetime import datetime, timezone
 import os
 from typing import Annotated, Any, Literal, TypeVar
@@ -138,6 +139,20 @@ from application.admin_api.operator_futures_order_operations_service_runtime imp
     OPERATOR_FUTURES_ORDER_OPERATIONS_ENABLED_ENV,
     get_default_operator_futures_order_operations_service,
     get_operator_futures_order_operations_execution_posture,
+)
+from application.admin_api.operator_futures_follow_up_intent import (
+    FuturesFollowUpIntentReadback,
+    FuturesFollowUpIntentRequestContext,
+    OperatorFuturesFollowUpIntentService,
+)
+from application.admin_api.operator_futures_follow_up_intent_models import (
+    OperatorFuturesFollowUpIntentAttachRequest,
+    OperatorFuturesFollowUpIntentAttachResponse,
+    OperatorFuturesFollowUpIntentReadResponse,
+)
+from application.admin_api.operator_futures_follow_up_intent_service_runtime import (
+    OPERATOR_FUTURES_FOLLOW_UP_INTENT_ENABLED_ENV,
+    get_default_operator_futures_follow_up_intent_service,
 )
 from application.admin_api.operator_futures_position_lifecycle import (
     FuturesPositionGoalRecord,
@@ -280,6 +295,19 @@ def require_operator_futures_order_operations_enabled() -> None:
         )
 
 
+def require_operator_futures_follow_up_intent_enabled() -> None:
+    if (
+        os.environ.get(
+            OPERATOR_FUTURES_FOLLOW_UP_INTENT_ENABLED_ENV
+        )
+        != "1"
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="operator_futures_follow_up_intent_disabled",
+        )
+
+
 def get_operator_futures_position_lifecycle_service(
 ) -> OperatorFuturesPositionLifecycleService:
     try:
@@ -321,6 +349,17 @@ def get_operator_futures_order_operations_service(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="operator_futures_order_operations_backend_unavailable",
+        ) from None
+
+
+def get_operator_futures_follow_up_intent_service(
+) -> OperatorFuturesFollowUpIntentService:
+    try:
+        return get_default_operator_futures_follow_up_intent_service()
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="operator_futures_follow_up_intent_backend_unavailable",
         ) from None
 
 
@@ -1122,6 +1161,65 @@ def _raise_futures_order_operations(exc: ValueError) -> None:
     ) from None
 
 
+def _futures_follow_up_intent_response(
+    readback: FuturesFollowUpIntentReadback,
+    *,
+    actor: AdminApiActor,
+    replayed: bool | None = None,
+) -> (
+    OperatorFuturesFollowUpIntentReadResponse
+    | OperatorFuturesFollowUpIntentAttachResponse
+):
+    allowed_actions: list[Literal["ATTACH_FOLLOW_UP_INTENT"]] = []
+    if (
+        readback.eligibility.eligible
+        and readback.follow_up_intent is None
+        and actor_has_permission(actor, AdminApiPermission.ORDER_CREATE)
+    ):
+        allowed_actions.append("ATTACH_FOLLOW_UP_INTENT")
+    payload = {
+        "goal_id": readback.goal_id,
+        "source_client_order_id": readback.source_client_order_id,
+        "environment": os.environ.get(
+            "COINBASE_ADMIN_API_ENVIRONMENT", "local"
+        ),
+        "eligibility": asdict(readback.eligibility),
+        "follow_up_intent": (
+            asdict(readback.follow_up_intent)
+            if readback.follow_up_intent is not None
+            else None
+        ),
+        "allowed_actions": allowed_actions,
+        "coinbase_calls": readback.coinbase_calls,
+        "child_created": readback.child_created,
+        "raw_responses_included": readback.raw_responses_included,
+        "private_identifiers_included": (
+            readback.private_identifiers_included
+        ),
+        "exception_text_included": readback.exception_text_included,
+    }
+    if replayed is None:
+        return OperatorFuturesFollowUpIntentReadResponse(**payload)
+    return OperatorFuturesFollowUpIntentAttachResponse(
+        **payload,
+        replayed=replayed,
+    )
+
+
+def _raise_futures_follow_up_intent(exc: ValueError) -> None:
+    code = (
+        str(exc.args[0])
+        if len(exc.args) == 1
+        and isinstance(exc.args[0], str)
+        and exc.args[0].startswith("operator_futures_follow_up_intent_")
+        else "operator_futures_follow_up_intent_failed"
+    )
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail=code,
+    ) from None
+
+
 def _require_futures_order_operations_cancel_runtime() -> None:
     if not get_operator_futures_order_operations_execution_posture().ready:
         raise HTTPException(
@@ -1475,6 +1573,114 @@ def get_operator_futures_order(
         order=item,
     )
     return JSONResponse(content=jsonable_encoder(response))
+
+
+@router.get(
+    "/futures/order-operations/{client_order_id}/follow-up-intent",
+    response_model=OperatorFuturesFollowUpIntentReadResponse,
+    responses=FUTURES_MANUAL_ROUTE_RESPONSES,
+    summary="Read one local Futures follow-up intent attachment",
+)
+def get_operator_futures_follow_up_intent(
+    client_order_id: Annotated[
+        str,
+        Path(min_length=1, max_length=128),
+    ],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[
+        OperatorFuturesFollowUpIntentService,
+        Depends(get_operator_futures_follow_up_intent_service),
+    ],
+) -> JSONResponse:
+    """Read call-free attachment eligibility from PostgreSQL."""
+
+    require_operator_futures_follow_up_intent_enabled()
+    require_permission(actor, AdminApiPermission.ANALYTICS_READ)
+    try:
+        readback = service.read(client_order_id)
+    except ValueError as exc:
+        _raise_futures_follow_up_intent(exc)
+    return JSONResponse(
+        content=jsonable_encoder(
+            _futures_follow_up_intent_response(
+                readback,
+                actor=actor,
+            )
+        )
+    )
+
+
+@router.post(
+    "/futures/order-operations/{client_order_id}/follow-up-intent",
+    response_model=OperatorFuturesFollowUpIntentAttachResponse,
+    responses=FUTURES_MANUAL_ROUTE_RESPONSES,
+    summary="Attach one local backend-owned Futures follow-up intent",
+)
+def attach_operator_futures_follow_up_intent(
+    body: OperatorFuturesFollowUpIntentAttachRequest,
+    client_order_id: Annotated[
+        str,
+        Path(min_length=1, max_length=128),
+    ],
+    idempotency_key: Annotated[
+        str,
+        Header(alias="Idempotency-Key", min_length=1, max_length=255),
+    ],
+    correlation_id: Annotated[
+        str,
+        Header(alias="X-Correlation-Id", min_length=1, max_length=255),
+    ],
+    operator_intent: Annotated[
+        Literal["attach_futures_follow_up_intent"],
+        Header(alias="X-Operator-Intent"),
+    ],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[
+        OperatorFuturesFollowUpIntentService,
+        Depends(get_operator_futures_follow_up_intent_service),
+    ],
+) -> JSONResponse:
+    """Persist an intent only; never invoke Coinbase or create a child."""
+
+    require_operator_futures_follow_up_intent_enabled()
+    require_permission(actor, AdminApiPermission.ORDER_CREATE)
+    try:
+        readback, replayed = service.attach(
+            context=FuturesFollowUpIntentRequestContext(
+                actor_id=actor.actor_id,
+                roles=tuple(role.value for role in actor.roles),
+                idempotency_key=idempotency_key,
+                correlation_id=correlation_id,
+                audit_id=str(uuid4()),
+                operator_intent=operator_intent,
+                reason_code=body.reason_code,
+                acknowledge_future_materialization_requires_fresh_authorization=(
+                    body
+                    .acknowledge_future_materialization_requires_fresh_authorization
+                ),
+                acknowledge_no_coinbase_call_or_child_creation=(
+                    body.acknowledge_no_coinbase_call_or_child_creation
+                ),
+            ),
+            source_client_order_id=client_order_id,
+            expected_source_observed_at=(
+                body.expected_source_observed_at
+            ),
+            expected_source_evidence_sha256=(
+                body.expected_source_evidence_sha256
+            ),
+        )
+    except ValueError as exc:
+        _raise_futures_follow_up_intent(exc)
+    return JSONResponse(
+        content=jsonable_encoder(
+            _futures_follow_up_intent_response(
+                readback,
+                actor=actor,
+                replayed=replayed,
+            )
+        )
+    )
 
 
 @router.post(

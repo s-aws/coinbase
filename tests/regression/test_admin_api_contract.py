@@ -76945,6 +76945,11 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         in futures_module["read_routes"]
     )
     assert (
+        "GET /api/v1/futures/order-operations/"
+        "{client_order_id}/follow-up-intent"
+        in futures_module["read_routes"]
+    )
+    assert (
         "POST /api/v1/futures/order-operations/refresh"
         in futures_module["command_routes"]
     )
@@ -76957,11 +76962,16 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "POST /api/v1/futures/order-operations/{client_order_id}/cancel"
         in futures_module["command_routes"]
     )
+    assert (
+        "POST /api/v1/futures/order-operations/"
+        "{client_order_id}/follow-up-intent"
+        in futures_module["command_routes"]
+    )
     assert futures_module["support_status"] == (
         AdminApiModuleSupportStatus.PLATFORM_READY.value
     )
-    assert futures_module["action_posture"]["read_route_count"] == 14
-    assert futures_module["action_posture"]["command_route_count"] == 19
+    assert futures_module["action_posture"]["read_route_count"] == 15
+    assert futures_module["action_posture"]["command_route_count"] == 20
     assert futures_module["action_posture"]["live_route_count"] == 7
     assert futures_module["action_posture"]["command_gap_count"] == 3
     futures_gaps = {

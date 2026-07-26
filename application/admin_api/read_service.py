@@ -16558,6 +16558,96 @@ class AdminApiReadService:
                 live_adapter_required=False,
             ),
             mutation_taxonomy_item(
+                mutation_id="futures.follow_up_intent_attach",
+                mutation_family=(
+                    AdminApiMutationFamilyType.FUTURES_ORDER_OPERATIONS
+                ),
+                workflow_id=(
+                    "operator_futures_follow_up_intent_attachment_v1"
+                ),
+                module_id="futures_perpetuals",
+                module="Futures / Perpetuals",
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED
+                ),
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "An authenticated operator may attach one immutable, "
+                    "backend-derived opposite-side one-contract intent to one "
+                    "eligible Default-profile Futures source order."
+                ),
+                command_surfaces=[
+                    "POST /api/v1/futures/order-operations/"
+                    "{client_order_id}/follow-up-intent",
+                ],
+                action_classes=[
+                    AdminApiActionClass.LOCAL_STATE_MUTATION,
+                ],
+                required_permissions=[
+                    AdminApiPermission.ORDER_CREATE,
+                ],
+                identity_keys=[
+                    "goal_id",
+                    "source_client_order_id",
+                    "root_client_order_id",
+                    "source_evidence_sha256",
+                    "correlation_id",
+                ],
+                idempotency_contract=(
+                    "required actor-, role-, source-binding-, intent-, reason-, "
+                    "and acknowledgement-bound exact replay"
+                ),
+                approval_contract=(
+                    "no live approval; explicit acknowledgement that future "
+                    "materialization requires fresh authority and that this "
+                    "action makes zero Coinbase calls"
+                ),
+                cap_guard_contract=(
+                    "one configured Default-profile Futures source, one "
+                    "opposite-side one-contract intent, zero child and zero "
+                    "exchange calls"
+                ),
+                admission_audit_contract=(
+                    "immutable PostgreSQL source binding, duplicate prevention, "
+                    "actor/correlation evidence, and append-only event required"
+                ),
+                reconciliation_contract=(
+                    "attachment binds the current authoritative OPEN source "
+                    "projection; later fill/materialization revalidation belongs "
+                    "to a separate workflow"
+                ),
+                owning_backend_service=(
+                    "application/admin_api/"
+                    "operator_futures_follow_up_intent.py"
+                ),
+                backend_contract_refs=[
+                    "api/v1/routes/futures.py::"
+                    "attach_operator_futures_follow_up_intent",
+                    "application/admin_api/"
+                    "operator_futures_follow_up_intent.py",
+                    "database/operator_futures_follow_up_intent.py",
+                ],
+                frontend_contract_refs=[
+                    "src/features/operator-read-models/futures/"
+                    "FuturesFollowUpIntentPanel.tsx",
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_FUTURES_FOLLOW_UP_INTENT_V1.md",
+                ],
+                frontend_boundary=(
+                    "Render backend eligibility and derived terms and forward "
+                    "only the exact source binding and acknowledgements."
+                ),
+                spot_rule_boundary=(
+                    "Spot Test-profile, wallet, notional, profitability, and "
+                    "follow-up materialization rules do not authorize this "
+                    "Default-profile Futures local intent."
+                ),
+                approval_required=False,
+                cap_guard_required=False,
+                live_adapter_required=False,
+            ),
+            mutation_taxonomy_item(
                 mutation_id="futures.order_operations_cancel",
                 mutation_family=(
                     AdminApiMutationFamilyType.FUTURES_ORDER_OPERATIONS
