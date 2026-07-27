@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import hashlib
+from multiprocessing import Event as ProcessEvent
+from multiprocessing import Process
+from threading import Event, Thread
+import time
 from typing import Any
 
 import pytest
@@ -9,8 +13,11 @@ import pytest
 from application.admin_api.operator_parent_move_premark_runtime import (
     FailClosedParentMoveRuntime,
     LocalParentMovePlanningTerms,
+    OperatorParentMoveLifecycleCoordinator,
     OperatorParentMovePremarkApiService,
     build_operator_parent_move_premark_api_service,
+    get_default_operator_parent_move_premark_api_service,
+    reset_operator_parent_move_premark_runtime_for_tests,
 )
 from application.admin_api.operator_parent_move_premark_policy import (
     POLICY_REVISION,
@@ -24,6 +31,19 @@ from application.admin_api.operator_parent_move_premark_service import (
 
 SOURCE_ID = "11111111-1111-4111-8111-111111111111"
 PORTFOLIO_ID = "22222222-2222-4222-8222-222222222222"
+
+
+def _hold_lifecycle_lock_until_terminated(
+    lock_root: str,
+    entered: ProcessEvent,
+) -> None:
+    coordinator = OperatorParentMoveLifecycleCoordinator(
+        lock_root=lock_root
+    )
+    with coordinator.exclusive():
+        entered.set()
+        while True:
+            time.sleep(0.1)
 
 
 @dataclass
@@ -177,6 +197,74 @@ def test_fail_closed_runtime_never_crosses_boundary() -> None:
         )
 
     assert crossed is False
+
+
+def test_lifecycle_coordinator_waits_for_os_released_exclusive_owner(
+    tmp_path,
+) -> None:
+    first = OperatorParentMoveLifecycleCoordinator(lock_root=tmp_path)
+    second = OperatorParentMoveLifecycleCoordinator(lock_root=tmp_path)
+    first_entered = Event()
+    release_first = Event()
+    second_entered = Event()
+
+    def hold_first() -> None:
+        with first.exclusive():
+            first_entered.set()
+            assert release_first.wait(timeout=2)
+
+    def enter_second() -> None:
+        assert first_entered.wait(timeout=2)
+        with second.exclusive():
+            second_entered.set()
+
+    first_thread = Thread(target=hold_first)
+    second_thread = Thread(target=enter_second)
+    first_thread.start()
+    second_thread.start()
+    assert first_entered.wait(timeout=2)
+    assert second_entered.wait(timeout=0.1) is False
+    release_first.set()
+    assert second_entered.wait(timeout=2)
+    first_thread.join(timeout=2)
+    second_thread.join(timeout=2)
+    assert first_thread.is_alive() is False
+    assert second_thread.is_alive() is False
+
+
+def test_default_service_fails_closed_before_explicit_runtime_recovery() -> None:
+    reset_operator_parent_move_premark_runtime_for_tests()
+    try:
+        with pytest.raises(
+            OperatorParentMoveServiceError,
+            match="operator_parent_move_runtime_not_initialized",
+        ):
+            get_default_operator_parent_move_premark_api_service()
+    finally:
+        reset_operator_parent_move_premark_runtime_for_tests()
+
+
+def test_lifecycle_lock_is_released_when_owner_process_dies(tmp_path) -> None:
+    entered = ProcessEvent()
+    owner = Process(
+        target=_hold_lifecycle_lock_until_terminated,
+        args=(str(tmp_path), entered),
+    )
+    owner.start()
+    try:
+        assert entered.wait(timeout=3)
+        owner.terminate()
+        owner.join(timeout=3)
+        assert owner.is_alive() is False
+        replacement = OperatorParentMoveLifecycleCoordinator(
+            lock_root=tmp_path
+        )
+        with replacement.exclusive():
+            pass
+    finally:
+        if owner.is_alive():
+            owner.terminate()
+            owner.join(timeout=3)
 
 
 def test_durable_plan_remains_readable_after_source_disappears() -> None:

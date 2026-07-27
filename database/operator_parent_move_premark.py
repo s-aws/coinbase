@@ -291,6 +291,15 @@ class OperatorParentMovePremarkRepository:
             )
             cursor.execute(
                 f"""
+                CREATE UNIQUE INDEX IF NOT EXISTS
+                    operator_parent_move_premark_cycle_correlation_unique
+                ON {self.prefix}operator_parent_move_premark_cycle(
+                    goal_id, correlation_id
+                )
+                """
+            )
+            cursor.execute(
+                f"""
                 CREATE TABLE IF NOT EXISTS
                     {self.prefix}operator_parent_move_premark_claim (
                     goal_id TEXT NOT NULL REFERENCES
@@ -393,6 +402,18 @@ class OperatorParentMovePremarkRepository:
                     {self.prefix}reject_parent_move_premark_event_mutation()
                 """
             )
+
+    def recover_stranded_work(self) -> None:
+        """Recover work only after the caller proves exclusive ownership.
+
+        Schema installation is intentionally side-effect free with respect to
+        command state.  The application runtime owns the OS-released lifecycle
+        lock and calls this method before operator ingress; repository
+        construction alone must never reinterpret an active exchange boundary
+        as a dead worker.
+        """
+
+        with self.database.get_cursor() as cursor:
             self._recover_boundary_crossed(cursor)
             self._recover_pre_boundary_inflight(cursor)
 
@@ -814,22 +835,14 @@ class OperatorParentMovePremarkRepository:
         except OperatorParentMovePremarkError:
             return None
         with self.database.get_cursor() as cursor:
-            cursor.execute(
-                f"""
-                SELECT *
-                FROM {self.prefix}operator_parent_move_premark_goal
-                WHERE goal_id = %s
-                """,
-                (GOAL_ID,),
-            )
-            rows = _rows(cursor)
-            if not rows:
+            snapshot = self._projection_snapshot(cursor)
+            if snapshot is None:
                 return None
-            if str(rows[0]["source_client_order_id"]) != source_id:
+            if str(snapshot["source_client_order_id"]) != source_id:
                 raise OperatorParentMovePremarkConflict(
                     "operator_parent_move_goal_allowance_unavailable"
                 )
-            return self._project(cursor, rows[0])
+            return self._project_snapshot(snapshot)
 
     def begin_execute(
         self,
@@ -1284,6 +1297,8 @@ class OperatorParentMovePremarkRepository:
         self,
         *,
         source_client_order_id: str,
+        correlation_id: str,
+        cycle_number: int,
         outcome: str,
         diagnostic_code: str,
         exchange_evidence_sha256: str | None = None,
@@ -1291,6 +1306,8 @@ class OperatorParentMovePremarkRepository:
         return self._record_mutation_outcome(
             source_client_order_id=source_client_order_id,
             reserved_successor_client_order_id=None,
+            correlation_id=correlation_id,
+            cycle_number=cycle_number,
             action="SOURCE_CANCEL",
             outcome=outcome,
             diagnostic_code=diagnostic_code,
@@ -1345,6 +1362,8 @@ class OperatorParentMovePremarkRepository:
         self,
         *,
         source_client_order_id: str,
+        correlation_id: str,
+        cycle_number: int,
         outcome: str,
         diagnostic_code: str,
         exchange_evidence_sha256: str | None = None,
@@ -1352,6 +1371,8 @@ class OperatorParentMovePremarkRepository:
         return self._record_mutation_outcome(
             source_client_order_id=source_client_order_id,
             reserved_successor_client_order_id=None,
+            correlation_id=correlation_id,
+            cycle_number=cycle_number,
             action="REPLACEMENT_CREATE",
             outcome=outcome,
             diagnostic_code=diagnostic_code,
@@ -1413,6 +1434,8 @@ class OperatorParentMovePremarkRepository:
         *,
         source_client_order_id: str,
         reserved_successor_client_order_id: str,
+        correlation_id: str,
+        cycle_number: int,
         outcome: str,
         diagnostic_code: str,
         exchange_evidence_sha256: str | None = None,
@@ -1422,6 +1445,8 @@ class OperatorParentMovePremarkRepository:
             reserved_successor_client_order_id=(
                 reserved_successor_client_order_id
             ),
+            correlation_id=correlation_id,
+            cycle_number=cycle_number,
             action="SUCCESSOR_CLOSEOUT_CANCEL",
             outcome=outcome,
             diagnostic_code=diagnostic_code,
@@ -1678,7 +1703,8 @@ class OperatorParentMovePremarkRepository:
                 )
             cursor.execute(
                 f"""
-                SELECT claim_state, allowance_consumed
+                SELECT claim_state, allowance_consumed, cycle_number,
+                       correlation_id
                 FROM {self.prefix}operator_parent_move_premark_claim
                 WHERE goal_id = %s AND action = %s
                 FOR UPDATE
@@ -1701,6 +1727,15 @@ class OperatorParentMovePremarkRepository:
                 correlation_id=correlation_id,
                 phase=phase,
             )
+            if reusable_claim and (
+                int(existing_claims[0]["cycle_number"])
+                == int(cycle["cycle_number"])
+                or str(existing_claims[0]["correlation_id"])
+                == correlation_id
+            ):
+                raise OperatorParentMovePremarkConflict(
+                    "operator_parent_move_mutation_allowance_unavailable"
+                )
             if action == "SOURCE_CANCEL" and not row[
                 "source_follow_up_suppressed"
             ]:
@@ -1832,11 +1867,23 @@ class OperatorParentMovePremarkRepository:
         *,
         source_client_order_id: str,
         reserved_successor_client_order_id: str | None,
+        correlation_id: str,
+        cycle_number: int,
         action: str,
         outcome: str,
         diagnostic_code: str,
         exchange_evidence_sha256: str | None,
     ) -> dict[str, Any]:
+        self._require_evidence_id(correlation_id)
+        if (
+            not isinstance(cycle_number, int)
+            or isinstance(cycle_number, bool)
+            or cycle_number < 1
+            or cycle_number > MAX_CYCLES
+        ):
+            raise OperatorParentMovePremarkError(
+                "operator_parent_move_cycle_number_invalid"
+            )
         self._require_diagnostic(diagnostic_code)
         allowed = {
             "SOURCE_CANCEL": frozenset(
@@ -1864,12 +1911,25 @@ class OperatorParentMovePremarkRepository:
                 )
             cursor.execute(
                 f"""
-                SELECT claim_state, allowance_consumed
-                FROM {self.prefix}operator_parent_move_premark_claim
-                WHERE goal_id = %s AND action = %s
-                FOR UPDATE
+                SELECT c.claim_state, c.allowance_consumed
+                FROM {self.prefix}operator_parent_move_premark_claim AS c
+                JOIN {self.prefix}operator_parent_move_premark_cycle AS cy
+                  ON cy.goal_id = c.goal_id
+                 AND cy.cycle_number = c.cycle_number
+                WHERE c.goal_id = %s AND c.action = %s
+                  AND c.correlation_id = %s
+                  AND c.cycle_number = %s
+                  AND cy.correlation_id = %s
+                  AND cy.completion_status = 'IN_FLIGHT'
+                FOR UPDATE OF c, cy
                 """,
-                (GOAL_ID, action),
+                (
+                    GOAL_ID,
+                    action,
+                    correlation_id,
+                    cycle_number,
+                    correlation_id,
+                ),
             )
             claims = _rows(cursor)
             if len(claims) != 1:
@@ -1905,6 +1965,11 @@ class OperatorParentMovePremarkRepository:
                     exchange_evidence_sha256 = %s,
                     resolved_at = NOW()
                 WHERE goal_id = %s AND action = %s
+                  AND correlation_id = %s
+                  AND cycle_number = %s
+                  AND claim_state = %s
+                  AND allowance_consumed = %s
+                RETURNING cycle_number
                 """,
                 (
                     "UNKNOWN" if outcome == "UNKNOWN" else "RETURNED",
@@ -1912,8 +1977,16 @@ class OperatorParentMovePremarkRepository:
                     exchange_evidence_sha256,
                     GOAL_ID,
                     action,
+                    correlation_id,
+                    cycle_number,
+                    claims[0]["claim_state"],
+                    claims[0]["allowance_consumed"],
                 ),
             )
+            if len(_rows(cursor)) != 1:
+                raise OperatorParentMovePremarkConflict(
+                    "operator_parent_move_mutation_outcome_conflict"
+                )
             state = _outcome_state(action, outcome)
             cursor.execute(
                 f"""
@@ -2251,11 +2324,12 @@ class OperatorParentMovePremarkRepository:
                     raise OperatorParentMovePremarkConflict(
                         "operator_parent_move_restart_recovery_invalid"
                     )
-                if (
+                clear_safe_suppression = (
                     str(cycle["phase"]) == "EXECUTE"
-                    and state == "PLANNED"
+                    and state in {"PLANNED", *_SAFE_SUPPRESSION_FINAL_STATES}
                     and cycle["source_follow_up_suppressed"] is True
-                ):
+                )
+                if clear_safe_suppression:
                     if (
                         cycle["suppression_correlation_id"]
                         != cycle["correlation_id"]
@@ -2279,6 +2353,21 @@ class OperatorParentMovePremarkRepository:
                         cursor,
                         "operator_parent_move_goal_not_found",
                     )
+                    if state in _SAFE_SUPPRESSION_FINAL_STATES:
+                        self._append_event(
+                            cursor,
+                            source_client_order_id=source_id,
+                            event_type="SOURCE_SUPPRESSION_FINALIZED",
+                            diagnostic_code=(
+                                "operator_parent_move_source_"
+                                "suppression_finalized"
+                            ),
+                            evidence={
+                                "active": False,
+                                "restart_recovered": True,
+                                "state": state,
+                            },
+                        )
                 else:
                     cursor.execute(
                         f"""
@@ -2367,39 +2456,78 @@ class OperatorParentMovePremarkRepository:
         cycle: Mapping[str, Any] | None = None,
         command_replayed: bool = False,
     ) -> dict[str, Any]:
+        _ = (row, cycle)
+        snapshot = self._projection_snapshot(cursor)
+        if snapshot is None:
+            raise OperatorParentMovePremarkConflict(
+                "operator_parent_move_goal_not_found"
+            )
+        return self._project_snapshot(
+            snapshot,
+            command_replayed=command_replayed,
+        )
+
+    def _projection_snapshot(self, cursor: Any) -> dict[str, Any] | None:
+        """Read the goal and cycle summary from one MVCC statement."""
+
         cursor.execute(
             f"""
-            SELECT COUNT(*)
-            FROM {self.prefix}operator_parent_move_premark_cycle
-            WHERE goal_id = %s
+            SELECT
+                g.*,
+                (
+                    SELECT COUNT(*)
+                    FROM {self.prefix}operator_parent_move_premark_cycle AS cc
+                    WHERE cc.goal_id = g.goal_id
+                ) AS projection_cycle_count,
+                latest.cycle_number AS projection_latest_cycle_number,
+                latest.phase AS projection_latest_cycle_phase,
+                latest.completion_status
+                    AS projection_latest_cycle_status,
+                latest.correlation_id
+                    AS projection_latest_cycle_correlation_id,
+                latest.actor_id_sha256
+                    AS projection_latest_cycle_actor_id_sha256,
+                latest.idempotency_key_sha256
+                    AS projection_latest_cycle_idempotency_key_sha256,
+                latest.payload_sha256
+                    AS projection_latest_cycle_payload_sha256,
+                latest.evidence_sha256
+                    AS projection_latest_cycle_evidence_sha256,
+                active.cycle_number AS projection_active_cycle_number,
+                active.phase AS projection_active_cycle_phase,
+                active.completion_status
+                    AS projection_active_cycle_status
+            FROM {self.prefix}operator_parent_move_premark_goal AS g
+            LEFT JOIN LATERAL (
+                SELECT cy.*
+                FROM {self.prefix}operator_parent_move_premark_cycle AS cy
+                WHERE cy.goal_id = g.goal_id
+                ORDER BY cy.cycle_number DESC
+                LIMIT 1
+            ) AS latest ON TRUE
+            LEFT JOIN LATERAL (
+                SELECT cy.cycle_number, cy.phase, cy.completion_status
+                FROM {self.prefix}operator_parent_move_premark_cycle AS cy
+                WHERE cy.goal_id = g.goal_id
+                  AND cy.completion_status = 'IN_FLIGHT'
+                ORDER BY cy.cycle_number DESC
+                LIMIT 1
+            ) AS active ON TRUE
+            WHERE g.goal_id = %s
             """,
             (GOAL_ID,),
         )
-        cycle_count = int(cursor.fetchone()[0])
-        cursor.execute(
-            f"""
-            SELECT *
-            FROM {self.prefix}operator_parent_move_premark_cycle
-            WHERE goal_id = %s
-            ORDER BY cycle_number DESC
-            LIMIT 1
-            """,
-            (GOAL_ID,),
-        )
-        latest_rows = _rows(cursor)
-        latest = latest_rows[0] if latest_rows else None
-        cursor.execute(
-            f"""
-            SELECT *
-            FROM {self.prefix}operator_parent_move_premark_cycle
-            WHERE goal_id = %s AND completion_status = 'IN_FLIGHT'
-            ORDER BY cycle_number DESC
-            LIMIT 1
-            """,
-            (GOAL_ID,),
-        )
-        active_rows = _rows(cursor)
-        active = active_rows[0] if active_rows else None
+        rows = _rows(cursor)
+        return rows[0] if rows else None
+
+    @staticmethod
+    def _project_snapshot(
+        row: Mapping[str, Any],
+        *,
+        command_replayed: bool = False,
+    ) -> dict[str, Any]:
+        latest_cycle_number = row["projection_latest_cycle_number"]
+        active_cycle_number = row["projection_active_cycle_number"]
         return {
             "goal_id": str(row["goal_id"]),
             "state": str(row["state"]),
@@ -2434,56 +2562,69 @@ class OperatorParentMovePremarkRepository:
             "successor_closeout_cancel_call_count": int(
                 row["successor_closeout_cancel_call_count"]
             ),
-            "cycle_count": cycle_count,
+            "cycle_count": int(row["projection_cycle_count"]),
             "latest_cycle_number": (
-                int(latest["cycle_number"]) if latest is not None else None
+                int(latest_cycle_number)
+                if latest_cycle_number is not None
+                else None
             ),
             "latest_cycle_phase": (
-                str(latest["phase"]) if latest is not None else None
+                str(row["projection_latest_cycle_phase"])
+                if latest_cycle_number is not None
+                else None
             ),
             "latest_cycle_status": (
-                str(latest["completion_status"])
-                if latest is not None
+                str(row["projection_latest_cycle_status"])
+                if latest_cycle_number is not None
                 else None
             ),
             "latest_cycle_correlation_id": (
-                str(latest["correlation_id"])
-                if latest is not None
+                str(row["projection_latest_cycle_correlation_id"])
+                if latest_cycle_number is not None
                 else None
             ),
             "latest_cycle_actor_id_sha256": (
-                str(latest["actor_id_sha256"])
-                if latest is not None
+                str(row["projection_latest_cycle_actor_id_sha256"])
+                if latest_cycle_number is not None
                 else None
             ),
             "latest_cycle_idempotency_key_sha256": (
-                str(latest["idempotency_key_sha256"])
-                if latest is not None
+                str(
+                    row[
+                        "projection_latest_cycle_idempotency_key_sha256"
+                    ]
+                )
+                if latest_cycle_number is not None
                 else None
             ),
             "latest_cycle_payload_sha256": (
-                str(latest["payload_sha256"])
-                if latest is not None
+                str(row["projection_latest_cycle_payload_sha256"])
+                if latest_cycle_number is not None
                 else None
             ),
             "latest_cycle_evidence_sha256": (
                 (
-                    str(latest["evidence_sha256"])
-                    if latest["evidence_sha256"] is not None
+                    str(row["projection_latest_cycle_evidence_sha256"])
+                    if row["projection_latest_cycle_evidence_sha256"]
+                    is not None
                     else None
                 )
-                if latest is not None
+                if latest_cycle_number is not None
                 else None
             ),
             "active_cycle_number": (
-                int(active["cycle_number"]) if active is not None else None
+                int(active_cycle_number)
+                if active_cycle_number is not None
+                else None
             ),
             "active_cycle_phase": (
-                str(active["phase"]) if active is not None else None
+                str(row["projection_active_cycle_phase"])
+                if active_cycle_number is not None
+                else None
             ),
             "active_cycle_status": (
-                str(active["completion_status"])
-                if active is not None
+                str(row["projection_active_cycle_status"])
+                if active_cycle_number is not None
                 else None
             ),
             "command_replayed": command_replayed,
@@ -2849,7 +2990,7 @@ def get_default_operator_parent_move_premark_repository(
 
 
 def initialize_operator_parent_move_premark_schema() -> None:
-    """Install and recover the Goal 14 ledger before operator ingress."""
+    """Install Goal 14 schema only; application runtime owns recovery."""
 
     get_default_operator_parent_move_premark_repository().ensure_schema()
 

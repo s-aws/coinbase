@@ -69,6 +69,16 @@ The separate Goal 14 PostgreSQL ledger owns:
 - append-only fixed-code audit events;
 - hash-only actor, idempotency, payload, and completion evidence.
 
+Schema installation performs DDL and compatible migrations only; it never
+interprets an in-flight command as a dead worker. Before operator ingress, the
+application runtime obtains one OS-released lifecycle lock and then runs
+explicit stranded-work recovery. The same lock spans each complete Premark,
+future Execute, or future closeout command, including any external-call gap,
+so startup recovery cannot race a live worker. Reused pre-boundary claims bind
+their result to the exact cycle and correlation, and a stale prior result
+cannot resolve a later claim. Operator GET readback projects the goal, latest
+cycle, and active cycle from one PostgreSQL MVCC statement.
+
 Raw command idempotency keys, raw Coinbase responses, raw exchange identities,
 exception messages, secrets, private portfolio identity, and withheld text are
 neither persisted nor returned. Legacy raw idempotency columns are migrated to
@@ -115,7 +125,9 @@ acknowledgement failure remains fail-closed.
 Schema upgrade also re-arms the active fence for any older row that proves its
 source-Cancel allowance was consumed but has neither an active fence nor a
 durable cancellation-event acknowledgement. This repair runs before restart
-recovery or runtime ingress.
+recovery or runtime ingress. Explicit recovery clears an active suppression
+only for a locally safe pre-boundary abort or a known `SOURCE_CANCEL_REJECTED`
+result bound to the same cycle; an unknown Cancel outcome retains the fence.
 
 The legacy dashboard `move_order` and `premark_move` commands are
 source-disabled. They cannot bypass the Admin API ledger.

@@ -409,11 +409,11 @@ def initialize_operator_spot_order_truth_schema() -> None:
 def initialize_operator_parent_move_premark_schema() -> None:
     """Create and recover the Goal 14 parent-move ledger."""
 
-    from database.operator_parent_move_premark import (
-        initialize_operator_parent_move_premark_schema as initialize_schema,
+    from application.admin_api.operator_parent_move_premark_runtime import (
+        initialize_operator_parent_move_premark_runtime as initialize_runtime,
     )
 
-    initialize_schema()
+    initialize_runtime()
 
 
 def main(argv: Sequence[str] | None = None) -> int:

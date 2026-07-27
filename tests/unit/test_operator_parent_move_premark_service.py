@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from contextlib import nullcontext
+
 import pytest
 
 from application.admin_api.operator_parent_move_premark_policy import (
@@ -20,6 +22,12 @@ SOURCE_ID = "11111111-1111-4111-8111-111111111111"
 SUCCESSOR_ID = "22222222-2222-4222-8222-222222222222"
 PORTFOLIO_SHA256 = "a" * 64
 CONFIRMATION_SHA256 = "b" * 64
+
+
+class _LifecycleCoordinator:
+    @staticmethod
+    def exclusive():
+        return nullcontext()
 
 
 def _source() -> dict[str, object]:
@@ -188,6 +196,9 @@ class FakeRepository:
             "replacement_create_call_count": (
                 self.replacement_create_call_count
             ),
+            "active_cycle_number": (
+                self.cycles_used if self.cycles_used > 0 else None
+            ),
         }
 
     def get_execute_replay(
@@ -269,6 +280,8 @@ class FakeRepository:
         self,
         *,
         source_client_order_id,
+        correlation_id,
+        cycle_number,
         outcome,
         diagnostic_code,
         exchange_evidence_sha256=None,
@@ -308,6 +321,8 @@ class FakeRepository:
         self,
         *,
         source_client_order_id,
+        correlation_id,
+        cycle_number,
         outcome,
         diagnostic_code,
         exchange_evidence_sha256=None,
@@ -347,6 +362,7 @@ class FakeRepository:
             "state": self.state,
             "plan": self.plan,
             "command_replayed": False,
+            "active_cycle_number": self.cycles_used,
         }
 
     def claim_successor_closeout_cancel(
@@ -377,6 +393,8 @@ class FakeRepository:
         *,
         source_client_order_id,
         reserved_successor_client_order_id,
+        correlation_id,
+        cycle_number,
         outcome,
         diagnostic_code,
         exchange_evidence_sha256=None,
@@ -471,6 +489,7 @@ def _service(
         repository=repository,
         order_repository=order_repository or FakeOrderRepository(),
         runtime=runtime,
+        lifecycle_coordinator=_LifecycleCoordinator(),
         policy_terms=policy_terms or _terms(),
         legacy_pending_move_checker=lambda _source_id: (
             repository.legacy_pending
@@ -515,6 +534,7 @@ def test_default_successor_identity_is_deterministic_for_exact_replay() -> None:
         repository=repository,
         order_repository=order_repository,
         runtime=FakeRuntime(),
+        lifecycle_coordinator=_LifecycleCoordinator(),
         policy_terms=_terms(),
         legacy_pending_move_checker=lambda _source_id: False,
     )
@@ -545,6 +565,7 @@ def test_exact_premark_replay_returns_before_mutable_source_reads() -> None:
         repository=repository,
         order_repository=order_repository,
         runtime=FakeRuntime(),
+        lifecycle_coordinator=_LifecycleCoordinator(),
         policy_terms=_terms(),
         legacy_pending_move_checker=lambda _source_id: False,
     )

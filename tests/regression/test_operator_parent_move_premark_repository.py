@@ -4,12 +4,16 @@ import hashlib
 import json
 import os
 import re
+from threading import Event, Thread
 import uuid
 
 import pytest
 from psycopg2 import sql
 from psycopg2.errors import RaiseException
 
+from application.admin_api.operator_parent_move_premark_runtime import (
+    OperatorParentMoveLifecycleCoordinator,
+)
 from database.database import PostgresDB
 from database.operator_parent_move_premark import (
     GOAL_ID,
@@ -122,6 +126,18 @@ def _begin_execute(
     )
 
 
+def _active_cycle_number(
+    repository: OperatorParentMovePremarkRepository,
+) -> int:
+    projection = repository.get_goal(
+        str(_plan()["source_client_order_id"])
+    )
+    assert projection is not None
+    value = projection["active_cycle_number"]
+    assert isinstance(value, int)
+    return value
+
+
 def _source_cancelled(
     repository: OperatorParentMovePremarkRepository,
 ) -> None:
@@ -139,6 +155,8 @@ def _source_cancelled(
     )
     repository.record_source_cancel_outcome(
         source_client_order_id=str(_plan()["source_client_order_id"]),
+        correlation_id="goal14-execute-one",
+        cycle_number=_active_cycle_number(repository),
         outcome="CANCELLED",
         diagnostic_code="operator_parent_move_source_cancelled",
         exchange_evidence_sha256="c" * 64,
@@ -159,6 +177,8 @@ def _replacement_created(
     )
     repository.record_replacement_create_outcome(
         source_client_order_id=str(_plan()["source_client_order_id"]),
+        correlation_id="goal14-execute-one",
+        cycle_number=_active_cycle_number(repository),
         outcome="ACCEPTED",
         diagnostic_code="operator_parent_move_replacement_accepted",
         exchange_evidence_sha256="b" * 64,
@@ -482,6 +502,12 @@ def test_source_cancel_requires_durable_suppression_and_restart_consumes_boundar
         schema=repository.schema,
     )
     restarted.ensure_schema()
+    before_recovery = restarted.get_goal(source_id)
+    assert before_recovery is not None
+    assert before_recovery["state"] == "SOURCE_CANCEL_BOUNDARY_CROSSED"
+    assert before_recovery["latest_cycle_status"] == "IN_FLIGHT"
+
+    restarted.recover_stranded_work()
     restored = restarted.get_goal(source_id)
 
     assert restored is not None
@@ -566,6 +592,7 @@ def test_restart_recovers_pre_boundary_execute_without_consuming_allowance(
         schema=repository.schema,
     )
     restarted.ensure_schema()
+    restarted.recover_stranded_work()
     restored = restarted.get_goal(source_id)
 
     assert restored is not None
@@ -605,6 +632,8 @@ def test_execute_claims_are_ordered_nontransferable_and_exactly_once(
     )
     accepted = repository.record_replacement_create_outcome(
         source_client_order_id=str(_plan()["source_client_order_id"]),
+        correlation_id="goal14-execute-one",
+        cycle_number=_active_cycle_number(repository),
         outcome="ACCEPTED",
         diagnostic_code="operator_parent_move_replacement_accepted",
         exchange_evidence_sha256="b" * 64,
@@ -713,6 +742,8 @@ def test_pre_boundary_rejection_is_terminal_without_consuming_call(
 
     rejected = repository.record_source_cancel_outcome(
         source_client_order_id=source_id,
+        correlation_id="goal14-execute-one",
+        cycle_number=_active_cycle_number(repository),
         outcome="REJECTED",
         diagnostic_code="operator_parent_move_source_cancel_rejected",
     )
@@ -752,6 +783,8 @@ def test_crossed_success_outcome_requires_sanitized_exchange_evidence(
     ):
         repository.record_source_cancel_outcome(
             source_client_order_id=source_id,
+            correlation_id="goal14-execute-one",
+            cycle_number=_active_cycle_number(repository),
             outcome="CANCELLED",
             diagnostic_code="operator_parent_move_source_cancelled",
         )
@@ -810,6 +843,228 @@ def test_pre_boundary_abort_releases_unconsumed_claim_for_later_cycle(
     assert reclaimed["source_cancel_allowance_consumed"] is False
 
 
+def test_stale_aborted_claim_outcome_cannot_resolve_reused_claim(
+    repository: OperatorParentMovePremarkRepository,
+) -> None:
+    _create_plan(repository)
+    first = _begin_execute(repository)
+    source_id = str(_plan()["source_client_order_id"])
+    first_cycle = int(first["active_cycle_number"])
+    repository.activate_source_follow_up_suppression(
+        source_client_order_id=source_id,
+        correlation_id="goal14-execute-one",
+    )
+    repository.claim_source_cancel(
+        source_client_order_id=source_id,
+        correlation_id="goal14-execute-one",
+    )
+    repository.abort_source_cancel_before_boundary(
+        source_client_order_id=source_id,
+        correlation_id="goal14-execute-one",
+        diagnostic_code="operator_parent_move_source_cancel_pre_call_abort",
+    )
+    repository.complete_cycle(
+        source_client_order_id=source_id,
+        correlation_id="goal14-execute-one",
+        idempotency_key="goal14-execute-key-one",
+        diagnostic_code="operator_parent_move_source_cancel_pre_call_abort",
+    )
+
+    second = _begin_execute(repository, suffix="two")
+    second_cycle = int(second["active_cycle_number"])
+    assert second_cycle > first_cycle
+    repository.activate_source_follow_up_suppression(
+        source_client_order_id=source_id,
+        correlation_id="goal14-execute-two",
+    )
+    repository.claim_source_cancel(
+        source_client_order_id=source_id,
+        correlation_id="goal14-execute-two",
+    )
+
+    with pytest.raises(
+        OperatorParentMovePremarkConflict,
+        match="operator_parent_move_mutation_outcome_conflict",
+    ):
+        repository.record_source_cancel_outcome(
+            source_client_order_id=source_id,
+            correlation_id="goal14-execute-one",
+            cycle_number=first_cycle,
+            outcome="REJECTED",
+            diagnostic_code="operator_parent_move_source_cancel_rejected",
+        )
+
+    unchanged = repository.get_goal(source_id)
+    assert unchanged is not None
+    assert unchanged["state"] == "SOURCE_CANCEL_CLAIMED"
+    assert unchanged["active_cycle_number"] == second_cycle
+    assert unchanged["source_cancel_allowance_consumed"] is False
+    assert unchanged["source_cancel_call_count"] == 0
+
+    exact = repository.record_source_cancel_outcome(
+        source_client_order_id=source_id,
+        correlation_id="goal14-execute-two",
+        cycle_number=second_cycle,
+        outcome="REJECTED",
+        diagnostic_code="operator_parent_move_source_cancel_rejected",
+    )
+    assert exact["state"] == "SOURCE_CANCEL_REJECTED"
+
+
+def test_restart_finalizes_known_rejected_source_suppression(
+    repository: OperatorParentMovePremarkRepository,
+) -> None:
+    _create_plan(repository)
+    begun = _begin_execute(repository)
+    source_id = str(_plan()["source_client_order_id"])
+    cycle_number = int(begun["active_cycle_number"])
+    repository.activate_source_follow_up_suppression(
+        source_client_order_id=source_id,
+        correlation_id="goal14-execute-one",
+    )
+    repository.claim_source_cancel(
+        source_client_order_id=source_id,
+        correlation_id="goal14-execute-one",
+    )
+    rejected = repository.record_source_cancel_outcome(
+        source_client_order_id=source_id,
+        correlation_id="goal14-execute-one",
+        cycle_number=cycle_number,
+        outcome="REJECTED",
+        diagnostic_code="operator_parent_move_source_cancel_rejected",
+    )
+    assert rejected["source_follow_up_suppressed"] is True
+
+    restarted = OperatorParentMovePremarkRepository(
+        repository.database,
+        schema=repository.schema,
+    )
+    restarted.ensure_schema()
+    before_recovery = restarted.get_goal(source_id)
+    assert before_recovery is not None
+    assert before_recovery["state"] == "SOURCE_CANCEL_REJECTED"
+    assert before_recovery["source_follow_up_suppressed"] is True
+    assert before_recovery["latest_cycle_status"] == "IN_FLIGHT"
+
+    restarted.recover_stranded_work()
+    restored = restarted.get_goal(source_id)
+    assert restored is not None
+    assert restored["state"] == "SOURCE_CANCEL_REJECTED"
+    assert restored["source_follow_up_suppressed"] is False
+    assert restored["source_cancel_allowance_consumed"] is False
+    assert restored["source_cancel_call_count"] == 0
+    assert restored["latest_cycle_status"] == "COMPLETED"
+
+
+def test_recovery_waits_for_live_lifecycle_owner(
+    repository: OperatorParentMovePremarkRepository,
+    tmp_path,
+) -> None:
+    _create_plan(repository)
+    begun = _begin_execute(repository)
+    source_id = str(_plan()["source_client_order_id"])
+    cycle_number = int(begun["active_cycle_number"])
+    first = OperatorParentMoveLifecycleCoordinator(lock_root=tmp_path)
+    second = OperatorParentMoveLifecycleCoordinator(lock_root=tmp_path)
+    recovery_started = Event()
+    recovery_finished = Event()
+    recovery_errors: list[type[BaseException]] = []
+    restarted = OperatorParentMovePremarkRepository(
+        repository.database,
+        schema=repository.schema,
+    )
+    restarted.ensure_schema()
+
+    def recover() -> None:
+        recovery_started.set()
+        try:
+            with second.exclusive():
+                restarted.recover_stranded_work()
+        except BaseException as exc:
+            recovery_errors.append(type(exc))
+        finally:
+            recovery_finished.set()
+
+    with first.exclusive():
+        repository.activate_source_follow_up_suppression(
+            source_client_order_id=source_id,
+            correlation_id="goal14-execute-one",
+        )
+        repository.claim_source_cancel(
+            source_client_order_id=source_id,
+            correlation_id="goal14-execute-one",
+        )
+        repository.mark_source_cancel_boundary_crossed(
+            source_client_order_id=source_id,
+            correlation_id="goal14-execute-one",
+        )
+        recovery_thread = Thread(target=recover)
+        recovery_thread.start()
+        assert recovery_started.wait(timeout=2)
+        assert recovery_finished.wait(timeout=0.1) is False
+        still_active = repository.get_goal(source_id)
+        assert still_active is not None
+        assert still_active["state"] == "SOURCE_CANCEL_BOUNDARY_CROSSED"
+        repository.record_source_cancel_outcome(
+            source_client_order_id=source_id,
+            correlation_id="goal14-execute-one",
+            cycle_number=cycle_number,
+            outcome="UNKNOWN",
+            diagnostic_code="operator_parent_move_source_cancel_unknown",
+        )
+        repository.complete_cycle(
+            source_client_order_id=source_id,
+            correlation_id="goal14-execute-one",
+            idempotency_key="goal14-execute-key-one",
+            diagnostic_code="operator_parent_move_source_cancel_unknown",
+        )
+
+    assert recovery_finished.wait(timeout=2)
+    recovery_thread.join(timeout=2)
+    assert recovery_thread.is_alive() is False
+    assert recovery_errors == []
+    restored = repository.get_goal(source_id)
+    assert restored is not None
+    assert restored["state"] == "SOURCE_CANCEL_UNKNOWN"
+    assert restored["latest_cycle_status"] == "COMPLETED"
+
+
+def test_restart_keeps_unknown_source_suppression_fail_closed(
+    repository: OperatorParentMovePremarkRepository,
+) -> None:
+    _create_plan(repository)
+    begun = _begin_execute(repository)
+    source_id = str(_plan()["source_client_order_id"])
+    repository.activate_source_follow_up_suppression(
+        source_client_order_id=source_id,
+        correlation_id="goal14-execute-one",
+    )
+    repository.claim_source_cancel(
+        source_client_order_id=source_id,
+        correlation_id="goal14-execute-one",
+    )
+    repository.record_source_cancel_outcome(
+        source_client_order_id=source_id,
+        correlation_id="goal14-execute-one",
+        cycle_number=int(begun["active_cycle_number"]),
+        outcome="UNKNOWN",
+        diagnostic_code="operator_parent_move_source_cancel_unknown",
+    )
+
+    restarted = OperatorParentMovePremarkRepository(
+        repository.database,
+        schema=repository.schema,
+    )
+    restarted.ensure_schema()
+    restarted.recover_stranded_work()
+    restored = restarted.get_goal(source_id)
+
+    assert restored is not None
+    assert restored["state"] == "SOURCE_CANCEL_UNKNOWN"
+    assert restored["source_follow_up_suppressed"] is True
+    assert restored["latest_cycle_status"] == "COMPLETED"
+
+
 @pytest.mark.parametrize("cancel_event_acknowledged", [False, True])
 def test_restart_recovers_replacement_claim_for_create_only_resume(
     repository: OperatorParentMovePremarkRepository,
@@ -833,6 +1088,7 @@ def test_restart_recovers_replacement_claim_for_create_only_resume(
         schema=repository.schema,
     )
     restarted.ensure_schema()
+    restarted.recover_stranded_work()
     restored = restarted.get_goal(source_id)
 
     assert restored is not None
@@ -893,6 +1149,7 @@ def test_restart_recovers_pre_boundary_closeout_without_consuming_allowance(
         schema=repository.schema,
     )
     restarted.ensure_schema()
+    restarted.recover_stranded_work()
     restored = restarted.get_goal(source_id)
 
     assert restored is not None
@@ -964,6 +1221,7 @@ def test_closeout_is_bound_to_reserved_successor_and_unknown_on_restart(
         schema=repository.schema,
     )
     restarted.ensure_schema()
+    restarted.recover_stranded_work()
     restored = restarted.get_goal(
         str(_plan()["source_client_order_id"])
     )
@@ -995,16 +1253,35 @@ def test_create_and_closeout_pre_boundary_aborts_preserve_allowances(
     )
     assert create_aborted["state"] == "SOURCE_CANCELLED"
     assert create_aborted["replacement_create_allowance_consumed"] is False
-    repository.claim_replacement_create(
+    with pytest.raises(
+        OperatorParentMovePremarkConflict,
+        match="operator_parent_move_mutation_allowance_unavailable",
+    ):
+        repository.claim_replacement_create(
+            source_client_order_id=source_id,
+            correlation_id="goal14-execute-one",
+        )
+    repository.complete_cycle(
         source_client_order_id=source_id,
         correlation_id="goal14-execute-one",
+        idempotency_key="goal14-execute-key-one",
+        diagnostic_code=(
+            "operator_parent_move_replacement_create_pre_call_abort"
+        ),
+    )
+    _begin_execute(repository, suffix="two")
+    repository.claim_replacement_create(
+        source_client_order_id=source_id,
+        correlation_id="goal14-execute-two",
     )
     repository.mark_replacement_create_boundary_crossed(
         source_client_order_id=source_id,
-        correlation_id="goal14-execute-one",
+        correlation_id="goal14-execute-two",
     )
     repository.record_replacement_create_outcome(
         source_client_order_id=source_id,
+        correlation_id="goal14-execute-two",
+        cycle_number=_active_cycle_number(repository),
         outcome="ACCEPTED",
         diagnostic_code="operator_parent_move_replacement_accepted",
         exchange_evidence_sha256="b" * 64,
@@ -1012,8 +1289,8 @@ def test_create_and_closeout_pre_boundary_aborts_preserve_allowances(
     assert repository.acknowledge_source_cancel_event_suppression(source_id)
     repository.complete_cycle(
         source_client_order_id=source_id,
-        correlation_id="goal14-execute-one",
-        idempotency_key="goal14-execute-key-one",
+        correlation_id="goal14-execute-two",
+        idempotency_key="goal14-execute-key-two",
         diagnostic_code="operator_parent_move_execute_completed",
     )
     repository.begin_closeout(
@@ -1047,10 +1324,36 @@ def test_create_and_closeout_pre_boundary_aborts_preserve_allowances(
         ]
         is False
     )
+    with pytest.raises(
+        OperatorParentMovePremarkConflict,
+        match="operator_parent_move_mutation_allowance_unavailable",
+    ):
+        repository.claim_successor_closeout_cancel(
+            source_client_order_id=source_id,
+            reserved_successor_client_order_id=successor_id,
+            correlation_id="goal14-closeout-abort",
+        )
+    repository.complete_cycle(
+        source_client_order_id=source_id,
+        correlation_id="goal14-closeout-abort",
+        idempotency_key="goal14-closeout-abort",
+        diagnostic_code=(
+            "operator_parent_move_closeout_cancel_pre_call_abort"
+        ),
+    )
+    repository.begin_closeout(
+        source_client_order_id=source_id,
+        reserved_successor_client_order_id=successor_id,
+        expected_plan_sha256=_plan_sha(),
+        actor_id="operator",
+        correlation_id="goal14-closeout-two",
+        idempotency_key="goal14-closeout-two",
+        payload_sha256=_sha("goal14-closeout-two"),
+    )
     repository.claim_successor_closeout_cancel(
         source_client_order_id=source_id,
         reserved_successor_client_order_id=successor_id,
-        correlation_id="goal14-closeout-abort",
+        correlation_id="goal14-closeout-two",
     )
 
 

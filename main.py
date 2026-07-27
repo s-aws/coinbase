@@ -126,12 +126,14 @@ if __name__ == "__main__":
             spot_portfolio_binding.observed_portfolio_id,
         )
 
-    from database.operator_parent_move_premark import (
-        get_default_operator_parent_move_premark_repository,
+    from application.admin_api.operator_parent_move_premark_runtime import (
+        get_default_operator_parent_move_premark_goal_repository,
+        initialize_operator_parent_move_premark_runtime,
     )
 
+    initialize_operator_parent_move_premark_runtime()
     parent_move_repository = (
-        get_default_operator_parent_move_premark_repository()
+        get_default_operator_parent_move_premark_goal_repository()
     )
     cancelled_follow_up_suppression_checker = (
         parent_move_repository.should_suppress_source_cancel_follow_up

@@ -9,7 +9,9 @@ immediately before its one permitted exchange call.
 
 from __future__ import annotations
 
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
+from functools import wraps
 import hashlib
 import json
 import re
@@ -166,6 +168,10 @@ class ParentMoveGoalRepository(Protocol):
     ) -> Mapping[str, Any]: ...
 
 
+class ParentMoveLifecycleCoordinator(Protocol):
+    def exclusive(self) -> AbstractContextManager[None]: ...
+
+
 class ParentMoveRuntime(Protocol):
     def cancel_source(
         self,
@@ -189,6 +195,19 @@ class ParentMoveRuntime(Protocol):
     ) -> ParentMoveRuntimeOutcome: ...
 
 
+def _exclusive_lifecycle(operation: Callable[..., Any]) -> Callable[..., Any]:
+    @wraps(operation)
+    def serialized(
+        self: "OperatorParentMovePremarkService",
+        *args: Any,
+        **kwargs: Any,
+    ) -> Any:
+        with self.lifecycle_coordinator.exclusive():
+            return operation(self, *args, **kwargs)
+
+    return serialized
+
+
 class OperatorParentMovePremarkService:
     """Coordinate premark, ordered Cancel/Create, and exact-child closeout."""
 
@@ -198,6 +217,7 @@ class OperatorParentMovePremarkService:
         repository: ParentMoveGoalRepository,
         order_repository: ParentMoveOrderRepository,
         runtime: ParentMoveRuntime,
+        lifecycle_coordinator: ParentMoveLifecycleCoordinator,
         policy_terms: ParentMovePremarkPolicyTerms | None = None,
         legacy_pending_move_checker: Callable[[str], bool],
         reserved_successor_client_order_id_factory: (
@@ -209,6 +229,7 @@ class OperatorParentMovePremarkService:
         self.repository = repository
         self.order_repository = order_repository
         self.runtime = runtime
+        self.lifecycle_coordinator = lifecycle_coordinator
         self.policy_terms = policy_terms or ParentMovePremarkPolicyTerms()
         self.legacy_pending_move_checker = legacy_pending_move_checker
         self.reserved_successor_client_order_id_factory = (
@@ -224,6 +245,7 @@ class OperatorParentMovePremarkService:
             _canonical_uuid(source_client_order_id)
         )
 
+    @_exclusive_lifecycle
     def premark(
         self,
         *,
@@ -316,6 +338,7 @@ class OperatorParentMovePremarkService:
             payload_sha256=payload_sha256,
         )
 
+    @_exclusive_lifecycle
     def execute(
         self,
         *,
@@ -369,6 +392,7 @@ class OperatorParentMovePremarkService:
         )
         if bool(begun.get("command_replayed")):
             return begun
+        cycle_number = self._active_cycle_number(begun)
         if resume_replacement_create:
             if not self._replacement_resume_ready(begun):
                 self._fail("operator_parent_move_execute_resume_conflict")
@@ -417,6 +441,8 @@ class OperatorParentMovePremarkService:
                 )
             result = self.repository.record_source_cancel_outcome(
                 source_client_order_id=source_id,
+                correlation_id=context.correlation_id,
+                cycle_number=cycle_number,
                 outcome=cancel.classification,
                 diagnostic_code=cancel.diagnostic_code,
                 exchange_evidence_sha256=cancel.exchange_evidence_sha256,
@@ -475,6 +501,8 @@ class OperatorParentMovePremarkService:
             )
         result = self.repository.record_replacement_create_outcome(
             source_client_order_id=source_id,
+            correlation_id=context.correlation_id,
+            cycle_number=cycle_number,
             outcome=create.classification,
             diagnostic_code=create.diagnostic_code,
             exchange_evidence_sha256=create.exchange_evidence_sha256,
@@ -486,6 +514,7 @@ class OperatorParentMovePremarkService:
             fallback=result,
         )
 
+    @_exclusive_lifecycle
     def safe_closeout(
         self,
         *,
@@ -530,6 +559,7 @@ class OperatorParentMovePremarkService:
         )
         if bool(begun.get("command_replayed")):
             return begun
+        cycle_number = self._active_cycle_number(begun)
         self.repository.claim_successor_closeout_cancel(
             source_client_order_id=source_id,
             reserved_successor_client_order_id=successor_id,
@@ -575,6 +605,8 @@ class OperatorParentMovePremarkService:
         result = self.repository.record_successor_closeout_cancel_outcome(
             source_client_order_id=source_id,
             reserved_successor_client_order_id=successor_id,
+            correlation_id=context.correlation_id,
+            cycle_number=cycle_number,
             outcome=closeout.classification,
             diagnostic_code=closeout.diagnostic_code,
             exchange_evidence_sha256=closeout.exchange_evidence_sha256,
@@ -608,6 +640,19 @@ class OperatorParentMovePremarkService:
             self._fail("operator_parent_move_plan_binding_conflict")
         plan["plan_sha256"] = expected_plan_sha256
         return plan
+
+    @staticmethod
+    def _active_cycle_number(projection: Mapping[str, Any]) -> int:
+        value = projection.get("active_cycle_number")
+        if (
+            not isinstance(value, int)
+            or isinstance(value, bool)
+            or value < 1
+        ):
+            raise OperatorParentMoveServiceError(
+                "operator_parent_move_active_cycle_binding_invalid"
+            )
+        return value
 
     def _revalidate_source(self, plan: Mapping[str, Any]) -> None:
         source_id = str(plan["source_client_order_id"])

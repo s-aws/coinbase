@@ -2,21 +2,29 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from functools import lru_cache
 import hashlib
 import json
 import os
-from typing import Any, Callable, Mapping
+from pathlib import Path
+from threading import RLock
+from typing import Any, Callable, Iterator, Mapping
 import uuid
 
+from application.admin_api.idempotency import (
+    hashed_interprocess_lock,
+    resolve_idempotency_store_path,
+)
 from application.admin_api.operator_parent_move_premark_models import (
     OperatorParentMovePlan,
     OperatorParentMovePremarkReadback,
     OperatorParentMoveSourceSelection,
 )
 from application.admin_api.operator_parent_move_premark_policy import (
+    GOAL_ID,
     ParentMovePremarkPolicyError,
     ParentMovePremarkPolicyTerms,
     POLICY_REVISION,
@@ -47,6 +55,35 @@ from database.operator_parent_move_premark import (
 
 _APPROVED_PRODUCT_ID = "BTC-USDC"
 _SHA256 = frozenset("0123456789abcdef")
+_RUNTIME_INITIALIZED = False
+
+
+class OperatorParentMoveLifecycleCoordinator:
+    """Own the whole local/exchange lifecycle across workers."""
+
+    def __init__(self, *, lock_root: Path | str | None = None) -> None:
+        self._thread_lock = RLock()
+        self._lock_root = (
+            Path(lock_root).resolve()
+            if lock_root is not None
+            else resolve_idempotency_store_path().resolve().parent
+        )
+
+    @contextmanager
+    def exclusive(self) -> Iterator[None]:
+        with self._thread_lock:
+            with hashed_interprocess_lock(
+                lock_root=self._lock_root,
+                namespace="operator-parent-move-lifecycle",
+                identity=GOAL_ID,
+            ):
+                yield
+
+
+@lru_cache(maxsize=1)
+def get_default_operator_parent_move_lifecycle_coordinator(
+) -> OperatorParentMoveLifecycleCoordinator:
+    return OperatorParentMoveLifecycleCoordinator()
 
 
 @dataclass(frozen=True, slots=True)
@@ -512,6 +549,9 @@ def build_operator_parent_move_premark_api_service(
     legacy_pending_move_checker: Callable[[str], bool],
     execution_authority_checker: Callable[[], bool],
     configured_portfolio_label: str = DEFAULT_SPOT_PORTFOLIO_LABEL,
+    lifecycle_coordinator: (
+        OperatorParentMoveLifecycleCoordinator | None
+    ) = None,
 ) -> OperatorParentMovePremarkApiService:
     planning_terms = resolve_local_parent_move_planning_terms(
         product_catalog_repository=product_catalog_repository,
@@ -526,6 +566,10 @@ def build_operator_parent_move_premark_api_service(
         repository=goal_repository,
         order_repository=order_repository,
         runtime=FailClosedParentMoveRuntime(),
+        lifecycle_coordinator=(
+            lifecycle_coordinator
+            or get_default_operator_parent_move_lifecycle_coordinator()
+        ),
         policy_terms=planning_terms.policy_terms,
         legacy_pending_move_checker=legacy_pending_move_checker,
         live_authority_terms_complete=lambda: False,
@@ -550,10 +594,25 @@ def get_default_operator_parent_move_premark_goal_repository(
     return repository
 
 
+def initialize_operator_parent_move_premark_runtime() -> None:
+    """Install and recover the ledger under exclusive lifecycle ownership."""
+
+    global _RUNTIME_INITIALIZED
+    repository = get_default_operator_parent_move_premark_goal_repository()
+    coordinator = get_default_operator_parent_move_lifecycle_coordinator()
+    with coordinator.exclusive():
+        repository.recover_stranded_work()
+    _RUNTIME_INITIALIZED = True
+
+
 def get_default_operator_parent_move_premark_api_service(
 ) -> OperatorParentMovePremarkApiService:
     """Re-resolve mutable local Product Catalog policy on every request."""
 
+    if not _RUNTIME_INITIALIZED:
+        raise OperatorParentMoveServiceError(
+            "operator_parent_move_runtime_not_initialized"
+        )
     from database.operator_product_catalog import (
         get_default_operator_product_catalog_repository,
     )
@@ -588,7 +647,10 @@ def get_default_operator_parent_move_premark_api_service(
 
 
 def reset_operator_parent_move_premark_runtime_for_tests() -> None:
+    global _RUNTIME_INITIALIZED
+    _RUNTIME_INITIALIZED = False
     get_default_operator_parent_move_premark_goal_repository.cache_clear()
+    get_default_operator_parent_move_lifecycle_coordinator.cache_clear()
 
 
 def _empty_source_selection(
@@ -686,9 +748,12 @@ __all__ = [
     "Goal12ParentMoveOrderRepository",
     "LocalParentMovePlanningTerms",
     "OperatorParentMovePremarkApiService",
+    "OperatorParentMoveLifecycleCoordinator",
     "build_operator_parent_move_premark_api_service",
+    "get_default_operator_parent_move_lifecycle_coordinator",
     "get_default_operator_parent_move_premark_api_service",
     "get_default_operator_parent_move_premark_goal_repository",
+    "initialize_operator_parent_move_premark_runtime",
     "reset_operator_parent_move_premark_runtime_for_tests",
     "resolve_local_parent_move_planning_terms",
 ]
