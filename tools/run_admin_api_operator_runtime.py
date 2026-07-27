@@ -41,6 +41,7 @@ from tools.run_admin_api import (
     OPERATOR_PRODUCT_CATALOG_ENABLED_ENV,
     OPERATOR_PARENT_MOVE_PREMARK_ENABLED_ENV,
     OPERATOR_SINGLE_ORDER_REPRICE_NOW_ENABLED_ENV,
+    OPERATOR_SPOT_SAFE_CLOSEOUT_SWEEP_ENABLED_ENV,
     OPERATOR_PARENT_STRATEGIES_ENABLED_ENV,
     OPERATOR_SPOT_ORDER_TRUTH_ENABLED_ENV,
     OPERATOR_STEALTH_DEFINITIONS_ENABLED_ENV,
@@ -50,6 +51,7 @@ from tools.run_admin_api import (
     initialize_operator_product_catalog_schema,
     initialize_operator_parent_move_premark_schema,
     initialize_operator_single_order_reprice_now_schema,
+    initialize_operator_spot_safe_closeout_sweep_runtime,
     initialize_operator_parent_strategy_schema,
     initialize_operator_spot_order_truth_schema,
     initialize_operator_stealth_definition_schema,
@@ -90,6 +92,7 @@ _FIXED_STARTUP_DIAGNOSTICS = frozenset(
         "operator_product_catalog_schema_init_failed",
         "operator_runtime_reload_forbidden",
         "operator_spot_order_truth_schema_init_failed",
+        "operator_spot_safe_closeout_sweep_schema_init_failed",
         "operator_spot_portfolio_label_invalid",
         "operator_spot_portfolio_scope_missing",
         "operator_spot_products_missing",
@@ -415,6 +418,16 @@ def initialize_enabled_operator_schemas(
         except Exception:
             raise OperatorAdminRuntimeError(
                 "operator_single_order_reprice_now_schema_init_failed"
+            ) from None
+    if (
+        target.get(OPERATOR_SPOT_SAFE_CLOSEOUT_SWEEP_ENABLED_ENV)
+        == "1"
+    ):
+        try:
+            initialize_operator_spot_safe_closeout_sweep_runtime()
+        except Exception:
+            raise OperatorAdminRuntimeError(
+                "operator_spot_safe_closeout_sweep_schema_init_failed"
             ) from None
 
 

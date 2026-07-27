@@ -1,5 +1,15 @@
 # Documentation Index
 
+Implemented independent Goal 16 local safe-closeout workflow:
+[Operator Spot Sweep Safe Closeout V1](OPERATOR_SPOT_SWEEP_SAFE_CLOSEOUT_V1.md).
+Goal `operator_spot_sweep_safe_closeout_v1` selects at most three canonical
+approved-Test active `BTC-USDC` system children, persists one immutable
+Cancel-only PostgreSQL plan, and provides local pause/resume/abort, exact
+idempotency, append-only audit, and restart quarantine. It grants no live
+read or Cancel allowance, makes zero Coinbase calls and zero Creates, and
+fixed-blocks ADVANCE with
+`operator_spot_sweep_live_read_authority_incomplete`.
+
 Completed independent Goal 13 — operator-ready Controlled-live closeout:
 [Operator Futures Hotpoint Canonical Single Child V2](OPERATOR_FUTURES_HOTPOINT_CANONICAL_SINGLE_CHILD_V2.md).
 Goal `operator_futures_hotpoint_canonical_single_child_v2` owns a separate

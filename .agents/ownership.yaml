@@ -282,6 +282,7 @@ owners:
       - docs/OPERATOR_FUTURES_FOLLOW_UP_INTENT_V1.md
       - docs/OPERATOR_PARENT_MOVE_PREMARK_LIFECYCLE_V1.md
       - docs/OPERATOR_SINGLE_ORDER_REPRICE_NOW_V1.md
+      - docs/OPERATOR_SPOT_SWEEP_SAFE_CLOSEOUT_V1.md
       - openapi/**
       - tools/export_admin_api_route_inventory.py
       - tests/regression/test_admin_api_*.py
@@ -305,6 +306,11 @@ owners:
       - tests/unit/test_operator_single_order_reprice_now_runtime.py
       - tests/unit/test_operator_single_order_reprice_now_service.py
       - tests/regression/test_operator_single_order_reprice_now_routes.py
+      - tests/regression/test_operator_spot_safe_closeout_sweep_routes.py
+      - tests/unit/test_operator_spot_safe_closeout_sweep_policy.py
+      - tests/unit/test_operator_spot_safe_closeout_sweep_enterprise_contract.py
+      - tests/unit/test_operator_spot_safe_closeout_sweep_runtime.py
+      - tests/unit/test_operator_spot_safe_closeout_sweep_service.py
       - tests/regression/test_admin_mvp_account_reality_live_read_smoke.py
       - tests/regression/test_admin_mvp_futures_executor_boundary_smoke.py
       - tests/regression/test_admin_mvp_api.py
@@ -374,6 +380,11 @@ owners:
       - tests/regression/test_coinbase_live_credentials.py
       - tests/unit/test_admin_mvp_fill_readback_proof_compat.py
       - tests/unit/test_admin_mvp_spot_composite_proof_binding.py
+      - tests/regression/test_operator_spot_safe_closeout_sweep_routes.py
+      - tests/unit/test_operator_spot_safe_closeout_sweep_policy.py
+      - tests/unit/test_operator_spot_safe_closeout_sweep_enterprise_contract.py
+      - tests/unit/test_operator_spot_safe_closeout_sweep_runtime.py
+      - tests/unit/test_operator_spot_safe_closeout_sweep_service.py
     tests:
       - pytest tests/regression/test_admin_api_contract.py -v --tb=short
     requires_regression: true
@@ -395,6 +406,7 @@ owners:
       - tests/regression/test_operator_futures_follow_up_intent_repository.py
       - tests/regression/test_operator_parent_move_premark_repository.py
       - tests/regression/test_operator_single_order_reprice_now_repository.py
+      - tests/regression/test_operator_spot_safe_closeout_sweep_repository.py
       - tests/regression/test_reconciler_schema.py
       - tests/unit/test_database.py
       - tests/unit/test_filled_follow_up_atomic_persistence.py

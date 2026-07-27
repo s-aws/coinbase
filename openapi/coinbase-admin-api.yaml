@@ -21744,6 +21744,808 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/safe-closeout-sweeps/candidates:
+    get:
+      tags:
+      - operator-spot-safe-closeout-sweep
+      summary: List call-free canonical Spot closeout candidates
+      operationId: list_safe_closeout_candidates_api_v1_spot_safe_closeout_sweeps_candidates_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          default: 25
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - enum:
+            - PENDING
+            - OPEN
+            - QUEUED
+            type: string
+          - type: 'null'
+          title: Status
+      - name: ownership_provenance
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - enum:
+            - ADMIN_FILL_FOLLOW_UP
+            - ADMIN_HOTPOINT_CHILD
+            type: string
+          - type: 'null'
+          title: Ownership Provenance
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSpotSafeCloseoutCandidatePage'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/safe-closeout-sweeps:
+    post:
+      tags:
+      - operator-spot-safe-closeout-sweep
+      summary: Persist one immutable max-three Cancel-only sweep
+      operationId: create_safe_closeout_sweep_api_v1_spot_safe_closeout_sweeps_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:@|/-]{1,255}$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:@|/-]{1,255}$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: create_operator_spot_safe_closeout_sweep
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorSpotSafeCloseoutSweepCreateRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSpotSafeCloseoutSweepReadback'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/safe-closeout-sweeps/current:
+    get:
+      tags:
+      - operator-spot-safe-closeout-sweep
+      summary: Read the call-free goal-global current closeout sweep
+      operationId: get_current_safe_closeout_sweep_api_v1_spot_safe_closeout_sweeps_current_get
+      parameters:
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSpotSafeCloseoutSweepReadback'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/safe-closeout-sweeps/{sweep_id}:
+    get:
+      tags:
+      - operator-spot-safe-closeout-sweep
+      summary: Read one local Spot safe-closeout sweep
+      operationId: get_safe_closeout_sweep_api_v1_spot_safe_closeout_sweeps__sweep_id__get
+      parameters:
+      - name: sweep_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          title: Sweep Id
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSpotSafeCloseoutSweepReadback'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/safe-closeout-sweeps/{sweep_id}/pause:
+    post:
+      tags:
+      - operator-spot-safe-closeout-sweep
+      summary: Pause one local Spot safe-closeout sweep
+      operationId: pause_safe_closeout_sweep_api_v1_spot_safe_closeout_sweeps__sweep_id__pause_post
+      parameters:
+      - name: sweep_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          title: Sweep Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:@|/-]{1,255}$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:@|/-]{1,255}$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: pause_operator_spot_safe_closeout_sweep
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorSpotSafeCloseoutSweepActionRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSpotSafeCloseoutSweepReadback'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/safe-closeout-sweeps/{sweep_id}/resume:
+    post:
+      tags:
+      - operator-spot-safe-closeout-sweep
+      summary: Resume one paused local Spot safe-closeout sweep
+      operationId: resume_safe_closeout_sweep_api_v1_spot_safe_closeout_sweeps__sweep_id__resume_post
+      parameters:
+      - name: sweep_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          title: Sweep Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:@|/-]{1,255}$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:@|/-]{1,255}$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: resume_operator_spot_safe_closeout_sweep
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorSpotSafeCloseoutSweepActionRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSpotSafeCloseoutSweepReadback'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/safe-closeout-sweeps/{sweep_id}/abort:
+    post:
+      tags:
+      - operator-spot-safe-closeout-sweep
+      summary: Abort one local Spot safe-closeout sweep
+      operationId: abort_safe_closeout_sweep_api_v1_spot_safe_closeout_sweeps__sweep_id__abort_post
+      parameters:
+      - name: sweep_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          title: Sweep Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:@|/-]{1,255}$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:@|/-]{1,255}$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: abort_operator_spot_safe_closeout_sweep
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorSpotSafeCloseoutSweepActionRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSpotSafeCloseoutSweepReadback'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/safe-closeout-sweeps/{sweep_id}/advance:
+    post:
+      tags:
+      - operator-spot-safe-closeout-sweep
+      summary: Fail closed before any Goal 16 live-read dependency
+      operationId: advance_safe_closeout_sweep_api_v1_spot_safe_closeout_sweeps__sweep_id__advance_post
+      parameters:
+      - name: sweep_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          title: Sweep Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:@|/-]{1,255}$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:@|/-]{1,255}$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: advance_operator_spot_safe_closeout_sweep
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorSpotSafeCloseoutSweepAdvanceRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSpotSafeCloseoutSweepReadback'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/spot/readiness:
     get:
       tags:
@@ -169785,6 +170587,679 @@ components:
       - expected_revision
       title: OperatorSpotRecoveryRefreshRequest
       description: Explicit request for one no-retry logical order/fill refresh cycle.
+    OperatorSpotSafeCloseoutAllowance:
+      properties:
+        category:
+          type: string
+          enum:
+          - API_KEY_PERMISSIONS
+          - PORTFOLIO_CATALOG
+          - PRE_CANCEL_EXACT_ORDER_READ
+          - CANCEL
+          - POST_CANCEL_EXACT_ORDER_READ
+          title: Category
+        state:
+          type: string
+          const: NOT_GRANTED
+          title: State
+          default: NOT_GRANTED
+        executable:
+          type: boolean
+          const: false
+          title: Executable
+          default: false
+        consumed:
+          type: boolean
+          const: false
+          title: Consumed
+          default: false
+        call_count:
+          type: integer
+          const: 0
+          title: Call Count
+          default: 0
+      additionalProperties: false
+      type: object
+      required:
+      - category
+      title: OperatorSpotSafeCloseoutAllowance
+    OperatorSpotSafeCloseoutCandidate:
+      properties:
+        client_order_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          title: Client Order Id
+        root_client_order_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          title: Root Client Order Id
+        product_id:
+          type: string
+          const: BTC-USDC
+          title: Product Id
+        status:
+          type: string
+          enum:
+          - PENDING
+          - OPEN
+          - QUEUED
+          title: Status
+        ownership_provenance:
+          type: string
+          enum:
+          - ADMIN_FILL_FOLLOW_UP
+          - ADMIN_HOTPOINT_CHILD
+          title: Ownership Provenance
+        portfolio_scope_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Portfolio Scope Sha256
+        predecessor_evidence_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Predecessor Evidence Sha256
+        candidate_evidence_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Candidate Evidence Sha256
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      additionalProperties: false
+      type: object
+      required:
+      - client_order_id
+      - root_client_order_id
+      - product_id
+      - status
+      - ownership_provenance
+      - portfolio_scope_sha256
+      - predecessor_evidence_sha256
+      - candidate_evidence_sha256
+      - created_at
+      title: OperatorSpotSafeCloseoutCandidate
+    OperatorSpotSafeCloseoutCandidatePage:
+      properties:
+        type:
+          type: string
+          const: operator_spot_safe_closeout_candidates
+          title: Type
+          default: operator_spot_safe_closeout_candidates
+        goal_id:
+          type: string
+          const: operator_spot_sweep_safe_closeout_v1
+          title: Goal Id
+          default: operator_spot_sweep_safe_closeout_v1
+        items:
+          items:
+            $ref: '#/components/schemas/OperatorSpotSafeCloseoutCandidate'
+          type: array
+          title: Items
+        total:
+          type: integer
+          minimum: 0.0
+          title: Total
+        limit:
+          type: integer
+          maximum: 100.0
+          minimum: 1.0
+          title: Limit
+        offset:
+          type: integer
+          minimum: 0.0
+          title: Offset
+        status_filter:
+          anyOf:
+          - type: string
+            enum:
+            - PENDING
+            - OPEN
+            - QUEUED
+          - type: 'null'
+          title: Status Filter
+        ownership_provenance_filter:
+          anyOf:
+          - type: string
+            enum:
+            - ADMIN_FILL_FOLLOW_UP
+            - ADMIN_HOTPOINT_CHILD
+          - type: 'null'
+          title: Ownership Provenance Filter
+        configured_portfolio_scope_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Configured Portfolio Scope Sha256
+        diagnostic_code:
+          type: string
+          pattern: ^operator_spot_sweep_[a-z0-9_]{1,75}$
+          title: Diagnostic Code
+        allowed_actions:
+          items:
+            type: string
+            const: CREATE_SWEEP
+          type: array
+          maxItems: 1
+          title: Allowed Actions
+        page_load_coinbase_calls:
+          type: integer
+          const: 0
+          title: Page Load Coinbase Calls
+          default: 0
+        total_exchange_call_count:
+          type: integer
+          const: 0
+          title: Total Exchange Call Count
+          default: 0
+        browser_authority:
+          type: string
+          const: display_and_forward_only
+          title: Browser Authority
+          default: display_and_forward_only
+        command_service_method:
+          type: string
+          const: list_safe_closeout_candidates
+          title: Command Service Method
+          default: list_safe_closeout_candidates
+      additionalProperties: false
+      type: object
+      required:
+      - items
+      - total
+      - limit
+      - offset
+      - configured_portfolio_scope_sha256
+      - diagnostic_code
+      title: OperatorSpotSafeCloseoutCandidatePage
+    OperatorSpotSafeCloseoutSweepActionRequest:
+      properties:
+        expected_revision:
+          type: integer
+          minimum: 1.0
+          title: Expected Revision
+        expected_plan_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Expected Plan Sha256
+        operator_reason:
+          type: string
+          maxLength: 240
+          minLength: 10
+          title: Operator Reason
+        confirm_local_control_action:
+          type: boolean
+          const: true
+          title: Confirm Local Control Action
+      additionalProperties: false
+      type: object
+      required:
+      - expected_revision
+      - expected_plan_sha256
+      - operator_reason
+      - confirm_local_control_action
+      title: OperatorSpotSafeCloseoutSweepActionRequest
+    OperatorSpotSafeCloseoutSweepAdvanceRequest:
+      properties:
+        expected_revision:
+          type: integer
+          minimum: 1.0
+          title: Expected Revision
+        expected_plan_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Expected Plan Sha256
+        confirm_advance_cancel_only_sweep:
+          type: boolean
+          const: true
+          title: Confirm Advance Cancel Only Sweep
+        acknowledge_unknown_or_partial_result_quarantines_sweep:
+          type: boolean
+          const: true
+          title: Acknowledge Unknown Or Partial Result Quarantines Sweep
+      additionalProperties: false
+      type: object
+      required:
+      - expected_revision
+      - expected_plan_sha256
+      - confirm_advance_cancel_only_sweep
+      - acknowledge_unknown_or_partial_result_quarantines_sweep
+      title: OperatorSpotSafeCloseoutSweepAdvanceRequest
+    OperatorSpotSafeCloseoutSweepCreateRequest:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/OperatorSpotSafeCloseoutSweepSelectionRequest'
+          type: array
+          maxItems: 3
+          minItems: 1
+          title: Items
+        operator_reason:
+          type: string
+          maxLength: 240
+          minLength: 10
+          title: Operator Reason
+        confirm_create_cancel_only_sweep:
+          type: boolean
+          const: true
+          title: Confirm Create Cancel Only Sweep
+      additionalProperties: false
+      type: object
+      required:
+      - items
+      - operator_reason
+      - confirm_create_cancel_only_sweep
+      title: OperatorSpotSafeCloseoutSweepCreateRequest
+    OperatorSpotSafeCloseoutSweepEvent:
+      properties:
+        event_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          title: Event Id
+        event_sequence:
+          type: integer
+          minimum: 1.0
+          title: Event Sequence
+        event_type:
+          type: string
+          enum:
+          - PLAN_CREATED
+          - SWEEP_PAUSED
+          - SWEEP_RESUMED
+          - SWEEP_ABORTED
+          - SWEEP_QUARANTINED
+          title: Event Type
+        diagnostic_code:
+          type: string
+          pattern: ^operator_spot_sweep_[a-z0-9_]{1,75}$
+          title: Diagnostic Code
+        correlation_id:
+          type: string
+          pattern: ^[A-Za-z0-9._:@|/-]{1,255}$
+          title: Correlation Id
+        evidence_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Evidence Sha256
+        recorded_at:
+          type: string
+          format: date-time
+          title: Recorded At
+      additionalProperties: false
+      type: object
+      required:
+      - event_id
+      - event_sequence
+      - event_type
+      - diagnostic_code
+      - correlation_id
+      - evidence_sha256
+      - recorded_at
+      title: OperatorSpotSafeCloseoutSweepEvent
+    OperatorSpotSafeCloseoutSweepItem:
+      properties:
+        position:
+          type: integer
+          maximum: 3.0
+          minimum: 1.0
+          title: Position
+        client_order_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          title: Client Order Id
+        root_client_order_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          title: Root Client Order Id
+        product_id:
+          type: string
+          const: BTC-USDC
+          title: Product Id
+        status:
+          type: string
+          enum:
+          - PENDING
+          - OPEN
+          - QUEUED
+          title: Status
+        ownership_provenance:
+          type: string
+          enum:
+          - ADMIN_FILL_FOLLOW_UP
+          - ADMIN_HOTPOINT_CHILD
+          title: Ownership Provenance
+        portfolio_scope_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Portfolio Scope Sha256
+        predecessor_evidence_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Predecessor Evidence Sha256
+        candidate_evidence_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Candidate Evidence Sha256
+        state:
+          type: string
+          enum:
+          - PENDING
+          - IN_FLIGHT
+          - CANCELLED
+          - NOT_REQUIRED
+          - REJECTED
+          - UNKNOWN
+          - QUARANTINED
+          - ABORTED
+          title: State
+        diagnostic_code:
+          type: string
+          pattern: ^operator_spot_sweep_[a-z0-9_]{1,75}$
+          title: Diagnostic Code
+        cancel_allowance_state:
+          type: string
+          const: NOT_GRANTED
+          title: Cancel Allowance State
+          default: NOT_GRANTED
+        cancel_allowance_consumed:
+          type: boolean
+          const: false
+          title: Cancel Allowance Consumed
+          default: false
+        pre_cancel_exact_read_call_count:
+          type: integer
+          const: 0
+          title: Pre Cancel Exact Read Call Count
+          default: 0
+        cancel_call_count:
+          type: integer
+          const: 0
+          title: Cancel Call Count
+          default: 0
+        post_cancel_exact_read_call_count:
+          type: integer
+          const: 0
+          title: Post Cancel Exact Read Call Count
+          default: 0
+        last_event_sequence:
+          type: integer
+          minimum: 1.0
+          title: Last Event Sequence
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      additionalProperties: false
+      type: object
+      required:
+      - position
+      - client_order_id
+      - root_client_order_id
+      - product_id
+      - status
+      - ownership_provenance
+      - portfolio_scope_sha256
+      - predecessor_evidence_sha256
+      - candidate_evidence_sha256
+      - state
+      - diagnostic_code
+      - last_event_sequence
+      - updated_at
+      title: OperatorSpotSafeCloseoutSweepItem
+    OperatorSpotSafeCloseoutSweepReadback:
+      properties:
+        type:
+          type: string
+          const: operator_spot_safe_closeout_sweep
+          title: Type
+          default: operator_spot_safe_closeout_sweep
+        goal_id:
+          type: string
+          const: operator_spot_sweep_safe_closeout_v1
+          title: Goal Id
+          default: operator_spot_sweep_safe_closeout_v1
+        policy_revision:
+          type: string
+          const: OPERATOR_SPOT_SWEEP_SAFE_CLOSEOUT_V1
+          title: Policy Revision
+          default: OPERATOR_SPOT_SWEEP_SAFE_CLOSEOUT_V1
+        sweep_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          title: Sweep Id
+        revision:
+          type: integer
+          minimum: 1.0
+          title: Revision
+        state:
+          type: string
+          enum:
+          - READY
+          - PAUSED
+          - IN_PROGRESS
+          - COMPLETE
+          - ABORTED
+          - QUARANTINED
+          title: State
+        diagnostic_code:
+          type: string
+          pattern: ^operator_spot_sweep_[a-z0-9_]{1,75}$
+          title: Diagnostic Code
+        plan_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Plan Sha256
+        configured_portfolio_scope_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Configured Portfolio Scope Sha256
+        items:
+          items:
+            $ref: '#/components/schemas/OperatorSpotSafeCloseoutSweepItem'
+          type: array
+          maxItems: 3
+          minItems: 1
+          title: Items
+        events:
+          items:
+            $ref: '#/components/schemas/OperatorSpotSafeCloseoutSweepEvent'
+          type: array
+          maxItems: 32
+          minItems: 1
+          title: Events
+        candidate_count:
+          type: integer
+          maximum: 3.0
+          minimum: 1.0
+          title: Candidate Count
+        allowed_actions:
+          items:
+            type: string
+            enum:
+            - PAUSE
+            - RESUME
+            - ABORT
+          type: array
+          maxItems: 2
+          title: Allowed Actions
+        blocker_codes:
+          items:
+            type: string
+            const: operator_spot_sweep_live_read_authority_incomplete
+          type: array
+          title: Blocker Codes
+        allowances:
+          items:
+            $ref: '#/components/schemas/OperatorSpotSafeCloseoutAllowance'
+          type: array
+          maxItems: 5
+          minItems: 5
+          title: Allowances
+        local_cycles_used:
+          type: integer
+          maximum: 10.0
+          minimum: 1.0
+          title: Local Cycles Used
+        local_cycles_max:
+          type: integer
+          const: 10
+          title: Local Cycles Max
+          default: 10
+        exchange_cycles_started:
+          type: integer
+          const: 0
+          title: Exchange Cycles Started
+          default: 0
+        partial_result_quarantine:
+          type: boolean
+          title: Partial Result Quarantine
+        live_read_authority_complete:
+          type: boolean
+          const: false
+          title: Live Read Authority Complete
+          default: false
+        live_cancel_authority_complete:
+          type: boolean
+          const: false
+          title: Live Cancel Authority Complete
+          default: false
+        read_allowances_consumed:
+          type: boolean
+          const: false
+          title: Read Allowances Consumed
+          default: false
+        cancel_allowance_consumed:
+          type: boolean
+          const: false
+          title: Cancel Allowance Consumed
+          default: false
+        exact_read_call_count:
+          type: integer
+          const: 0
+          title: Exact Read Call Count
+          default: 0
+        cancel_call_count:
+          type: integer
+          const: 0
+          title: Cancel Call Count
+          default: 0
+        create_call_count:
+          type: integer
+          const: 0
+          title: Create Call Count
+          default: 0
+        total_exchange_call_count:
+          type: integer
+          const: 0
+          title: Total Exchange Call Count
+          default: 0
+        page_load_coinbase_calls:
+          type: integer
+          const: 0
+          title: Page Load Coinbase Calls
+          default: 0
+        zero_creates:
+          type: boolean
+          const: true
+          title: Zero Creates
+          default: true
+        latest_idempotency_key_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Latest Idempotency Key Sha256
+        latest_payload_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Latest Payload Sha256
+        latest_actor_id_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Latest Actor Id Sha256
+        latest_evidence_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Latest Evidence Sha256
+        command_replayed:
+          type: boolean
+          title: Command Replayed
+          default: false
+        correlation_id:
+          type: string
+          pattern: ^[A-Za-z0-9._:@|/-]{1,255}$
+          title: Correlation Id
+        operator_intent:
+          anyOf:
+          - type: string
+            enum:
+            - create_operator_spot_safe_closeout_sweep
+            - pause_operator_spot_safe_closeout_sweep
+            - resume_operator_spot_safe_closeout_sweep
+            - abort_operator_spot_safe_closeout_sweep
+          - type: 'null'
+          title: Operator Intent
+        command_service_method:
+          type: string
+          enum:
+          - get_safe_closeout_sweep
+          - get_current_safe_closeout_sweep
+          - create_safe_closeout_sweep
+          - pause_safe_closeout_sweep
+          - resume_safe_closeout_sweep
+          - abort_safe_closeout_sweep
+          title: Command Service Method
+        browser_authority:
+          type: string
+          const: display_and_forward_only
+          title: Browser Authority
+          default: display_and_forward_only
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      additionalProperties: false
+      type: object
+      required:
+      - sweep_id
+      - revision
+      - state
+      - diagnostic_code
+      - plan_sha256
+      - configured_portfolio_scope_sha256
+      - items
+      - events
+      - candidate_count
+      - allowances
+      - local_cycles_used
+      - partial_result_quarantine
+      - latest_idempotency_key_sha256
+      - latest_payload_sha256
+      - latest_actor_id_sha256
+      - latest_evidence_sha256
+      - correlation_id
+      - operator_intent
+      - command_service_method
+      - created_at
+      - updated_at
+      title: OperatorSpotSafeCloseoutSweepReadback
+    OperatorSpotSafeCloseoutSweepSelectionRequest:
+      properties:
+        client_order_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          title: Client Order Id
+        expected_candidate_evidence_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Expected Candidate Evidence Sha256
+      additionalProperties: false
+      type: object
+      required:
+      - client_order_id
+      - expected_candidate_evidence_sha256
+      title: OperatorSpotSafeCloseoutSweepSelectionRequest
     OperatorStealthCloseoutRequest:
       properties:
         expected_plan_sha256:

@@ -1,6 +1,33 @@
 # Maintainer Handoff
 
-## Completed Goal 15 — exact single-order Reprice Now intent
+## Completed Goal 16 — operator Spot sweep safe closeout
+
+Goal `operator_spot_sweep_safe_closeout_v1` installs an authenticated,
+operator-reviewed, Cancel-only local workflow for at most three active,
+system-owned `BTC-USDC` children in the exact configured Test portfolio.
+Canonical PostgreSQL evidence and a separate ledger own the singleton immutable
+plan, payload-bound idempotency, append-only audit, local pause/resume/abort
+controls, and conservative restart quarantine. Use the call-free
+`GET /api/v1/spot/safe-closeout-sweeps/current` recovery read if the CREATE
+response is lost. The feature remains disabled unless
+`COINBASE_ADMIN_API_OPERATOR_SPOT_SAFE_CLOSEOUT_SWEEP_ENABLED=1`.
+
+Goal 16 is local and call-free. It has no Create authority and grants no
+live-read or Cancel allowance. ADVANCE returns fixed HTTP 409
+`operator_spot_sweep_live_read_authority_incomplete` before service, ledger,
+runtime, client, or claim access. All five live allowances remain
+`NOT_GRANTED`, unconsumed, and at call count zero; no Goal 16 Coinbase call or
+exchange mutation has occurred. Live execution remains separate roadmap work.
+See [Operator Spot Sweep Safe Closeout V1](OPERATOR_SPOT_SWEEP_SAFE_CLOSEOUT_V1.md).
+
+Terminal validation passed 1,356 parallel-safe backend tests with 6 skips,
+1,028 serial backend tests with 150 intentional skips, 1,999 frontend
+unit/component tests, 36 canonical managed Playwright scenarios, installed
+deployment validation, and independent safety plus blind-contextless audits.
+Every boundary was local or synthetic; Coinbase execution was not run and
+notional was zero.
+
+## Completed predecessor Goal 15 — exact single-order Reprice Now intent
 
 Goal `operator_single_order_reprice_now_v1` installs one authenticated
 `PREPARE_REPRICE_NOW` action for an exact canonical system-owned, zero-fill,

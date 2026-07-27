@@ -56,6 +56,9 @@ OPERATOR_PARENT_MOVE_PREMARK_ENABLED_ENV = (
 OPERATOR_SINGLE_ORDER_REPRICE_NOW_ENABLED_ENV = (
     "COINBASE_ADMIN_API_OPERATOR_SINGLE_ORDER_REPRICE_NOW_ENABLED"
 )
+OPERATOR_SPOT_SAFE_CLOSEOUT_SWEEP_ENABLED_ENV = (
+    "COINBASE_ADMIN_API_OPERATOR_SPOT_SAFE_CLOSEOUT_SWEEP_ENABLED"
+)
 DISABLED_ENV_VALUES = {"0", "false", "no", "off", "disabled"}
 ENABLED_ENV_VALUES = {"1", "true", "yes", "on"}
 OIDC_REQUIRED_ENV_VARS = (
@@ -90,6 +93,10 @@ OPERATOR_PARENT_MOVE_PREMARK_SCHEMA_STARTUP_ERROR = (
 )
 OPERATOR_SINGLE_ORDER_REPRICE_NOW_SCHEMA_STARTUP_ERROR = (
     "Admin API operator single-order Reprice Now schema initialization "
+    "failed."
+)
+OPERATOR_SPOT_SAFE_CLOSEOUT_SWEEP_SCHEMA_STARTUP_ERROR = (
+    "Admin API operator Spot safe-closeout sweep schema initialization "
     "failed."
 )
 
@@ -433,6 +440,16 @@ def initialize_operator_single_order_reprice_now_schema() -> None:
     initialize_schema()
 
 
+def initialize_operator_spot_safe_closeout_sweep_runtime() -> None:
+    """Create and recover the call-free Goal 16 sweep ledger."""
+
+    from application.admin_api.operator_spot_safe_closeout_sweep_runtime import (
+        initialize_operator_spot_safe_closeout_sweep_runtime as initialize,
+    )
+
+    initialize()
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the local Admin API server."""
 
@@ -500,6 +517,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         except Exception:
             print(
                 OPERATOR_SINGLE_ORDER_REPRICE_NOW_SCHEMA_STARTUP_ERROR,
+                file=sys.stderr,
+            )
+            return 2
+
+    if (
+        os.environ.get(OPERATOR_SPOT_SAFE_CLOSEOUT_SWEEP_ENABLED_ENV)
+        == "1"
+    ):
+        try:
+            initialize_operator_spot_safe_closeout_sweep_runtime()
+        except Exception:
+            print(
+                OPERATOR_SPOT_SAFE_CLOSEOUT_SWEEP_SCHEMA_STARTUP_ERROR,
                 file=sys.stderr,
             )
             return 2

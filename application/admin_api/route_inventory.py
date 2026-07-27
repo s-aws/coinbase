@@ -14,6 +14,145 @@ from .models import AdminApiRouteInventoryItem
 ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     AdminApiRouteInventoryItem(
         module_id="spot_operations",
+        surface="GET /api/v1/spot/safe-closeout-sweeps/candidates",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not applicable; canonical PostgreSQL evidence only",
+        caps="at most three selectable BTC-USDC approved-Test children",
+        audit="call-free candidate evidence with no raw exchange identifier",
+        shared_method="list_safe_closeout_candidates",
+        parity_test="local PostgreSQL page; zero Coinbase calls",
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
+        surface="GET /api/v1/spot/safe-closeout-sweeps/{sweep_id}",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not applicable; immutable plan and current projection",
+        caps="one goal-global max-three Cancel-only plan",
+        audit="append-only events and RBAC-aware allowed actions",
+        shared_method="get_safe_closeout_sweep",
+        parity_test="local PostgreSQL readback; zero Coinbase calls",
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
+        surface="GET /api/v1/spot/safe-closeout-sweeps/current",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not applicable; goal-global singleton recovery read",
+        caps="one goal-global max-three Cancel-only plan",
+        audit="durable current projection for lost-response reconciliation",
+        shared_method="get_current_safe_closeout_sweep",
+        parity_test="local PostgreSQL singleton read; zero Coinbase calls",
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
+        surface="POST /api/v1/spot/safe-closeout-sweeps",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.SPOT_SWEEP_EXECUTE,
+        required_permissions=[
+            AdminApiPermission.SPOT_SWEEP_EXECUTE,
+            AdminApiPermission.ORDER_CANCEL,
+        ],
+        idempotency="required exact actor/correlation/payload replay",
+        approval="required explicit reviewed Cancel-only plan confirmation",
+        caps="one immutable goal-global plan containing one to three items",
+        audit=(
+            "required immutable plan/items/event/command plus mutable "
+            "projection"
+        ),
+        shared_method="create_safe_closeout_sweep",
+        parity_test="local PostgreSQL create only; zero Coinbase calls/Creates",
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
+        surface=(
+            "POST /api/v1/spot/safe-closeout-sweeps/{sweep_id}/pause"
+        ),
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.SPOT_SWEEP_EXECUTE,
+        required_permissions=[
+            AdminApiPermission.SPOT_SWEEP_EXECUTE,
+            AdminApiPermission.ORDER_CANCEL,
+        ],
+        idempotency="required exact revision/plan/actor/payload replay",
+        approval="required explicit local pause intent and confirmation",
+        caps="one goal-global plan and ten-cycle local control cap",
+        audit=(
+            "required append-only pause event/command and revision projection"
+        ),
+        shared_method="pause_safe_closeout_sweep",
+        parity_test="local PostgreSQL pause only; zero Coinbase calls",
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
+        surface=(
+            "POST /api/v1/spot/safe-closeout-sweeps/{sweep_id}/resume"
+        ),
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.SPOT_SWEEP_EXECUTE,
+        required_permissions=[
+            AdminApiPermission.SPOT_SWEEP_EXECUTE,
+            AdminApiPermission.ORDER_CANCEL,
+        ],
+        idempotency="required exact revision/plan/actor/payload replay",
+        approval="required explicit local resume intent and confirmation",
+        caps="one goal-global plan and ten-cycle local control cap",
+        audit=(
+            "required append-only resume event/command and revision projection"
+        ),
+        shared_method="resume_safe_closeout_sweep",
+        parity_test="local PostgreSQL resume only; zero Coinbase calls",
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
+        surface=(
+            "POST /api/v1/spot/safe-closeout-sweeps/{sweep_id}/abort"
+        ),
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.SPOT_SWEEP_EXECUTE,
+        required_permissions=[
+            AdminApiPermission.SPOT_SWEEP_EXECUTE,
+            AdminApiPermission.ORDER_CANCEL,
+        ],
+        idempotency="required exact revision/plan/actor/payload replay",
+        approval="required explicit local abort intent and confirmation",
+        caps="one goal-global plan and ten-cycle local control cap",
+        audit=(
+            "required append-only abort event/command and terminal projection"
+        ),
+        shared_method="abort_safe_closeout_sweep",
+        parity_test="local PostgreSQL abort only; zero Coinbase calls",
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
+        surface=(
+            "POST /api/v1/spot/safe-closeout-sweeps/{sweep_id}/advance"
+        ),
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+        permission=AdminApiPermission.SPOT_SWEEP_EXECUTE,
+        required_permissions=[
+            AdminApiPermission.SPOT_SWEEP_EXECUTE,
+            AdminApiPermission.ORDER_CANCEL,
+        ],
+        idempotency=(
+            "required headers validated but never consumed while authority "
+            "is incomplete"
+        ),
+        approval="required exact plan binding and partial-result acknowledgement",
+        caps="Zero Creates; Cancel allowance fixed NOT_GRANTED and calls zero",
+        audit="fixed 409 before service, ledger, runtime, client, or claim",
+        shared_method="fixed_live_read_authority_blocker",
+        parity_test=(
+            "operator_spot_sweep_live_read_authority_incomplete in every "
+            "enabled execution posture"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
         surface="GET /api/v1/spot/order-operations",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.AUDIT_READ,

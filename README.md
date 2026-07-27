@@ -1,6 +1,24 @@
 # Coinbase Trading Backend
 
-## Completed Goal 15 — exact single-order Reprice Now intent
+## Current Goal 16 — operator Spot sweep safe closeout
+
+Goal `operator_spot_sweep_safe_closeout_v1` provides one authenticated,
+operator-reviewed, Cancel-only local plan for at most three active,
+system-owned `BTC-USDC` children in the exact configured Test portfolio.
+Canonical PostgreSQL evidence selects the children, while a separate immutable
+ledger owns the singleton plan, payload-bound idempotency, append-only audit,
+local pause/resume/abort controls, and conservative restart quarantine. A
+call-free `current` read recovers the singleton when the CREATE response is
+lost.
+
+This goal grants no live-read or Cancel allowance, has no Create authority, and
+makes zero Coinbase calls. ADVANCE returns fixed
+`operator_spot_sweep_live_read_authority_incomplete` before service, ledger,
+runtime, client, or claim access; all five live allowances remain
+`NOT_GRANTED`, unconsumed, and at call count zero. See
+[the Goal 16 design](docs/OPERATOR_SPOT_SWEEP_SAFE_CLOSEOUT_V1.md).
+
+## Completed predecessor Goal 15 — exact single-order Reprice Now intent
 
 Goal `operator_single_order_reprice_now_v1` provides one authenticated local
 `PREPARE_REPRICE_NOW` action for an exact canonical system-owned, zero-fill,

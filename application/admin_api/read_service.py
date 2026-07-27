@@ -9637,6 +9637,110 @@ class AdminApiReadService:
                 ),
             ),
             functionality_item(
+                workflow_id="operator_spot_sweep_safe_closeout_v1",
+                module_id="spot_operations",
+                module="Spot Operations",
+                workflow_type=(
+                    AdminApiFunctionalityWorkflowType.COMMAND_DRAFT
+                ),
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED
+                ),
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Goal 16 provides a platform-ready local singleton "
+                    "max-three Cancel-only plan with pause, resume, abort, "
+                    "append-only audit, and restart quarantine. Live advance "
+                    "remains fixed-disabled with zero exchange calls."
+                ),
+                backend_supported=True,
+                admin_api_exposed=True,
+                frontend_exposed=True,
+                command_capable=True,
+                live_designated=True,
+                live_enabled=False,
+                read_routes=[
+                    (
+                        "GET /api/v1/spot/"
+                        "safe-closeout-sweeps/candidates"
+                    ),
+                    (
+                        "GET /api/v1/spot/"
+                        "safe-closeout-sweeps/current"
+                    ),
+                    (
+                        "GET /api/v1/spot/"
+                        "safe-closeout-sweeps/{sweep_id}"
+                    ),
+                ],
+                command_routes=[
+                    "POST /api/v1/spot/safe-closeout-sweeps",
+                    (
+                        "POST /api/v1/spot/safe-closeout-sweeps/"
+                        "{sweep_id}/pause"
+                    ),
+                    (
+                        "POST /api/v1/spot/safe-closeout-sweeps/"
+                        "{sweep_id}/resume"
+                    ),
+                    (
+                        "POST /api/v1/spot/safe-closeout-sweeps/"
+                        "{sweep_id}/abort"
+                    ),
+                    (
+                        "POST /api/v1/spot/safe-closeout-sweeps/"
+                        "{sweep_id}/advance"
+                    ),
+                ],
+                identity_keys=["sweep_id", "client_order_id"],
+                backend_contract_refs=[
+                    (
+                        "api/v1/routes/"
+                        "operator_spot_safe_closeout_sweep.py"
+                    ),
+                    (
+                        "application/admin_api/"
+                        "operator_spot_safe_closeout_sweep_models.py"
+                    ),
+                    (
+                        "application/admin_api/"
+                        "operator_spot_safe_closeout_sweep_policy.py"
+                    ),
+                    (
+                        "application/admin_api/"
+                        "operator_spot_safe_closeout_sweep_service.py"
+                    ),
+                    (
+                        "application/admin_api/"
+                        "operator_spot_safe_closeout_sweep_runtime.py"
+                    ),
+                    "database/operator_spot_safe_closeout_sweep.py",
+                ],
+                frontend_contract_refs=["src/shared/api/generated/"],
+                documentation_refs=[
+                    "docs/OPERATOR_SPOT_SWEEP_SAFE_CLOSEOUT_V1.md",
+                    "docs/plans/ADMIN_API_ROUTE_INVENTORY.md",
+                ],
+                required_next_contract=(
+                    "Canonical API-key permission, portfolio catalog, exact "
+                    "pre-read, Cancel, and exact post-read authority must be "
+                    "separately authorized before live advance."
+                ),
+                blockers=[
+                    "operator_spot_sweep_live_read_authority_incomplete"
+                ],
+                frontend_boundary=(
+                    "The browser selects and forwards only canonical backend "
+                    "evidence; it cannot decide eligibility, grant an "
+                    "allowance, schedule work, or call Coinbase."
+                ),
+                spot_rule_boundary=(
+                    "The workflow is exact approved-Test BTC-USDC, "
+                    "Cancel-only, max-three Spot scope and cannot be copied "
+                    "into non-spot modules."
+                ),
+            ),
+            functionality_item(
                 workflow_id="operator_stealth_reveal_and_exact_closeout_v1",
                 module_id="stealth_definitions",
                 module="Stealth Operations / Definitions",
@@ -13859,6 +13963,223 @@ class AdminApiReadService:
                     "Sweep automation is spot-only and must keep USDC scope, "
                     "inventory, average-cost, and known-profitable sell authority "
                     "inside backend gates."
+                ),
+            ),
+            mutation_taxonomy_item(
+                mutation_id="spot.operator_safe_closeout_sweep_local_control",
+                mutation_family=(
+                    AdminApiMutationFamilyType.SPOT_SWEEP_AUTOMATION
+                ),
+                workflow_id="operator_spot_sweep_safe_closeout_v1",
+                related_workflow_ids=["spot.order_command_drafts"],
+                module_id="spot_operations",
+                module="Spot Operations",
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED
+                ),
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Goal 16 persists one immutable max-three Cancel-only "
+                    "plan and supports revision-bound local pause, resume, "
+                    "and abort with restart quarantine and zero exchange calls."
+                ),
+                command_surfaces=[
+                    "POST /api/v1/spot/safe-closeout-sweeps",
+                    (
+                        "POST /api/v1/spot/safe-closeout-sweeps/"
+                        "{sweep_id}/pause"
+                    ),
+                    (
+                        "POST /api/v1/spot/safe-closeout-sweeps/"
+                        "{sweep_id}/resume"
+                    ),
+                    (
+                        "POST /api/v1/spot/safe-closeout-sweeps/"
+                        "{sweep_id}/abort"
+                    ),
+                ],
+                action_classes=[
+                    AdminApiActionClass.LOCAL_STATE_MUTATION
+                ],
+                required_permissions=[
+                    AdminApiPermission.SPOT_SWEEP_EXECUTE,
+                    AdminApiPermission.ORDER_CANCEL,
+                ],
+                identity_keys=["sweep_id", "client_order_id"],
+                payload_binding_fields=[
+                    "route",
+                    "action",
+                    "sweep_id",
+                    "body",
+                    "operator_intent",
+                    "actor",
+                    "correlation_id",
+                    "idempotency_key",
+                ],
+                idempotency_contract=(
+                    "required exact canonical payload, actor, correlation, "
+                    "intent, revision, and plan replay"
+                ),
+                approval_contract=(
+                    "required reviewed candidate selection or explicit local "
+                    "control confirmation"
+                ),
+                cap_guard_contract=(
+                    "exact approved-Test BTC-USDC scope, one to three "
+                    "canonical children, and ten local cycles maximum"
+                ),
+                admission_audit_contract=(
+                    "durable accepted predecessor evidence and singleton "
+                    "goal advisory lock required before plan persistence"
+                ),
+                reconciliation_contract=(
+                    "restart IN_PROGRESS/IN_FLIGHT/UNKNOWN state is "
+                    "quarantined with append-only evidence and no retry"
+                ),
+                owning_backend_service=(
+                    "application/admin_api/"
+                    "operator_spot_safe_closeout_sweep_service.py"
+                ),
+                shared_command_service_method=(
+                    "create/pause/resume/abort_safe_closeout_sweep"
+                ),
+                backend_contract_refs=[
+                    (
+                        "api/v1/routes/"
+                        "operator_spot_safe_closeout_sweep.py"
+                    ),
+                    (
+                        "application/admin_api/"
+                        "operator_spot_safe_closeout_sweep_service.py"
+                    ),
+                    "database/operator_spot_safe_closeout_sweep.py",
+                ],
+                frontend_contract_refs=["src/shared/api/generated/"],
+                documentation_refs=[
+                    "docs/OPERATOR_SPOT_SWEEP_SAFE_CLOSEOUT_V1.md",
+                    "docs/plans/ADMIN_API_ROUTE_INVENTORY.md",
+                ],
+                blockers=[],
+                live_adapter_required=False,
+                frontend_boundary=(
+                    "The browser selects and forwards canonical IDs and "
+                    "backend evidence only; it cannot decide eligibility, "
+                    "grant Cancel authority, or call Coinbase."
+                ),
+                route_local_boundary=(
+                    "Routes bind auth, both RBAC permissions, intent, and "
+                    "idempotency before delegating local ledger operations."
+                ),
+                spot_rule_boundary=(
+                    "This bounded BTC-USDC approved-Test closeout plan is "
+                    "Spot-only and must not be copied into non-spot modules."
+                ),
+            ),
+            mutation_taxonomy_item(
+                mutation_id="spot.operator_safe_closeout_sweep_advance",
+                mutation_family=(
+                    AdminApiMutationFamilyType.SPOT_SWEEP_AUTOMATION
+                ),
+                workflow_id="operator_spot_sweep_safe_closeout_v1",
+                related_workflow_ids=["spot.order_command_drafts"],
+                module_id="spot_operations",
+                module="Spot Operations",
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus
+                    .ADMIN_DRAFT_LIVE_DISABLED
+                ),
+                support_status=(
+                    AdminApiModuleSupportStatus
+                    .COMMAND_DRAFT_LIVE_DISABLED
+                ),
+                summary=(
+                    "Goal 16 live advance is fixed fail-closed before every "
+                    "service, ledger, runtime, client, claim, read, or Cancel "
+                    "because canonical live-read authority is incomplete."
+                ),
+                command_surfaces=[
+                    (
+                        "POST /api/v1/spot/safe-closeout-sweeps/"
+                        "{sweep_id}/advance"
+                    )
+                ],
+                action_classes=[
+                    AdminApiActionClass.LIVE_EXCHANGE_CANCEL
+                ],
+                required_permissions=[
+                    AdminApiPermission.SPOT_SWEEP_EXECUTE,
+                    AdminApiPermission.ORDER_CANCEL,
+                ],
+                identity_keys=["sweep_id"],
+                payload_binding_fields=[
+                    "sweep_id",
+                    "expected_revision",
+                    "expected_plan_sha256",
+                    "operator_intent",
+                    "acknowledgements",
+                ],
+                idempotency_contract=(
+                    "header is validated but never consumed while fixed "
+                    "authority blocker is active"
+                ),
+                approval_contract=(
+                    "exact plan and partial-result acknowledgements remain "
+                    "necessary but cannot clear the fixed blocker"
+                ),
+                cap_guard_contract=(
+                    "Zero Creates; every read and Cancel allowance remains "
+                    "NOT_GRANTED, unconsumed, and call count zero"
+                ),
+                admission_audit_contract=(
+                    "fixed diagnostic returned before admission, service, "
+                    "ledger, runtime, client, or claim access"
+                ),
+                reconciliation_contract=(
+                    "no exchange operation starts; unknown or partial "
+                    "outcomes cannot be invented or retried"
+                ),
+                owning_backend_service=(
+                    "api/v1/routes/"
+                    "operator_spot_safe_closeout_sweep.py"
+                ),
+                shared_command_service_method=(
+                    "fixed_live_read_authority_blocker"
+                ),
+                backend_contract_refs=[
+                    (
+                        "api/v1/routes/"
+                        "operator_spot_safe_closeout_sweep.py"
+                    ),
+                    (
+                        "application/admin_api/"
+                        "operator_spot_safe_closeout_sweep_models.py"
+                    ),
+                ],
+                frontend_contract_refs=["src/shared/api/generated/"],
+                documentation_refs=[
+                    "docs/OPERATOR_SPOT_SWEEP_SAFE_CLOSEOUT_V1.md",
+                    "docs/plans/ADMIN_API_ROUTE_INVENTORY.md",
+                ],
+                required_next_contract=(
+                    "Canonical API-key permission, portfolio catalog, exact "
+                    "pre-read, Cancel, and exact post-read contracts must be "
+                    "separately authorized before live implementation."
+                ),
+                blockers=[
+                    "operator_spot_sweep_live_read_authority_incomplete"
+                ],
+                live_adapter_required=True,
+                frontend_boundary=(
+                    "The browser may display and forward only; it cannot "
+                    "grant allowances or implement a Cancel path."
+                ),
+                route_local_boundary=(
+                    "The enabled route always returns the exact fixed 409 "
+                    "after auth/RBAC and before dependency construction."
+                ),
+                spot_rule_boundary=(
+                    "Any later live path remains exact BTC-USDC approved-Test "
+                    "Cancel-only scope and grants no Create authority."
                 ),
             ),
             mutation_taxonomy_from_surface(

@@ -559,6 +559,83 @@ def test_admin_api_local_runner_initializes_single_order_reprice_now_schema_only
 
 
 @pytest.mark.regression
+def test_admin_api_local_runner_recovers_safe_closeout_sweep_before_serving(
+    monkeypatch,
+):
+    from core.runtime_controller import RuntimeController
+
+    uvicorn_calls: list[dict[str, object]] = []
+    startup_events: list[str] = []
+    monkeypatch.setenv(run_admin_api.AUTH_TOKEN_ENV, "local-test-token")
+    monkeypatch.setenv(
+        run_admin_api.OPERATOR_SPOT_SAFE_CLOSEOUT_SWEEP_ENABLED_ENV,
+        "1",
+    )
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_OPERATOR_FOLLOW_UP_INTENT_ENABLED",
+        "0",
+    )
+    monkeypatch.setattr(
+        run_admin_api,
+        "initialize_operator_spot_safe_closeout_sweep_runtime",
+        lambda: startup_events.append(
+            "operator_spot_safe_closeout_sweep_runtime"
+        ),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "uvicorn",
+        _retained_uvicorn_stub(uvicorn_calls),
+    )
+    monkeypatch.setattr(
+        run_admin_api,
+        "get_runtime_controller",
+        lambda: RuntimeController(),
+    )
+
+    exit_code = run_admin_api.main([])
+
+    assert exit_code == 0
+    assert startup_events == [
+        "operator_spot_safe_closeout_sweep_runtime"
+    ]
+    assert len(uvicorn_calls) == 1
+
+
+@pytest.mark.regression
+def test_admin_api_local_runner_fails_closed_on_sweep_recovery_failure(
+    monkeypatch,
+    capsys,
+):
+    monkeypatch.setenv(run_admin_api.AUTH_TOKEN_ENV, "local-test-token")
+    monkeypatch.setenv(
+        run_admin_api.OPERATOR_SPOT_SAFE_CLOSEOUT_SWEEP_ENABLED_ENV,
+        "1",
+    )
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_OPERATOR_FOLLOW_UP_INTENT_ENABLED",
+        "0",
+    )
+    monkeypatch.setattr(
+        run_admin_api,
+        "initialize_operator_spot_safe_closeout_sweep_runtime",
+        lambda: (_ for _ in ()).throw(
+            RuntimeError("withheld recovery detail")
+        ),
+    )
+
+    exit_code = run_admin_api.main([])
+
+    captured = capsys.readouterr()
+    assert exit_code == 2
+    assert captured.err.strip() == (
+        run_admin_api
+        .OPERATOR_SPOT_SAFE_CLOSEOUT_SWEEP_SCHEMA_STARTUP_ERROR
+    )
+    assert "withheld recovery detail" not in captured.err
+
+
+@pytest.mark.regression
 def test_admin_api_local_runner_initializes_stealth_definition_schema_only_for_exact_flag(
     monkeypatch,
 ):

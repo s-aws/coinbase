@@ -201,18 +201,18 @@ def test_enterprise_mutation_taxonomy_separates_source_disabled_futures_commands
     assert "append-only local evidence" in risk_proof.summary
 
 
-def test_futures_module_registry_has_no_gate_clearable_command_path():
+def test_futures_module_registry_keeps_generic_command_gaps_source_disabled():
     readiness = AdminApiReadService().build_enterprise_readiness()
     modules = {item.module_id: item for item in readiness.modules}
     futures = modules["futures_perpetuals"]
 
-    assert futures.support_status == AdminApiModuleSupportStatus.UNSUPPORTED
+    # The module is platform-ready through the separate bounded operator
+    # workflows.  That must not silently unpark the legacy generic commands.
+    assert futures.support_status == AdminApiModuleSupportStatus.PLATFORM_READY
     for gap in futures.command_gaps[:2]:
         assert gap.status == AdminApiModuleSupportStatus.UNSUPPORTED
         assert "source-disabled" in gap.reason
-        assert "separate source restoration and authorization" in (
-            gap.required_backend_contract
-        )
+        assert "explicit authority" in gap.required_backend_contract
         assert "must not forward" in gap.frontend_boundary
         assert "until" not in gap.reason
 
