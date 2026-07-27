@@ -56,6 +56,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from core.enums import FollowUpKind
+from core.orderbook import ClaimLedger
 from tests.unit.test_partial_fill_followups import (
     _build_engine_for_partial_fill_tests,
 )
@@ -160,6 +162,15 @@ def _wire_cancel_path(
     return stealth_manager, stealth_record
 
 
+def _wire_stateful_follow_up_claim(engine):
+    """Back the mocked OrderBook claim methods with the real ledger kernel."""
+    ledger = ClaimLedger(FollowUpKind)
+    engine.orderbook.try_claim_follow_up.side_effect = ledger.try_claim
+    engine.orderbook.release_follow_up.side_effect = ledger.release
+    engine.orderbook.complete_follow_up.side_effect = ledger.complete
+    return ledger
+
+
 @pytest.mark.regression
 def test_cancel_followup_passes_stealth_order_id_not_placement_uuid():
     """The cancel branch must look up the stealth chain by its
@@ -179,6 +190,8 @@ def test_cancel_followup_passes_stealth_order_id_not_placement_uuid():
             "target_movement_type": "P",
         },
     )
+    engine.cancelled_follow_up_suppression_checker = Mock(return_value=False)
+    engine.cancelled_follow_up_suppression_acknowledger = Mock()
     # Make the manager return a real follow-up id so the success branch runs.
     stealth_manager.create_follow_up_stealth_order = Mock(
         return_value="new-follow-up-id"
@@ -208,6 +221,10 @@ def test_cancel_followup_passes_stealth_order_id_not_placement_uuid():
     engine.register_child_order.assert_called_once_with(
         "new-follow-up-id", stealth_root_id
     )
+    engine.cancelled_follow_up_suppression_checker.assert_called_once_with(
+        placement_uuid
+    )
+    engine.cancelled_follow_up_suppression_acknowledger.assert_not_called()
 
 
 @pytest.mark.regression
@@ -250,6 +267,207 @@ def test_goal7_fence_blocks_all_cancel_follow_up_paths():
     engine.complete_follow_up_processing.assert_called_once_with(
         "cancelled",
         placement_uuid,
+    )
+
+
+@pytest.mark.regression
+def test_goal14_fence_blocks_direct_parent_cancel_follow_up_paths():
+    """A Goal 14 source Cancel must not trigger legacy or generic children."""
+    engine = _build_engine_for_partial_fill_tests()
+    claim_ledger = _wire_stateful_follow_up_claim(engine)
+    source_client_order_id = "68d44d3d-b377-45cb-9ee9-c5e64158738e"
+    engine.cancelled_follow_up_suppression_checker = Mock(return_value=True)
+    engine.cancelled_follow_up_suppression_acknowledger = Mock(
+        return_value=True
+    )
+    engine.complete_follow_up_processing = Mock(
+        wraps=engine.complete_follow_up_processing
+    )
+    engine.compute_order_template = Mock()
+    engine.register_child_order = Mock()
+
+    with patch("database.order.has_pending_move") as has_pending_move:
+        engine.handle_cancelled_order(
+            {
+                "client_order_id": source_client_order_id,
+                "product_id": "BTC-USDC",
+                "side": "BUY",
+                "status": "CANCELLED",
+                "price": 100000.0,
+            }
+        )
+
+    engine.cancelled_follow_up_suppression_checker.assert_called_once_with(
+        source_client_order_id
+    )
+    engine.cancelled_follow_up_suppression_acknowledger.assert_called_once_with(
+        source_client_order_id
+    )
+    has_pending_move.assert_not_called()
+    engine.compute_order_template.assert_not_called()
+    engine.register_child_order.assert_not_called()
+    engine.complete_follow_up_processing.assert_called_once_with(
+        "cancelled",
+        source_client_order_id,
+    )
+    assert claim_ledger.state("cancelled", source_client_order_id) == "done"
+
+
+@pytest.mark.regression
+@pytest.mark.parametrize(
+    "acknowledgement",
+    [
+        False,
+        None,
+        "unknown",
+        pytest.param(RuntimeError("withheld"), id="exception"),
+    ],
+)
+def test_goal14_fence_stays_closed_when_durable_acknowledgement_fails(
+    acknowledgement,
+):
+    """An unknown durable acknowledgement quarantines the claimed source."""
+    engine = _build_engine_for_partial_fill_tests()
+    claim_ledger = _wire_stateful_follow_up_claim(engine)
+    source_client_order_id = "68d44d3d-b377-45cb-9ee9-c5e64158738e"
+    engine.cancelled_follow_up_suppression_checker = Mock(return_value=True)
+    if isinstance(acknowledgement, Exception):
+        acknowledger = Mock(side_effect=acknowledgement)
+    else:
+        acknowledger = Mock(return_value=acknowledgement)
+    engine.cancelled_follow_up_suppression_acknowledger = acknowledger
+    engine.complete_follow_up_processing = Mock(
+        wraps=engine.complete_follow_up_processing
+    )
+    engine.compute_order_template = Mock()
+    engine.register_child_order = Mock()
+
+    with patch("database.order.has_pending_move") as has_pending_move:
+        engine.handle_cancelled_order(
+            {
+                "client_order_id": source_client_order_id,
+                "product_id": "BTC-USDC",
+                "side": "BUY",
+                "status": "CANCELLED",
+                "price": 100000.0,
+            }
+        )
+
+    engine.cancelled_follow_up_suppression_acknowledger.assert_called_once_with(
+        source_client_order_id
+    )
+    has_pending_move.assert_not_called()
+    engine.compute_order_template.assert_not_called()
+    engine.register_child_order.assert_not_called()
+    engine.complete_follow_up_processing.assert_not_called()
+    assert (
+        claim_ledger.state("cancelled", source_client_order_id)
+        == "processing"
+    )
+
+
+@pytest.mark.regression
+@pytest.mark.parametrize("checker_result", [None, "unknown"])
+def test_goal14_fence_quarantines_non_boolean_membership_result(
+    checker_result,
+):
+    """Only literal False proves that a source is outside Goal 14."""
+    engine = _build_engine_for_partial_fill_tests()
+    claim_ledger = _wire_stateful_follow_up_claim(engine)
+    source_client_order_id = "68d44d3d-b377-45cb-9ee9-c5e64158738e"
+    engine.cancelled_follow_up_suppression_checker = Mock(
+        return_value=checker_result
+    )
+    engine.cancelled_follow_up_suppression_acknowledger = Mock()
+    engine.complete_follow_up_processing = Mock(
+        wraps=engine.complete_follow_up_processing
+    )
+    engine.release_follow_up_processing = Mock(
+        wraps=engine.release_follow_up_processing
+    )
+    engine.compute_order_template = Mock()
+
+    with patch("database.order.has_pending_move") as has_pending_move:
+        engine.handle_cancelled_order(
+            {
+                "client_order_id": source_client_order_id,
+                "product_id": "BTC-USDC",
+                "side": "BUY",
+                "status": "CANCELLED",
+                "price": 100000.0,
+            }
+        )
+
+    engine.cancelled_follow_up_suppression_acknowledger.assert_not_called()
+    has_pending_move.assert_not_called()
+    engine.compute_order_template.assert_not_called()
+    engine.complete_follow_up_processing.assert_not_called()
+    engine.release_follow_up_processing.assert_not_called()
+    assert (
+        claim_ledger.state("cancelled", source_client_order_id)
+        == "processing"
+    )
+
+
+@pytest.mark.regression
+def test_goal14_fence_quarantines_membership_checker_exception():
+    """A checker failure cannot consume an unrelated source's claim."""
+    engine = _build_engine_for_partial_fill_tests()
+    claim_ledger = _wire_stateful_follow_up_claim(engine)
+    source_client_order_id = "68d44d3d-b377-45cb-9ee9-c5e64158738e"
+    durable_claim_id = "durable-cancel-claim"
+    engine.db_module.FOLLOW_UP_INTENT_DURABLE_SLOT_APPLIES = (
+        lambda _client_order_id: True
+    )
+    engine.db_module.try_claim_automatic_order_follow_up = Mock(
+        return_value=durable_claim_id
+    )
+    engine.db_module.complete_automatic_order_follow_up_claim = Mock(
+        return_value=True
+    )
+    engine.db_module.release_automatic_order_follow_up_claim = Mock(
+        return_value=True
+    )
+    engine.cancelled_follow_up_suppression_checker = Mock(
+        side_effect=RuntimeError("withheld")
+    )
+    engine.cancelled_follow_up_suppression_acknowledger = Mock()
+    engine.complete_follow_up_processing = Mock(
+        wraps=engine.complete_follow_up_processing
+    )
+    engine.release_follow_up_processing = Mock(
+        wraps=engine.release_follow_up_processing
+    )
+    engine.compute_order_template = Mock()
+
+    with patch("database.order.has_pending_move") as has_pending_move:
+        engine.handle_cancelled_order(
+            {
+                "client_order_id": source_client_order_id,
+                "product_id": "BTC-USDC",
+                "side": "BUY",
+                "status": "CANCELLED",
+                "price": 100000.0,
+            }
+        )
+
+    engine.cancelled_follow_up_suppression_acknowledger.assert_not_called()
+    has_pending_move.assert_not_called()
+    engine.compute_order_template.assert_not_called()
+    engine.complete_follow_up_processing.assert_not_called()
+    engine.release_follow_up_processing.assert_not_called()
+    engine.db_module.try_claim_automatic_order_follow_up.assert_called_once_with(
+        source_client_order_id=source_client_order_id,
+        trigger="cancelled",
+    )
+    engine.db_module.complete_automatic_order_follow_up_claim.assert_not_called()
+    engine.db_module.release_automatic_order_follow_up_claim.assert_not_called()
+    assert engine._durable_follow_up_claim_ids[
+        ("cancelled", source_client_order_id)
+    ] == durable_claim_id
+    assert (
+        claim_ledger.state("cancelled", source_client_order_id)
+        == "processing"
     )
 
 

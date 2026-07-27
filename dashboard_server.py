@@ -88,6 +88,8 @@ _ORIGINATING_MSG_TYPES = frozenset({
 _SOURCE_DISABLED_EXCHANGE_MUTATION_RESPONSES = {
     "place_order": "place_order_response",
     "cancel_order": "cancel_response",
+    "move_order": "order_moved",
+    "premark_move": "order_premarked",
     "place_hotpoint_test_order": "place_hotpoint_test_order_response",
 }
 

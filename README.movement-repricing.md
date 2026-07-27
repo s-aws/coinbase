@@ -1,9 +1,10 @@
 # Movement And Repricing
 
-This feature exposes movement and repricing evidence through the enterprise
-Admin API. Read routes remain read-only. One live-disabled reprice command
-draft exists so operators and frontend agents can review the eventual contract
-without creating a second live repricing path.
+This feature exposes movement and repricing evidence plus backend-owned
+operator workflows through the enterprise Admin API. Read routes remain
+read-only. One durable parent-move PREMARK action is locally actionable, while
+its live execution and the older reprice draft remain disabled unless their
+own complete backend authority is present.
 
 ## When To Use
 
@@ -20,10 +21,14 @@ movement/repricing behavior inspectable without granting frontend authority.
 - `GET /api/v1/movement-repricing/orders/{client_order_id}`
 - `GET /api/v1/movement-repricing/stealth/{stealth_order_id}`
 - `POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice`
+- `GET /api/v1/movement-repricing/orders/{client_order_id}/parent-move`
+- `POST /api/v1/movement-repricing/orders/{client_order_id}/parent-move-plans`
+- `POST /api/v1/movement-repricing/orders/{client_order_id}/execute-parent-move`
+- `POST /api/v1/movement-repricing/orders/{client_order_id}/parent-move-safe-closeout`
 
-Read routes require Admin API authentication and `audit:read` permission. They
-return `read_only=true`, `command_routes_mode=live_disabled`, and
-`live_coinbase_orders_ran=false`.
+Legacy evidence reads require Admin API authentication and `audit:read`.
+The Goal 14 parent-move GET uses `analytics:read`. Read routes remain
+call-free and return fixed backend evidence; they do not authorize a mutation.
 
 The reprice command draft requires Admin API authentication, `order:cancel`,
 idempotency headers, operator intent, and audit. The cancel-class permission
@@ -35,6 +40,15 @@ runtime returns HTTP `501` with `status=not_implemented`,
 For this module, dry-submit means posting the live-disabled command contract
 and preserving the backend `501`, idempotency, audit, operator-intent, and
 no-live evidence. It is not live repricing approval.
+
+The parent-move GET and PREMARK routes use the exact selected
+`client_order_id`. PREMARK is a local PostgreSQL mutation: it freezes a
+quantized replacement plan and successor identity and makes no Coinbase call.
+The current Goal 14 authority does not include the prerequisite live read
+categories, so Execute and Safe Closeout return
+`operator_parent_move_live_authority_terms_incomplete` before service, ledger,
+runtime, or Coinbase access. See
+[Operator Parent Move Premark Lifecycle V1](docs/OPERATOR_PARENT_MOVE_PREMARK_LIFECYCLE_V1.md).
 
 ## Evidence Sources
 
@@ -61,8 +75,10 @@ database proves no claim exists.
 
 ## Safety Constraints
 
-- The enterprise Admin API does not expose move, premark, or move-revealed
-  command routes in this feature.
+- Parent PREMARK is the only newly actionable command and is call-free.
+- Parent Execute and Safe Closeout remain visible but backend-disabled under
+  the current authority; no source Cancel, replacement Create, or successor
+  Cancel allowance has been consumed.
 - The live-disabled reprice draft must not clear cooldowns, call
   `process_anchor_repricing_for_product`, cancel placements, replace
   placements, or invoke `StealthOrderManager` until the exchange-reality

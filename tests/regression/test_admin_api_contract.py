@@ -74588,35 +74588,35 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     )
     assert live_payload["live_enabled_path_count"] == 0
     assert live_payload["live_eligible_path_count"] == 0
-    assert live_payload["preflight_check_count"] == 208
-    assert live_payload["blocking_preflight_check_count"] == 104
-    assert live_payload["passed_preflight_check_count"] == 104
-    assert live_payload["approval_snapshot_required_count"] == 26
+    assert live_payload["preflight_check_count"] == 224
+    assert live_payload["blocking_preflight_check_count"] == 112
+    assert live_payload["passed_preflight_check_count"] == 112
+    assert live_payload["approval_snapshot_required_count"] == 28
     assert live_payload["approval_snapshot_present_count"] == 0
-    assert live_payload["approval_snapshot_missing_count"] == 26
-    assert live_payload["approval_snapshot_required_field_count"] == 390
-    assert live_payload["approval_snapshot_missing_field_count"] == 390
-    assert live_payload["approval_store_required_count"] == 26
-    assert live_payload["approval_store_configured_count"] == 26
+    assert live_payload["approval_snapshot_missing_count"] == 28
+    assert live_payload["approval_snapshot_required_field_count"] == 420
+    assert live_payload["approval_snapshot_missing_field_count"] == 420
+    assert live_payload["approval_store_required_count"] == 28
+    assert live_payload["approval_store_configured_count"] == 28
     assert live_payload["approval_store_missing_count"] == 0
-    assert live_payload["approval_store_requirement_count"] == 312
+    assert live_payload["approval_store_requirement_count"] == 336
     assert live_payload["approval_store_missing_requirement_count"] == 0
-    assert live_payload["admission_audit_required_count"] == 26
+    assert live_payload["admission_audit_required_count"] == 28
     assert live_payload["admission_audit_configured_count"] == 0
-    assert live_payload["admission_audit_missing_count"] == 26
-    assert live_payload["admission_audit_fact_count"] == 260
-    assert live_payload["admission_audit_missing_fact_count"] == 234
-    assert live_payload["cap_guard_required_count"] == 26
+    assert live_payload["admission_audit_missing_count"] == 28
+    assert live_payload["admission_audit_fact_count"] == 280
+    assert live_payload["admission_audit_missing_fact_count"] == 252
+    assert live_payload["cap_guard_required_count"] == 28
     assert live_payload["cap_guard_configured_count"] == 0
-    assert live_payload["cap_guard_missing_count"] == 26
-    assert live_payload["cap_guard_requirement_count"] == 364
-    assert live_payload["cap_guard_missing_requirement_count"] == 364
-    assert live_payload["live_execution_adapter_required_count"] == 26
+    assert live_payload["cap_guard_missing_count"] == 28
+    assert live_payload["cap_guard_requirement_count"] == 392
+    assert live_payload["cap_guard_missing_requirement_count"] == 392
+    assert live_payload["live_execution_adapter_required_count"] == 28
     assert live_payload["live_execution_adapter_configured_count"] == 12
-    assert live_payload["live_execution_adapter_missing_count"] == 14
-    assert live_payload["readiness_precondition_count"] == 234
-    assert live_payload["blocking_readiness_precondition_count"] == 143
-    assert live_payload["passed_readiness_precondition_count"] == 91
+    assert live_payload["live_execution_adapter_missing_count"] == 16
+    assert live_payload["readiness_precondition_count"] == 252
+    assert live_payload["blocking_readiness_precondition_count"] == 155
+    assert live_payload["passed_readiness_precondition_count"] == 97
     assert live_payload["live_coinbase_orders_ran"] is False
     live_routes = {item["route"]: item for item in live_payload["paths"]}
     assert "/api/v1/orders" in live_routes
@@ -75440,6 +75440,9 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "stealth.manager_invocation_policy_proof",
         "stealth.coinbase_exchange_submission_policy_proof",
         "stealth.post_write_reconciliation_execution_policy_proof",
+        "movement.operator_parent_move_premark",
+        "movement.operator_parent_move_execute",
+        "movement.operator_parent_move_safe_closeout",
         "movement.reprice",
         "futures.manual_lifecycle_eligibility",
         "futures.manual_lifecycle_execution",

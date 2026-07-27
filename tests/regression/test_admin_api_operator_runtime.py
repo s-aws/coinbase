@@ -355,6 +355,9 @@ def test_operator_runtime_initializes_enabled_durable_schemas_before_composition
     environment[
         "COINBASE_ADMIN_API_OPERATOR_SPOT_ORDER_TRUTH_ENABLED"
     ] = "1"
+    environment[
+        "COINBASE_ADMIN_API_OPERATOR_PARENT_MOVE_PREMARK_ENABLED"
+    ] = "1"
     lifecycle: list[object] = []
     monkeypatch.setattr(
         operator_runtime,
@@ -386,6 +389,12 @@ def test_operator_runtime_initializes_enabled_durable_schemas_before_composition
         lambda: lifecycle.append("operator_spot_order_truth_schema"),
         raising=False,
     )
+    monkeypatch.setattr(
+        operator_runtime,
+        "initialize_operator_parent_move_premark_schema",
+        lambda: lifecycle.append("operator_parent_move_premark_schema"),
+        raising=False,
+    )
 
     result = operator_runtime.main(
         ["--host", "127.0.0.1", "--port", "8877"],
@@ -404,6 +413,7 @@ def test_operator_runtime_initializes_enabled_durable_schemas_before_composition
         "operator_parent_strategy_schema",
         "operator_stealth_definition_schema",
         "operator_spot_order_truth_schema",
+        "operator_parent_move_premark_schema",
         "compose",
         ("serve", "127.0.0.1", 8877),
     ]
@@ -702,7 +712,11 @@ def test_operator_runtime_composes_dormant_canonical_dependencies_without_engine
     tmp_path: Path,
 ) -> None:
     environment = _authorized_environment(tmp_path)
+    environment[
+        "COINBASE_ADMIN_API_OPERATOR_PARENT_MOVE_PREMARK_ENABLED"
+    ] = "1"
     events: list[str] = []
+    suppression_checker = lambda _client_order_id: False
     engine = SimpleNamespace(
         set_hotpoint_auto_place_enabled=lambda enabled: events.append(
             f"hotpoint:{enabled}"
@@ -726,6 +740,7 @@ def test_operator_runtime_composes_dormant_canonical_dependencies_without_engine
         ORDER_POST_ONLY={"BUY": True, "SELL": True},
         get_rest_client=lambda: events.append("rest") or SimpleNamespace(),
     )
+    suppression_acknowledger = lambda _client_order_id: True
     composed = operator_runtime.compose_canonical_operator_runtime(
         environ=environment,
         configuration_module=configuration,
@@ -733,9 +748,13 @@ def test_operator_runtime_composes_dormant_canonical_dependencies_without_engine
         runtime_builder=lambda **kwargs: events.append(
             f"build:{kwargs['subscription'].product_ids}:"
             f"{kwargs['subscription'].channels}:"
-            f"{kwargs['subscription'].retail_portfolio_id == environment['COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID']}"
+            f"{kwargs['subscription'].retail_portfolio_id == environment['COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID']}:"
+            f"{kwargs['cancelled_follow_up_suppression_checker'] is suppression_checker}:"
+            f"{kwargs['cancelled_follow_up_suppression_acknowledger'] is suppression_acknowledger}"
         )
         or runtime,
+        parent_move_suppression_checker=suppression_checker,
+        parent_move_suppression_acknowledger=suppression_acknowledger,
         bridge_setter=lambda value: events.append(
             f"bridge:{value is bridge}"
         ),
@@ -750,7 +769,7 @@ def test_operator_runtime_composes_dormant_canonical_dependencies_without_engine
 
     assert composed is runtime
     assert events == [
-        "build:['BTC-USDC']:[]:True",
+        "build:['BTC-USDC']:[]:True:True:True",
         "hotpoint:False",
         "bridge:True",
         "hydrate:True",
@@ -790,6 +809,8 @@ def test_operator_runtime_rejects_composition_when_command_dependencies_are_not_
             configuration_module=configuration,
             db_module=SimpleNamespace(),
             runtime_builder=lambda **_kwargs: runtime,
+            parent_move_suppression_checker=lambda _client_order_id: False,
+            parent_move_suppression_acknowledger=lambda _client_order_id: False,
             bridge_setter=lambda _bridge: None,
             runtime_hydrator=lambda _runtime: None,
             readiness_builder=lambda: SimpleNamespace(
@@ -807,6 +828,13 @@ def test_operator_runtime_source_does_not_enter_legacy_main_or_start_autonomous_
     assert ".run_forever(" not in source
     assert "stealth_order_bridge.start(" not in source
     assert "require_spot_test_portfolio_binding" not in source
+    composition = source[
+        source.index("def compose_canonical_operator_runtime("):
+        source.index("configured_portfolio_id =")
+    ]
+    assert "target.get(OPERATOR_PARENT_MOVE_PREMARK_ENABLED_ENV)" not in composition
+    assert "should_suppress_source_cancel_follow_up" in composition
+    assert "acknowledge_source_cancel_event_suppression" in composition
 
 
 def test_operator_runtime_composition_diagnostics_are_value_blind() -> None:

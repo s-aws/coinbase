@@ -171,6 +171,7 @@ owners:
       - tests/regression/test_replacement_slot_atomic_claim.py
       - tests/regression/test_process_user_order_per_coid_lock.py
       - tests/regression/test_partial_fill_follow_up_atomic_claim.py
+      - tests/regression/test_cancel_followup_stealth_id_passthrough.py
       - tests/regression/test_follow_up_*.py
       - tests/regression/test_flat_hierarchy_*.py
       - tests/regression/test_product_capability_policy.py
@@ -279,6 +280,7 @@ owners:
       - docs/OPERATOR_SPOT_ORDER_TRUTH_AND_EXACT_CANCEL_V1.md
       - docs/OPERATOR_FUTURES_PRODUCT_POLICY_AND_TICKET_V1.md
       - docs/OPERATOR_FUTURES_FOLLOW_UP_INTENT_V1.md
+      - docs/OPERATOR_PARENT_MOVE_PREMARK_LIFECYCLE_V1.md
       - openapi/**
       - tools/export_admin_api_route_inventory.py
       - tests/regression/test_admin_api_*.py
@@ -294,6 +296,10 @@ owners:
       - tests/unit/test_operator_futures_product_ticket_live_admission.py
       - tests/unit/test_operator_futures_product_ticket_runtime.py
       - tests/unit/test_operator_futures_follow_up_intent.py
+      - tests/unit/test_operator_parent_move_premark_policy.py
+      - tests/unit/test_operator_parent_move_premark_runtime.py
+      - tests/unit/test_operator_parent_move_premark_service.py
+      - tests/regression/test_operator_parent_move_premark_routes.py
       - tests/regression/test_admin_mvp_account_reality_live_read_smoke.py
       - tests/regression/test_admin_mvp_futures_executor_boundary_smoke.py
       - tests/regression/test_admin_mvp_api.py
@@ -382,6 +388,7 @@ owners:
       - tests/regression/test_operator_futures_product_policy_repository.py
       - tests/regression/test_operator_futures_product_ticket_repository.py
       - tests/regression/test_operator_futures_follow_up_intent_repository.py
+      - tests/regression/test_operator_parent_move_premark_repository.py
       - tests/regression/test_reconciler_schema.py
       - tests/unit/test_database.py
       - tests/unit/test_filled_follow_up_atomic_persistence.py

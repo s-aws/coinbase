@@ -52,6 +52,12 @@ def build_canonical_order_runtime(
     stealth_order_manager_factory: Callable[[Any], Any] | None = None,
     stealth_order_bridge_factory: Callable[[Any, Any | None], Any] | None = None,
     order_engine_factory: Callable[..., Any] | None = None,
+    cancelled_follow_up_suppression_checker: (
+        Callable[[str], bool] | None
+    ) = None,
+    cancelled_follow_up_suppression_acknowledger: (
+        Callable[[str], bool] | None
+    ) = None,
 ) -> CanonicalOrderRuntime:
     """Build one engine and wire its exact bridge/manager identity.
 
@@ -114,6 +120,12 @@ def build_canonical_order_runtime(
         api_secret=api_secret,
         order_post_only=order_post_only,
         stealth_order_bridge=stealth_bridge,
+        cancelled_follow_up_suppression_checker=(
+            cancelled_follow_up_suppression_checker
+        ),
+        cancelled_follow_up_suppression_acknowledger=(
+            cancelled_follow_up_suppression_acknowledger
+        ),
     )
 
     if stealth_bridge is not None:

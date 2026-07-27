@@ -1,5 +1,28 @@
 # Coinbase Trading Backend
 
+## Goal 14 — parent move Premark lifecycle
+
+Goal `operator_parent_move_premark_lifecycle_v1` provides one backend-owned
+local PREMARK action for an exact approved-Test, `BTC-USDC`, system-owned,
+direct `ADMIN_MANUAL_ROOT`, zero-fill source. It reserves one distinct
+successor `client_order_id`, quantizes an immutable Product Catalog-bound plan,
+and enforces fixed `3.10 USDC` submitted / `1.00 USDC` possible-execution
+caps. PREMARK is a PostgreSQL mutation and makes no Coinbase call.
+
+A separate Goal 14 ledger owns the ten-cycle budget, source/successor linkage,
+plan hash, idempotency, correlation, append-only events, three
+non-transferable future mutation claims, pre-boundary reclaim, and
+boundary-crossed unknown recovery. The canonical Order Engine uses a
+fail-closed source-cancellation follow-up suppression checker, and the legacy
+dashboard `move_order`/`premark_move` commands are source-disabled.
+
+The Goal 14 addendum did not enumerate the prerequisite live
+profile/product/wallet/market/exact-order reads. Execute and exact-successor
+closeout therefore reject before service, ledger, runtime, or Coinbase access
+with `operator_parent_move_live_authority_terms_incomplete`. All source Cancel,
+replacement Create, and successor Cancel allowances remain unconsumed. See
+[the Goal 14 design](docs/OPERATOR_PARENT_MOVE_PREMARK_LIFECYCLE_V1.md).
+
 ## Completed independent Goal 13 — operator-ready Controlled-live closeout
 
 Goal `operator_futures_hotpoint_canonical_single_child_v2` provides the

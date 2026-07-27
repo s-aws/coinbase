@@ -16062,6 +16062,193 @@ class AdminApiReadService:
                 ),
             ),
             mutation_taxonomy_from_surface(
+                surface=(
+                    "POST /api/v1/movement-repricing/orders/"
+                    "{client_order_id}/parent-move-plans"
+                ),
+                mutation_id="movement.operator_parent_move_premark",
+                mutation_family=AdminApiMutationFamilyType.MOVEMENT_REPRICE,
+                workflow_id="operator_parent_move_premark_lifecycle_v1",
+                module="Order Movement / Repricing",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Persist one backend-derived immutable direct-parent move "
+                    "plan in the separate Goal 14 PostgreSQL ledger without "
+                    "calling Coinbase or granting later execution authority."
+                ),
+                identity_keys=[
+                    "client_order_id",
+                    "reserved_successor_client_order_id",
+                    "plan_sha256",
+                    "idempotency_key",
+                    "correlation_id",
+                ],
+                owning_backend_service=(
+                    "application/admin_api/"
+                    "operator_parent_move_premark_service.py"
+                ),
+                backend_contract_refs=[
+                    "api/v1/routes/operator_parent_move_premark.py",
+                    "application/admin_api/operator_parent_move_premark_policy.py",
+                    "application/admin_api/operator_parent_move_premark_service.py",
+                    "database/operator_parent_move_premark.py",
+                ],
+                frontend_contract_refs=[
+                    "src/features/movement-repricing/OperatorParentMoveWorkspace.tsx",
+                    "src/features/movement-repricing/operatorParentMoveRuntime.ts",
+                    "src/shared/api/contracts/backendApiClient.ts",
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_PARENT_MOVE_PREMARK_LIFECYCLE_V1.md",
+                ],
+                required_next_contract=(
+                    "A separately complete live authority envelope must "
+                    "enumerate exact read categories and Cancel/Create terms "
+                    "before Execute or Safe Closeout can activate."
+                ),
+                blockers=["parent_move_live_authority_terms_incomplete"],
+                frontend_boundary=(
+                    "The browser may forward only the explicit requested "
+                    "price, reason, intent, and acknowledgement, then render "
+                    "the immutable backend plan and fixed audit evidence."
+                ),
+                route_local_boundary=(
+                    "The route binds authentication, dual order permissions, "
+                    "intent, idempotency, correlation, and audit identity and "
+                    "delegates all validation and persistence to Goal 14."
+                ),
+                spot_rule_boundary=(
+                    "The exact approved-Test BTC-USDC policy and fixed caps "
+                    "belong only to this backend Goal 14 plan."
+                ),
+                approval_required=False,
+                reconciliation_required=False,
+                live_adapter_required=False,
+            ),
+            mutation_taxonomy_from_surface(
+                surface=(
+                    "POST /api/v1/movement-repricing/orders/"
+                    "{client_order_id}/execute-parent-move"
+                ),
+                mutation_id="movement.operator_parent_move_execute",
+                mutation_family=AdminApiMutationFamilyType.MOVEMENT_REPRICE,
+                workflow_id="operator_parent_move_premark_lifecycle_v1",
+                module="Order Movement / Repricing",
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED
+                ),
+                support_status=(
+                    AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED
+                ),
+                summary=(
+                    "Reserved source-Cancel and identical replacement-Create "
+                    "contract that remains source-disabled before service, "
+                    "ledger, runtime, or Coinbase access."
+                ),
+                identity_keys=[
+                    "client_order_id",
+                    "plan_sha256",
+                    "idempotency_key",
+                    "correlation_id",
+                ],
+                owning_backend_service=(
+                    "application/admin_api/"
+                    "operator_parent_move_premark_service.py"
+                ),
+                backend_contract_refs=[
+                    "api/v1/routes/operator_parent_move_premark.py",
+                    "application/admin_api/operator_parent_move_premark_service.py",
+                    "database/operator_parent_move_premark.py",
+                    "core/order_engine.py",
+                ],
+                frontend_contract_refs=[
+                    "src/features/movement-repricing/OperatorParentMoveWorkspace.tsx",
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_PARENT_MOVE_PREMARK_LIFECYCLE_V1.md",
+                ],
+                required_next_contract=(
+                    "Exact profile, read-category, freshness, wallet, market, "
+                    "reconciliation, source-Cancel, and replacement-Create "
+                    "authority must be separately complete."
+                ),
+                blockers=["parent_move_live_authority_terms_incomplete"],
+                frontend_boundary=(
+                    "The installed browser control remains visibly disabled "
+                    "and cannot infer or construct live authority."
+                ),
+                route_local_boundary=(
+                    "The route returns the fixed authority blocker before "
+                    "claim creation, runtime construction, or Coinbase access."
+                ),
+                spot_rule_boundary=(
+                    "No generic or Futures cancel/replace behavior may borrow "
+                    "this exact Spot parent-move contract."
+                ),
+            ),
+            mutation_taxonomy_from_surface(
+                surface=(
+                    "POST /api/v1/movement-repricing/orders/"
+                    "{client_order_id}/parent-move-safe-closeout"
+                ),
+                mutation_id="movement.operator_parent_move_safe_closeout",
+                mutation_family=AdminApiMutationFamilyType.MOVEMENT_REPRICE,
+                workflow_id="operator_parent_move_premark_lifecycle_v1",
+                module="Order Movement / Repricing",
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED
+                ),
+                support_status=(
+                    AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED
+                ),
+                summary=(
+                    "Reserved exact-successor Cancel contract that remains "
+                    "source-disabled before service, ledger, runtime, or "
+                    "Coinbase access."
+                ),
+                identity_keys=[
+                    "client_order_id",
+                    "reserved_successor_client_order_id",
+                    "plan_sha256",
+                    "idempotency_key",
+                    "correlation_id",
+                ],
+                owning_backend_service=(
+                    "application/admin_api/"
+                    "operator_parent_move_premark_service.py"
+                ),
+                backend_contract_refs=[
+                    "api/v1/routes/operator_parent_move_premark.py",
+                    "application/admin_api/operator_parent_move_premark_service.py",
+                    "database/operator_parent_move_premark.py",
+                ],
+                frontend_contract_refs=[
+                    "src/features/movement-repricing/OperatorParentMoveWorkspace.tsx",
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_PARENT_MOVE_PREMARK_LIFECYCLE_V1.md",
+                ],
+                required_next_contract=(
+                    "Exact-successor authoritative nonterminal reconciliation "
+                    "and a separately complete one-Cancel authority envelope "
+                    "must exist before activation."
+                ),
+                blockers=["parent_move_live_authority_terms_incomplete"],
+                frontend_boundary=(
+                    "The installed browser control remains visibly disabled "
+                    "and cannot select an alternate child."
+                ),
+                route_local_boundary=(
+                    "The route returns the fixed authority blocker before "
+                    "claim creation, runtime construction, or Coinbase access."
+                ),
+                spot_rule_boundary=(
+                    "Only the exact reserved BTC-USDC successor could ever be "
+                    "eligible; no fan-out or unrelated-order authority exists."
+                ),
+            ),
+            mutation_taxonomy_from_surface(
                 surface="POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
                 mutation_id="movement.reprice",
                 mutation_family=AdminApiMutationFamilyType.MOVEMENT_REPRICE,

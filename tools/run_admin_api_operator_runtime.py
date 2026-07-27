@@ -39,6 +39,7 @@ from tools.run_admin_api import (
     OPERATOR_AUTOMATION_ENABLED_ENV,
     OPERATOR_HOTPOINT_ENABLED_ENV,
     OPERATOR_PRODUCT_CATALOG_ENABLED_ENV,
+    OPERATOR_PARENT_MOVE_PREMARK_ENABLED_ENV,
     OPERATOR_PARENT_STRATEGIES_ENABLED_ENV,
     OPERATOR_SPOT_ORDER_TRUTH_ENABLED_ENV,
     OPERATOR_STEALTH_DEFINITIONS_ENABLED_ENV,
@@ -46,6 +47,7 @@ from tools.run_admin_api import (
     initialize_operator_automation_schema,
     initialize_operator_hotpoint_schema,
     initialize_operator_product_catalog_schema,
+    initialize_operator_parent_move_premark_schema,
     initialize_operator_parent_strategy_schema,
     initialize_operator_spot_order_truth_schema,
     initialize_operator_stealth_definition_schema,
@@ -80,6 +82,7 @@ _FIXED_STARTUP_DIAGNOSTICS = frozenset(
         "operator_hotpoint_gate_unavailable",
         "operator_hotpoint_schema_init_failed",
         "operator_live_runtime_disabled",
+        "operator_parent_move_premark_schema_init_failed",
         "operator_parent_strategy_schema_init_failed",
         "operator_product_catalog_schema_init_failed",
         "operator_runtime_reload_forbidden",
@@ -206,6 +209,10 @@ def compose_canonical_operator_runtime(
     bridge_setter: Callable[[Any], None] | None = None,
     runtime_hydrator: Callable[[Any], None] | None = None,
     readiness_builder: Callable[[], Any] | None = None,
+    parent_move_suppression_checker: Callable[[str], bool] | None = None,
+    parent_move_suppression_acknowledger: (
+        Callable[[str], bool] | None
+    ) = None,
 ) -> Any:
     """Compose route-scoped command dependencies without autonomous loops."""
 
@@ -232,6 +239,27 @@ def compose_canonical_operator_runtime(
         )
 
         readiness_builder = build_admin_api_command_runtime_readiness
+    if (
+        parent_move_suppression_checker is None
+        or parent_move_suppression_acknowledger is None
+    ):
+        from database.operator_parent_move_premark import (
+            get_default_operator_parent_move_premark_repository,
+        )
+
+        parent_move_repository = (
+            get_default_operator_parent_move_premark_repository()
+        )
+        if parent_move_suppression_checker is None:
+            parent_move_suppression_checker = (
+                parent_move_repository
+                .should_suppress_source_cancel_follow_up
+            )
+        if parent_move_suppression_acknowledger is None:
+            parent_move_suppression_acknowledger = (
+                parent_move_repository
+                .acknowledge_source_cancel_event_suppression
+            )
 
     configured_portfolio_id = str(target.get(SPOT_PORTFOLIO_ID_ENV) or "").strip()
     if not configured_portfolio_id:
@@ -268,6 +296,12 @@ def compose_canonical_operator_runtime(
         api_secret=configuration_module.API_SECRET,
         order_post_only=configuration_module.ORDER_POST_ONLY,
         require_stealth_bridge=True,
+        cancelled_follow_up_suppression_checker=(
+            parent_move_suppression_checker
+        ),
+        cancelled_follow_up_suppression_acknowledger=(
+            parent_move_suppression_acknowledger
+        ),
     )
     engine = getattr(runtime, "order_engine", None)
     bridge = getattr(runtime, "stealth_order_bridge", None)
@@ -361,6 +395,13 @@ def initialize_enabled_operator_schemas(
         except Exception:
             raise OperatorAdminRuntimeError(
                 "operator_spot_order_truth_schema_init_failed"
+            ) from None
+    if target.get(OPERATOR_PARENT_MOVE_PREMARK_ENABLED_ENV) == "1":
+        try:
+            initialize_operator_parent_move_premark_schema()
+        except Exception:
+            raise OperatorAdminRuntimeError(
+                "operator_parent_move_premark_schema_init_failed"
             ) from None
 
 

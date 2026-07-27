@@ -79,6 +79,30 @@ def _sent_payload(websocket: MagicMock) -> dict:
             },
             "place_hotpoint_test_order_response",
         ),
+        (
+            {
+                "type": "move_order",
+                "move": {
+                    "original_parent_client_order_id": (
+                        "00000000-0000-4000-8000-000000000001"
+                    ),
+                    "new_order_details": {},
+                },
+            },
+            "order_moved",
+        ),
+        (
+            {
+                "type": "premark_move",
+                "move": {
+                    "parent_client_order_id": (
+                        "00000000-0000-4000-8000-000000000001"
+                    ),
+                    "new_order_details": {},
+                },
+            },
+            "order_premarked",
+        ),
     ],
 )
 def test_legacy_dashboard_exchange_mutations_are_source_disabled_before_runtime(

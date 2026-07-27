@@ -38,6 +38,9 @@ from .routes.operator_revealed_order_movement import (
 from .routes.operator_parent_strategy import (
     router as operator_parent_strategy_router,
 )
+from .routes.operator_parent_move_premark import (
+    router as operator_parent_move_premark_router,
+)
 from .routes.operator_stealth_definition import (
     router as operator_stealth_definition_router,
 )
@@ -380,6 +383,11 @@ def create_app() -> FastAPI:
         operator_parent_strategy_router,
         prefix="/api/v1",
         tags=["operator-parent-strategy"],
+    )
+    app.include_router(
+        operator_parent_move_premark_router,
+        prefix="/api/v1",
+        tags=["operator-parent-move-premark"],
     )
     app.include_router(
         operator_stealth_definition_router,

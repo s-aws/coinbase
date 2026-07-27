@@ -1529,6 +1529,115 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="movement_repricing",
+        surface=(
+            "GET /api/v1/movement-repricing/orders/{client_order_id}/"
+            "parent-move"
+        ),
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not required; call-free PostgreSQL authority readback",
+        caps=(
+            "not applicable to the read; reports fixed 3.10 submitted and "
+            "1.00 possible-execution USDC"
+        ),
+        audit="hash-only source, plan, cycle, allowance, and call evidence",
+        shared_method="get_operator_parent_move_premark",
+        parity_test=(
+            "call-free exact direct-parent selection and Goal 14 ledger "
+            "readback; zero Coinbase calls"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="movement_repricing",
+        surface=(
+            "POST /api/v1/movement-repricing/orders/{client_order_id}/"
+            "parent-move-plans"
+        ),
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.ORDER_CANCEL,
+        required_permissions=[
+            AdminApiPermission.ORDER_CANCEL,
+            AdminApiPermission.ORDER_CREATE,
+        ],
+        idempotency="required; exact immutable local plan replay only",
+        approval="explicit PREMARK acknowledgement; no exchange authority",
+        caps=(
+            "required; fixed 3.10 submitted and 1.00 possible-execution USDC"
+        ),
+        audit=(
+            "required; actor hash, correlation, payload hash, reserved "
+            "successor, plan hash, and completed cycle evidence"
+        ),
+        shared_method="premark_operator_parent_move",
+        parity_test=(
+            "PostgreSQL-only exact direct-root premark; backend owns Test "
+            "portfolio, BTC-USDC policy, increments, minimums, and zero fill"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="movement_repricing",
+        surface=(
+            "POST /api/v1/movement-repricing/orders/{client_order_id}/"
+            "execute-parent-move"
+        ),
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+        permission=AdminApiPermission.ORDER_CANCEL,
+        required_permissions=[
+            AdminApiPermission.ORDER_CANCEL,
+            AdminApiPermission.ORDER_CREATE,
+        ],
+        idempotency="required by contract; no claim under current authority",
+        approval=(
+            "required by contract; source-disabled by incomplete Goal 14 "
+            "live authority terms"
+        ),
+        caps=(
+            "required; fixed 3.10 submitted and 1.00 possible-execution USDC"
+        ),
+        audit=(
+            "required; fixed authority blocker before service, ledger, "
+            "runtime, or Coinbase access"
+        ),
+        shared_method="execute_operator_parent_move",
+        parity_test=(
+            "visible future source Cancel/replacement Create contract fails "
+            "closed; both allowances remain unconsumed"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="movement_repricing",
+        surface=(
+            "POST /api/v1/movement-repricing/orders/{client_order_id}/"
+            "parent-move-safe-closeout"
+        ),
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+        permission=AdminApiPermission.ORDER_CANCEL,
+        required_permissions=[
+            AdminApiPermission.ORDER_CANCEL,
+            AdminApiPermission.ORDER_CREATE,
+        ],
+        idempotency="required by contract; no claim under current authority",
+        approval=(
+            "required by contract; source-disabled by incomplete Goal 14 "
+            "live authority terms"
+        ),
+        caps=(
+            "required; one exact reserved successor only; currently "
+            "unavailable"
+        ),
+        audit=(
+            "required; fixed authority blocker before service, ledger, "
+            "runtime, or Coinbase access"
+        ),
+        shared_method="safe_closeout_operator_parent_move",
+        parity_test=(
+            "visible future exact-successor Cancel contract fails closed; "
+            "closeout allowance remains unconsumed"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="movement_repricing",
         surface="POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
         action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
         permission=AdminApiPermission.ORDER_CANCEL,

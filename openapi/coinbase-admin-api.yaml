@@ -19158,6 +19158,411 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/movement-repricing/orders/{client_order_id}/parent-move:
+    get:
+      tags:
+      - operator-parent-move-premark
+      summary: Review one call-free direct-parent move lifecycle
+      operationId: get_operator_parent_move_premark_api_v1_movement_repricing_orders__client_order_id__parent_move_get
+      parameters:
+      - name: client_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Client Order Id
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorParentMovePremarkReadback'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/movement-repricing/orders/{client_order_id}/parent-move-plans:
+    post:
+      tags:
+      - operator-parent-move-premark
+      summary: Persist one immutable local direct-parent move premark
+      operationId: premark_operator_parent_move_api_v1_movement_repricing_orders__client_order_id__parent_move_plans_post
+      parameters:
+      - name: client_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Client Order Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:@|/-]{1,255}$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:@|/-]{1,255}$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: premark_parent_move
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorParentMovePremarkPlanRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorParentMovePremarkReadback'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/movement-repricing/orders/{client_order_id}/execute-parent-move:
+    post:
+      tags:
+      - operator-parent-move-premark
+      summary: Fail closed until exact parent-move live terms are authorized
+      operationId: execute_operator_parent_move_api_v1_movement_repricing_orders__client_order_id__execute_parent_move_post
+      parameters:
+      - name: client_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Client Order Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:@|/-]{1,255}$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:@|/-]{1,255}$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: execute_parent_move
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorParentMoveExecuteRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorParentMovePremarkReadback'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/movement-repricing/orders/{client_order_id}/parent-move-safe-closeout:
+    post:
+      tags:
+      - operator-parent-move-premark
+      summary: Fail closed until exact successor closeout terms are authorized
+      operationId: safe_closeout_operator_parent_move_api_v1_movement_repricing_orders__client_order_id__parent_move_safe_closeout_post
+      parameters:
+      - name: client_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Client Order Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:@|/-]{1,255}$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:@|/-]{1,255}$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: safe_closeout_parent_move_successor
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorParentMoveSafeCloseoutRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorParentMovePremarkReadback'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/stealth/definitions:
     get:
       tags:
@@ -166507,6 +166912,619 @@ components:
       - diagnostic_code
       - updated_at
       title: OperatorHotpointRecentPlacementReadback
+    OperatorParentMoveExecuteRequest:
+      properties:
+        expected_plan_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Expected Plan Sha256
+        confirmation_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Confirmation Sha256
+        confirm_cancel_then_replace:
+          type: boolean
+          const: true
+          title: Confirm Cancel Then Replace
+      additionalProperties: false
+      type: object
+      required:
+      - expected_plan_sha256
+      - confirmation_sha256
+      - confirm_cancel_then_replace
+      title: OperatorParentMoveExecuteRequest
+    OperatorParentMovePlan:
+      properties:
+        goal_id:
+          type: string
+          const: operator_parent_move_premark_lifecycle_v1
+          title: Goal Id
+        policy_revision:
+          type: string
+          const: PARENT_MOVE_PREMARK_V1
+          title: Policy Revision
+        source_client_order_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Source Client Order Id
+        reserved_successor_client_order_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Reserved Successor Client Order Id
+        portfolio_scope_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Portfolio Scope Sha256
+        product_id:
+          type: string
+          const: BTC-USDC
+          title: Product Id
+        side:
+          type: string
+          enum:
+          - BUY
+          - SELL
+          title: Side
+        base_size:
+          type: string
+          pattern: ^(0|[1-9]\d*)(\.\d+)?$
+          title: Base Size
+        source_limit_price:
+          type: string
+          pattern: ^(0|[1-9]\d*)(\.\d+)?$
+          title: Source Limit Price
+        requested_limit_price:
+          type: string
+          pattern: ^(0|[1-9]\d*)(\.\d+)?$
+          title: Requested Limit Price
+        replacement_limit_price:
+          type: string
+          pattern: ^(0|[1-9]\d*)(\.\d+)?$
+          title: Replacement Limit Price
+        price_increment:
+          type: string
+          pattern: ^(0|[1-9]\d*)(\.\d+)?$
+          title: Price Increment
+        base_increment:
+          type: string
+          pattern: ^(0|[1-9]\d*)(\.\d+)?$
+          title: Base Increment
+        base_min_size:
+          type: string
+          pattern: ^(0|[1-9]\d*)(\.\d+)?$
+          title: Base Min Size
+        quote_min_size:
+          type: string
+          pattern: ^(0|[1-9]\d*)(\.\d+)?$
+          title: Quote Min Size
+        source_status:
+          type: string
+          title: Source Status
+        source_filled_size:
+          type: string
+          pattern: ^(0|[1-9]\d*)(\.\d+)?$
+          title: Source Filled Size
+        source_order_type:
+          type: string
+          const: LIMIT
+          title: Source Order Type
+        source_time_in_force:
+          type: string
+          const: GOOD_UNTIL_CANCELLED
+          title: Source Time In Force
+        source_ownership_provenance:
+          type: string
+          const: ADMIN_MANUAL_ROOT
+          title: Source Ownership Provenance
+        post_only:
+          type: boolean
+          const: true
+          title: Post Only
+        submitted_notional:
+          type: string
+          pattern: ^(0|[1-9]\d*)(\.\d+)?$
+          title: Submitted Notional
+        possible_execution_notional:
+          type: string
+          pattern: ^(0|[1-9]\d*)(\.\d+)?$
+          title: Possible Execution Notional
+        submitted_notional_cap:
+          type: string
+          const: '3.10'
+          title: Submitted Notional Cap
+        possible_execution_notional_cap:
+          type: string
+          const: '1.00'
+          title: Possible Execution Notional Cap
+        zero_fill_proven:
+          type: boolean
+          const: true
+          title: Zero Fill Proven
+        system_owned:
+          type: boolean
+          const: true
+          title: System Owned
+        source_evidence_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Source Evidence Sha256
+      additionalProperties: false
+      type: object
+      required:
+      - goal_id
+      - policy_revision
+      - source_client_order_id
+      - reserved_successor_client_order_id
+      - portfolio_scope_sha256
+      - product_id
+      - side
+      - base_size
+      - source_limit_price
+      - requested_limit_price
+      - replacement_limit_price
+      - price_increment
+      - base_increment
+      - base_min_size
+      - quote_min_size
+      - source_status
+      - source_filled_size
+      - source_order_type
+      - source_time_in_force
+      - source_ownership_provenance
+      - post_only
+      - submitted_notional
+      - possible_execution_notional
+      - submitted_notional_cap
+      - possible_execution_notional_cap
+      - zero_fill_proven
+      - system_owned
+      - source_evidence_sha256
+      title: OperatorParentMovePlan
+      description: Allowlisted immutable plan; it contains no exchange-native identity.
+    OperatorParentMovePremarkPlanRequest:
+      properties:
+        requested_limit_price:
+          type: string
+          pattern: ^(0|[1-9]\d*)(\.\d+)?$
+          title: Requested Limit Price
+        operator_reason:
+          type: string
+          maxLength: 240
+          minLength: 10
+          title: Operator Reason
+        confirm_premark:
+          type: boolean
+          const: true
+          title: Confirm Premark
+      additionalProperties: false
+      type: object
+      required:
+      - requested_limit_price
+      - operator_reason
+      - confirm_premark
+      title: OperatorParentMovePremarkPlanRequest
+    OperatorParentMovePremarkReadback:
+      properties:
+        type:
+          type: string
+          const: operator_parent_move_premark
+          title: Type
+          default: operator_parent_move_premark
+        goal_id:
+          type: string
+          const: operator_parent_move_premark_lifecycle_v1
+          title: Goal Id
+          default: operator_parent_move_premark_lifecycle_v1
+        state:
+          type: string
+          enum:
+          - UNCONSUMED
+          - PLANNED
+          - SOURCE_CANCEL_CLAIMED
+          - SOURCE_CANCEL_BOUNDARY_CROSSED
+          - SOURCE_CANCELLED
+          - SOURCE_CANCEL_REJECTED
+          - SOURCE_CANCEL_UNKNOWN
+          - REPLACEMENT_CREATE_CLAIMED
+          - REPLACEMENT_CREATE_BOUNDARY_CROSSED
+          - REPLACEMENT_CREATED
+          - REPLACEMENT_CREATE_REJECTED
+          - REPLACEMENT_CREATE_UNKNOWN
+          - SUCCESSOR_CLOSEOUT_CANCEL_CLAIMED
+          - SUCCESSOR_CLOSEOUT_CANCEL_BOUNDARY_CROSSED
+          - SUCCESSOR_CLOSED
+          - SUCCESSOR_CLOSEOUT_CANCEL_REJECTED
+          - SUCCESSOR_CLOSEOUT_CANCEL_UNKNOWN
+          title: State
+        diagnostic_code:
+          type: string
+          pattern: ^operator_parent_move_[a-z0-9_]{1,75}$
+          title: Diagnostic Code
+        source_client_order_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Source Client Order Id
+        source_client_order_id_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Source Client Order Id Sha256
+        reserved_successor_client_order_id:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          - type: 'null'
+          title: Reserved Successor Client Order Id
+        reserved_successor_client_order_id_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Reserved Successor Client Order Id Sha256
+        source_selection:
+          $ref: '#/components/schemas/OperatorParentMoveSourceSelection'
+        plan:
+          anyOf:
+          - $ref: '#/components/schemas/OperatorParentMovePlan'
+          - type: 'null'
+        plan_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Plan Sha256
+        allowed_actions:
+          items:
+            type: string
+            enum:
+            - PREMARK
+            - EXECUTE_PARENT_MOVE
+            - SAFE_CLOSEOUT
+          type: array
+          title: Allowed Actions
+        planning_terms_complete:
+          type: boolean
+          title: Planning Terms Complete
+        live_authority_terms_complete:
+          type: boolean
+          const: false
+          title: Live Authority Terms Complete
+          default: false
+        execution_authority_enabled:
+          type: boolean
+          title: Execution Authority Enabled
+        environment:
+          type: string
+          const: local
+          title: Environment
+          default: local
+        portfolio_profile_alias:
+          type: string
+          const: Test
+          title: Portfolio Profile Alias
+          default: Test
+        max_submitted_notional_usdc:
+          type: string
+          const: '3.10'
+          title: Max Submitted Notional Usdc
+          default: '3.10'
+        max_possible_execution_notional_usdc:
+          type: string
+          const: '1.00'
+          title: Max Possible Execution Notional Usdc
+          default: '1.00'
+        browser_authority:
+          type: string
+          const: display_and_forward_only
+          title: Browser Authority
+          default: display_and_forward_only
+        page_load_coinbase_calls:
+          type: integer
+          const: 0
+          title: Page Load Coinbase Calls
+          default: 0
+        raw_response_persisted:
+          type: boolean
+          const: false
+          title: Raw Response Persisted
+          default: false
+        raw_exception_persisted:
+          type: boolean
+          const: false
+          title: Raw Exception Persisted
+          default: false
+        private_identifiers_included:
+          type: boolean
+          const: false
+          title: Private Identifiers Included
+          default: false
+        source_follow_up_suppressed:
+          type: boolean
+          title: Source Follow Up Suppressed
+          default: false
+        source_cancel_allowance_consumed:
+          type: boolean
+          title: Source Cancel Allowance Consumed
+          default: false
+        source_cancel_call_count:
+          type: integer
+          maximum: 1.0
+          minimum: 0.0
+          title: Source Cancel Call Count
+          default: 0
+        replacement_create_allowance_consumed:
+          type: boolean
+          title: Replacement Create Allowance Consumed
+          default: false
+        replacement_create_call_count:
+          type: integer
+          maximum: 1.0
+          minimum: 0.0
+          title: Replacement Create Call Count
+          default: 0
+        successor_closeout_cancel_allowance_consumed:
+          type: boolean
+          title: Successor Closeout Cancel Allowance Consumed
+          default: false
+        successor_closeout_cancel_call_count:
+          type: integer
+          maximum: 1.0
+          minimum: 0.0
+          title: Successor Closeout Cancel Call Count
+          default: 0
+        cycle_count:
+          type: integer
+          maximum: 10.0
+          minimum: 0.0
+          title: Cycle Count
+          default: 0
+        latest_cycle_number:
+          anyOf:
+          - type: integer
+            maximum: 10.0
+            minimum: 1.0
+          - type: 'null'
+          title: Latest Cycle Number
+        latest_cycle_phase:
+          anyOf:
+          - type: string
+            enum:
+            - PLAN
+            - EXECUTE
+            - CLOSEOUT
+          - type: 'null'
+          title: Latest Cycle Phase
+        latest_cycle_status:
+          anyOf:
+          - type: string
+            enum:
+            - IN_FLIGHT
+            - COMPLETED
+          - type: 'null'
+          title: Latest Cycle Status
+        latest_cycle_correlation_id:
+          anyOf:
+          - type: string
+            pattern: ^[A-Za-z0-9._:@|/-]{1,255}$
+          - type: 'null'
+          title: Latest Cycle Correlation Id
+        latest_cycle_actor_id_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Latest Cycle Actor Id Sha256
+        latest_cycle_idempotency_key_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Latest Cycle Idempotency Key Sha256
+        latest_cycle_payload_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Latest Cycle Payload Sha256
+        latest_cycle_evidence_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Latest Cycle Evidence Sha256
+        active_cycle_number:
+          anyOf:
+          - type: integer
+            maximum: 10.0
+            minimum: 1.0
+          - type: 'null'
+          title: Active Cycle Number
+        active_cycle_phase:
+          anyOf:
+          - type: string
+            enum:
+            - PLAN
+            - EXECUTE
+            - CLOSEOUT
+          - type: 'null'
+          title: Active Cycle Phase
+        active_cycle_status:
+          anyOf:
+          - type: string
+            enum:
+            - IN_FLIGHT
+            - COMPLETED
+          - type: 'null'
+          title: Active Cycle Status
+        correlation_id:
+          anyOf:
+          - type: string
+            pattern: ^[A-Za-z0-9._:@|/-]{1,255}$
+          - type: 'null'
+          title: Correlation Id
+        command_replayed:
+          type: boolean
+          title: Command Replayed
+          default: false
+        created_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Created At
+        updated_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Updated At
+      additionalProperties: false
+      type: object
+      required:
+      - state
+      - diagnostic_code
+      - source_client_order_id
+      - source_client_order_id_sha256
+      - source_selection
+      - planning_terms_complete
+      - execution_authority_enabled
+      title: OperatorParentMovePremarkReadback
+      description: Truthful local lifecycle projection for the routed operator UI.
+    OperatorParentMoveSafeCloseoutRequest:
+      properties:
+        expected_plan_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Expected Plan Sha256
+        confirmation_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Confirmation Sha256
+        confirm_exact_successor_cancel:
+          type: boolean
+          const: true
+          title: Confirm Exact Successor Cancel
+      additionalProperties: false
+      type: object
+      required:
+      - expected_plan_sha256
+      - confirmation_sha256
+      - confirm_exact_successor_cancel
+      title: OperatorParentMoveSafeCloseoutRequest
+    OperatorParentMoveSourceSelection:
+      properties:
+        client_order_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Client Order Id
+        found:
+          type: boolean
+          title: Found
+        eligible:
+          type: boolean
+          title: Eligible
+        diagnostic_code:
+          type: string
+          pattern: ^operator_parent_move_[a-z0-9_]{1,75}$
+          title: Diagnostic Code
+        product_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Product Id
+        side:
+          anyOf:
+          - type: string
+            enum:
+            - BUY
+            - SELL
+          - type: 'null'
+          title: Side
+        status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Status
+        order_type:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Order Type
+        time_in_force:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Time In Force
+        size:
+          anyOf:
+          - type: string
+            pattern: ^(0|[1-9]\d*)(\.\d+)?$
+          - type: 'null'
+          title: Size
+        limit_price:
+          anyOf:
+          - type: string
+            pattern: ^(0|[1-9]\d*)(\.\d+)?$
+          - type: 'null'
+          title: Limit Price
+        filled_size:
+          anyOf:
+          - type: string
+            pattern: ^(0|[1-9]\d*)(\.\d+)?$
+          - type: 'null'
+          title: Filled Size
+        ownership_provenance:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Ownership Provenance
+        authoritatively_nonterminal:
+          type: boolean
+          title: Authoritatively Nonterminal
+          default: false
+        cancel_eligible:
+          type: boolean
+          title: Cancel Eligible
+          default: false
+        zero_fill_proven:
+          type: boolean
+          title: Zero Fill Proven
+          default: false
+        system_owned:
+          type: boolean
+          title: System Owned
+          default: false
+        direct_root:
+          type: boolean
+          title: Direct Root
+          default: false
+        post_only_compatible:
+          type: boolean
+          title: Post Only Compatible
+          default: false
+        legacy_pending_move:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Legacy Pending Move
+        portfolio_scope_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Portfolio Scope Sha256
+        source_evidence_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Source Evidence Sha256
+      additionalProperties: false
+      type: object
+      required:
+      - client_order_id
+      - found
+      - eligible
+      - diagnostic_code
+      title: OperatorParentMoveSourceSelection
+      description: Current call-free Goal 12 source projection and local eligibility.
     OperatorRevealedOrderMoveExecuteRequest:
       properties:
         expected_plan_sha256:

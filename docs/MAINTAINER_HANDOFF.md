@@ -1,5 +1,36 @@
 # Maintainer Handoff
 
+## Goal 14 — parent move Premark lifecycle
+
+Goal `operator_parent_move_premark_lifecycle_v1` adds one local, authenticated
+parent-move PREMARK for an exact system-owned direct `ADMIN_MANUAL_ROOT`,
+zero-fill `BTC-USDC` source under the configured Test-portfolio hash and fixed
+`3.10/1.00 USDC` caps. PostgreSQL owns the reserved successor identity,
+immutable plan/hash, ten-cycle budget, payload-bound idempotency, append-only
+audit, three non-transferable future mutation claims, and conservative restart
+recovery. The action makes no Coinbase call.
+
+The canonical Order Engine invokes the Goal 14 suppression checker before any
+legacy cancelled-order follow-up path. Checker failure fails closed. Legacy
+dashboard `move_order` and `premark_move` are source-disabled.
+
+Do not enable Execute or Safe Closeout from this goal. Its addendum omitted
+the exact live read prerequisites, so both routes reject before service,
+ledger, runtime, or Coinbase access with
+`operator_parent_move_live_authority_terms_incomplete`. Source Cancel,
+replacement Create, and exact-successor Cancel remain unconsumed. See
+[Operator Parent Move Premark Lifecycle V1](OPERATOR_PARENT_MOVE_PREMARK_LIFECYCLE_V1.md).
+
+Terminal focused validation passed 83 backend tests and 164 frontend tests.
+The authenticated real-BFF/PostgreSQL browser proof passed and persisted one
+immutable Premark across reload with zero external requests. The complete
+frontend release gate passed 1,928 unit/component tests and 34 managed
+Playwright operator scenarios, including the Goal 14 real-PostgreSQL workflow.
+Independent safety and blind-contextless audits both returned `PASS` with no
+remaining severity-ranked finding. Canonical backend regression passed 1,338
+tests with 6 skipped in its parallel lane and 1,000 tests with 150 skipped and
+1,344 deselected in its serial lane.
+
 ## Completed independent Goal 13 — operator-ready Controlled-live closeout
 
 Goal `operator_futures_hotpoint_canonical_single_child_v2` adds a separate

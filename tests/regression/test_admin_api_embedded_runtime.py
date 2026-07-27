@@ -62,6 +62,14 @@ class _FakeUvicornServer:
 @pytest.mark.regression
 def test_canonical_runtime_composer_builds_one_wired_identity_after_schema():
     events: list[str] = []
+    suppressed_source_ids: list[str] = []
+
+    def suppression_checker(client_order_id: str) -> bool:
+        suppressed_source_ids.append(client_order_id)
+        return True
+
+    suppression_acknowledger = lambda _client_order_id: True
+
     db_module = SimpleNamespace(
         DB_CLIENT=SimpleNamespace(),
         create_order_parent_table=lambda: events.append("schema:parent"),
@@ -89,6 +97,14 @@ def test_canonical_runtime_composer_builds_one_wired_identity_after_schema():
 
     def engine_factory(**kwargs):
         events.append("engine")
+        assert (
+            kwargs["cancelled_follow_up_suppression_checker"]
+            is suppression_checker
+        )
+        assert (
+            kwargs["cancelled_follow_up_suppression_acknowledger"]
+            is suppression_acknowledger
+        )
         return SimpleNamespace(
             orderbook=kwargs["orderbook"],
             stealth_order_bridge=kwargs["stealth_order_bridge"],
@@ -110,6 +126,10 @@ def test_canonical_runtime_composer_builds_one_wired_identity_after_schema():
         stealth_order_manager_factory=manager_factory,
         stealth_order_bridge_factory=bridge_factory,
         order_engine_factory=engine_factory,
+        cancelled_follow_up_suppression_checker=suppression_checker,
+        cancelled_follow_up_suppression_acknowledger=(
+            suppression_acknowledger
+        ),
     )
 
     assert events == [
@@ -130,6 +150,7 @@ def test_canonical_runtime_composer_builds_one_wired_identity_after_schema():
     assert manager.expected_retail_portfolio_id == (
         "11111111-2222-4333-8444-555555555555"
     )
+    assert suppressed_source_ids == []
 
 
 @pytest.mark.regression
@@ -1035,6 +1056,22 @@ def test_main_embedded_spot_runtime_requires_test_profile_before_composition():
     assert "product_ids = spot_product_ids" in source
     assert "derivatives_product_ids = []" in source
     assert '"futures_balance_summary"' in source
+    suppression_binding = source.index(
+        "get_default_operator_parent_move_premark_repository"
+    )
+    assert suppression_binding < runtime_composition
+    assert (
+        "COINBASE_ADMIN_API_OPERATOR_PARENT_MOVE_PREMARK_ENABLED"
+        not in source[suppression_binding:runtime_composition]
+    )
+    assert (
+        "cancelled_follow_up_suppression_checker=("
+        in source[runtime_composition:]
+    )
+    assert (
+        "cancelled_follow_up_suppression_acknowledger=("
+        in source[runtime_composition:]
+    )
 
 
 @pytest.mark.regression

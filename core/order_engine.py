@@ -239,6 +239,8 @@ class OrderEngine:
         queue_maxsize=10000,
         stealth_order_bridge=None,
         websocket_hooks=None,
+        cancelled_follow_up_suppression_checker=None,
+        cancelled_follow_up_suppression_acknowledger=None,
     ) -> None:
         """Initialize the OrderEngine with configuration and state.
         
@@ -274,6 +276,14 @@ class OrderEngine:
         self.api_secret = api_secret
         self.order_post_only = order_post_only
         self.stealth_order_bridge = stealth_order_bridge
+        self.cancelled_follow_up_suppression_checker = (
+            cancelled_follow_up_suppression_checker
+            or (lambda _client_order_id: False)
+        )
+        self.cancelled_follow_up_suppression_acknowledger = (
+            cancelled_follow_up_suppression_acknowledger
+            or (lambda _client_order_id: False)
+        )
         
         # WebSocket hook registry for extensible message handling
         self.websocket_hooks = websocket_hooks or get_global_hook_registry()
@@ -4261,6 +4271,75 @@ class OrderEngine:
                     parent_client_order_id=None,
                     details={"reason": "cancelled_order_follow_up_already_claimed"},
                 ),
+            )
+            return
+
+        try:
+            suppression_membership = (
+                self.cancelled_follow_up_suppression_checker(
+                    client_order_id
+                )
+            )
+        except Exception:
+            # Membership is unknown.  Retain the automatic follow-up claim in
+            # PROCESSING so neither this event nor a replay can create a
+            # generic child or irreversibly consume an unrelated claim.
+            self.log_message(
+                "error",
+                {
+                    "event": (
+                        "operator_parent_move_cancel_follow_up_"
+                        "membership_unknown"
+                    ),
+                },
+            )
+            return
+
+        if (
+            suppression_membership is not True
+            and suppression_membership is not False
+        ):
+            self.log_message(
+                "error",
+                {
+                    "event": (
+                        "operator_parent_move_cancel_follow_up_"
+                        "membership_unknown"
+                    ),
+                },
+            )
+            return
+
+        if suppression_membership is True:
+            try:
+                suppression_acknowledgement = (
+                    self.cancelled_follow_up_suppression_acknowledger(
+                        client_order_id
+                    )
+                )
+            except Exception:
+                suppression_acknowledgement = None
+            self.log_message(
+                "order",
+                {
+                    "event": "operator_parent_move_cancel_follow_up_blocked",
+                    "client_order_id": client_order_id,
+                    "durable_acknowledgement": (
+                        "recorded"
+                        if suppression_acknowledgement is True
+                        else "unavailable"
+                    ),
+                },
+            )
+            if suppression_acknowledgement is not True:
+                # The source is an exact Goal 14 member, but suppression was
+                # not durably acknowledged.  Keep the claim quarantined in
+                # PROCESSING; completion is safe only after both facts are
+                # proven.
+                return
+            self.complete_follow_up_processing(
+                "cancelled",
+                client_order_id,
             )
             return
 

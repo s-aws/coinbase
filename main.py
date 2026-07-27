@@ -126,6 +126,20 @@ if __name__ == "__main__":
             spot_portfolio_binding.observed_portfolio_id,
         )
 
+    from database.operator_parent_move_premark import (
+        get_default_operator_parent_move_premark_repository,
+    )
+
+    parent_move_repository = (
+        get_default_operator_parent_move_premark_repository()
+    )
+    cancelled_follow_up_suppression_checker = (
+        parent_move_repository.should_suppress_source_cancel_follow_up
+    )
+    cancelled_follow_up_suppression_acknowledger = (
+        parent_move_repository.acknowledge_source_cancel_event_suppression
+    )
+
     # Construct the one engine/bridge authority used by the live runtime and
     # its opt-in embedded Admin API.
     runtime = build_canonical_order_runtime(
@@ -136,6 +150,12 @@ if __name__ == "__main__":
         api_secret=API_SECRET,
         order_post_only=ORDER_POST_ONLY,
         require_stealth_bridge=embedded_admin_api_requested,
+        cancelled_follow_up_suppression_checker=(
+            cancelled_follow_up_suppression_checker
+        ),
+        cancelled_follow_up_suppression_acknowledger=(
+            cancelled_follow_up_suppression_acknowledger
+        ),
     )
     engine = runtime.order_engine
     stealth_bridge = runtime.stealth_order_bridge
