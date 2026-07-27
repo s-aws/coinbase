@@ -281,6 +281,7 @@ owners:
       - docs/OPERATOR_FUTURES_PRODUCT_POLICY_AND_TICKET_V1.md
       - docs/OPERATOR_FUTURES_FOLLOW_UP_INTENT_V1.md
       - docs/OPERATOR_PARENT_MOVE_PREMARK_LIFECYCLE_V1.md
+      - docs/OPERATOR_SINGLE_ORDER_REPRICE_NOW_V1.md
       - openapi/**
       - tools/export_admin_api_route_inventory.py
       - tests/regression/test_admin_api_*.py
@@ -300,6 +301,10 @@ owners:
       - tests/unit/test_operator_parent_move_premark_runtime.py
       - tests/unit/test_operator_parent_move_premark_service.py
       - tests/regression/test_operator_parent_move_premark_routes.py
+      - tests/unit/test_operator_single_order_reprice_now_policy.py
+      - tests/unit/test_operator_single_order_reprice_now_runtime.py
+      - tests/unit/test_operator_single_order_reprice_now_service.py
+      - tests/regression/test_operator_single_order_reprice_now_routes.py
       - tests/regression/test_admin_mvp_account_reality_live_read_smoke.py
       - tests/regression/test_admin_mvp_futures_executor_boundary_smoke.py
       - tests/regression/test_admin_mvp_api.py
@@ -389,6 +394,7 @@ owners:
       - tests/regression/test_operator_futures_product_ticket_repository.py
       - tests/regression/test_operator_futures_follow_up_intent_repository.py
       - tests/regression/test_operator_parent_move_premark_repository.py
+      - tests/regression/test_operator_single_order_reprice_now_repository.py
       - tests/regression/test_reconciler_schema.py
       - tests/unit/test_database.py
       - tests/unit/test_filled_follow_up_atomic_persistence.py

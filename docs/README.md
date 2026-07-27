@@ -135,7 +135,7 @@ Cancel, conditional one replacement Create, exact linkage/reconciliation,
 restart recovery, canonical active-placement size binding, single-use claims,
 and sanitized PostgreSQL readback.
 
-Current independent Goal 14:
+Completed predecessor Goal 14:
 [Operator Parent Move Premark Lifecycle V1](OPERATOR_PARENT_MOVE_PREMARK_LIFECYCLE_V1.md).
 Goal `operator_parent_move_premark_lifecycle_v1` provides one authenticated,
 call-free PostgreSQL PREMARK action for an exact direct, system-owned,
@@ -143,6 +143,14 @@ zero-fill `BTC-USDC` root under the installed `Test` portfolio and
 `3.10/1.00 USDC` caps. Its live-shaped Cancel/Create/closeout routes remain
 backend-disabled because the Goal 14 addendum omitted prerequisite Coinbase
 read authority; all exchange-call allowances remain unconsumed.
+
+Completed independent Goal 15:
+[Operator Single-Order Reprice Now V1](OPERATOR_SINGLE_ORDER_REPRICE_NOW_V1.md).
+Goal `operator_single_order_reprice_now_v1` provides one authenticated local
+intent reservation for an exact canonical zero-fill `REVEALED` Stealth
+placement. Its market/cap terms and live execution remain explicitly unbound;
+Execute is fixed-disabled, every exchange allowance remains unconsumed, and
+the workflow makes zero Coinbase calls.
 
 Completed independent Goal 6:
 [Operator Stealth Reveal and Exact Closeout V1](OPERATOR_STEALTH_REVEAL_AND_EXACT_CLOSEOUT_V1.md).

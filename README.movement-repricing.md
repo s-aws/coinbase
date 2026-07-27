@@ -50,6 +50,14 @@ categories, so Execute and Safe Closeout return
 runtime, or Coinbase access. See
 [Operator Parent Move Premark Lifecycle V1](docs/OPERATOR_PARENT_MOVE_PREMARK_LIFECYCLE_V1.md).
 
+Goal `operator_single_order_reprice_now_v1` adds a narrower exact Stealth
+placement workspace. An authenticated operator can persist one deterministic,
+identity-only Reprice Now intent for a canonical zero-fill `REVEALED` source.
+Market and cap terms remain unbound, and the visible execute route fails with
+`operator_reprice_now_live_authority_terms_incomplete` before service or
+runtime access. See
+[Operator Single-Order Reprice Now V1](docs/OPERATOR_SINGLE_ORDER_REPRICE_NOW_V1.md).
+
 ## Evidence Sources
 
 - `order_moves`: parent move and premark history keyed by

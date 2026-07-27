@@ -16249,6 +16249,148 @@ class AdminApiReadService:
                 ),
             ),
             mutation_taxonomy_from_surface(
+                surface=(
+                    "POST /api/v1/movement-repricing/stealth/"
+                    "{stealth_order_id}/placements/{client_order_id}/"
+                    "reprice-now-intents"
+                ),
+                mutation_id="movement.operator_single_order_reprice_now_prepare",
+                mutation_family=AdminApiMutationFamilyType.MOVEMENT_REPRICE,
+                workflow_id="operator_single_order_reprice_now_v1",
+                module="Order Movement / Repricing",
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED
+                ),
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Persist one immutable, non-market Reprice Now intent for "
+                    "an exact canonical zero-fill revealed placement without "
+                    "consulting execution authority or calling Coinbase."
+                ),
+                identity_keys=[
+                    "stealth_order_id",
+                    "client_order_id",
+                    "reserved_successor_client_order_id",
+                    "intent_sha256",
+                    "idempotency_key",
+                    "correlation_id",
+                ],
+                owning_backend_service=(
+                    "application/admin_api/"
+                    "operator_single_order_reprice_now_service.py"
+                ),
+                backend_contract_refs=[
+                    "api/v1/routes/operator_single_order_reprice_now.py",
+                    "application/admin_api/"
+                    "operator_single_order_reprice_now_policy.py",
+                    "application/admin_api/"
+                    "operator_single_order_reprice_now_service.py",
+                    "database/operator_single_order_reprice_now.py",
+                ],
+                frontend_contract_refs=[
+                    "src/features/movement-repricing/"
+                    "OperatorSingleOrderRepriceNowWorkspace.tsx",
+                    "src/features/movement-repricing/"
+                    "operatorSingleOrderRepriceNowRuntime.ts",
+                    "src/shared/api/contracts/backendApiClient.ts",
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_SINGLE_ORDER_REPRICE_NOW_V1.md",
+                ],
+                required_next_contract=(
+                    "A separate complete live authority envelope must bind "
+                    "portfolio, product, market, size, fee, cap, exact reads, "
+                    "and Cancel/Create terms before Execute can activate."
+                ),
+                blockers=[
+                    "operator_reprice_now_live_authority_terms_incomplete"
+                ],
+                frontend_boundary=(
+                    "The browser forwards only exact source identities, "
+                    "backend hashes, reason, intent, and acknowledgement; it "
+                    "supplies no market, cap, portfolio, or exchange term."
+                ),
+                route_local_boundary=(
+                    "The route binds authentication, both order permissions, "
+                    "idempotency, correlation, and explicit intent before the "
+                    "service writes immutable PostgreSQL evidence."
+                ),
+                spot_rule_boundary=(
+                    "Goal 15 source eligibility is a Spot/Stealth rule and "
+                    "must not be reused for Futures or generic order movement."
+                ),
+                approval_required=False,
+                cap_guard_required=False,
+                reconciliation_required=False,
+                live_adapter_required=False,
+            ),
+            mutation_taxonomy_from_surface(
+                surface=(
+                    "POST /api/v1/movement-repricing/stealth/"
+                    "{stealth_order_id}/placements/{client_order_id}/"
+                    "execute-reprice-now"
+                ),
+                mutation_id="movement.operator_single_order_reprice_now_execute",
+                mutation_family=AdminApiMutationFamilyType.MOVEMENT_REPRICE,
+                workflow_id="operator_single_order_reprice_now_v1",
+                module="Order Movement / Repricing",
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED
+                ),
+                support_status=(
+                    AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED
+                ),
+                summary=(
+                    "Reserved exact Cancel/replacement contract that remains "
+                    "fixed-disabled before service, ledger, runtime, claim, "
+                    "or Coinbase access."
+                ),
+                identity_keys=[
+                    "stealth_order_id",
+                    "client_order_id",
+                    "reserved_successor_client_order_id",
+                    "intent_sha256",
+                    "idempotency_key",
+                    "correlation_id",
+                ],
+                owning_backend_service=(
+                    "api/v1/routes/operator_single_order_reprice_now.py"
+                ),
+                backend_contract_refs=[
+                    "api/v1/routes/operator_single_order_reprice_now.py",
+                    "application/admin_api/"
+                    "operator_single_order_reprice_now_models.py",
+                ],
+                frontend_contract_refs=[
+                    "src/features/movement-repricing/"
+                    "OperatorSingleOrderRepriceNowWorkspace.tsx",
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_SINGLE_ORDER_REPRICE_NOW_V1.md",
+                ],
+                required_next_contract=(
+                    "Exact approved portfolio, product, fresh maker price, "
+                    "size, fee reserve, caps, reconciliation reads, one source "
+                    "Cancel, and one replacement Create must be separately "
+                    "authorized and implemented."
+                ),
+                blockers=[
+                    "operator_reprice_now_live_authority_terms_incomplete"
+                ],
+                frontend_boundary=(
+                    "The installed control is visibly disabled; the browser "
+                    "cannot infer or construct future live terms."
+                ),
+                route_local_boundary=(
+                    "The route returns the fixed authority blocker before "
+                    "service dependency resolution or any durable/live work."
+                ),
+                spot_rule_boundary=(
+                    "No Futures, generic movement, alternate source, alternate "
+                    "successor, fan-out, or background authority exists."
+                ),
+            ),
+            mutation_taxonomy_from_surface(
                 surface="POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
                 mutation_id="movement.reprice",
                 mutation_family=AdminApiMutationFamilyType.MOVEMENT_REPRICE,

@@ -1638,6 +1638,90 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="movement_repricing",
+        surface=(
+            "GET /api/v1/movement-repricing/stealth/{stealth_order_id}/"
+            "placements/{client_order_id}/reprice-now"
+        ),
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not required; call-free canonical local source readback",
+        caps=(
+            "not bound; Goal 15 persists identity-only intent and reports "
+            "cap_policy_bound=false"
+        ),
+        audit=(
+            "sanitized exact source evidence; no exchange identifier or "
+            "exchange-identifier hash"
+        ),
+        shared_method="get_single_order_reprice_now",
+        parity_test=(
+            "canonical Goal 7 local REVEALED zero-fill source resolver; zero "
+            "Coinbase calls"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="movement_repricing",
+        surface=(
+            "POST /api/v1/movement-repricing/stealth/{stealth_order_id}/"
+            "placements/{client_order_id}/reprice-now-intents"
+        ),
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.ORDER_CANCEL,
+        required_permissions=[
+            AdminApiPermission.ORDER_CANCEL,
+            AdminApiPermission.ORDER_CREATE,
+        ],
+        idempotency=(
+            "required; actor/correlation/payload/source-evidence exact replay"
+        ),
+        approval=(
+            "explicit prepare_single_order_reprice_now acknowledgement; "
+            "no live authority"
+        ),
+        caps=(
+            "not bound; browser supplies no product, portfolio, price, size, "
+            "or cap term"
+        ),
+        audit=(
+            "required; PostgreSQL intent, deterministic UUIDv5 successor, "
+            "actor/key/payload hashes, completed cycle, and sanitized event"
+        ),
+        shared_method="prepare_reprice_now_intent",
+        parity_test=(
+            "one exact system-owned direct-parent REVEALED source; immutable "
+            "non-market intent only"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="movement_repricing",
+        surface=(
+            "POST /api/v1/movement-repricing/stealth/{stealth_order_id}/"
+            "placements/{client_order_id}/execute-reprice-now"
+        ),
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+        permission=AdminApiPermission.ORDER_CANCEL,
+        required_permissions=[
+            AdminApiPermission.ORDER_CANCEL,
+            AdminApiPermission.ORDER_CREATE,
+        ],
+        idempotency="required by contract; no claim under current authority",
+        approval=(
+            "required by contract; fixed incomplete-live-terms blocker"
+        ),
+        caps="required but unbound under the conservative Goal 15 authority",
+        audit=(
+            "required by future contract; fixed blocker before service, "
+            "PostgreSQL ledger, runtime, or Coinbase access"
+        ),
+        shared_method="execute_reprice_now",
+        parity_test=(
+            "visible future source Cancel/replacement Create remains disabled; "
+            "both allowances remain unconsumed"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="movement_repricing",
         surface="POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
         action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
         permission=AdminApiPermission.ORDER_CANCEL,

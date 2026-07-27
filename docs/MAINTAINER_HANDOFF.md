@@ -1,6 +1,43 @@
 # Maintainer Handoff
 
-## Goal 14 — parent move Premark lifecycle
+## Completed Goal 15 — exact single-order Reprice Now intent
+
+Goal `operator_single_order_reprice_now_v1` installs one authenticated
+`PREPARE_REPRICE_NOW` action for an exact canonical system-owned, zero-fill,
+direct-parent `REVEALED` Stealth placement identified by
+`stealth_order_id` plus source `client_order_id`. The browser supplies no
+product, portfolio, price, size, notional, or cap term. It must echo the
+backend-owned definition revision/hash and sanitized
+`source_evidence_sha256`.
+
+The separate PostgreSQL ledger reserves one deterministic UUIDv5 successor
+and persists immutable non-market intent, cycle, and fixed-event evidence.
+Database triggers reject `UPDATE`, `DELETE`, and `TRUNCATE` across all three
+tables. Actor, idempotency, payload, and evidence readback is hash-only;
+exchange identifiers and exchange-identifier hashes are not persisted or
+returned. Exact replay is serialized across workers, and a second source sees
+only fixed value-blind `GOAL_ALREADY_BOUND` readback.
+
+Goal 15 is PREPARE-only. `POST .../execute-reprice-now` returns fixed HTTP 409
+`operator_reprice_now_live_authority_terms_incomplete` before service,
+ledger, runtime, or Coinbase access. Source Cancel and replacement Create
+allowances remain unconsumed, their call counts are zero, and no Goal 15
+Coinbase call or exchange mutation has occurred. Legacy dashboard
+`reprice_now_stealth_order` is source-disabled before manager or product-wide
+repricing lookup.
+
+Terminal focused validation passed 126 backend tests and 168 frontend tests.
+The canonical backend lanes passed 1,345 parallel-safe tests with 6 skips and
+1,020 serial tests with 150 intentional skips and 1,351 deselections. The
+complete frontend release gate passed 1,963 unit/component tests, 30 managed
+Playwright scenarios, generated-contract checks, packaged and installed
+deployment validation, and posture-specific lifecycle smokes. Independent
+safety and blind-contextless audits both returned `PASS` after remediation.
+Every validation boundary was local or synthetic and made zero Coinbase calls
+or exchange mutations. See
+[Operator Single-Order Reprice Now V1](OPERATOR_SINGLE_ORDER_REPRICE_NOW_V1.md).
+
+## Completed predecessor Goal 14 — parent move Premark lifecycle
 
 Goal `operator_parent_move_premark_lifecycle_v1` adds one local, authenticated
 parent-move PREMARK for an exact system-owned direct `ADMIN_MANUAL_ROOT`,

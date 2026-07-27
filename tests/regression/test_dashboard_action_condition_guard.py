@@ -103,6 +103,15 @@ def _sent_payload(websocket: MagicMock) -> dict:
             },
             "order_premarked",
         ),
+        (
+            {
+                "type": "reprice_now_stealth_order",
+                "stealth_order_id": (
+                    "11111111-1111-4111-8111-111111111111"
+                ),
+            },
+            "reprice_now_result",
+        ),
     ],
 )
 def test_legacy_dashboard_exchange_mutations_are_source_disabled_before_runtime(

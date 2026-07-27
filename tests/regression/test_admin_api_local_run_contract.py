@@ -515,6 +515,50 @@ def test_admin_api_local_runner_initializes_parent_move_premark_schema_only_for_
 
 
 @pytest.mark.regression
+def test_admin_api_local_runner_initializes_single_order_reprice_now_schema_only_for_exact_flag(
+    monkeypatch,
+):
+    from core.runtime_controller import RuntimeController
+
+    uvicorn_calls: list[dict[str, object]] = []
+    startup_events: list[str] = []
+    monkeypatch.setenv(run_admin_api.AUTH_TOKEN_ENV, "local-test-token")
+    monkeypatch.setenv(
+        run_admin_api.OPERATOR_SINGLE_ORDER_REPRICE_NOW_ENABLED_ENV,
+        "1",
+    )
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_OPERATOR_FOLLOW_UP_INTENT_ENABLED",
+        "0",
+    )
+    monkeypatch.setattr(
+        run_admin_api,
+        "initialize_operator_single_order_reprice_now_schema",
+        lambda: startup_events.append(
+            "operator_single_order_reprice_now_schema"
+        ),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "uvicorn",
+        _retained_uvicorn_stub(uvicorn_calls),
+    )
+    monkeypatch.setattr(
+        run_admin_api,
+        "get_runtime_controller",
+        lambda: RuntimeController(),
+    )
+
+    exit_code = run_admin_api.main([])
+
+    assert exit_code == 0
+    assert startup_events == [
+        "operator_single_order_reprice_now_schema"
+    ]
+    assert len(uvicorn_calls) == 1
+
+
+@pytest.mark.regression
 def test_admin_api_local_runner_initializes_stealth_definition_schema_only_for_exact_flag(
     monkeypatch,
 ):

@@ -21426,6 +21426,324 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/movement-repricing/stealth/{stealth_order_id}/placements/{client_order_id}/reprice-now:
+    get:
+      tags:
+      - operator-single-order-reprice-now
+      summary: Review one call-free exact Reprice Now intent
+      operationId: get_single_order_reprice_now_api_v1_movement_repricing_stealth__stealth_order_id__placements__client_order_id__reprice_now_get
+      parameters:
+      - name: stealth_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Stealth Order Id
+      - name: client_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Client Order Id
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSingleOrderRepriceNowReadback'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/movement-repricing/stealth/{stealth_order_id}/placements/{client_order_id}/reprice-now-intents:
+    post:
+      tags:
+      - operator-single-order-reprice-now
+      summary: Persist one immutable local Reprice Now intent
+      operationId: prepare_reprice_now_intent_api_v1_movement_repricing_stealth__stealth_order_id__placements__client_order_id__reprice_now_intents_post
+      parameters:
+      - name: stealth_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Stealth Order Id
+      - name: client_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Client Order Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:@|/-]{1,255}$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:@|/-]{1,255}$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: prepare_single_order_reprice_now
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorSingleOrderRepriceNowIntentRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSingleOrderRepriceNowReadback'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/movement-repricing/stealth/{stealth_order_id}/placements/{client_order_id}/execute-reprice-now:
+    post:
+      tags:
+      - operator-single-order-reprice-now
+      summary: Fail closed until exact Reprice Now live terms are authorized
+      operationId: execute_reprice_now_api_v1_movement_repricing_stealth__stealth_order_id__placements__client_order_id__execute_reprice_now_post
+      parameters:
+      - name: stealth_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Stealth Order Id
+      - name: client_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Client Order Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:@|/-]{1,255}$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:@|/-]{1,255}$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: execute_single_order_reprice_now
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorSingleOrderRepriceNowExecuteRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSingleOrderRepriceNowReadback'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/spot/readiness:
     get:
       tags:
@@ -167910,6 +168228,448 @@ components:
       - execution_authority_enabled
       - allowed_actions
       title: OperatorRevealedOrderMovementResponse
+    OperatorSingleOrderRepriceNowEvent:
+      properties:
+        event_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Event Id
+        event_type:
+          type: string
+          const: REPRICE_NOW_INTENT_PREPARED
+          title: Event Type
+        cycle_number:
+          type: integer
+          maximum: 10.0
+          minimum: 1.0
+          title: Cycle Number
+        diagnostic_code:
+          type: string
+          pattern: ^operator_reprice_now_[a-z0-9_]{1,75}$
+          title: Diagnostic Code
+        correlation_id:
+          type: string
+          pattern: ^[A-Za-z0-9._:@|/-]{1,255}$
+          title: Correlation Id
+        evidence_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Evidence Sha256
+        recorded_at:
+          type: string
+          format: date-time
+          title: Recorded At
+      additionalProperties: false
+      type: object
+      required:
+      - event_id
+      - event_type
+      - cycle_number
+      - diagnostic_code
+      - correlation_id
+      - evidence_sha256
+      - recorded_at
+      title: OperatorSingleOrderRepriceNowEvent
+    OperatorSingleOrderRepriceNowExecuteRequest:
+      properties:
+        expected_intent_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Expected Intent Sha256
+        confirm_execute_reprice_now:
+          type: boolean
+          const: true
+          title: Confirm Execute Reprice Now
+      additionalProperties: false
+      type: object
+      required:
+      - expected_intent_sha256
+      - confirm_execute_reprice_now
+      title: OperatorSingleOrderRepriceNowExecuteRequest
+    OperatorSingleOrderRepriceNowIntentPlan:
+      properties:
+        goal_id:
+          type: string
+          const: operator_single_order_reprice_now_v1
+          title: Goal Id
+        policy_revision:
+          type: string
+          const: SINGLE_ORDER_REPRICE_NOW_INTENT_V1
+          title: Policy Revision
+        stealth_order_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Stealth Order Id
+        source_client_order_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Source Client Order Id
+        reserved_successor_client_order_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Reserved Successor Client Order Id
+        root_client_order_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Root Client Order Id
+        definition_revision:
+          type: integer
+          minimum: 1.0
+          title: Definition Revision
+        definition_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Definition Sha256
+        source_evidence_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Source Evidence Sha256
+        source_status:
+          type: string
+          const: REVEALED
+          title: Source Status
+        zero_fill_proven:
+          type: boolean
+          const: true
+          title: Zero Fill Proven
+        system_owned:
+          type: boolean
+          const: true
+          title: System Owned
+        direct_parent:
+          type: boolean
+          const: true
+          title: Direct Parent
+      additionalProperties: false
+      type: object
+      required:
+      - goal_id
+      - policy_revision
+      - stealth_order_id
+      - source_client_order_id
+      - reserved_successor_client_order_id
+      - root_client_order_id
+      - definition_revision
+      - definition_sha256
+      - source_evidence_sha256
+      - source_status
+      - zero_fill_proven
+      - system_owned
+      - direct_parent
+      title: OperatorSingleOrderRepriceNowIntentPlan
+      description: Immutable non-market plan; no product, portfolio, size, or price.
+    OperatorSingleOrderRepriceNowIntentRequest:
+      properties:
+        expected_definition_revision:
+          type: integer
+          minimum: 1.0
+          title: Expected Definition Revision
+        expected_definition_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Expected Definition Sha256
+        expected_source_evidence_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Expected Source Evidence Sha256
+        operator_reason:
+          type: string
+          maxLength: 240
+          minLength: 10
+          title: Operator Reason
+        confirm_prepare_reprice_now_intent:
+          type: boolean
+          const: true
+          title: Confirm Prepare Reprice Now Intent
+      additionalProperties: false
+      type: object
+      required:
+      - expected_definition_revision
+      - expected_definition_sha256
+      - expected_source_evidence_sha256
+      - operator_reason
+      - confirm_prepare_reprice_now_intent
+      title: OperatorSingleOrderRepriceNowIntentRequest
+    OperatorSingleOrderRepriceNowReadback:
+      properties:
+        type:
+          type: string
+          const: operator_single_order_reprice_now
+          title: Type
+          default: operator_single_order_reprice_now
+        goal_id:
+          type: string
+          const: operator_single_order_reprice_now_v1
+          title: Goal Id
+          default: operator_single_order_reprice_now_v1
+        state:
+          type: string
+          enum:
+          - UNCONSUMED
+          - GOAL_ALREADY_BOUND
+          - INTENT_PREPARED
+          title: State
+        diagnostic_code:
+          type: string
+          pattern: ^operator_reprice_now_[a-z0-9_]{1,75}$
+          title: Diagnostic Code
+        stealth_order_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Stealth Order Id
+        source_client_order_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Source Client Order Id
+        source_client_order_id_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Source Client Order Id Sha256
+        reserved_successor_client_order_id:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          - type: 'null'
+          title: Reserved Successor Client Order Id
+        reserved_successor_client_order_id_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Reserved Successor Client Order Id Sha256
+        source_selection:
+          $ref: '#/components/schemas/OperatorSingleOrderRepriceNowSourceSelection'
+        intent:
+          anyOf:
+          - $ref: '#/components/schemas/OperatorSingleOrderRepriceNowIntentPlan'
+          - type: 'null'
+        intent_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Intent Sha256
+        events:
+          items:
+            $ref: '#/components/schemas/OperatorSingleOrderRepriceNowEvent'
+          type: array
+          maxItems: 10
+          title: Events
+        allowed_actions:
+          items:
+            type: string
+            const: PREPARE_REPRICE_NOW
+          type: array
+          maxItems: 1
+          title: Allowed Actions
+        local_cycles_used:
+          type: integer
+          maximum: 10.0
+          minimum: 0.0
+          title: Local Cycles Used
+        local_cycles_max:
+          type: integer
+          const: 10
+          title: Local Cycles Max
+          default: 10
+        latest_cycle_idempotency_key_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Latest Cycle Idempotency Key Sha256
+        latest_cycle_payload_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Latest Cycle Payload Sha256
+        latest_cycle_actor_id_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Latest Cycle Actor Id Sha256
+        latest_cycle_evidence_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Latest Cycle Evidence Sha256
+        market_terms_bound:
+          type: boolean
+          const: false
+          title: Market Terms Bound
+          default: false
+        cap_policy_bound:
+          type: boolean
+          const: false
+          title: Cap Policy Bound
+          default: false
+        live_authority_terms_complete:
+          type: boolean
+          const: false
+          title: Live Authority Terms Complete
+          default: false
+        execution_authority_enabled:
+          type: boolean
+          const: false
+          title: Execution Authority Enabled
+          default: false
+        source_cancel_allowance_consumed:
+          type: boolean
+          const: false
+          title: Source Cancel Allowance Consumed
+          default: false
+        source_cancel_call_count:
+          type: integer
+          const: 0
+          title: Source Cancel Call Count
+          default: 0
+        replacement_create_allowance_consumed:
+          type: boolean
+          const: false
+          title: Replacement Create Allowance Consumed
+          default: false
+        replacement_create_call_count:
+          type: integer
+          const: 0
+          title: Replacement Create Call Count
+          default: 0
+        total_exchange_call_count:
+          type: integer
+          const: 0
+          title: Total Exchange Call Count
+          default: 0
+        page_load_coinbase_calls:
+          type: integer
+          const: 0
+          title: Page Load Coinbase Calls
+          default: 0
+        browser_authority:
+          type: string
+          const: display_and_forward_only
+          title: Browser Authority
+          default: display_and_forward_only
+        raw_response_persisted:
+          type: boolean
+          const: false
+          title: Raw Response Persisted
+          default: false
+        raw_exception_persisted:
+          type: boolean
+          const: false
+          title: Raw Exception Persisted
+          default: false
+        private_exchange_identifiers_persisted:
+          type: boolean
+          const: false
+          title: Private Exchange Identifiers Persisted
+          default: false
+        command_replayed:
+          type: boolean
+          title: Command Replayed
+          default: false
+        correlation_id:
+          anyOf:
+          - type: string
+            pattern: ^[A-Za-z0-9._:@|/-]{1,255}$
+          - type: 'null'
+          title: Correlation Id
+        operator_intent:
+          anyOf:
+          - type: string
+            const: prepare_single_order_reprice_now
+          - type: 'null'
+          title: Operator Intent
+        command_service_method:
+          type: string
+          enum:
+          - get_single_order_reprice_now
+          - prepare_reprice_now_intent
+          title: Command Service Method
+      additionalProperties: false
+      type: object
+      required:
+      - state
+      - diagnostic_code
+      - stealth_order_id
+      - source_client_order_id
+      - source_client_order_id_sha256
+      - source_selection
+      - local_cycles_used
+      - command_service_method
+      title: OperatorSingleOrderRepriceNowReadback
+    OperatorSingleOrderRepriceNowSourceSelection:
+      properties:
+        stealth_order_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Stealth Order Id
+        source_client_order_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Source Client Order Id
+        found:
+          type: boolean
+          title: Found
+        eligible:
+          type: boolean
+          title: Eligible
+        diagnostic_code:
+          type: string
+          pattern: ^operator_reprice_now_[a-z0-9_]{1,75}$
+          title: Diagnostic Code
+        definition_revision:
+          anyOf:
+          - type: integer
+            minimum: 1.0
+          - type: 'null'
+          title: Definition Revision
+        definition_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Definition Sha256
+        root_client_order_id:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          - type: 'null'
+          title: Root Client Order Id
+        source_status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source Status
+        zero_fill_proven:
+          type: boolean
+          title: Zero Fill Proven
+          default: false
+        system_owned:
+          type: boolean
+          title: System Owned
+          default: false
+        direct_parent:
+          type: boolean
+          title: Direct Parent
+          default: false
+        source_evidence_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Source Evidence Sha256
+      additionalProperties: false
+      type: object
+      required:
+      - stealth_order_id
+      - source_client_order_id
+      - found
+      - eligible
+      - diagnostic_code
+      title: OperatorSingleOrderRepriceNowSourceSelection
     OperatorSpotHotpointReadback:
       properties:
         domain:

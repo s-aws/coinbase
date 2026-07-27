@@ -15,10 +15,12 @@ command path after exact backend admission and Test-profile authority, while
 Futures, Stealth, movement/repricing, campaign, and sweep command routes remain
 no-live or local-evidence boundaries. The frontend does not own live authority.
 
-The next proposed MVP is `operator_attach_single_follow_up_intent`, pending
-distinct operator authorization. It is local intent-recording scope only and
-grants no child creation, Coinbase call, or live authority. The completed
-`selected_order_execution_closeout_slice` remains historical evidence.
+The current independent MVP is `operator_single_order_reprice_now_v1`.
+It records one immutable, call-free non-market Reprice Now intent for an exact
+canonical zero-fill revealed placement. Live Execute is fixed-disabled because
+portfolio, product, market, cap, and exchange-read authority are not bound;
+all Cancel/Create allowances remain unconsumed. Earlier follow-up-intent and
+`selected_order_execution_closeout_slice` work remains historical evidence.
 
 Current generated schema artifact:
 - `openapi/coinbase-admin-api.yaml`
@@ -1685,6 +1687,11 @@ messages below remain legacy/operator compatibility surfaces.
 runtime or command-service lookup. They make no Coinbase mutation. Supported
 Controlled-live manual place/cancel uses the installed authenticated Admin API
 contract with route-bound backend admission.
+
+`reprice_now_stealth_order` is also source-disabled before bridge, manager, or
+product-wide repricing lookup. The authenticated Goal 15 Admin API may persist
+one exact local non-market Reprice Now intent, but its live Cancel/Create route
+remains fail-closed until separately complete live authority terms exist.
 
 Stealth views/actions:
 - `request_stealth_orders`

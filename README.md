@@ -1,5 +1,23 @@
 # Coinbase Trading Backend
 
+## Completed Goal 15 — exact single-order Reprice Now intent
+
+Goal `operator_single_order_reprice_now_v1` provides one authenticated local
+`PREPARE_REPRICE_NOW` action for an exact canonical system-owned, zero-fill,
+direct-parent `REVEALED` Stealth placement. It binds both
+`stealth_order_id` and source `client_order_id`, requires the current sanitized
+source-evidence hash, and reserves one deterministic UUIDv5 successor.
+
+The separate PostgreSQL ledger persists only immutable non-market identity,
+definition, source-evidence, cycle, event, and hash-only actor/idempotency
+evidence. It accepts no browser product, portfolio, price, size, or cap terms
+and makes no Coinbase call. The future execute route returns fixed
+`operator_reprice_now_live_authority_terms_incomplete` before service, ledger,
+runtime, or Coinbase access, leaving its Cancel/Create allowances unconsumed.
+The legacy dashboard Reprice Now message is source-disabled before
+product-wide repricing. See
+[the Goal 15 design](docs/OPERATOR_SINGLE_ORDER_REPRICE_NOW_V1.md).
+
 ## Goal 14 — parent move Premark lifecycle
 
 Goal `operator_parent_move_premark_lifecycle_v1` provides one backend-owned

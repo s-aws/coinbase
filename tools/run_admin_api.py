@@ -53,6 +53,9 @@ OPERATOR_SPOT_ORDER_TRUTH_ENABLED_ENV = (
 OPERATOR_PARENT_MOVE_PREMARK_ENABLED_ENV = (
     "COINBASE_ADMIN_API_OPERATOR_PARENT_MOVE_PREMARK_ENABLED"
 )
+OPERATOR_SINGLE_ORDER_REPRICE_NOW_ENABLED_ENV = (
+    "COINBASE_ADMIN_API_OPERATOR_SINGLE_ORDER_REPRICE_NOW_ENABLED"
+)
 DISABLED_ENV_VALUES = {"0", "false", "no", "off", "disabled"}
 ENABLED_ENV_VALUES = {"1", "true", "yes", "on"}
 OIDC_REQUIRED_ENV_VARS = (
@@ -84,6 +87,10 @@ OPERATOR_SPOT_ORDER_TRUTH_SCHEMA_STARTUP_ERROR = (
 )
 OPERATOR_PARENT_MOVE_PREMARK_SCHEMA_STARTUP_ERROR = (
     "Admin API operator parent move premark schema initialization failed."
+)
+OPERATOR_SINGLE_ORDER_REPRICE_NOW_SCHEMA_STARTUP_ERROR = (
+    "Admin API operator single-order Reprice Now schema initialization "
+    "failed."
 )
 
 
@@ -416,6 +423,16 @@ def initialize_operator_parent_move_premark_schema() -> None:
     initialize_runtime()
 
 
+def initialize_operator_single_order_reprice_now_schema() -> None:
+    """Create the call-free Goal 15 Reprice Now intent ledger."""
+
+    from database.operator_single_order_reprice_now import (
+        initialize_operator_single_order_reprice_now_schema as initialize_schema,
+    )
+
+    initialize_schema()
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the local Admin API server."""
 
@@ -470,6 +487,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         except Exception:
             print(
                 OPERATOR_PARENT_MOVE_PREMARK_SCHEMA_STARTUP_ERROR,
+                file=sys.stderr,
+            )
+            return 2
+
+    if (
+        os.environ.get(OPERATOR_SINGLE_ORDER_REPRICE_NOW_ENABLED_ENV)
+        == "1"
+    ):
+        try:
+            initialize_operator_single_order_reprice_now_schema()
+        except Exception:
+            print(
+                OPERATOR_SINGLE_ORDER_REPRICE_NOW_SCHEMA_STARTUP_ERROR,
                 file=sys.stderr,
             )
             return 2

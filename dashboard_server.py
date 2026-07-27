@@ -90,6 +90,7 @@ _SOURCE_DISABLED_EXCHANGE_MUTATION_RESPONSES = {
     "cancel_order": "cancel_response",
     "move_order": "order_moved",
     "premark_move": "order_premarked",
+    "reprice_now_stealth_order": "reprice_now_result",
     "place_hotpoint_test_order": "place_hotpoint_test_order_response",
 }
 

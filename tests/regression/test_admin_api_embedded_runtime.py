@@ -1056,13 +1056,22 @@ def test_main_embedded_spot_runtime_requires_test_profile_before_composition():
     assert "product_ids = spot_product_ids" in source
     assert "derivatives_product_ids = []" in source
     assert '"futures_balance_summary"' in source
-    suppression_binding = source.index(
-        "get_default_operator_parent_move_premark_repository"
+    parent_move_runtime_initialization = source.index(
+        "initialize_operator_parent_move_premark_runtime()"
     )
-    assert suppression_binding < runtime_composition
+    suppression_binding = source.index(
+        "get_default_operator_parent_move_premark_goal_repository()"
+    )
+    assert (
+        parent_move_runtime_initialization
+        < suppression_binding
+        < runtime_composition
+    )
     assert (
         "COINBASE_ADMIN_API_OPERATOR_PARENT_MOVE_PREMARK_ENABLED"
-        not in source[suppression_binding:runtime_composition]
+        not in source[
+            parent_move_runtime_initialization:runtime_composition
+        ]
     )
     assert (
         "cancelled_follow_up_suppression_checker=("

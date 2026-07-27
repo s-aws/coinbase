@@ -358,6 +358,9 @@ def test_operator_runtime_initializes_enabled_durable_schemas_before_composition
     environment[
         "COINBASE_ADMIN_API_OPERATOR_PARENT_MOVE_PREMARK_ENABLED"
     ] = "1"
+    environment[
+        "COINBASE_ADMIN_API_OPERATOR_SINGLE_ORDER_REPRICE_NOW_ENABLED"
+    ] = "1"
     lifecycle: list[object] = []
     monkeypatch.setattr(
         operator_runtime,
@@ -395,6 +398,14 @@ def test_operator_runtime_initializes_enabled_durable_schemas_before_composition
         lambda: lifecycle.append("operator_parent_move_premark_schema"),
         raising=False,
     )
+    monkeypatch.setattr(
+        operator_runtime,
+        "initialize_operator_single_order_reprice_now_schema",
+        lambda: lifecycle.append(
+            "operator_single_order_reprice_now_schema"
+        ),
+        raising=False,
+    )
 
     result = operator_runtime.main(
         ["--host", "127.0.0.1", "--port", "8877"],
@@ -414,6 +425,7 @@ def test_operator_runtime_initializes_enabled_durable_schemas_before_composition
         "operator_stealth_definition_schema",
         "operator_spot_order_truth_schema",
         "operator_parent_move_premark_schema",
+        "operator_single_order_reprice_now_schema",
         "compose",
         ("serve", "127.0.0.1", 8877),
     ]
