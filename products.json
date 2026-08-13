@@ -4,15 +4,14 @@
   ],
   "derivatives": [
     "BIP-20DEC30-CDE",
-    "BIT-29MAY26-CDE",
-    "ET-29MAY26-CDE",
+    "BIT-28AUG26-CDE",
+    "ET-28AUG26-CDE",
     "ETP-20DEC30-CDE",
-    "GOL-27MAY26-CDE",
+    "GOL-25NOV26-CDE",
+    "NOL-19AUG26-CDE",
     "PAU-20DEC30-CDE"
   ],
-  "ticker_to_trading": {
-    "BTC-USD": "BTC-USDC"
-  },
+  "ticker_to_trading": {},
   "metadata": {
     "BIP-20DEC30-CDE": {
       "type": "FUTURE",
@@ -30,7 +29,7 @@
       "contract_size": null,
       "expiry": null
     },
-    "BIT-29MAY26-CDE": {
+    "BIT-28AUG26-CDE": {
       "type": "FUTURE",
       "base_currency": null,
       "quote_currency": null,
@@ -39,14 +38,14 @@
       "price_increment": "5",
       "base_min_size": "1",
       "quote_min_size": "0",
-      "display_name": "BTC 29 MAY 26",
+      "display_name": "BTC 28 AUG 26",
       "status": "",
       "mid_price": null,
       "trading_disabled": false,
       "contract_size": null,
       "expiry": null
     },
-    "ET-29MAY26-CDE": {
+    "ET-28AUG26-CDE": {
       "type": "FUTURE",
       "base_currency": null,
       "quote_currency": null,
@@ -55,7 +54,7 @@
       "price_increment": "0.5",
       "base_min_size": "1",
       "quote_min_size": "0",
-      "display_name": "ETH 29 MAY 26",
+      "display_name": "ETH 28 AUG 26",
       "status": "",
       "mid_price": null,
       "trading_disabled": false,
@@ -78,7 +77,7 @@
       "contract_size": null,
       "expiry": null
     },
-    "GOL-27MAY26-CDE": {
+    "GOL-25NOV26-CDE": {
       "type": "FUTURE",
       "base_currency": null,
       "quote_currency": null,
@@ -87,7 +86,23 @@
       "price_increment": "0.1",
       "base_min_size": "1",
       "quote_min_size": "0",
-      "display_name": "GLD 27 MAY 26",
+      "display_name": "GLD 25 NOV 26",
+      "status": "",
+      "mid_price": null,
+      "trading_disabled": false,
+      "contract_size": null,
+      "expiry": null
+    },
+    "NOL-19AUG26-CDE": {
+      "type": "FUTURE",
+      "base_currency": null,
+      "quote_currency": null,
+      "base_increment": "1",
+      "quote_increment": "0.01",
+      "price_increment": "0.01",
+      "base_min_size": "1",
+      "quote_min_size": "0",
+      "display_name": "OIL 19 AUG 26",
       "status": "",
       "mid_price": null,
       "trading_disabled": false,
