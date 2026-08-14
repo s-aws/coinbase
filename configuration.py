@@ -17,17 +17,21 @@ Example:
 from os import getenv
 from copy import deepcopy
 import json
+import logging
 from pathlib import Path
 from typing import Any, Optional, Union, overload
 from coinbase.rest import RESTClient
 
 from external import CoinbaseRestClient
 from core.enums import OrderStatus, OrderSide, ProductType, RoundingDirection, TargetMovementType
+from core.exceptions import CoinbaseAPIError
 from core.constants import (  # noqa: F401  (re-exported for legacy ``from configuration import ...``)
     DERIVATIVES_PER_SIDE_FEE_DEFAULT,
     get_derivatives_per_side_fee,
     DEFAULT_MAX_ORDER_REPLACEMENT,
 )
+
+logger = logging.getLogger(__name__)
 
 # Load products from products.json
 PRODUCTS_FILE = Path(__file__).parent / "products.json"
@@ -65,6 +69,43 @@ def get_trading_product_id(ticker_product_id: str) -> str:
         return TICKER_TO_TRADING[ticker_product_id]
     # Otherwise assume it's already a trading product
     return ticker_product_id
+
+
+def _local_product_dict(product_id: str, metadata: dict) -> dict:
+    """Normalize cached ``products.json`` metadata to the REST product shape."""
+    product_type = (
+        metadata.get("product_type")
+        or metadata.get("type")
+        or ProductType.SPOT.value
+    )
+    product = {
+        **metadata,
+        "product_id": product_id,
+        "product_type": product_type,
+        "trading_disabled": bool(metadata.get("trading_disabled", False)),
+    }
+    if product_type == ProductType.FUTURE.value:
+        product.setdefault(
+            "future_product_details",
+            {"contract_size": metadata.get("contract_size") or 1},
+        )
+    return product
+
+
+def local_products_from_metadata() -> dict:
+    """Return the last locally cached product catalog without network access."""
+    products = {}
+    for product_id in DERIVATIVES_PRODUCT_IDS + SPOT_PRODUCT_IDS:
+        metadata = PRODUCT_METADATA.get(product_id) or PRODUCT_METADATA.get(
+            get_trading_product_id(product_id),
+            {},
+        )
+        products[product_id] = _local_product_dict(product_id, dict(metadata))
+    return {
+        product_id: product
+        for product_id, product in products.items()
+        if product.get("trading_disabled") is False
+    }
 
 API_KEY = getenv("COINBASE_API_KEY")
 API_SECRET = getenv("COINBASE_API_SECRET")
@@ -361,13 +402,24 @@ def rest_get_products() -> dict:
         >>> base_increment = btc_usdc['base_increment']
         >>> print(f"Can trade {base_increment} BTC increments")
     """
-    products_list = [
-        REST_CLIENT.get_product_dict(product_id) for
-            product_id in DERIVATIVES_PRODUCT_IDS + SPOT_PRODUCT_IDS]
+    products = {}
+    for requested_product_id in DERIVATIVES_PRODUCT_IDS + SPOT_PRODUCT_IDS:
+        item = REST_CLIENT.get_product_dict(requested_product_id)
+        if not isinstance(item, dict):
+            raise CoinbaseAPIError(
+                "Coinbase returned a malformed product response",
+                api_error_code="malformed_product_response",
+            )
 
-    products = {
-        item["product_id"]: item for item in products_list if item["trading_disabled"] is False
-    }
+        product_id = item.get("product_id")
+        if not product_id:
+            raise CoinbaseAPIError(
+                "Coinbase product response omitted product_id",
+                api_error_code="malformed_product_response",
+            )
+
+        if item.get("trading_disabled") is False:
+            products[product_id] = item
 
     return products
 
@@ -848,9 +900,24 @@ class OrderBook():
         # ``core.orderbook`` here is safe: it has no module-level side effects.
         from core.orderbook import OrderBook as _OrderBookV2
 
-        # Compute legacy startup data exactly as the original class did, so
-        # that production behaviour at import time is preserved.
-        products = rest_get_products()
+        # Prefer live metadata, but a transient upstream failure must not make
+        # importing configuration terminate the entire process.  The local
+        # catalog is the last validated snapshot written by the existing
+        # dashboard refresh path.
+        try:
+            products = rest_get_products()
+            if not products:
+                raise CoinbaseAPIError(
+                    "Coinbase returned an empty product catalog",
+                    api_error_code="empty_product_catalog",
+                )
+        except Exception as exc:
+            products = local_products_from_metadata()
+            logger.warning(
+                "Coinbase product refresh unavailable during startup; "
+                "using cached products.json metadata (%s)",
+                type(exc).__name__,
+            )
         # ``mandatory_fee_per_contract`` is consumed by
         # ``calculate_new_order_move_from_snapshot`` as a price offset to
         # recover the **round-trip** mandatory commission on a single
@@ -870,7 +937,15 @@ class OrderBook():
             "FUTURE": {"BUY": 0.001, "SELL": 0.001},
             "BIP-20DEC30-CDE": {"BUY": 0.001, "SELL": 0.001},
         }
-        positions = {"FUTURE": get_futures_positions()}
+        try:
+            positions = {"FUTURE": get_futures_positions()}
+        except Exception as exc:
+            positions = {"FUTURE": {}}
+            logger.error(
+                "Coinbase futures positions unavailable during startup; "
+                "starting with an empty position snapshot (%s)",
+                type(exc).__name__,
+            )
 
         self._impl = _OrderBookV2(
             products=products,
