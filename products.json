@@ -1,6 +1,6 @@
 {
   "spot": [
-    "BTC-USDC"
+    "BTC-USD"
   ],
   "derivatives": [
     "BIP-20DEC30-CDE",
@@ -8,7 +8,7 @@
     "ET-28AUG26-CDE",
     "ETP-20DEC30-CDE",
     "GOL-25NOV26-CDE",
-    "NOL-19AUG26-CDE",
+    "NOL-21SEP26-CDE",
     "PAU-20DEC30-CDE"
   ],
   "ticker_to_trading": {},
@@ -93,7 +93,7 @@
       "contract_size": null,
       "expiry": null
     },
-    "NOL-19AUG26-CDE": {
+    "NOL-21SEP26-CDE": {
       "type": "FUTURE",
       "base_currency": null,
       "quote_currency": null,
@@ -102,7 +102,7 @@
       "price_increment": "0.01",
       "base_min_size": "1",
       "quote_min_size": "0",
-      "display_name": "OIL 19 AUG 26",
+      "display_name": "OIL 21 SEP 26",
       "status": "",
       "mid_price": null,
       "trading_disabled": false,
@@ -125,7 +125,7 @@
       "contract_size": null,
       "expiry": null
     },
-    "BTC-USDC": {
+    "BTC-USD": {
       "type": "SPOT",
       "base_currency": null,
       "quote_currency": null,
@@ -134,7 +134,7 @@
       "price_increment": "0.01",
       "base_min_size": "0.00000001",
       "quote_min_size": "1",
-      "display_name": "BTC-USDC",
+      "display_name": "BTC-USD",
       "status": "online",
       "mid_price": null,
       "trading_disabled": false,

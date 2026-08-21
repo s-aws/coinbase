@@ -152,10 +152,21 @@ def test_three_fills_from_optin_parent_trigger_placement():
     engine.get_parent_of_child = Mock(return_value="parent-root")
 
     fake_rest = Mock()
+    fake_rest.limit_order_gtc.side_effect = lambda **kwargs: {
+        "success": True,
+        "success_response": {
+            "order_id": "exchange-order-id",
+            "client_order_id": kwargs["client_order_id"],
+        },
+    }
     fake_insert = Mock(return_value=1)
 
     with patch("configuration.REST_CLIENT", fake_rest), \
-         patch("database.order.insert_order_parent", fake_insert):
+         patch("database.order.insert_order_parent", fake_insert), \
+         patch(
+             "calculation.price_validation.get_product_metadata",
+             return_value=engine.orderbook.product["BTC-USDC"],
+         ):
         for _ in range(3):
             engine._maybe_dispatch_hotpoint(_delta(price=100.0))
 

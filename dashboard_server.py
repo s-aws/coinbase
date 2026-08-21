@@ -21,14 +21,22 @@ from websockets.server import WebSocketServerProtocol
 
 # Import REST client for order placement
 try:
-    from configuration import REST_CLIENT, rest_get_products
+    from configuration import REST_CLIENT, rest_get_products, update_product_metadata
     REST_CLIENT_AVAILABLE = True
 except ImportError:
     REST_CLIENT_AVAILABLE = False
 
 # Use custom logging service
 from logging_service import get_logger
-from core.enums import EngineState, FollowUpRevealDirection, RepricingReferenceSource, StealthOrderStatus
+from business.placement_response import classify_placement_response
+from calculation.price_validation import normalize_price_for_product
+from core.enums import (
+    EngineState,
+    FollowUpRevealDirection,
+    PriceRoundingPolicy,
+    RepricingReferenceSource,
+    StealthOrderStatus,
+)
 from core.models import RepricingPolicy
 from core.exceptions import WebSocketMessageError, OrderCreationError, CoinbaseAPIError
 from core.runtime_controller import (
@@ -67,6 +75,7 @@ _ORIGINATING_MSG_TYPES = frozenset({
 _TERMINAL_STEALTH_STATUSES = frozenset({
     StealthOrderStatus.EXECUTED.value,
     StealthOrderStatus.CANCELLED.value,
+    StealthOrderStatus.ERROR.value,
 })
 _ACTIVE_STEALTH_STATUSES = frozenset(
     s.value for s in StealthOrderStatus if s.value not in _TERMINAL_STEALTH_STATUSES
@@ -643,11 +652,29 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 inner = order_configuration.get(inner_key, {}) if inner_key else {}
                 raw_size = inner.get("base_size")
                 raw_price = inner.get("limit_price")  # None for market orders
+                effective_price = None
+                if raw_price is not None:
+                    price_check = normalize_price_for_product(
+                        raw_price,
+                        product_id=product_id,
+                        side=order_params.get("side"),
+                        policy=PriceRoundingPolicy.SIDE_CONSERVATIVE,
+                    )
+                    if not price_check:
+                        raise OrderCreationError(
+                            f"Order rejected at price boundary: {price_check.reason}",
+                            client_order_id=client_order_id,
+                        )
+                    effective_price = float(price_check.effective_price)
+                    # The price used for notional validation must be the exact
+                    # price sent to Coinbase.
+                    inner["limit_price"] = str(effective_price)
+
                 if raw_size is not None:
                     size_check = validate_and_quantize_size(
                         raw_size,
                         product_id=product_id,
-                        price=float(raw_price) if raw_price is not None else None,
+                        price=effective_price,
                     )
                     if not size_check:
                         raise OrderCreationError(
@@ -661,51 +688,44 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 # Call REST API to create order. Tracked as in-flight so a
                 # concurrent drain waits for the placement to settle before
                 # transitioning to STOPPED.
-                with controller.track_inflight(INFLIGHT_REST_PLACE):
-                    result = REST_CLIENT.create_order(
-                        client_order_id=client_order_id,
-                        product_id=product_id,
-                        side=order_params.get("side"),
-                        order_configuration=order_configuration,
+                try:
+                    with controller.track_inflight(INFLIGHT_REST_PLACE):
+                        result = REST_CLIENT.create_order(
+                            client_order_id=client_order_id,
+                            product_id=product_id,
+                            side=order_params.get("side"),
+                            order_configuration=order_configuration,
+                        )
+                except Exception as rest_error:
+                    placement = classify_placement_response(
+                        expected_client_order_id=client_order_id,
+                        exception=rest_error,
                     )
-                
-                # Convert response object to dict if needed
-                if hasattr(result, '__dict__'):
-                    result_dict = result.__dict__
                 else:
-                    result_dict = result
-                
-                logger.info(f"Order response: {result_dict}")
-                
-                # Check if order was successful
-                if hasattr(result, 'success') and not result.success:
-                    error_msg = "Unknown error"
-                    if hasattr(result, 'error_response'):
-                        error_response = result.error_response
-                        if isinstance(error_response, dict):
-                            error_msg = error_response.get('message') or error_response.get('error', 'Unknown error')
-                        elif hasattr(error_response, 'message'):
-                            error_msg = error_response.message
-                        elif hasattr(error_response, 'error'):
-                            error_msg = error_response.error
-                    
+                    placement = classify_placement_response(
+                        result,
+                        expected_client_order_id=client_order_id,
+                    )
+
+                logger.info(
+                    "Order placement classified: outcome=%s exchange_order_id=%s",
+                    placement.outcome.value,
+                    placement.exchange_order_id,
+                )
+
+                if not placement.accepted:
                     raise CoinbaseAPIError(
-                        f"Order creation failed: {error_msg}",
+                        "Order creation failed "
+                        f"({placement.outcome.value}): "
+                        f"{placement.failure_reason or 'unclassified placement failure'}",
                         api_error_code="order_creation_failed"
                     )
-                
-                # Order successful
-                order_id = None
-                if hasattr(result, 'order_id'):
-                    order_id = result.order_id
-                elif isinstance(result_dict, dict):
-                    order_id = result_dict.get('order_id')
                 
                 response = {
                     "type": "order_response",
                     "status": "success",
                     "message": "Order created",
-                    "order_id": order_id,
+                    "order_id": placement.exchange_order_id,
                 }
                 add_log_entry("INFO", f"Order created: {order_params.get('product_id')} {order_params.get('side')}")
                 
@@ -715,14 +735,30 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "type": "order_response",
                     "status": "error",
                     "message": str(e),
+                    "client_order_id": (
+                        client_order_id
+                        if 'client_order_id' in locals()
+                        else None
+                    ),
                 }
                 add_log_entry("ERROR", f"API error: {str(e)}")
             except Exception as e:
                 logger.error(f"Order placement failed: {type(e).__name__}: {str(e)}")
-                raise OrderCreationError(
+                creation_error = OrderCreationError(
                     f"Failed to place order: {e}",
                     client_order_id=client_order_id if 'client_order_id' in locals() else None
-                ) from e
+                )
+                response = {
+                    "type": "order_response",
+                    "status": "error",
+                    "message": str(creation_error),
+                    "client_order_id": (
+                        client_order_id
+                        if 'client_order_id' in locals()
+                        else None
+                    ),
+                }
+                add_log_entry("ERROR", f"Order placement failed: {e}")
             
             await websocket.send(json.dumps(response))
             
@@ -1846,16 +1882,30 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 return
 
             try:
-                from configuration import REST_CLIENT
                 from database.order import insert_order_parent
                 from core.enums import OrderStatus
                 import uuid as _uuid
 
                 client_order_id = str(_uuid.uuid4())
+                parent_inserted = False
+                placement_accepted = False
+                price_check = normalize_price_for_product(
+                    price,
+                    product_id=product_id,
+                    side=side,
+                    policy=PriceRoundingPolicy.SIDE_CONSERVATIVE,
+                )
+                if not price_check:
+                    raise OrderCreationError(
+                        "Hotpoint test order rejected at price boundary: "
+                        f"{price_check.reason}",
+                        client_order_id=client_order_id,
+                    )
+                price = float(price_check.effective_price)
                 # Pre-insert order_parent row with the opt-in flag set.
                 # Auto-placed children of this order will spawn from the
                 # engine's hotpoint dispatcher when fills accumulate.
-                insert_order_parent(
+                inserted_parent_id = insert_order_parent(
                     client_order_id=client_order_id,
                     product_id=product_id,
                     side=side,
@@ -1871,15 +1921,42 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     enable_hotpoint_replication=True,
                     auto_placed_by_hotpoint=False,
                 )
+                if inserted_parent_id is None:
+                    raise OrderCreationError(
+                        "Hotpoint test order_parent insert returned no row id",
+                        client_order_id=client_order_id,
+                    )
+                parent_inserted = True
                 # Submit GTC limit on the exchange.
-                REST_CLIENT.limit_order_gtc(
-                    product_id=product_id,
-                    side=side,
-                    base_size=str(size),
-                    limit_price=str(price),
-                    client_order_id=client_order_id,
-                    post_only=False,
-                )
+                try:
+                    rest_response = REST_CLIENT.limit_order_gtc(
+                        product_id=product_id,
+                        side=side,
+                        base_size=str(size),
+                        limit_price=str(price),
+                        client_order_id=client_order_id,
+                        post_only=False,
+                    )
+                except Exception as rest_error:
+                    placement = classify_placement_response(
+                        expected_client_order_id=client_order_id,
+                        exception=rest_error,
+                    )
+                else:
+                    placement = classify_placement_response(
+                        rest_response,
+                        expected_client_order_id=client_order_id,
+                    )
+
+                if not placement.accepted:
+                    raise CoinbaseAPIError(
+                        "Hotpoint test placement failed "
+                        f"({placement.outcome.value}): "
+                        f"{placement.failure_reason or 'unclassified placement failure'}",
+                        api_error_code="hotpoint_test_order_creation_failed",
+                    )
+
+                placement_accepted = True
                 add_log_entry(
                     "INFO",
                     f"Hotpoint test order placed: {client_order_id} {product_id} "
@@ -1889,12 +1966,55 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "type": "place_hotpoint_test_order_response",
                     "success": True,
                     "client_order_id": client_order_id,
+                    "order_id": placement.exchange_order_id,
                 }))
             except Exception as e:
+                if locals().get("placement_accepted", False):
+                    logger.error(
+                        "place_hotpoint_test_order local finalization failed after "
+                        "confirmed exchange acceptance for %s (%s): %s. "
+                        "Order IS LIVE on the exchange; do not resubmit.",
+                        client_order_id,
+                        getattr(locals().get("placement", None), "exchange_order_id", None),
+                        e,
+                    )
+                    try:
+                        await websocket.send(json.dumps({
+                            "type": "place_hotpoint_test_order_response",
+                            "success": True,
+                            "client_order_id": client_order_id,
+                            "order_id": getattr(
+                                locals().get("placement", None),
+                                "exchange_order_id",
+                                None,
+                            ),
+                            "warning": f"local_finalization_error: {e}",
+                        }))
+                    except Exception:
+                        pass
+                    return
+                if (
+                    locals().get("parent_inserted", False)
+                    and not locals().get("placement_accepted", False)
+                ):
+                    try:
+                        from database.order import update_order_parent_status
+                        from core.enums import OrderStatus
+                        update_order_parent_status(
+                            client_order_id,
+                            OrderStatus.FAILED.value,
+                        )
+                    except Exception as status_error:
+                        logger.error(
+                            "Failed to mark hotpoint test parent %s FAILED: %s",
+                            client_order_id,
+                            status_error,
+                        )
                 logger.error(f"place_hotpoint_test_order failed: {e}")
                 await websocket.send(json.dumps({
                     "type": "place_hotpoint_test_order_response",
                     "success": False,
+                    "client_order_id": locals().get("client_order_id"),
                     "error": str(e),
                 }))
 
@@ -2025,6 +2145,11 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     max_order_replacement=int(order.get('max_order_replacement', 0)),
                     status=order.get('status', 'OPEN')
                 )
+                if result is None:
+                    raise OrderCreationError(
+                        "Parent order creation failed boundary or persistence validation",
+                        client_order_id=client_order_id,
+                    )
                 
                 # Fetch the created order
                 created_order = get_parent_order_by_client_id(client_order_id)
@@ -2069,7 +2194,11 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     'status': order.get('status', 'OPEN')
                 }
                 
-                update_parent_order(client_order_id, update_data)
+                if not update_parent_order(client_order_id, update_data):
+                    raise OrderCreationError(
+                        "Parent order update failed boundary or persistence validation",
+                        client_order_id=client_order_id,
+                    )
                 
                 # Fetch the updated order
                 updated_order = get_parent_order_by_client_id(client_order_id)
@@ -2252,31 +2381,43 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
         elif msg_type == "premark_move":
             # Pre-mark an order for automatic move (when cancelled)
             try:
-                from database.order import create_pending_move
+                from business.move_manager import MoveManager
+                from configuration import ORDERBOOK
                 
                 move_data = data.get("move", {})
                 parent_id = move_data.get('parent_client_order_id')
                 new_order_details = move_data.get('new_order_details', {})
+                reason = move_data.get('reason', 'premarked_auto_move')
                 notes = move_data.get('notes')
                 
-                # Create pending move record in database
-                move_id = create_pending_move(
-                    parent_client_order_id=parent_id,
-                    new_order_config=new_order_details,
-                    reason='premarked_auto_move',
-                    notes=notes
+                # Route through the same validated/normalized move boundary
+                # used by every other pending-move creation path.
+                result = MoveManager(ORDERBOOK).pre_mark_for_move(
+                    original_parent_client_order_id=parent_id,
+                    new_order_details=new_order_details,
+                    reason=reason,
+                    notes=notes,
                 )
-                
-                response = {
-                    "type": "order_premarked",
-                    "success": True,
-                    "parent_client_order_id": parent_id,
-                    "move_id": move_id,
-                    "message": f"Order pre-marked for automatic move on cancellation"
-                }
-                
-                add_log_entry("INFO", f"Order pre-marked for move: {parent_id}")
-                logger.info(f"Order pre-marked for move: {parent_id}")
+                if result.get("success"):
+                    response = {
+                        "type": "order_premarked",
+                        "success": True,
+                        "parent_client_order_id": parent_id,
+                        "move_id": result.get("move_id"),
+                        "message": result.get("message"),
+                    }
+                    add_log_entry("INFO", f"Order pre-marked for move: {parent_id}")
+                    logger.info(f"Order pre-marked for move: {parent_id}")
+                else:
+                    response = {
+                        "type": "error",
+                        "success": False,
+                        "message": result.get("message", "Pre-mark failed"),
+                    }
+                    add_log_entry(
+                        "ERROR",
+                        f"Pre-mark failed: {result.get('error') or result.get('message')}",
+                    )
                 
                 # Broadcast to all clients
                 message = json.dumps(response)
@@ -2522,6 +2663,11 @@ def update_products_json_from_api() -> Dict[str, Any]:
         # Write updated data to products.json (preserve key order, don't sort)
         with open(products_file, 'w') as f:
             json.dump(updated_data, f, indent=2)
+
+        # Keep the running engine on the same authoritative tick/minimum
+        # snapshot that was just persisted.  The updater installs the complete
+        # catalog atomically; it never performs a database write.
+        update_product_metadata(metadata)
         
         logger.info(f"Updated products.json: {len(derivatives)} derivatives, {len(spot)} spot, {len(metadata)} metadata entries")
         

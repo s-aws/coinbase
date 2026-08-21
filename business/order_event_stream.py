@@ -21,6 +21,7 @@ from core.enums import (
     StealthOrderStatus,
 )
 from calculation.formatter import safe_float
+from business.placement_response import classify_placement_response
 from logging_service import get_logger
 
 
@@ -255,16 +256,23 @@ class OrderEventStreamPublisher:
         )
 
     def _post_submission_hook(self, order: Dict[str, Any], result: Any) -> None:
-        order_id = None
-        if isinstance(result, dict):
-            success_response = result.get("success_response") or {}
-            order_id = success_response.get("order_id") or result.get("order_id")
+        client_order_id = order.get("client_order_id")
+        placement = classify_placement_response(
+            result,
+            expected_client_order_id=client_order_id,
+        )
+        if not placement.accepted:
+            logger.debug(
+                "Skipping post-submission events for unaccepted placement "
+                f"{client_order_id}: {placement.outcome.value}"
+            )
+            return
+
+        order_id = placement.exchange_order_id
 
         payload = dict(order)
-        if order_id:
-            payload["order_id"] = order_id
+        payload["order_id"] = order_id
 
-        client_order_id = payload.get("client_order_id")
         key = f"submit:{client_order_id}:{order_id}"
         self.publish_event(
             event_type=EventStreamType.ORDER_SUBMITTED.value,

@@ -64,24 +64,27 @@ import uuid
 import json
 import time
 from datetime import datetime, timedelta
-from typing import Dict, Any, Iterator, Optional, Tuple, List
+from decimal import Decimal
+from threading import RLock
+from typing import Callable, Dict, Any, Iterator, Mapping, Optional, Tuple, List
 
 from configuration import (
     DEFAULT_MAX_ORDER_REPLACEMENT,
-    PRODUCT_METADATA,
-    get_trading_product_id,
-    quantize_to_increment,
+    get_product_metadata,
     safe_float,
 )
+from calculation.price_validation import normalize_price_for_product
+from business.placement_response import classify_placement_response
 from core.enums import (
     FollowUpRevealDirection,
+    OrderPlacementOutcome,
     OrderSide,
     OrderStatus,
+    PriceRoundingPolicy,
     RepricingReferenceSource,
     RevealConditionType,
     RevealPricingPolicy,
     RevealPriceSource,
-    RoundingDirection,
     StealthLifecycleEvent,
     StealthOrderStatus,
 )
@@ -95,7 +98,12 @@ from core.exceptions import (
 from business.stealth_condition_evaluator import get_evaluator
 from core.models import MarketData, RepricingPolicy, RepricingState
 from core.runtime_controller import INFLIGHT_REST_PLACE, get_runtime_controller
-from database.order import get_parent_order, insert_order_parent, update_order_parent_status
+from database.order import (
+    get_parent_order,
+    insert_order_parent,
+    update_order_parent_price,
+    update_order_parent_status,
+)
 from logging_service import get_logger
 
 
@@ -110,6 +118,19 @@ _REVEAL_CONDITION_PRICE_FIELDS_BY_TYPE: Dict[str, Tuple[str, ...]] = {
     RevealConditionType.PRICE_THRESHOLD.value: ("price_threshold",),
     RevealConditionType.CUMULATIVE_VOLUME.value: ("price_level",),
 }
+
+
+def _parse_json_container(value: Any, default: Any) -> Any:
+    """Decode a JSON field while preserving its expected container type."""
+    if value is None:
+        return default
+    parsed = value
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return default
+    return parsed if isinstance(parsed, type(default)) else default
 
 
 def _iter_reveal_condition_price_fields(
@@ -218,6 +239,7 @@ class StealthOrderManager:
         self.logger = get_logger("StealthOrderManager")
         self.log_callback = log_callback or self._default_log
         self.in_memory_orders = {}  # For caching/quick access
+        self._creation_lock = RLock()
         self._market_cache: Dict[str, MarketData] = {}  # product_id -> latest market snapshot
         self._placed_order_index = {}  # Index: placed_order_id -> stealth_order (O(1) lookup)
         self.profit_validator = profit_validator
@@ -621,24 +643,23 @@ class StealthOrderManager:
         For boundary-enforced repricing, use directional quantization so BUY
         does not drift below boundary and SELL does not drift above boundary.
         """
-        trading_product_id = get_trading_product_id(str(product_id or ""))
-        metadata = PRODUCT_METADATA.get(product_id) or PRODUCT_METADATA.get(trading_product_id) or {}
-        price_increment = metadata.get("price_increment")
-        if not price_increment:
-            return float(price)
-
         normalized_side = str(side or "").upper()
-        direction = RoundingDirection.NEAREST.value
+        rounding_policy = PriceRoundingPolicy.NEAREST
         if boundary_enforced:
             if normalized_side == OrderSide.BUY.value:
-                direction = RoundingDirection.UP.value
+                rounding_policy = PriceRoundingPolicy.UP
             elif normalized_side == OrderSide.SELL.value:
-                direction = RoundingDirection.DOWN.value
+                rounding_policy = PriceRoundingPolicy.DOWN
 
-        try:
-            return float(quantize_to_increment(float(price), str(price_increment), direction=direction))
-        except (TypeError, ValueError):
-            return float(price)
+        result = normalize_price_for_product(
+            price,
+            product_id=str(product_id or ""),
+            side=normalized_side,
+            policy=rounding_policy,
+        )
+        if not result.ok or result.effective_price is None:
+            raise ValueError(result.reason or "price normalization failed")
+        return float(result.effective_price)
 
     # Maximum post-only retries per placement. Industry-standard repricing
     # ladder: original attempt + 2 retries, repricing 1 tick safer (away
@@ -649,16 +670,13 @@ class StealthOrderManager:
     POST_ONLY_MAX_ATTEMPTS = 3
 
     def _get_price_increment(self, product_id: str) -> Optional[str]:
-        """Return the price increment string for a product, or ``None`` if
-        the product is unknown to ``PRODUCT_METADATA``.
-        """
-        trading_product_id = get_trading_product_id(str(product_id or ""))
-        metadata = PRODUCT_METADATA.get(product_id) or PRODUCT_METADATA.get(trading_product_id) or {}
+        """Return the current authoritative price increment, when available."""
+        metadata = get_product_metadata(str(product_id or ""))
         increment = metadata.get("price_increment")
         return str(increment) if increment else None
 
     @staticmethod
-    def _next_safer_tick(price: float, side: str, increment: str) -> float:
+    def _next_safer_tick(price: float, side: str, product_id: str) -> float:
         """Return ``price`` moved one ``increment`` AWAY from the opposing
         touch, so a re-submitted post-only order will not cross the
         spread.
@@ -671,23 +689,38 @@ class StealthOrderManager:
         would have crossed; the only safe response is to step back, not
         forward.
         """
-        try:
-            new_price = float(quantize_to_increment(
-                float(price), str(increment),
-                direction=RoundingDirection.NEAREST.value,
-            ))
-        except (TypeError, ValueError):
-            new_price = float(price)
-        try:
-            tick = float(increment)
-        except (TypeError, ValueError):
-            return new_price
+        normalized = normalize_price_for_product(
+            price,
+            product_id=product_id,
+            side=side,
+            policy=PriceRoundingPolicy.NEAREST,
+        )
+        if (
+            not normalized.ok
+            or normalized.effective_price is None
+            or normalized.increment is None
+        ):
+            raise ValueError(normalized.reason or "price normalization failed")
+
+        new_price = Decimal(str(normalized.effective_price))
+        tick = Decimal(normalized.increment)
         normalized_side = str(side or "").upper()
         if normalized_side == OrderSide.BUY.value:
-            return new_price - tick
-        if normalized_side == OrderSide.SELL.value:
-            return new_price + tick
-        return new_price
+            candidate = new_price - tick
+        elif normalized_side == OrderSide.SELL.value:
+            candidate = new_price + tick
+        else:
+            raise ValueError(f"unsupported order side: {side!r}")
+
+        result = normalize_price_for_product(
+            candidate,
+            product_id=product_id,
+            side=side,
+            policy=PriceRoundingPolicy.NEAREST,
+        )
+        if not result.ok or result.effective_price is None:
+            raise ValueError(result.reason or "price normalization failed")
+        return float(result.effective_price)
 
     @staticmethod
     def _is_post_only_rejection(order_result: Any) -> bool:
@@ -704,16 +737,341 @@ class StealthOrderManager:
         if order_result.get("success"):
             return False
         token = "POST_ONLY"
-        candidates = [
-            order_result.get("failure_reason"),
-            (order_result.get("error_response") or {}).get("error"),
-            (order_result.get("error_response") or {}).get("message"),
-            (order_result.get("error_response") or {}).get("preview_failure_reason"),
-        ]
+        error_response = order_result.get("error_response")
+        candidates = [order_result.get("failure_reason")]
+        if isinstance(error_response, Mapping):
+            candidates.extend((
+                error_response.get("error"),
+                error_response.get("message"),
+                error_response.get("preview_failure_reason"),
+            ))
+        else:
+            candidates.append(error_response)
         for value in candidates:
             if value and token in str(value).upper():
                 return True
         return False
+
+    def _mark_placement_parent_failed(
+        self,
+        placement_client_order_id: Optional[str],
+        *,
+        stealth_order_id: str,
+    ) -> None:
+        """Best-effort terminal status for a placement audit row.
+
+        The order-parent row may have been created by the stealth root,
+        pre-inserted immediately before REST, or won by the websocket writer.
+        In every case an unaccepted placement must not remain PENDING/OPEN.
+        """
+        if not placement_client_order_id:
+            return
+        try:
+            update_order_parent_status(
+                placement_client_order_id,
+                OrderStatus.FAILED.value,
+            )
+        except Exception as status_error:
+            self.log_callback(
+                "warning",
+                {
+                    "event": "placement_parent_failed_status_update_failed",
+                    "stealth_order_id": stealth_order_id,
+                    "placement_client_order_id": placement_client_order_id,
+                    "error": str(status_error),
+                },
+            )
+
+    def _index_accepted_placement(
+        self,
+        order: Dict[str, Any],
+        placement_client_order_id: Any,
+        *,
+        source: str,
+    ) -> bool:
+        """Index one proven accepted placement without ownership overwrite."""
+        placement_id = (
+            placement_client_order_id.strip()
+            if isinstance(placement_client_order_id, str)
+            else ""
+        )
+        if not placement_id:
+            self.log_callback("error", {
+                "event": "accepted_placement_index_invalid_id",
+                "stealth_order_id": order.get("stealth_order_id"),
+                "index_source": source,
+            })
+            return False
+
+        existing_owner = self._placed_order_index.get(placement_id)
+        if existing_owner is not None and existing_owner is not order:
+            reason = (
+                f"placement client_order_id {placement_id!r} is already owned "
+                f"by stealth order {existing_owner.get('stealth_order_id')!r}"
+            )
+            order["placement_index_error"] = reason
+            self.log_callback("error", {
+                "event": "accepted_placement_index_owner_conflict",
+                "stealth_order_id": order.get("stealth_order_id"),
+                "existing_stealth_order_id": existing_owner.get(
+                    "stealth_order_id"
+                ),
+                "placement_client_order_id": placement_id,
+                "index_source": source,
+                "error": reason,
+            })
+            return False
+
+        self._placed_order_index[placement_id] = order
+        return True
+
+    def _restore_hydrated_placement_index(
+        self,
+        order: Dict[str, Any],
+    ) -> int:
+        """Restore only locally persisted, explicitly accepted placements."""
+        restored = 0
+        for reveal_event in order.get("revealed_orders") or []:
+            if not isinstance(reveal_event, dict):
+                continue
+            if reveal_event.get("placement_success") is not True:
+                continue
+            exchange_order_id = reveal_event.get("exchange_order_id")
+            if not (
+                isinstance(exchange_order_id, str)
+                and exchange_order_id.strip()
+            ):
+                continue
+            placement_id = (
+                reveal_event.get("placement_client_order_id")
+                or reveal_event.get("placed_order_id")
+            )
+            if self._index_accepted_placement(
+                order,
+                placement_id,
+                source="database_hydration",
+            ):
+                restored += 1
+        return restored
+
+    def _record_accepted_local_finalization_error(
+        self,
+        order: Dict[str, Any],
+        *,
+        placement_client_order_id: str,
+        exchange_order_id: str,
+        stage: str,
+        error: Exception,
+        reveal_event: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """Report bookkeeping failure after exchange acceptance.
+
+        Once acceptance has been classified, a hook, persistence, or audit
+        failure is never a placement failure and must never invite a retry.
+        Keep that distinction in one path shared by reveal, anchor reprice,
+        and manual move finalization.
+        """
+        error_text = f"{stage}: {error}"[:512]
+        if reveal_event is not None:
+            existing_error = reveal_event.get("placement_error")
+            reveal_event["placement_error"] = (
+                f"{existing_error}; {error_text}"
+                if existing_error
+                else error_text
+            )
+            reveal_event["local_finalization_error"] = error_text
+
+        event_name = {
+            "reveal": "stealth_order_slice_local_finalization_error",
+            "anchor_reprice": "stealth_anchor_reprice_local_finalization_error",
+            "move": "stealth_move_local_finalization_error",
+        }.get(stage.split(".", 1)[0], "stealth_placement_local_finalization_error")
+        self.log_callback(
+            "error",
+            {
+                "event": event_name,
+                "stealth_order_id": order.get("stealth_order_id"),
+                "placement_client_order_id": placement_client_order_id,
+                "exchange_order_id": exchange_order_id,
+                "finalization_stage": stage,
+                "error": str(error),
+                "note": (
+                    "Exchange acceptance is confirmed. "
+                    "Order IS LIVE on the exchange; do not resubmit."
+                ),
+            },
+        )
+        return error_text
+
+    def _run_accepted_local_finalization_step(
+        self,
+        order: Dict[str, Any],
+        *,
+        placement_client_order_id: str,
+        exchange_order_id: str,
+        stage: str,
+        operation: Callable[[], Any],
+        incomplete_message: str,
+        reveal_event: Optional[Dict[str, Any]] = None,
+    ) -> bool:
+        """Run one local step without changing accepted placement truth."""
+        try:
+            result = operation()
+        except Exception as error:
+            self._record_accepted_local_finalization_error(
+                order,
+                placement_client_order_id=placement_client_order_id,
+                exchange_order_id=exchange_order_id,
+                stage=stage,
+                error=error,
+                reveal_event=reveal_event,
+            )
+            return False
+        if result is False:
+            self._record_accepted_local_finalization_error(
+                order,
+                placement_client_order_id=placement_client_order_id,
+                exchange_order_id=exchange_order_id,
+                stage=stage,
+                error=RuntimeError(incomplete_message),
+                reveal_event=reveal_event,
+            )
+            return False
+        return True
+
+    def _run_terminal_failure_persistence_step(
+        self,
+        order: Dict[str, Any],
+        *,
+        placement_client_order_id: Optional[str],
+        outcome: OrderPlacementOutcome,
+        stage: str,
+        operation: Callable[[], Any],
+    ) -> bool:
+        """Persist terminal placement failure without hiding DB failure."""
+        try:
+            result = operation()
+            if result is not False:
+                return True
+            error: Exception = RuntimeError("database operation did not complete")
+        except Exception as operation_error:
+            error = operation_error
+        self.log_callback(
+            "error",
+            {
+                "event": "terminal_placement_failure_persistence_failed",
+                "stealth_order_id": order.get("stealth_order_id"),
+                "placement_client_order_id": placement_client_order_id,
+                "placement_outcome": outcome.value,
+                "persistence_stage": stage,
+                "error": str(error),
+                "note": (
+                    "Placement remains terminal in memory and will not be retried; "
+                    "the local failure record was not fully persisted."
+                ),
+            },
+        )
+        return False
+
+    def _record_terminal_placement_failure(
+        self,
+        order: Dict[str, Any],
+        *,
+        placement_client_order_id: Optional[str],
+        exchange_order_id: Optional[str],
+        submitted_price: float,
+        failure_reason: str,
+        outcome: OrderPlacementOutcome,
+        attempted_size: float,
+        market_data: Optional[Dict[str, Any]] = None,
+        audit_fields: Optional[Dict[str, Any]] = None,
+        clear_active_placement: bool = False,
+    ) -> Dict[str, Any]:
+        """Persist one failed/indeterminate placement without consuming size.
+
+        This is the single failure path shared by reveal, move, and anchor
+        replacement.  It deliberately does not update reveal counters, index
+        the client id, invoke success hooks, or retain a new active exchange
+        pointer.
+        """
+        stealth_order_id = str(order["stealth_order_id"])
+        bounded_reason = str(failure_reason or "placement was not accepted")[:512]
+        market_data = market_data or {}
+        market_bid = market_data.get("bid")
+        market_ask = market_data.get("ask")
+        market_spread = None
+        if market_bid is not None and market_ask is not None:
+            try:
+                market_spread = float(market_ask) - float(market_bid)
+            except (TypeError, ValueError):
+                market_spread = None
+
+        reveal_event: Dict[str, Any] = {
+            "reveal_number": len(order.get("revealed_orders") or []) + 1,
+            "revealed_size": 0.0,
+            "placement_price": float(submitted_price),
+            "placed_order_id": placement_client_order_id,
+            "placement_client_order_id": placement_client_order_id,
+            "exchange_order_id": exchange_order_id,
+            "placement_success": False,
+            "placement_status": outcome.value.lower(),
+            "placement_error": bounded_reason,
+            "reveal_time": datetime.utcnow(),
+            "market_price": market_data.get("price"),
+            "market_bid": market_bid,
+            "market_ask": market_ask,
+            "market_spread": market_spread,
+            "market_volume_1m": market_data.get("volume_1m"),
+            "market_source": market_data.get("source"),
+        }
+        if audit_fields:
+            reveal_event.update(audit_fields)
+
+        order.setdefault("revealed_orders", []).append(reveal_event)
+        order["status"] = StealthOrderStatus.ERROR.value
+        order["failure_reason"] = bounded_reason
+        order["updated_at"] = datetime.utcnow()
+
+        if clear_active_placement:
+            anchor_state = self._normalize_anchor_repricing_state(
+                order.get("anchor_repricing_state_json")
+            )
+            anchor_state["active_placement_client_order_id"] = None
+            anchor_state["active_exchange_order_id"] = None
+            anchor_state["active_exchange_price"] = None
+            order["anchor_repricing_state_json"] = anchor_state
+
+        self._mark_placement_parent_failed(
+            placement_client_order_id,
+            stealth_order_id=stealth_order_id,
+        )
+        self._run_terminal_failure_persistence_step(
+            order,
+            placement_client_order_id=placement_client_order_id,
+            outcome=outcome,
+            stage="stealth_order",
+            operation=lambda: self._update_stealth_order(order),
+        )
+        self._run_terminal_failure_persistence_step(
+            order,
+            placement_client_order_id=placement_client_order_id,
+            outcome=outcome,
+            stage="reveal_history",
+            operation=lambda: self._record_reveal_event(order, reveal_event),
+        )
+        self._dispatch_lifecycle_event(
+            stealth_order_id=stealth_order_id,
+            event=StealthLifecycleEvent.REVEAL_FAILED,
+            order_data=order,
+            extra={
+                "failure_reason": bounded_reason,
+                "size": float(attempted_size),
+                "placed_order_id": placement_client_order_id,
+                "exchange_order_id": exchange_order_id,
+                "placement_outcome": outcome.value,
+            },
+        )
+        return reveal_event
 
     def _should_skip_anchor_reprice(
         self,
@@ -958,33 +1316,46 @@ class StealthOrderManager:
             if normalized_side == "SELL" and bid and desired_price <= bid:
                 return False
 
+        try:
+            desired_price = self._quantize_reprice_price(
+                order["product_id"],
+                order["side"],
+                desired_price,
+                boundary_enforced=(reprice_reason == "outside_max_boundary"),
+            )
+        except ValueError as normalization_error:
+            self.log_callback(
+                "error",
+                {
+                    "event": "stealth_anchor_reprice_price_invalid",
+                    "stealth_order_id": order["stealth_order_id"],
+                    "product_id": order["product_id"],
+                    "requested_price": desired_price,
+                    "error": str(normalization_error),
+                    "note": "Existing exchange order was left unchanged.",
+                },
+            )
+            return False
+
         REST_CLIENT.cancel_orders(order_ids=[exchange_order_id])
 
-        placement_client_order_id = str(uuid.uuid4())
-        # Track the cancel+replace as a single in-flight critical section so a
-        # concurrent drain waits for both the cancellation and the replacement
-        # placement to settle before transitioning to STOPPED.
-        with get_runtime_controller().track_inflight(INFLIGHT_REST_PLACE):
-            order_result = REST_CLIENT.place_limit_order(
-                product_id=order["product_id"],
-                side=order["side"],
-                limit_price=str(desired_price),
-                base_size=str(order["remaining_size"]),
-                client_order_id=placement_client_order_id,
-                post_only=policy.post_only_required,
-            )
-        success_response = order_result.get("success_response") if isinstance(order_result, dict) else {}
-        new_exchange_order_id = (success_response or {}).get("order_id")
+        self._mark_reveal_event_cancelled_for_reprice(
+            order,
+            state.get("active_placement_client_order_id"),
+            reprice_reason,
+        )
 
-        # Ensure an order_parent row exists for the new placement uuid BEFORE any WS
-        # event for it can arrive (FK violation guard, mirrors reveal_order_slice).
-        # Flat hierarchy: resolve to chain root so a stealth follow-up's reveal
-        # placement does not become a grandchild of the original root.
+        placement_client_order_id = str(uuid.uuid4())
+
+        # Pre-insert the chain link before REST so a fast websocket acceptance
+        # cannot create this placement as an unrelated root.
         root_parent_for_placement = resolve_stealth_chain_root(order)
+        placement_parent_inserted = False
+        placement_parent_error: Optional[Exception] = None
         try:
             inherited_tm, inherited_tm_type, _src = \
                 self._resolve_target_movement_for_plan(order["stealth_order_id"], order)
-            insert_order_parent(
+            placement_parent_id = insert_order_parent(
                 client_order_id=placement_client_order_id,
                 product_id=order["product_id"],
                 side=order["side"],
@@ -994,11 +1365,17 @@ class StealthOrderManager:
                 target_movement_type=inherited_tm_type or "P",
                 max_order_replacement=int(order.get("max_order_replacements") or 0),
                 current_order_replacement=0,
-                status=OrderStatus.OPEN.value,
+                status=OrderStatus.PENDING.value,
                 parent_order_id=root_parent_for_placement,
                 allow_partial_fills=bool(order.get("allow_partial_fills", False)),
             )
+            placement_parent_inserted = placement_parent_id is not None
+            if not placement_parent_inserted:
+                placement_parent_error = RuntimeError(
+                    "order_parent insert returned no row id"
+                )
         except Exception as parent_insert_error:
+            placement_parent_error = parent_insert_error
             self.log_callback(
                 "warning",
                 {
@@ -1009,10 +1386,74 @@ class StealthOrderManager:
                 },
             )
 
-        self._mark_reveal_event_cancelled_for_reprice(
+        order_result = None
+        try:
+            # Track the cancel+replace as a single in-flight critical section
+            # so a concurrent drain waits for replacement placement to settle.
+            with get_runtime_controller().track_inflight(INFLIGHT_REST_PLACE):
+                order_result = REST_CLIENT.place_limit_order(
+                    product_id=order["product_id"],
+                    side=order["side"],
+                    limit_price=str(desired_price),
+                    base_size=str(order["remaining_size"]),
+                    client_order_id=placement_client_order_id,
+                    post_only=policy.post_only_required,
+                )
+            classification = classify_placement_response(
+                order_result,
+                expected_client_order_id=placement_client_order_id,
+            )
+        except Exception as placement_exception:
+            classification = classify_placement_response(
+                expected_client_order_id=placement_client_order_id,
+                exception=placement_exception,
+            )
+
+        if not classification.accepted:
+            failure_reason = (
+                classification.failure_reason
+                or f"placement outcome {classification.outcome.value}"
+            )
+            self._record_terminal_placement_failure(
+                order,
+                placement_client_order_id=placement_client_order_id,
+                exchange_order_id=classification.exchange_order_id,
+                submitted_price=desired_price,
+                failure_reason=failure_reason,
+                outcome=classification.outcome,
+                attempted_size=remaining_size,
+                market_data=market_data,
+                audit_fields={
+                    "cancelled_for_reprice": False,
+                    "reference_price_source": state.get("last_reference_source"),
+                    "reference_price": state.get("last_reference_price"),
+                    "reference_bid": state.get("last_reference_bid"),
+                    "reference_ask": state.get("last_reference_ask"),
+                    "anchor_target_price": target_price,
+                    "anchor_max_price": max_boundary_price,
+                    "reprice_reason": reprice_reason,
+                },
+                clear_active_placement=True,
+            )
+            self.log_callback(
+                "error",
+                {
+                    "event": "stealth_anchor_reprice_placement_failed",
+                    "stealth_order_id": order["stealth_order_id"],
+                    "placement_client_order_id": placement_client_order_id,
+                    "placement_outcome": classification.outcome.value,
+                    "failure_reason": failure_reason,
+                    "old_exchange_order_id": exchange_order_id,
+                    "parent_row_pre_inserted": placement_parent_inserted,
+                },
+            )
+            return False
+
+        new_exchange_order_id = classification.exchange_order_id
+        index_succeeded = self._index_accepted_placement(
             order,
-            state.get("active_placement_client_order_id"),
-            reprice_reason,
+            placement_client_order_id,
+            source="anchor_reprice_acceptance",
         )
 
         reveal_event = {
@@ -1042,7 +1483,28 @@ class StealthOrderManager:
             "reprice_reason": reprice_reason,
         }
         order.setdefault("revealed_orders", []).append(reveal_event)
-        self._placed_order_index[placement_client_order_id] = order
+        if not index_succeeded:
+            self._record_accepted_local_finalization_error(
+                order,
+                placement_client_order_id=placement_client_order_id,
+                exchange_order_id=new_exchange_order_id,
+                stage="anchor_reprice.index_accepted_placement",
+                error=RuntimeError(
+                    order.get("placement_index_error")
+                    or "accepted placement could not be indexed"
+                ),
+                reveal_event=reveal_event,
+            )
+
+        if placement_parent_error is not None:
+            self._record_accepted_local_finalization_error(
+                order,
+                placement_client_order_id=placement_client_order_id,
+                exchange_order_id=new_exchange_order_id,
+                stage="anchor_reprice.preinsert_parent",
+                error=placement_parent_error,
+                reveal_event=reveal_event,
+            )
 
         now = datetime.utcnow()
         state["active_placement_client_order_id"] = placement_client_order_id
@@ -1062,21 +1524,26 @@ class StealthOrderManager:
         order["anchor_repricing_state_json"] = state
         order["limit_price"] = desired_price
         order["updated_at"] = now
-        self._update_stealth_order(order)
+        self._run_accepted_local_finalization_step(
+            order,
+            placement_client_order_id=placement_client_order_id,
+            exchange_order_id=new_exchange_order_id,
+            stage="anchor_reprice.persist_stealth_order",
+            operation=lambda: self._update_stealth_order(order),
+            incomplete_message="stealth order database update did not complete",
+            reveal_event=reveal_event,
+        )
 
         # Persist reprice to history table for audit (mirrors reveal_order_slice).
-        try:
-            self._record_reveal_event(order, reveal_event)
-        except Exception as record_err:
-            self.log_callback(
-                "warning",
-                {
-                    "event": "anchor_reprice_record_reveal_event_failed",
-                    "stealth_order_id": order["stealth_order_id"],
-                    "placement_client_order_id": placement_client_order_id,
-                    "error": str(record_err),
-                },
-            )
+        self._run_accepted_local_finalization_step(
+            order,
+            placement_client_order_id=placement_client_order_id,
+            exchange_order_id=new_exchange_order_id,
+            stage="anchor_reprice.persist_reveal_event",
+            operation=lambda: self._record_reveal_event(order, reveal_event),
+            incomplete_message="reveal history database update did not complete",
+            reveal_event=reveal_event,
+        )
 
         self.log_callback(
             "debug",
@@ -1195,6 +1662,21 @@ class StealthOrderManager:
                 stage="validate",
             )
 
+        price_check = normalize_price_for_product(
+            new_price,
+            product_id=str(order.get("product_id") or ""),
+            side=order.get("side"),
+            policy=PriceRoundingPolicy.SIDE_CONSERVATIVE,
+        )
+        if not price_check.ok or price_check.effective_price is None:
+            raise StealthMoveError(
+                f"new_limit_price failed product boundary validation: "
+                f"{price_check.reason}",
+                stealth_order_id=stealth_order_id,
+                stage="validate",
+            )
+        new_price = float(price_check.effective_price)
+
         state = self._normalize_anchor_repricing_state(
             order.get("anchor_repricing_state_json")
         )
@@ -1273,10 +1755,8 @@ class StealthOrderManager:
         Failure handling:
         - If the claim cannot be acquired, raise without side effects.
         - If the cancel call raises, raise without side effects.
-        - If the place call raises **after** the cancel succeeded, mark
-          the stealth order ``CANCELLED`` and persist; the original
-          placement is gone from the exchange and the operator can issue
-          a fresh ``create_stealth_order`` if desired.
+        - If placement fails **after** cancellation succeeds, mark the
+          stealth order ``ERROR`` and persist the placement failure.
 
         Returns:
             :class:`StealthMoveResult` with the new placement's internal
@@ -1307,6 +1787,28 @@ class StealthOrderManager:
                     stage="validate",
                 )
 
+            new_price = safe_float(
+                plan.reveal_plan.submitted_limit_price,
+                default=plan.new_configured_limit_price,
+            )
+            price_check = normalize_price_for_product(
+                new_price,
+                product_id=str(order.get("product_id") or ""),
+                side=order.get("side"),
+                policy=PriceRoundingPolicy.SIDE_CONSERVATIVE,
+            )
+            if not price_check.ok or price_check.effective_price is None:
+                raise StealthMoveError(
+                    f"move price failed product boundary validation: "
+                    f"{price_check.reason}",
+                    stealth_order_id=sid,
+                    stage="validate",
+                )
+            new_price = float(price_check.effective_price)
+            old_placement_client_order_id = order.get(
+                "anchor_repricing_state_json", {}
+            ).get("active_placement_client_order_id")
+
             # === CANCEL ===
             try:
                 with get_runtime_controller().track_inflight(INFLIGHT_REST_PLACE):
@@ -1325,12 +1827,10 @@ class StealthOrderManager:
                     from database.order import insert_stealth_order_move
                     insert_stealth_order_move(
                         stealth_order_id=sid,
-                        old_placement_client_order_id=order.get(
-                            "anchor_repricing_state_json", {}
-                        ).get("active_placement_client_order_id"),
+                        old_placement_client_order_id=old_placement_client_order_id,
                         old_exchange_order_id=plan.old_exchange_order_id,
                         old_submitted_price=plan.old_submitted_price,
-                        new_submitted_price=plan.new_configured_limit_price,
+                        new_submitted_price=new_price,
                         reason=plan.reason.value if plan.reason is not None else None,
                         notes=plan.notes,
                         status="cancel_failed",
@@ -1349,84 +1849,17 @@ class StealthOrderManager:
             # Mark the existing reveal event as cancelled-for-move (audit).
             self._mark_reveal_event_cancelled_for_reprice(
                 order,
-                order.get("anchor_repricing_state_json", {}).get(
-                    "active_placement_client_order_id"
-                ),
+                old_placement_client_order_id,
                 f"move:{plan.reason.value if plan.reason is not None else 'unknown'}",
             )
 
             # === PLACE ===
             placement_client_order_id = str(uuid.uuid4())
-            new_price = safe_float(
-                plan.reveal_plan.submitted_limit_price,
-                default=plan.new_configured_limit_price,
-            )
-            try:
-                with get_runtime_controller().track_inflight(INFLIGHT_REST_PLACE):
-                    order_result = REST_CLIENT.place_limit_order(
-                        product_id=order["product_id"],
-                        side=order["side"],
-                        limit_price=str(new_price),
-                        base_size=str(safe_float(order.get("remaining_size"), default=0.0)),
-                        client_order_id=placement_client_order_id,
-                        post_only=False,
-                    )
-            except Exception as place_exc:
-                # POST-CANCEL FAILURE: original placement is gone from
-                # the exchange. Mark the stealth order CANCELLED and
-                # surface the failure so operators can decide to
-                # resubmit manually.
-                order["status"] = StealthOrderStatus.CANCELLED.value
-                order["updated_at"] = datetime.utcnow()
-                try:
-                    self._update_stealth_order(order)
-                except Exception:
-                    pass  # Best-effort persistence on failure path.
-                self.log_callback(
-                    "error",
-                    {
-                        "event": "stealth_move_place_failed_after_cancel",
-                        "stealth_order_id": sid,
-                        "old_exchange_order_id": plan.old_exchange_order_id,
-                        "new_placement_client_order_id": placement_client_order_id,
-                        "error": str(place_exc),
-                    },
-                )
-                try:
-                    from database.order import insert_stealth_order_move
-                    insert_stealth_order_move(
-                        stealth_order_id=sid,
-                        old_placement_client_order_id=order.get(
-                            "anchor_repricing_state_json", {}
-                        ).get("active_placement_client_order_id"),
-                        old_exchange_order_id=plan.old_exchange_order_id,
-                        old_submitted_price=plan.old_submitted_price,
-                        new_placement_client_order_id=placement_client_order_id,
-                        new_submitted_price=new_price,
-                        reason=plan.reason.value if plan.reason is not None else None,
-                        notes=plan.notes,
-                        status="place_failed_after_cancel",
-                        error_message=str(place_exc),
-                        market_bid=plan.market_bid,
-                        market_ask=plan.market_ask,
-                    )
-                except Exception:
-                    pass
-                raise StealthMoveError(
-                    f"place failed AFTER cancel succeeded for {sid!r}: "
-                    f"stealth order set to CANCELLED. Error: {place_exc}",
-                    stealth_order_id=sid,
-                    stage="place",
-                ) from place_exc
 
-            success_response = (
-                order_result.get("success_response")
-                if isinstance(order_result, dict)
-                else {}
-            )
-            new_exchange_order_id = (success_response or {}).get("order_id")
-
-            # === FK guard: insert order_parent for the new placement ===
+            # Pre-insert the chain-linked parent row before REST so websocket
+            # acceptance cannot race in and create a detached root.
+            placement_parent_inserted = False
+            placement_parent_error: Optional[Exception] = None
             try:
                 inherited_tm, inherited_tm_type, _src = \
                     self._resolve_target_movement_for_plan(sid, order)
@@ -1440,7 +1873,7 @@ class StealthOrderManager:
                     if plan.new_target_movement_type is not None
                     else inherited_tm_type
                 )
-                insert_order_parent(
+                placement_parent_id = insert_order_parent(
                     client_order_id=placement_client_order_id,
                     product_id=order["product_id"],
                     side=order["side"],
@@ -1450,11 +1883,17 @@ class StealthOrderManager:
                     target_movement_type=effective_tm_type or "P",
                     max_order_replacement=int(order.get("max_order_replacements") or 0),
                     current_order_replacement=0,
-                    status=OrderStatus.OPEN.value,
+                    status=OrderStatus.PENDING.value,
                     parent_order_id=plan.root_parent_client_order_id,
                     allow_partial_fills=bool(order.get("allow_partial_fills", False)),
                 )
+                placement_parent_inserted = placement_parent_id is not None
+                if not placement_parent_inserted:
+                    placement_parent_error = RuntimeError(
+                        "order_parent insert returned no row id"
+                    )
             except Exception as parent_insert_error:
+                placement_parent_error = parent_insert_error
                 self.log_callback(
                     "warning",
                     {
@@ -1464,6 +1903,100 @@ class StealthOrderManager:
                         "error": str(parent_insert_error),
                     },
                 )
+
+            order_result = None
+            try:
+                with get_runtime_controller().track_inflight(INFLIGHT_REST_PLACE):
+                    order_result = REST_CLIENT.place_limit_order(
+                        product_id=order["product_id"],
+                        side=order["side"],
+                        limit_price=str(new_price),
+                        base_size=str(safe_float(order.get("remaining_size"), default=0.0)),
+                        client_order_id=placement_client_order_id,
+                        post_only=False,
+                    )
+                classification = classify_placement_response(
+                    order_result,
+                    expected_client_order_id=placement_client_order_id,
+                )
+            except Exception as place_exception:
+                classification = classify_placement_response(
+                    expected_client_order_id=placement_client_order_id,
+                    exception=place_exception,
+                )
+
+            if not classification.accepted:
+                failure_reason = (
+                    classification.failure_reason
+                    or f"placement outcome {classification.outcome.value}"
+                )
+                self._record_terminal_placement_failure(
+                    order,
+                    placement_client_order_id=placement_client_order_id,
+                    exchange_order_id=classification.exchange_order_id,
+                    submitted_price=new_price,
+                    failure_reason=failure_reason,
+                    outcome=classification.outcome,
+                    attempted_size=safe_float(order.get("remaining_size"), default=0.0),
+                    market_data={
+                        "bid": plan.market_bid,
+                        "ask": plan.market_ask,
+                        "source": plan.reveal_plan.market_source,
+                    },
+                    audit_fields={
+                        "move_reason": (
+                            plan.reason.value if plan.reason is not None else None
+                        ),
+                        "move_notes": plan.notes,
+                        "previous_exchange_order_id": plan.old_exchange_order_id,
+                        "previous_submitted_price": plan.old_submitted_price,
+                    },
+                    clear_active_placement=True,
+                )
+                self.log_callback(
+                    "error",
+                    {
+                        "event": "stealth_move_place_failed_after_cancel",
+                        "stealth_order_id": sid,
+                        "old_exchange_order_id": plan.old_exchange_order_id,
+                        "new_placement_client_order_id": placement_client_order_id,
+                        "placement_outcome": classification.outcome.value,
+                        "failure_reason": failure_reason,
+                        "parent_row_pre_inserted": placement_parent_inserted,
+                    },
+                )
+                try:
+                    from database.order import insert_stealth_order_move
+                    insert_stealth_order_move(
+                        stealth_order_id=sid,
+                        old_placement_client_order_id=old_placement_client_order_id,
+                        old_exchange_order_id=plan.old_exchange_order_id,
+                        old_submitted_price=plan.old_submitted_price,
+                        new_placement_client_order_id=placement_client_order_id,
+                        new_exchange_order_id=classification.exchange_order_id,
+                        new_submitted_price=new_price,
+                        reason=plan.reason.value if plan.reason is not None else None,
+                        notes=plan.notes,
+                        status="place_failed_after_cancel",
+                        error_message=failure_reason,
+                        market_bid=plan.market_bid,
+                        market_ask=plan.market_ask,
+                    )
+                except Exception:
+                    pass
+                raise StealthMoveError(
+                    f"place failed AFTER cancel succeeded for {sid!r}: "
+                    f"stealth order set to ERROR. {failure_reason}",
+                    stealth_order_id=sid,
+                    stage="place",
+                )
+
+            new_exchange_order_id = classification.exchange_order_id
+            index_succeeded = self._index_accepted_placement(
+                order,
+                placement_client_order_id,
+                source="move_acceptance",
+            )
 
             # === RESET STATE ===
             now = datetime.utcnow()
@@ -1517,38 +2050,61 @@ class StealthOrderManager:
                 "previous_submitted_price": plan.old_submitted_price,
             }
             order.setdefault("revealed_orders", []).append(move_reveal_event)
-            self._placed_order_index[placement_client_order_id] = order
-
-            try:
-                self._update_stealth_order(order)
-            except Exception as persist_exc:
-                self.log_callback(
-                    "error",
-                    {
-                        "event": "stealth_move_persist_failed",
-                        "stealth_order_id": sid,
-                        "error": str(persist_exc),
-                    },
+            if not index_succeeded:
+                self._record_accepted_local_finalization_error(
+                    order,
+                    placement_client_order_id=placement_client_order_id,
+                    exchange_order_id=new_exchange_order_id,
+                    stage="move.index_accepted_placement",
+                    error=RuntimeError(
+                        order.get("placement_index_error")
+                        or "accepted placement could not be indexed"
+                    ),
+                    reveal_event=move_reveal_event,
                 )
-                raise StealthMoveError(
-                    f"persist failed after successful move for {sid!r}: {persist_exc}",
-                    stealth_order_id=sid,
-                    stage="persist",
-                ) from persist_exc
 
-            try:
-                self._record_reveal_event(order, move_reveal_event)
-            except Exception:
-                # Audit record is best-effort.
-                pass
+            if placement_parent_error is not None:
+                self._record_accepted_local_finalization_error(
+                    order,
+                    placement_client_order_id=placement_client_order_id,
+                    exchange_order_id=new_exchange_order_id,
+                    stage="move.preinsert_parent",
+                    error=placement_parent_error,
+                    reveal_event=move_reveal_event,
+                )
 
-            try:
-                from database.order import insert_stealth_order_move
-                insert_stealth_order_move(
+            self._run_accepted_local_finalization_step(
+                order,
+                placement_client_order_id=placement_client_order_id,
+                exchange_order_id=new_exchange_order_id,
+                stage="move.persist_stealth_order",
+                operation=lambda: self._update_stealth_order(order),
+                incomplete_message="stealth order database update did not complete",
+                reveal_event=move_reveal_event,
+            )
+
+            self._run_accepted_local_finalization_step(
+                order,
+                placement_client_order_id=placement_client_order_id,
+                exchange_order_id=new_exchange_order_id,
+                stage="move.persist_reveal_event",
+                operation=lambda: self._record_reveal_event(
+                    order,
+                    move_reveal_event,
+                ),
+                incomplete_message="reveal history database update did not complete",
+                reveal_event=move_reveal_event,
+            )
+
+            from database.order import insert_stealth_order_move
+            self._run_accepted_local_finalization_step(
+                order,
+                placement_client_order_id=placement_client_order_id,
+                exchange_order_id=new_exchange_order_id,
+                stage="move.persist_move_audit",
+                operation=lambda: insert_stealth_order_move(
                     stealth_order_id=sid,
-                    old_placement_client_order_id=order.get(
-                        "anchor_repricing_state_json", {}
-                    ).get("active_placement_client_order_id"),
+                    old_placement_client_order_id=old_placement_client_order_id,
                     old_exchange_order_id=plan.old_exchange_order_id,
                     old_submitted_price=plan.old_submitted_price,
                     new_placement_client_order_id=placement_client_order_id,
@@ -1559,10 +2115,10 @@ class StealthOrderManager:
                     status="completed",
                     market_bid=plan.market_bid,
                     market_ask=plan.market_ask,
-                )
-            except Exception:
-                # Audit insertion is best-effort.
-                pass
+                ) is not None,
+                incomplete_message="move audit database insert did not complete",
+                reveal_event=move_reveal_event,
+            )
 
             self.log_callback(
                 "info",
@@ -1844,6 +2400,21 @@ class StealthOrderManager:
                 # But ``market_data_unknown`` stays False — we KNOW the
                 # market and just picked a more conservative price.
                 fallback_used = True
+
+        price_check = normalize_price_for_product(
+            submitted_limit_price,
+            product_id=str(order.get("product_id") or ""),
+            side=side_raw,
+            policy=PriceRoundingPolicy.SIDE_CONSERVATIVE,
+        )
+        if not price_check.ok or price_check.effective_price is None:
+            raise RevealPricingError(
+                f"Reveal price rejected at product boundary: {price_check.reason}",
+                configured_price=configured_limit_price,
+                fallback_used=fallback_used,
+                stealth_order_id=stealth_order_id,
+            )
+        submitted_limit_price = float(price_check.effective_price)
 
         # Resolve post_only from the policy (single source of truth in
         # ``RevealPricingPolicy.implies_post_only``). TOP_OF_BOOK / MIDPOINT
@@ -2393,10 +2964,14 @@ class StealthOrderManager:
             )
         except Exception as exc:
             # Never let lifecycle hook dispatch crash the caller
-            self.logger.warning(
+            message = (
                 f"[StealthOrderManager] _dispatch_lifecycle_event failed "
                 f"({event}) for {stealth_order_id}: {exc}"
             )
+            if getattr(self, "logger", None) is not None:
+                self.logger.warning(message)
+            elif getattr(self, "log_callback", None) is not None:
+                self.log_callback("warning", message)
 
     
     def create_stealth_order(
@@ -2496,6 +3071,36 @@ class StealthOrderManager:
         if not stealth_order_id:
             stealth_order_id = str(uuid.uuid4())
 
+        from core.exceptions import OrderCreationError
+
+        price_check = normalize_price_for_product(
+            limit_price,
+            product_id=product_id,
+            side=side,
+            policy=PriceRoundingPolicy.SIDE_CONSERVATIVE,
+        )
+        if not price_check.ok or price_check.effective_price is None:
+            raise OrderCreationError(
+                f"Stealth order rejected at price boundary: {price_check.reason}"
+            )
+        requested_limit_price = limit_price
+        limit_price = float(price_check.effective_price)
+        if price_check.adjusted:
+            self.log_callback(
+                "info",
+                {
+                    "event": "stealth_order_limit_price_normalized",
+                    "stealth_order_id": stealth_order_id,
+                    "product_id": product_id,
+                    "side": str(side),
+                    "requested_limit_price": requested_limit_price,
+                    "effective_limit_price": limit_price,
+                    "price_increment": price_check.increment,
+                    "rounding_policy": price_check.policy.value,
+                    "rounding_direction": price_check.rounding_direction.value,
+                },
+            )
+
         # Boundary validation: snap size to base_increment AND verify
         # base_min_size / quote_min_size before any DB write or in-memory
         # registration. Mirrors the price-quantize pattern used at reveal
@@ -2503,7 +3108,6 @@ class StealthOrderManager:
         # here means an invalid size NEVER reaches the exchange and never
         # poisons the in-memory order map.
         from calculation.size_validation import validate_and_quantize_size
-        from core.exceptions import OrderCreationError
         size_check = validate_and_quantize_size(
             total_size,
             product_id=product_id,
@@ -2568,61 +3172,117 @@ class StealthOrderManager:
             "anchor_repricing_state_json": self._normalize_anchor_repricing_state(None),
         }
         
-        # Store in memory for quick access
-        self.in_memory_orders[stealth_order_id] = order_data
-        
-        # Persist to database
-        self._save_stealth_order_to_db(order_data)
-        
-        # 📊 LOT-TRACKING: Log stealth order creation
-        reveal_type = reveal_condition.get("type", "time_delay")
-        reveal_delay = reveal_condition.get("delay_seconds", 0) if reveal_type == "time_delay" else "N/A"
-        self.log_callback("info", f"[LOT-TRACK] Stealth order created: {stealth_order_id} ({side} {total_size} {product_id} @ {limit_price}, reveal_type={reveal_type}, delay={reveal_delay}s)")
+        # UNIFIED TRACKING: Insert into order_parent table (for both parent and child orders)
+        # This ensures stealth orders are tracked in the same parent-child hierarchy as regular orders
+        effective_max_replacements = (
+            0
+            if parent_order_id
+            else (
+                max_order_replacements
+                if max_order_replacements is not None
+                else DEFAULT_MAX_ORDER_REPLACEMENT
+            )
+        )
+        parent_insert_args = {
+            "client_order_id": stealth_order_id,
+            "product_id": product_id,
+            "side": side,
+            "size": total_size,
+            "price": limit_price,
+            "target_movement": target_movement,
+            "target_movement_type": target_movement_type,
+            "max_order_replacement": effective_max_replacements,
+            "current_order_replacement": 0,
+            "status": StealthOrderStatus.PENDING.value,
+            "parent_order_id": parent_order_id,
+            "allow_partial_fills": (
+                False if parent_order_id else allow_partial_fills
+            ),
+            "enable_hotpoint_replication": (
+                False if parent_order_id else enable_hotpoint_replication
+            ),
+            "reject_existing": True,
+        }
+        with self._creation_lock:
+            if stealth_order_id in self.in_memory_orders:
+                raise OrderCreationError(
+                    "Stealth order client_order_id already exists in memory",
+                    client_order_id=stealth_order_id,
+                )
 
-        # 🔔 LIFECYCLE HOOK: CREATED
+            # Persist a fail-closed row first. If this process stops between
+            # creation writes, hydration sees ERROR and cannot submit it.
+            order_data["status"] = StealthOrderStatus.ERROR.value
+            order_data["failure_reason"] = "creation persistence incomplete"
+            try:
+                stealth_saved = self._save_stealth_order_to_db(order_data)
+            except Exception as stealth_save_error:
+                stealth_saved = False
+                save_failure_reason = str(stealth_save_error)
+            else:
+                save_failure_reason = "database write did not complete"
+            if not stealth_saved:
+                raise OrderCreationError(
+                    f"Stealth order persistence failed: {save_failure_reason}",
+                    client_order_id=stealth_order_id,
+                )
+
+            try:
+                parent_db_id = insert_order_parent(**parent_insert_args)
+            except Exception as parent_error:
+                order_data["failure_reason"] = (
+                    f"parent persistence failed: {parent_error}"
+                )[:512]
+                self._update_stealth_order(order_data)
+                raise OrderCreationError(
+                    f"Stealth order parent persistence failed: {parent_error}",
+                    client_order_id=stealth_order_id,
+                ) from parent_error
+            if parent_db_id is None:
+                order_data["failure_reason"] = (
+                    "parent persistence returned no row id"
+                )
+                self._update_stealth_order(order_data)
+                raise OrderCreationError(
+                    "Stealth order parent persistence returned no row id",
+                    client_order_id=stealth_order_id,
+                )
+
+            order_data["status"] = StealthOrderStatus.HIDDEN.value
+            order_data["failure_reason"] = None
+            if not self._update_stealth_order(order_data):
+                # This parent was proven newly inserted by reject_existing.
+                self._mark_placement_parent_failed(
+                    stealth_order_id=stealth_order_id,
+                    placement_client_order_id=stealth_order_id,
+                )
+                raise OrderCreationError(
+                    "Stealth order activation persistence failed",
+                    client_order_id=stealth_order_id,
+                )
+
+            # The order becomes locally active only after both durable rows
+            # exist and the fail-closed database state has been activated.
+            self.in_memory_orders[stealth_order_id] = order_data
+
+        reveal_type = reveal_condition.get("type", "time_delay")
+        reveal_delay = (
+            reveal_condition.get("delay_seconds", 0)
+            if reveal_type == "time_delay"
+            else "N/A"
+        )
+        self.log_callback(
+            "info",
+            f"[LOT-TRACK] Stealth order created: {stealth_order_id} "
+            f"({side} {total_size} {product_id} @ {limit_price}, "
+            f"reveal_type={reveal_type}, delay={reveal_delay}s)",
+        )
         self._dispatch_lifecycle_event(
             stealth_order_id=stealth_order_id,
             event=StealthLifecycleEvent.CREATED,
             order_data=order_data,
         )
-        
-        # UNIFIED TRACKING: Insert into order_parent table (for both parent and child orders)
-        # This ensures stealth orders are tracked in the same parent-child hierarchy as regular orders
-        if parent_order_id:
-            # This is a child/follow-up order - insert with parent reference
-            insert_order_parent(
-                client_order_id=stealth_order_id,
-                product_id=product_id,
-                side=side,
-                size=total_size,
-                price=limit_price,
-                target_movement=target_movement,
-                target_movement_type=target_movement_type,
-                max_order_replacement=0,  # Children don't have follow-ups
-                current_order_replacement=0,
-                status=StealthOrderStatus.PENDING.value,
-                parent_order_id=parent_order_id,
-                allow_partial_fills=False,  # child orders never spawn partial-fill follow-ups
-            )
-        else:
-            # This is a root order (no parent) - insert as parent
-            effective_max_replacements = max_order_replacements if max_order_replacements is not None else DEFAULT_MAX_ORDER_REPLACEMENT
-            
-            insert_order_parent(
-                client_order_id=stealth_order_id,
-                product_id=product_id,
-                side=side,
-                size=total_size,
-                price=limit_price,
-                target_movement=target_movement,
-                target_movement_type=target_movement_type,
-                max_order_replacement=effective_max_replacements,
-                current_order_replacement=0,
-                status=StealthOrderStatus.PENDING.value,
-                allow_partial_fills=allow_partial_fills,
-                enable_hotpoint_replication=enable_hotpoint_replication,
-            )
-        
+
         return stealth_order_id
     
     def evaluate_conditions(self, stealth_order_id: str) -> Tuple[bool, Optional[str]]:
@@ -2706,8 +3366,28 @@ class StealthOrderManager:
         
         if not order:
             return False, "Order not found"
+
+        placeable_statuses = {
+            StealthOrderStatus.HIDDEN.value,
+            StealthOrderStatus.PENDING.value,
+            StealthOrderStatus.TRIGGERED.value,
+        }
+        if (
+            order.get("_price_validation_pending")
+            or order.get("status") in placeable_statuses
+        ):
+            if not self._validate_local_price_read_only(order):
+                return False, order.get(
+                    "price_validation_error",
+                    "Stored price validation is pending runtime metadata",
+                )
         
-        if order["status"] in [StealthOrderStatus.EXECUTED.value, StealthOrderStatus.CANCELLED.value]:
+        terminal_statuses = {
+            StealthOrderStatus.ERROR.value,
+            StealthOrderStatus.EXECUTED.value,
+            StealthOrderStatus.CANCELLED.value,
+        }
+        if order["status"] in terminal_statuses:
             return False, f"Order already {order['status']}"
         
         if order["remaining_size"] <= 0:
@@ -2848,14 +3528,11 @@ class StealthOrderManager:
             })
             raise
         
-        # Place actual limit order on exchange (NOT stealth - this IS the revealed placement)
-        # Use REST API directly - DO NOT create another stealth order!
-        placed_order_id = None
-        placement_success = False
-        placement_error = None
-        exchange_order_id = None
-        
-        # Get full market data (includes price, volume, source) - separate from plan's pricing decision
+        # Place the revealed slice directly on the exchange. A REST return is
+        # not acceptance: every attempt is classified fail-closed before any
+        # success bookkeeping is allowed to run.
+        from configuration import REST_CLIENT
+
         market_data = self._get_current_market_data(order["product_id"]) or {}
         market_bid = reveal_plan.market_bid or market_data.get("bid")
         market_ask = reveal_plan.market_ask or market_data.get("ask")
@@ -2865,216 +3542,214 @@ class StealthOrderManager:
                 market_spread = float(market_ask) - float(market_bid)
             except (TypeError, ValueError):
                 market_spread = None
-        
+        placement_market_data = dict(market_data)
+        placement_market_data["bid"] = market_bid
+        placement_market_data["ask"] = market_ask
+
+        # Preserve the extension contract: pre-submission hooks receive the
+        # ordinary placement identity and may still change ``post_only``.
+        # Identity is pinned again after hooks before any local/REST write.
+        retry_post_only = bool(getattr(reveal_plan, "post_only", False))
+        client_order_id = self._placement_client_order_id_for_order(order)
+        order_for_submission = {
+            "product_id": order["product_id"],
+            "side": order["side"],
+            "limit_price": reveal_plan.submitted_limit_price,
+            "base_size": slice_size,
+            "client_order_id": client_order_id,
+            "post_only": retry_post_only,
+            "stealth_order_id": stealth_order_id,
+            "parent_order_id": order.get("parent_order_id"),
+            "reason": order.get("reason"),
+            "reveal_number": len(order.get("revealed_orders", [])) + 1,
+            "reveal_condition_type": order.get("reveal_condition_type"),
+            "reveal_condition_json": order.get("reveal_condition_json"),
+            "condition_confirmed_at": (
+                order.get("condition_confirmed_at").isoformat()
+                if hasattr(order.get("condition_confirmed_at"), "isoformat")
+                else order.get("condition_confirmed_at")
+            ),
+            "reveal_pricing_policy": reveal_plan.reveal_pricing_policy,
+            "reveal_price_source": reveal_plan.reveal_price_source,
+        }
+
         try:
-            from configuration import REST_CLIENT
-            
-            client_order_id = self._placement_client_order_id_for_order(order)
-            
-            # Build order dict for hooks (before REST submission)
-            # Use the plan's submitted price, not the configured price
-            order_for_submission = {
-                "product_id": order["product_id"],
-                "side": order["side"],
-                "limit_price": reveal_plan.submitted_limit_price,  # ← Use plan's price
-                "base_size": slice_size,
-                "client_order_id": client_order_id,
-                "post_only": bool(getattr(reveal_plan, "post_only", False)),
+            self.order_placement_hooks.call_pre_submission_hooks(order_for_submission)
+        except Exception as hook_error:
+            placed_order_id = str(uuid.uuid4())
+            placement_error = f"Pre-submission hook blocked: {hook_error}"
+            self.log_callback("warning", {
+                "event": "stealth_order_submission_blocked_by_hook",
                 "stealth_order_id": stealth_order_id,
-                "parent_order_id": order.get("parent_order_id"),
-                "reason": order.get("reason"),
-                "reveal_number": len(order.get("revealed_orders", [])) + 1,
-                "reveal_condition_type": order.get("reveal_condition_type"),
-                "reveal_condition_json": order.get("reveal_condition_json"),
-                "condition_confirmed_at": order.get("condition_confirmed_at").isoformat() if hasattr(order.get("condition_confirmed_at"), "isoformat") else order.get("condition_confirmed_at"),
-                "reveal_pricing_policy": reveal_plan.reveal_pricing_policy,  # Include policy info
-                "reveal_price_source": reveal_plan.reveal_price_source,  # Include source info
-            }
-            
-            # 🪝 PRE-SUBMISSION HOOKS: Validate/modify order before REST submission
-            # Extensions can raise exceptions to block placement or modify order fields
-            try:
-                self.order_placement_hooks.call_pre_submission_hooks(order_for_submission)
-            except Exception as hook_error:
-                # Hook validation failed - don't submit order
-                placed_order_id = str(uuid.uuid4())  # Fallback for tracking
-                placement_error = f"Pre-submission hook blocked: {str(hook_error)}"
-                placement_success = False
-                
-                self.log_callback("warning", {
-                    "event": "stealth_order_submission_blocked_by_hook",
-                    "stealth_order_id": stealth_order_id,
-                    "size": slice_size,
-                    "product_id": order["product_id"],
-                    "block_reason": placement_error,
-                })
-
-                # 🔔 LIFECYCLE HOOK: PLACEMENT_BLOCKED
-                self._dispatch_lifecycle_event(
-                    stealth_order_id=stealth_order_id,
-                    event=StealthLifecycleEvent.PLACEMENT_BLOCKED,
-                    order_data=order,
-                    extra={"failure_reason": placement_error, "size": slice_size},
-                )
-                
-                # Record the blocked reveal event and return
-                reveal_event = {
-                    "reveal_number": len(order["revealed_orders"]) + 1,
-                    "revealed_size": 0,  # No size placed
-                    "placed_order_id": placed_order_id,
-                    "placement_client_order_id": placed_order_id,
-                    "placement_success": False,
-                    "placement_error": placement_error,
-                    "reveal_time": datetime.utcnow(),
-                    "market_price": market_data.get("price"),
-                    "market_bid": market_bid,
-                    "market_ask": market_ask,
-                    "market_spread": market_spread,
-                    "market_volume_1m": market_data.get("volume_1m"),
-                    "market_source": market_data.get("source"),
-                    "configured_limit_price": reveal_plan.configured_limit_price,
-                    "submitted_limit_price": reveal_plan.submitted_limit_price,
-                    "reveal_pricing_policy": reveal_plan.reveal_pricing_policy,
-                    "reveal_price_source": reveal_plan.reveal_price_source,
-                    "reveal_price_fallback_used": reveal_plan.fallback_used,
-                }
-                order["revealed_orders"].append(reveal_event)
-                order["updated_at"] = datetime.utcnow()
-                self._update_stealth_order(order)
-                self._record_reveal_event(order, reveal_event)
-                return None
-            
-            # ─────────────────────────────────────────────────────────────────
-            # PRE-REST: Persist order_parent row with the correct chain link
-            # BEFORE submitting to the exchange. The WS confirmation for this
-            # placement can race the post-REST code path (observed 2026-04-29:
-            # user_event_thread_0 fell into OrderEngine.resolve_parent_client_order_id
-            # `create_parent=True` branch and inserted f6281a12 as a ROOT row
-            # with parent_order_id=NULL and max_order_replacement=101 BEFORE the
-            # stealth manager's post-REST insert ran — the latter then hit a
-            # UniqueViolation and the chain link was permanently lost).
-            #
-            # Inserting first guarantees:
-            #   * parent_order_id is set to the resolved chain root
-            #   * max_order_replacement / target_movement inherited from stealth
-            #   * any racing WS-side resolve_parent_client_order_id call sees an
-            #     existing row (insert_order_parent is idempotent) and no-ops
-            #
-            # On REST failure below we update the row to FAILED rather than
-            # leaving a phantom PENDING row.
-            # ─────────────────────────────────────────────────────────────────
-            # ─── PLACEMENT PRE-INSERT (CHAIN LINKAGE) ───────────────────────
-            # We pre-insert the order_parent row BEFORE each REST attempt so
-            # the WS user-channel handler (which fires almost simultaneously
-            # with REST return) finds an existing chain-linked row and does
-            # NOT fall back to inserting it as a NEW ROOT. Inserting as root
-            # orphans the placement from its stealth chain — see 2026-05-01
-            # incident: post-only retry generated a fresh COID, no pre-insert
-            # ran for the new COID, and the WS handler created a root row
-            # (DB ID 64) instead of linking to chain root e30d58d8.
-            #
-            # The pre-insert is skipped when the placement COID equals the
-            # stealth_order_id (no-reprice policy) — that path lets the WS
-            # handler resolve the chain via stealth_order_id directly.
-            #
-            # Inside the retry loop we re-pre-insert for each NEW retry COID
-            # and mark previous-attempt pre-inserts FAILED so the audit table
-            # reflects what actually happened on the exchange.
-            # ────────────────────────────────────────────────────────────────
-            placement_pre_inserted = False
-            pre_inserted_attempt_coids: set[str] = set()
-            root_parent_for_placement = (
-                resolve_stealth_chain_root(order)
-                if client_order_id != stealth_order_id
-                else None
+                "size": slice_size,
+                "product_id": order["product_id"],
+                "block_reason": placement_error,
+            })
+            self._dispatch_lifecycle_event(
+                stealth_order_id=stealth_order_id,
+                event=StealthLifecycleEvent.PLACEMENT_BLOCKED,
+                order_data=order,
+                extra={"failure_reason": placement_error, "size": slice_size},
             )
-            try:
-                inherited_tm, inherited_tm_type, _src = \
-                    self._resolve_target_movement_for_plan(stealth_order_id, order)
-            except Exception:
-                inherited_tm, inherited_tm_type = None, None
+            reveal_event = {
+                "reveal_number": len(order["revealed_orders"]) + 1,
+                "revealed_size": 0,
+                "placed_order_id": placed_order_id,
+                "placement_client_order_id": placed_order_id,
+                "placement_success": False,
+                "placement_error": placement_error,
+                "reveal_time": datetime.utcnow(),
+                "market_price": market_data.get("price"),
+                "market_bid": market_bid,
+                "market_ask": market_ask,
+                "market_spread": market_spread,
+                "market_volume_1m": market_data.get("volume_1m"),
+                "market_source": market_data.get("source"),
+                "configured_limit_price": reveal_plan.configured_limit_price,
+                "submitted_limit_price": reveal_plan.submitted_limit_price,
+                "reveal_pricing_policy": reveal_plan.reveal_pricing_policy,
+                "reveal_price_source": reveal_plan.reveal_price_source,
+                "reveal_price_fallback_used": reveal_plan.fallback_used,
+            }
+            order["revealed_orders"].append(reveal_event)
+            order["updated_at"] = datetime.utcnow()
+            self._update_stealth_order(order)
+            self._record_reveal_event(order, reveal_event)
+            return None
 
-            def _pre_insert_placement_row(coid: str, price: float) -> bool:
-                """Pre-insert an order_parent row for ``coid`` at ``price``.
+        # Hooks may enrich pricing flags, but identity/routing fields are
+        # internal invariants and cannot be rewritten by extensions.
+        order_for_submission["product_id"] = order["product_id"]
+        order_for_submission["side"] = order["side"]
+        order_for_submission["client_order_id"] = client_order_id
+        order_for_submission["stealth_order_id"] = stealth_order_id
 
-                Returns True on success. Failures are logged and treated
-                as non-fatal (a racing WS-side insert may already have
-                created the row).
-                """
-                if coid == stealth_order_id:
-                    return False
-                if root_parent_for_placement is None:
-                    return False
-                try:
-                    insert_order_parent(
-                        client_order_id=coid,
-                        product_id=order["product_id"],
-                        side=order["side"],
-                        size=slice_size,
-                        price=price,
-                        target_movement=inherited_tm if inherited_tm is not None else 0.0,
-                        target_movement_type=inherited_tm_type or "P",
-                        max_order_replacement=int(order.get("max_order_replacements") or 0),
-                        current_order_replacement=0,
-                        status=OrderStatus.PENDING.value,
-                        parent_order_id=root_parent_for_placement,
-                        allow_partial_fills=bool(order.get("allow_partial_fills", False)),
-                    )
-                    pre_inserted_attempt_coids.add(coid)
+        retry_post_only = bool(order_for_submission.get("post_only"))
+        order_for_submission["post_only"] = retry_post_only
+        # A retryable POST_ONLY ladder needs a distinct child row for every
+        # attempt, including the first. Reusing the stealth root id would make
+        # the first rejection terminalize the logical root and leave a later
+        # accepted retry without its own flat-hierarchy row.
+        if retry_post_only and client_order_id == stealth_order_id:
+            client_order_id = str(uuid.uuid4())
+            order_for_submission["client_order_id"] = client_order_id
+
+        # Hooks may modify the price. Re-normalize after every hook and before
+        # either the parent-row write or REST submission.
+        price_check = normalize_price_for_product(
+            order_for_submission.get("limit_price"),
+            product_id=order_for_submission["product_id"],
+            side=order_for_submission["side"],
+            policy=PriceRoundingPolicy.SIDE_CONSERVATIVE,
+        )
+        if not price_check.ok or price_check.effective_price is None:
+            failure_reason = (
+                f"submission price failed product boundary validation: "
+                f"{price_check.reason}"
+            )
+            # No REST request was attempted, so this is a retriable local
+            # placement block—not an indeterminate exchange outcome.
+            self.log_callback("warning", {
+                "event": "stealth_order_slice_price_blocked",
+                "stealth_order_id": stealth_order_id,
+                "client_order_id": client_order_id,
+                "failure_reason": failure_reason,
+            })
+            self._dispatch_lifecycle_event(
+                stealth_order_id=stealth_order_id,
+                event=StealthLifecycleEvent.PLACEMENT_BLOCKED,
+                order_data=order,
+                extra={
+                    "failure_reason": failure_reason,
+                    "block_category": "invalid_submission_price",
+                    "size": slice_size,
+                    "requested_submission_price": order_for_submission.get(
+                        "limit_price"
+                    ),
+                },
+            )
+            return None
+
+        order_for_submission["limit_price"] = float(price_check.effective_price)
+        order_for_submission["client_order_id"] = client_order_id
+
+        placement_parent_errors: Dict[str, Exception] = {}
+        root_parent_for_placement = (
+            resolve_stealth_chain_root(order)
+            if client_order_id != stealth_order_id
+            else None
+        )
+        try:
+            inherited_tm, inherited_tm_type, _src = \
+                self._resolve_target_movement_for_plan(stealth_order_id, order)
+        except Exception:
+            inherited_tm, inherited_tm_type = None, None
+
+        def _pre_insert_placement_row(coid: str, price: float) -> bool:
+            if coid == stealth_order_id or root_parent_for_placement is None:
+                if update_order_parent_price(coid, price):
                     return True
-                except Exception as parent_insert_error:
-                    self.log_callback(
-                        "warning",
-                        {
-                            "event": "reveal_placement_order_parent_pre_insert_failed",
-                            "stealth_order_id": stealth_order_id,
-                            "placement_client_order_id": coid,
-                            "error": str(parent_insert_error),
-                        },
+                parent_update_error = RuntimeError(
+                    "order_parent price update did not complete"
+                )
+                placement_parent_errors[coid] = parent_update_error
+                self.log_callback("warning", {
+                    "event": "reveal_placement_order_parent_price_update_failed",
+                    "stealth_order_id": stealth_order_id,
+                    "placement_client_order_id": coid,
+                    "error": str(parent_update_error),
+                })
+                return False
+            try:
+                placement_parent_id = insert_order_parent(
+                    client_order_id=coid,
+                    product_id=order["product_id"],
+                    side=order["side"],
+                    size=slice_size,
+                    price=price,
+                    target_movement=inherited_tm if inherited_tm is not None else 0.0,
+                    target_movement_type=inherited_tm_type or "P",
+                    max_order_replacement=int(order.get("max_order_replacements") or 0),
+                    current_order_replacement=0,
+                    status=OrderStatus.PENDING.value,
+                    parent_order_id=root_parent_for_placement,
+                    allow_partial_fills=bool(order.get("allow_partial_fills", False)),
+                )
+                if placement_parent_id is None:
+                    parent_insert_error = RuntimeError(
+                        "order_parent insert returned no row id"
                     )
+                    placement_parent_errors[coid] = parent_insert_error
+                    self.log_callback("warning", {
+                        "event": "reveal_placement_order_parent_pre_insert_failed",
+                        "stealth_order_id": stealth_order_id,
+                        "placement_client_order_id": coid,
+                        "error": str(parent_insert_error),
+                    })
                     return False
+                return True
+            except Exception as parent_insert_error:
+                placement_parent_errors[coid] = parent_insert_error
+                self.log_callback("warning", {
+                    "event": "reveal_placement_order_parent_pre_insert_failed",
+                    "stealth_order_id": stealth_order_id,
+                    "placement_client_order_id": coid,
+                    "error": str(parent_insert_error),
+                })
+                return False
 
-            # Place order directly on the exchange via REST API
-            # ⚠️ CRITICAL: Do NOT call create_limit_order_span() here as it creates another stealth order!
-            # Use REST_CLIENT.place_limit_order() which is purpose-built for this
-            # Tracked as in-flight so a concurrent drain waits for the placement
-            # to settle before transitioning to STOPPED.
-            #
-            # rest_call_succeeded is the truthful indicator of whether the order
-            # actually reached the exchange. It is flipped to True the moment
-            # place_limit_order returns without raising; any exception AFTER this
-            # point (audit-row insert, hook, lifecycle dispatch) is post-placement
-            # bookkeeping that must NOT be reported as "order was not placed".
-            # See 2026-04-29 incident: a stale Order.from_dict shim was raising
-            # post-REST and the exception handler logged the misleading
-            # "Order was NOT placed" while the order was actually live and filling.
-            # POST-ONLY RETRY LOOP
-            # When post_only=True (TOP_OF_BOOK / MIDPOINT reveals) the
-            # exchange will reject any limit that would cross the spread
-            # with ``failure_reason == "POST_ONLY"``. We do NOT silently
-            # demote to a taker fill (that would betray the operator's
-            # post-only intent and charge the wrong fee tier). Instead
-            # we reprice ONE tick safer (away from the touch) and retry
-            # up to ``POST_ONLY_MAX_ATTEMPTS`` times.  On exhaustion we
-            # surface ``PLACEMENT_BLOCKED`` and let the caller handle it
-            # (no fallback to post_only=False).
-            #
-            # When post_only=False (CONFIGURED_LIMIT) we make exactly
-            # one attempt and the existing error handling applies.
-            rest_call_succeeded = False
-            retry_post_only = bool(order_for_submission.get("post_only"))
-            max_attempts = self.POST_ONLY_MAX_ATTEMPTS if retry_post_only else 1
-            attempt_price = float(order_for_submission["limit_price"])
-            attempt_coid = order_for_submission["client_order_id"]
-            price_increment = self._get_price_increment(order_for_submission["product_id"])
-            order_result = None
-            post_only_attempts = []
-            for attempt_num in range(1, max_attempts + 1):
-                # Pre-insert chain-linked row for THIS attempt's COID before
-                # the REST call so the WS handler can resolve the parent.
-                if _pre_insert_placement_row(attempt_coid, attempt_price):
-                    placement_pre_inserted = True
+        max_attempts = self.POST_ONLY_MAX_ATTEMPTS if retry_post_only else 1
+        attempt_price = float(order_for_submission["limit_price"])
+        attempt_coid = client_order_id
+        price_increment = self._get_price_increment(order_for_submission["product_id"])
+        order_result = None
+        classification = None
+        post_only_attempts: List[Dict[str, Any]] = []
+        retry_abort_reason = None
 
+        for attempt_num in range(1, max_attempts + 1):
+            _pre_insert_placement_row(attempt_coid, attempt_price)
+            try:
                 with get_runtime_controller().track_inflight(INFLIGHT_REST_PLACE):
                     order_result = REST_CLIENT.place_limit_order(
                         product_id=order_for_submission["product_id"],
@@ -3084,300 +3759,162 @@ class StealthOrderManager:
                         client_order_id=attempt_coid,
                         post_only=retry_post_only,
                     )
-                    rest_call_succeeded = True
-
-                if not isinstance(order_result, dict) or order_result.get("success"):
-                    # Success (or non-dict legacy shape) — keep the COID
-                    # and price actually used for downstream bookkeeping.
-                    order_for_submission["limit_price"] = attempt_price
-                    order_for_submission["client_order_id"] = attempt_coid
-                    client_order_id = attempt_coid
-                    break
-
-                if not retry_post_only or not self._is_post_only_rejection(order_result):
-                    # Not a post-only rejection — fall through to the
-                    # existing error path with the current order_result.
-                    order_for_submission["limit_price"] = attempt_price
-                    order_for_submission["client_order_id"] = attempt_coid
-                    client_order_id = attempt_coid
-                    break
-
-                # POST_ONLY rejection: record + reprice for next attempt
-                rejected_failure_reason = (
-                    order_result.get("failure_reason")
-                    or (order_result.get("error_response") or {}).get("error")
-                    or "POST_ONLY"
+                classification = classify_placement_response(
+                    order_result,
+                    expected_client_order_id=attempt_coid,
                 )
-                post_only_attempts.append({
-                    "attempt": attempt_num,
-                    "rejected_at_price": attempt_price,
-                    "client_order_id": attempt_coid,
-                    "failure_reason": rejected_failure_reason,
-                })
+            except Exception as placement_exception:
+                classification = classify_placement_response(
+                    expected_client_order_id=attempt_coid,
+                    exception=placement_exception,
+                )
 
-                # Mark the pre-inserted row for this rejected COID as FAILED
-                # so the audit table reflects that this COID never made it
-                # onto the exchange. Best-effort: a missing row (race lost
-                # to WS handler) is fine — its status will be reconciled by
-                # downstream WS event handling.
-                if attempt_coid in pre_inserted_attempt_coids:
-                    try:
-                        update_order_parent_status(
-                            attempt_coid, OrderStatus.FAILED.value
-                        )
-                    except Exception as status_update_error:
-                        self.log_callback(
-                            "warning",
-                            {
-                                "event": "post_only_rejected_status_update_failed",
-                                "stealth_order_id": stealth_order_id,
-                                "rejected_client_order_id": attempt_coid,
-                                "error": str(status_update_error),
-                            },
-                        )
+            order_for_submission["limit_price"] = attempt_price
+            order_for_submission["client_order_id"] = attempt_coid
+            client_order_id = attempt_coid
 
-                if attempt_num == max_attempts:
-                    # Exhausted — leave order_result as the final
-                    # rejection for the surface-and-stop block below.
-                    order_for_submission["limit_price"] = attempt_price
-                    order_for_submission["client_order_id"] = attempt_coid
-                    client_order_id = attempt_coid
-                    break
+            if classification.accepted:
+                break
 
-                if not price_increment:
-                    # No tick metadata — cannot safely reprice. Surface
-                    # the rejection rather than guess.
-                    self.log_callback("warning", {
-                        "event": "stealth_order_post_only_retry_skipped_no_increment",
-                        "stealth_order_id": stealth_order_id,
-                        "product_id": order_for_submission["product_id"],
-                        "attempt": attempt_num,
-                        "rejected_at_price": attempt_price,
-                    })
-                    order_for_submission["limit_price"] = attempt_price
-                    order_for_submission["client_order_id"] = attempt_coid
-                    client_order_id = attempt_coid
-                    break
+            is_retryable_post_only = (
+                retry_post_only
+                and classification.outcome is OrderPlacementOutcome.REJECTED
+                and self._is_post_only_rejection(order_result)
+            )
+            if not is_retryable_post_only:
+                break
 
+            rejected_failure_reason = classification.failure_reason or "POST_ONLY"
+            post_only_attempts.append({
+                "attempt": attempt_num,
+                "rejected_at_price": attempt_price,
+                "client_order_id": attempt_coid,
+                "failure_reason": rejected_failure_reason,
+            })
+            self._mark_placement_parent_failed(
+                attempt_coid,
+                stealth_order_id=stealth_order_id,
+            )
+            if attempt_num == max_attempts:
+                break
+
+            try:
                 next_price = self._next_safer_tick(
                     attempt_price,
                     order_for_submission["side"],
-                    price_increment,
+                    order_for_submission["product_id"],
                 )
-                # Fresh client_order_id per retry: a rejected attempt may
-                # or may not consume the COID at the exchange and the
-                # safe assumption is that it does. Reusing would risk a
-                # spurious DUPLICATE_CLIENT_ORDER_ID rejection that
-                # masks the real POST_ONLY symptom.
-                next_coid = str(uuid.uuid4())
-                self.log_callback("info", {
-                    "event": "stealth_order_post_only_retry",
-                    "stealth_order_id": stealth_order_id,
-                    "product_id": order_for_submission["product_id"],
-                    "side": order_for_submission["side"],
-                    "attempt": attempt_num,
-                    "next_attempt": attempt_num + 1,
-                    "rejected_at_price": attempt_price,
-                    "next_attempt_price": next_price,
-                    "tick_increment": price_increment,
-                    "rejected_client_order_id": attempt_coid,
-                    "next_client_order_id": next_coid,
-                    "failure_reason": rejected_failure_reason,
-                })
-                attempt_price = next_price
-                attempt_coid = next_coid
+            except ValueError as retry_price_error:
+                retry_abort_reason = (
+                    f"post-only retry price normalization failed: "
+                    f"{retry_price_error}"
+                )
+                break
 
-            # SURFACE-AND-STOP on post-only retry exhaustion. Done BEFORE
-            # the success-path bookkeeping below so we don't pretend the
-            # order was placed.
-            if (
-                retry_post_only
-                and isinstance(order_result, dict)
-                and not order_result.get("success")
-                and self._is_post_only_rejection(order_result)
-                and len(post_only_attempts) >= max_attempts
-            ):
-                final_failure_reason = (
-                    order_result.get("failure_reason")
-                    or (order_result.get("error_response") or {}).get("error")
-                    or "POST_ONLY"
-                )
+            next_coid = str(uuid.uuid4())
+            self.log_callback("info", {
+                "event": "stealth_order_post_only_retry",
+                "stealth_order_id": stealth_order_id,
+                "product_id": order_for_submission["product_id"],
+                "side": order_for_submission["side"],
+                "attempt": attempt_num,
+                "next_attempt": attempt_num + 1,
+                "rejected_at_price": attempt_price,
+                "next_attempt_price": next_price,
+                "tick_increment": price_increment,
+                "rejected_client_order_id": attempt_coid,
+                "next_client_order_id": next_coid,
+                "failure_reason": rejected_failure_reason,
+            })
+            attempt_price = next_price
+            attempt_coid = next_coid
+
+        if classification is None or not classification.accepted:
+            failure_outcome = (
+                classification.outcome
+                if classification is not None
+                else OrderPlacementOutcome.INDETERMINATE
+            )
+            failure_reason = retry_abort_reason or (
+                classification.failure_reason
+                if classification is not None
+                else "placement attempt produced no classification"
+            )
+            if post_only_attempts:
                 self.log_callback("warning", {
                     "event": "stealth_order_post_only_retries_exhausted",
                     "stealth_order_id": stealth_order_id,
                     "product_id": order_for_submission["product_id"],
                     "side": order_for_submission["side"],
                     "attempts": post_only_attempts,
-                    "final_failure_reason": final_failure_reason,
-                    "note": (
-                        "Post-only rejected on every attempt after "
-                        "repricing 1 tick safer each time. Not falling "
-                        "back to taker — operator intent was post-only."
-                    ),
+                    "final_failure_reason": failure_reason,
+                    "note": "Post-only intent was preserved; no taker fallback occurred.",
                 })
-                self._dispatch_lifecycle_event(
-                    stealth_order_id=stealth_order_id,
-                    event=StealthLifecycleEvent.PLACEMENT_BLOCKED,
-                    order_data=order,
-                    extra={
-                        "block_category": "post_only_rejected_after_retries",
-                        "attempts": post_only_attempts,
-                        "final_price": attempt_price,
-                        "final_failure_reason": final_failure_reason,
-                    },
-                )
-                # Raise into the existing exception handler so order
-                # state, audit rows, and downstream cleanup all run via
-                # the single failure path.
-                raise RuntimeError(
-                    f"POST_ONLY rejected after {len(post_only_attempts)} "
-                    f"attempts (final price {attempt_price}); refusing "
-                    f"silent demotion to taker."
-                )
-
-            if isinstance(order_result, dict):
-                success_response = order_result.get("success_response") or {}
-                exchange_order_id = success_response.get("order_id") or order_result.get("order_id")
-            
-            # ✓ Use the client_order_id we sent (stealth_order_id)
-            # When fill event arrives with this client_order_id, it links directly to stealth order
-            placed_order_id = client_order_id
-            placement_success = True
-
-            # NOTE: order_parent row was inserted PRE-REST above (see
-            # placement_pre_inserted). Do not re-insert here — the WS event
-            # handler and our pre-insert are the two writers, and the
-            # pre-insert is now guaranteed to win the race.
-
-            # 🪝 POST-SUBMISSION HOOKS: Log/track submission after REST call succeeds
-            # Exceptions here are logged but don't affect placement
-            try:
-                self.order_placement_hooks.call_post_submission_hooks(order_for_submission, order_result)
-            except Exception as hook_error:
-                # Post-hook error - log but don't fail (order is already placed)
-                self.log_callback("warning", {
-                    "event": "post_submission_hook_exception",
-                    "stealth_order_id": stealth_order_id,
-                    "error": str(hook_error),
-                    "note": "Order was placed successfully, but post-submission hook failed"
-                })
-            
-            # 📊 LOT-TRACKING: Log order placement
-            # Use the ACTUALLY-SUBMITTED price (post-retry), not the
-            # plan's pre-retry price, so audit logs match what the
-            # exchange actually saw.
-            actual_submitted_price = float(order_for_submission["limit_price"])
-            post_only_retried = bool(post_only_attempts)
-            self.log_callback("info", f"[LOT-TRACK] Stealth order revealed & placed: {stealth_order_id} ({order['side']} {slice_size} {order['product_id']} @ {actual_submitted_price}, reveal_policy={reveal_plan.reveal_pricing_policy}, exchange_order_id={exchange_order_id})")
-
-            self.log_callback("info", {
-                "event": "stealth_order_slice_placed_successfully",
-                "stealth_order_id": order['stealth_order_id'],
-                "client_order_id": placed_order_id,
-                "exchange_order_id": exchange_order_id,
-                "size": slice_size,
-                "product_id": order["product_id"],
-                "configured_limit_price": reveal_plan.configured_limit_price,
-                # Plan's pre-retry submitted price (kept for audit
-                # comparability with non-retry placements).
-                "planned_submitted_limit_price": reveal_plan.submitted_limit_price,
-                # Actually-submitted price after any post-only retries.
-                "submitted_limit_price": actual_submitted_price,
-                "reveal_pricing_policy": reveal_plan.reveal_pricing_policy,
-                "reveal_price_source": (
-                    "post_only_retry"
-                    if post_only_retried
-                    else reveal_plan.reveal_price_source
+            self._record_terminal_placement_failure(
+                order,
+                placement_client_order_id=client_order_id,
+                exchange_order_id=(
+                    classification.exchange_order_id
+                    if classification is not None
+                    else None
                 ),
-                "post_only_retry_attempts": len(post_only_attempts),
-            })
-
-            # 🔔 LIFECYCLE HOOK: REVEAL_SUCCEEDED
-            self._dispatch_lifecycle_event(
-                stealth_order_id=stealth_order_id,
-                event=StealthLifecycleEvent.REVEAL_SUCCEEDED,
-                order_data=order,
-                extra={
-                    "placed_order_id": placed_order_id,
-                    "exchange_order_id": exchange_order_id,
-                    "size": slice_size,
+                submitted_price=attempt_price,
+                failure_reason=failure_reason,
+                outcome=failure_outcome,
+                attempted_size=slice_size,
+                market_data=placement_market_data,
+                audit_fields={
+                    "configured_limit_price": reveal_plan.configured_limit_price,
+                    "submitted_limit_price": attempt_price,
+                    "reveal_pricing_policy": reveal_plan.reveal_pricing_policy,
+                    "reveal_price_source": (
+                        "post_only_retry"
+                        if post_only_attempts
+                        else reveal_plan.reveal_price_source
+                    ),
+                    "reveal_price_fallback_used": reveal_plan.fallback_used,
+                    "post_only_retry_attempts": len(post_only_attempts),
                 },
             )
-        except Exception as e:
-            # ✗ EXCEPTION DURING PLACEMENT OR POST-PLACEMENT BOOKKEEPING
-            # rest_call_succeeded distinguishes:
-            #   - REST call itself raised => order is NOT on the exchange
-            #   - REST call returned, exception came from post-placement code
-            #     (audit insert, hook, lifecycle dispatch) => order IS LIVE on
-            #     the exchange and we just lost the bookkeeping link
-            # The second case is operationally critical: emitting "order was not
-            # placed" caused the 2026-04-29 incident where the exchange filled
-            # the order and we never created the follow-up.
-            placed_order_id = client_order_id if rest_call_succeeded else str(uuid.uuid4())
-            placement_error = str(e)
-            placement_success = rest_call_succeeded
+            self.log_callback("error", {
+                "event": "stealth_order_slice_placement_failed",
+                "stealth_order_id": stealth_order_id,
+                "client_order_id": client_order_id,
+                "placement_outcome": failure_outcome.value,
+                "failure_reason": failure_reason,
+                "size": slice_size,
+                "product_id": order["product_id"],
+            })
+            return None
 
-            if rest_call_succeeded:
-                self.log_callback("error", {
-                    "event": "stealth_order_slice_post_placement_exception",
-                    "stealth_order_id": order['stealth_order_id'],
-                    "client_order_id": placed_order_id,
-                    "exchange_order_id": exchange_order_id,
-                    "size": slice_size,
-                    "product_id": order["product_id"],
-                    "exception": str(e),
-                    "note": (
-                        "REST place_limit_order SUCCEEDED but post-placement "
-                        "bookkeeping raised. Order IS LIVE on the exchange; "
-                        "operator action may be required to reconcile follow-up."
-                    ),
-                })
-            else:
-                self.log_callback("error", {
-                    "event": "stealth_order_slice_placement_exception",
-                    "stealth_order_id": order['stealth_order_id'],
-                    "size": slice_size,
-                    "product_id": order["product_id"],
-                    "exception": str(e),
-                    "note": "REST place_limit_order raised. Order was NOT placed on the exchange.",
-                })
+        placed_order_id = client_order_id
+        exchange_order_id = classification.exchange_order_id
+        placement_success = True
+        actual_submitted_price = float(order_for_submission["limit_price"])
+        post_only_retried = bool(post_only_attempts)
 
-                # Mark the pre-inserted order_parent row as FAILED so it does
-                # not linger as a phantom PENDING placement. Only attempt this
-                # if the pre-insert succeeded above.
-                if placement_pre_inserted:
-                    try:
-                        update_order_parent_status(client_order_id, OrderStatus.FAILED.value)
-                    except Exception as status_err:
-                        self.log_callback(
-                            "warning",
-                            {
-                                "event": "reveal_placement_order_parent_failed_status_update_failed",
-                                "stealth_order_id": stealth_order_id,
-                                "placement_client_order_id": client_order_id,
-                                "error": str(status_err),
-                            },
-                        )
-            
-            # 🔔 LIFECYCLE HOOK: REVEAL_FAILED
-            self._dispatch_lifecycle_event(
-                stealth_order_id=stealth_order_id,
-                event=StealthLifecycleEvent.REVEAL_FAILED,
-                order_data=order,
-                extra={"failure_reason": placement_error, "size": slice_size},
-            )
-        
-        # Record reveal event with placement status tracking and plan audit trail
+        # Acceptance is already proven. Establish local ownership immediately
+        # at the acceptance boundary, before hooks, lifecycle subscribers, or
+        # database I/O can block while a websocket OPEN/FILL event arrives.
+        index_succeeded = self._index_accepted_placement(
+            order,
+            placed_order_id,
+            source="reveal_acceptance",
+        )
+
+        # Record the accepted reveal and consume size only after acceptance,
+        # but before any fallible local-finalization callback. This prevents a
+        # live accepted order from remaining TRIGGERED and being resubmitted.
         reveal_event = {
             "reveal_number": len(order["revealed_orders"]) + 1,
             "revealed_size": slice_size,
-            "placement_price": reveal_plan.submitted_limit_price,
+            "placement_price": actual_submitted_price,
             "placed_order_id": placed_order_id,
             "placement_client_order_id": placed_order_id,
             "exchange_order_id": exchange_order_id,
             "placement_success": placement_success,  # ✓ Track if actually placed on exchange
-            "placement_status": "placed" if placement_success else "failed",
-            "placement_error": placement_error,      # Error message if failed
+            "placement_status": "placed",
+            "placement_error": None,
             "reveal_time": datetime.utcnow(),
             "market_price": market_data.get("price"),
             "market_bid": market_bid,
@@ -3387,10 +3924,15 @@ class StealthOrderManager:
             "market_source": market_data.get("source"),
             # Reveal execution plan audit trail (for post-reveal analysis/profitability recheck)
             "configured_limit_price": reveal_plan.configured_limit_price,
-            "submitted_limit_price": reveal_plan.submitted_limit_price,
+            "submitted_limit_price": actual_submitted_price,
             "reveal_pricing_policy": reveal_plan.reveal_pricing_policy,
-            "reveal_price_source": reveal_plan.reveal_price_source,
+            "reveal_price_source": (
+                "post_only_retry"
+                if post_only_retried
+                else reveal_plan.reveal_price_source
+            ),
             "reveal_price_fallback_used": reveal_plan.fallback_used,
+            "post_only_retry_attempts": len(post_only_attempts),
         }
         
         order["revealed_orders"].append(reveal_event)
@@ -3400,6 +3942,10 @@ class StealthOrderManager:
         
         if order["remaining_size"] <= 0:
             order["status"] = StealthOrderStatus.REVEALED.value
+
+        # A previously retriable PLACEMENT_BLOCKED reason is no longer the
+        # current state once this slice is explicitly accepted.
+        order["failure_reason"] = None
         
         order["updated_at"] = datetime.utcnow()
         order["last_placement_at"] = datetime.utcnow()
@@ -3407,16 +3953,106 @@ class StealthOrderManager:
         anchor_state = self._normalize_anchor_repricing_state(order.get("anchor_repricing_state_json"))
         anchor_state["active_placement_client_order_id"] = placed_order_id
         anchor_state["active_exchange_order_id"] = exchange_order_id
-        anchor_state["active_exchange_price"] = reveal_plan.submitted_limit_price
-        anchor_state["current_logical_limit_price"] = reveal_plan.submitted_limit_price
+        anchor_state["active_exchange_price"] = actual_submitted_price
+        anchor_state["current_logical_limit_price"] = actual_submitted_price
         order["anchor_repricing_state_json"] = anchor_state
-        
-        # Persist updates
-        self._update_stealth_order(order)
-        self._record_reveal_event(order, reveal_event)
-        
-        # Index the placed order for O(1) lookup in find_stealth_order_by_placed_order_id()
-        self._placed_order_index[placed_order_id] = order
+
+        if not index_succeeded:
+            self._record_accepted_local_finalization_error(
+                order,
+                placement_client_order_id=placed_order_id,
+                exchange_order_id=exchange_order_id,
+                stage="reveal.index_accepted_placement",
+                error=RuntimeError(
+                    order.get("placement_index_error")
+                    or "accepted placement could not be indexed"
+                ),
+                reveal_event=reveal_event,
+            )
+
+        placement_parent_error = placement_parent_errors.get(placed_order_id)
+        if placement_parent_error is not None:
+            self._record_accepted_local_finalization_error(
+                order,
+                placement_client_order_id=placed_order_id,
+                exchange_order_id=exchange_order_id,
+                stage="reveal.preinsert_parent",
+                error=placement_parent_error,
+                reveal_event=reveal_event,
+            )
+
+        # Any hook/bookkeeping exception from this point is a local-
+        # finalization error and must never cause a resubmission or downgrade
+        # the live exchange order to failed.
+        try:
+            hook_errors = self.order_placement_hooks.call_post_submission_hooks(
+                order_for_submission,
+                order_result,
+            )
+        except Exception as hook_error:
+            hook_errors = [hook_error]
+        if hook_errors:
+            hook_error = RuntimeError(
+                "; ".join(str(error) for error in hook_errors)
+            )
+            self._record_accepted_local_finalization_error(
+                order,
+                placement_client_order_id=placed_order_id,
+                exchange_order_id=exchange_order_id,
+                stage="reveal.post_submission_hook",
+                error=hook_error,
+                reveal_event=reveal_event,
+            )
+
+        self.log_callback("info", f"[LOT-TRACK] Stealth order revealed & placed: {stealth_order_id} ({order['side']} {slice_size} {order['product_id']} @ {actual_submitted_price}, reveal_policy={reveal_plan.reveal_pricing_policy}, exchange_order_id={exchange_order_id})")
+        self.log_callback("info", {
+            "event": "stealth_order_slice_placed_successfully",
+            "stealth_order_id": order["stealth_order_id"],
+            "client_order_id": placed_order_id,
+            "exchange_order_id": exchange_order_id,
+            "size": slice_size,
+            "product_id": order["product_id"],
+            "configured_limit_price": reveal_plan.configured_limit_price,
+            "planned_submitted_limit_price": reveal_plan.submitted_limit_price,
+            "submitted_limit_price": actual_submitted_price,
+            "reveal_pricing_policy": reveal_plan.reveal_pricing_policy,
+            "reveal_price_source": (
+                "post_only_retry"
+                if post_only_retried
+                else reveal_plan.reveal_price_source
+            ),
+            "post_only_retry_attempts": len(post_only_attempts),
+        })
+        self._dispatch_lifecycle_event(
+            stealth_order_id=stealth_order_id,
+            event=StealthLifecycleEvent.REVEAL_SUCCEEDED,
+            order_data=order,
+            extra={
+                "placed_order_id": placed_order_id,
+                "exchange_order_id": exchange_order_id,
+                "size": slice_size,
+            },
+        )
+
+        # Persist updates without changing accepted placement truth.
+        self._run_accepted_local_finalization_step(
+            order,
+            placement_client_order_id=placed_order_id,
+            exchange_order_id=exchange_order_id,
+            stage="reveal.persist_stealth_order",
+            operation=lambda: self._update_stealth_order(order),
+            incomplete_message="stealth order database update did not complete",
+            reveal_event=reveal_event,
+        )
+        self._run_accepted_local_finalization_step(
+            order,
+            placement_client_order_id=placed_order_id,
+            exchange_order_id=exchange_order_id,
+            stage="reveal.persist_reveal_event",
+            operation=lambda: self._record_reveal_event(order, reveal_event),
+            incomplete_message="reveal history database update did not complete",
+            reveal_event=reveal_event,
+        )
         
         return placed_order_id
     
@@ -3695,8 +4331,9 @@ class StealthOrderManager:
     
     def _get_current_market_data(self, product_id: str) -> MarketData:
         """Get current market data from cache (populated by StealthOrderBridge)."""
-        if product_id in self._market_cache:
-            return self._market_cache[product_id]
+        market_cache = getattr(self, "_market_cache", {})
+        if product_id in market_cache:
+            return market_cache[product_id]
 
         # Return placeholder if data not available yet
         return {
@@ -4021,20 +4658,125 @@ class StealthOrderManager:
         return follow_up_id
     
     # Database operations
+
+    def _validate_local_price_read_only(
+        self,
+        order: Dict[str, Any],
+    ) -> bool:
+        """Validate a stored limit price without repairing persistent state.
+
+        A restart must not silently rewrite historical/local intent. A known
+        invalid price makes a not-yet-placed order ERROR. Missing metadata
+        cannot prove invalidity, so validation remains pending and placement
+        is deferred. Already-live and historical terminal orders retain their
+        ownership/status and carry a diagnostic instead of being reclassified.
+        """
+        product_id = str(order.get("product_id") or "")
+        metadata = get_product_metadata(product_id)
+        metadata_available = metadata.get("price_increment") not in (None, "")
+        result = normalize_price_for_product(
+            order.get("limit_price"),
+            product_id=product_id,
+            side=order.get("side"),
+            policy=PriceRoundingPolicy.SIDE_CONSERVATIVE,
+        )
+        if result.ok and not result.adjusted:
+            order.pop("_price_validation_pending", None)
+            order.pop("price_validation_error", None)
+            return True
+
+        if not metadata_available:
+            reason = (
+                f"stored limit_price validation deferred because runtime "
+                f"price_increment metadata is unavailable for {product_id}. "
+                f"Database row was not modified."
+            )
+            should_log = order.get("price_validation_error") != reason
+            order["_price_validation_pending"] = True
+            order["price_validation_error"] = reason[:512]
+            if should_log:
+                self.log_callback("warning", {
+                    "event": "stealth_order_hydration_price_metadata_unavailable",
+                    "stealth_order_id": order.get("stealth_order_id"),
+                    "product_id": product_id,
+                    "side": order.get("side"),
+                    "stored_limit_price": order.get("limit_price"),
+                    "failure_reason": reason,
+                    "status_preserved": order.get("status"),
+                    "database_modified": False,
+                })
+            return False
+
+        if result.ok:
+            reason = (
+                f"stored limit_price {result.requested_price} is off the "
+                f"{result.increment} tick grid; canonical value would be "
+                f"{result.effective_price}. Database row was not modified."
+            )
+        else:
+            reason = (
+                f"stored limit_price could not be validated: {result.reason}. "
+                f"Database row was not modified."
+            )
+        order.pop("_price_validation_pending", None)
+        order["price_validation_error"] = reason[:512]
+        placeable_statuses = {
+            StealthOrderStatus.HIDDEN.value,
+            StealthOrderStatus.PENDING.value,
+            StealthOrderStatus.TRIGGERED.value,
+        }
+        previous_status = order.get("status")
+        if previous_status in placeable_statuses:
+            order["status"] = StealthOrderStatus.ERROR.value
+            order["failure_reason"] = reason[:512]
+        self.log_callback("error", {
+            "event": "stealth_order_hydration_price_invalid",
+            "stealth_order_id": order.get("stealth_order_id"),
+            "product_id": order.get("product_id"),
+            "side": order.get("side"),
+            "stored_limit_price": order.get("limit_price"),
+            "failure_reason": reason,
+            "previous_status": previous_status,
+            "status_after_validation": order.get("status"),
+            "database_modified": False,
+        })
+        return False
+
+    @staticmethod
+    def _require_canonical_persisted_price(order: Dict[str, Any]) -> None:
+        """Reject, but never repair, an invalid price at the DB boundary."""
+        result = normalize_price_for_product(
+            order.get("limit_price"),
+            product_id=str(order.get("product_id") or ""),
+            side=order.get("side"),
+            policy=PriceRoundingPolicy.SIDE_CONSERVATIVE,
+        )
+        if result.ok and not result.adjusted:
+            return
+        reason = result.reason if not result.ok else (
+            f"price {result.requested_price} is off the {result.increment} "
+            f"tick grid (canonical {result.effective_price})"
+        )
+        raise StealthOrderPersistenceError(
+            f"Refusing non-canonical stealth_orders price write: {reason}"
+        )
     
-    def _save_stealth_order_to_db(self, order: Dict[str, Any]):
+    def _save_stealth_order_to_db(self, order: Dict[str, Any]) -> bool:
         """Persist stealth order to database."""
         if not self.db_client:
-            return
+            order["_persisted_limit_price"] = order.get("limit_price")
+            return True
+        self._require_canonical_persisted_price(order)
         
         try:
-            self.db_client.execute_update(
+            rows_affected = self.db_client.execute_update(
                 """INSERT INTO stealth_orders 
                    (stealth_order_id, product_id, side, total_size, remaining_size, 
                     limit_price, status, reveal_condition_type, reveal_condition_json, 
                           sizing_strategy_json, reason, notes, parent_order_id,
-                          anchor_repricing_policy_json, anchor_repricing_state_json)
-                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                          anchor_repricing_policy_json, anchor_repricing_state_json,
+                          failure_reason)
+                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                 (order['stealth_order_id'],
                  order['product_id'],
                  order['side'],
@@ -4049,15 +4791,36 @@ class StealthOrderManager:
                  order.get('notes', ''),
                   order.get('parent_order_id'),
                   json.dumps(order.get('anchor_repricing_policy_json', {})),
-                  json.dumps(order.get('anchor_repricing_state_json', {})))
+                  json.dumps(order.get('anchor_repricing_state_json', {})),
+                  order.get('failure_reason'))
             )
+            if isinstance(rows_affected, int) and rows_affected <= 0:
+                return False
+            order["_persisted_limit_price"] = order.get("limit_price")
+            return True
         except Exception as e:
             self.log_callback("error", {"event": "stealth_order_save_failed", "stealth_order_id": order['stealth_order_id'], "error": str(e)})
+            return False
     
-    def _update_stealth_order(self, order: Dict[str, Any]):
-        """Update stealth order in database."""
+    def _update_stealth_order(self, order: Dict[str, Any]) -> bool:
+        """Update stealth order in database and report whether it completed."""
         if not self.db_client:
-            return
+            return True
+        persisted_price_missing = object()
+        persisted_price = order.get(
+            '_persisted_limit_price',
+            persisted_price_missing,
+        )
+        try:
+            write_limit_price = (
+                persisted_price is persisted_price_missing
+                or Decimal(str(persisted_price))
+                != Decimal(str(order.get('limit_price')))
+            )
+        except Exception:
+            write_limit_price = True
+        if write_limit_price:
+            self._require_canonical_persisted_price(order)
         
         try:
             # Convert datetime to string for database storage
@@ -4093,14 +4856,17 @@ class StealthOrderManager:
 
             condition_first_met_at = _iso_or_none(order.get('condition_first_met_at'))
             condition_confirmed_at = _iso_or_none(order.get('condition_confirmed_at'))
+            write_failure_reason = 'failure_reason' in order
             
-            self.db_client.execute_update(
+            rows_affected = self.db_client.execute_update(
                 """UPDATE stealth_orders 
                    SET status = %s, revealed_size = %s, remaining_size = %s, 
                        executed_size = %s, revealed_orders = %s, last_placement_at = %s,
-                       limit_price = %s, reveal_condition_json = %s,
+                       limit_price = CASE WHEN %s THEN %s ELSE limit_price END,
+                       reveal_condition_json = %s,
                        anchor_repricing_policy_json = %s, anchor_repricing_state_json = %s,
                        condition_first_met_at = %s, condition_confirmed_at = %s,
+                       failure_reason = CASE WHEN %s THEN %s ELSE failure_reason END,
                        updated_at = CURRENT_TIMESTAMP
                    WHERE stealth_order_id = %s""",
                 (order['status'],
@@ -4109,16 +4875,25 @@ class StealthOrderManager:
                  order.get('executed_size', 0),
                  revealed_orders_json,
                  last_placement,
+                 write_limit_price,
                  order.get('limit_price'),
                  json.dumps(order.get('reveal_condition_json', {})),
                  json.dumps(order.get('anchor_repricing_policy_json', {})),
                  anchor_repricing_state_json,
                  condition_first_met_at,
                  condition_confirmed_at,
+                 write_failure_reason,
+                 order.get('failure_reason'),
                  order['stealth_order_id'])
             )
+            if isinstance(rows_affected, int) and rows_affected <= 0:
+                return False
+            if write_limit_price:
+                order['_persisted_limit_price'] = order.get('limit_price')
+            return True
         except Exception as e:
             self.log_callback("error", {"event": "stealth_order_update_failed", "stealth_order_id": order['stealth_order_id'], "error": str(e)})
+            return False
     
     def _load_stealth_order_from_db(self, stealth_order_id: str) -> Optional[Dict[str, Any]]:
         """Load stealth order from database."""
@@ -4133,17 +4908,7 @@ class StealthOrderManager:
             if results:
                 row = results[0]
                 
-                # Helper function to parse JSON safely (handles both str and dict)
-                def parse_json_field(value, default):
-                    if value is None:
-                        return default
-                    if isinstance(value, dict):
-                        return value  # Already parsed by PostgreSQL
-                    if isinstance(value, str):
-                        return json.loads(value)
-                    return default
-                
-                return {
+                order_data = {
                     'stealth_order_id': row['stealth_order_id'],
                     'product_id': row['product_id'],
                     'side': row['side'],
@@ -4154,18 +4919,23 @@ class StealthOrderManager:
                     'limit_price': float(row['limit_price']),
                     'status': row['status'],
                     'reveal_condition_type': row.get('reveal_condition_type', 'time_delay'),
-                    'reveal_condition_json': parse_json_field(row.get('reveal_condition_json'), {}),
-                    'sizing_strategy_json': parse_json_field(row.get('sizing_strategy_json'), {}),
+                    'reveal_condition_json': _parse_json_container(row.get('reveal_condition_json'), {}),
+                    'sizing_strategy_json': _parse_json_container(row.get('sizing_strategy_json'), {}),
                     'reason': row.get('reason', ''),
                     'notes': row.get('notes', ''),
                     'parent_order_id': row.get('parent_order_id'),
-                    'revealed_orders': parse_json_field(row.get('revealed_orders'), []),
-                    'anchor_repricing_policy_json': parse_json_field(row.get('anchor_repricing_policy_json'), {}),
-                    'anchor_repricing_state_json': parse_json_field(row.get('anchor_repricing_state_json'), {}),
+                    'revealed_orders': _parse_json_container(row.get('revealed_orders'), []),
+                    'anchor_repricing_policy_json': _parse_json_container(row.get('anchor_repricing_policy_json'), {}),
+                    'anchor_repricing_state_json': _parse_json_container(row.get('anchor_repricing_state_json'), {}),
                     'created_at': row.get('created_at'),
                     'condition_first_met_at': row.get('condition_first_met_at'),
                     'condition_confirmed_at': row.get('condition_confirmed_at'),
+                    'failure_reason': row.get('failure_reason'),
+                    '_persisted_limit_price': float(row['limit_price']),
                 }
+                self._validate_local_price_read_only(order_data)
+                self._restore_hydrated_placement_index(order_data)
+                return order_data
         except Exception as e:
             self.log_callback("error", {"event": "stealth_order_load_failed", "stealth_order_id": stealth_order_id, "error": str(e)})
         
@@ -4174,7 +4944,8 @@ class StealthOrderManager:
     def load_all_active_orders_from_db(self) -> int:
         """Load all stealth orders from database into memory.
         
-        Loads all orders (HIDDEN, PENDING, TRIGGERED, REVEALED, EXECUTED, CANCELLED)
+        Loads all orders (HIDDEN, PENDING, TRIGGERED, REVEALED, EXECUTED,
+        CANCELLED, ERROR)
         to ensure UI displays the complete history and current state of stealth orders.
         
         Status handling on restart:
@@ -4182,6 +4953,11 @@ class StealthOrderManager:
         - REVEALED: Keep as-is (in-flight orders may complete)
         - EXECUTED: Keep as-is (historical record for UI display)
         - CANCELLED: Keep as-is (historical record for UI display)
+        - ERROR: Keep as-is (terminal operator-visible placement failure)
+
+        Existing stored prices are validated read-only. An off-grid or
+        otherwise invalid row is loaded as in-memory ERROR and is never
+        rewritten during hydration.
         
         Returns:
             Number of orders loaded
@@ -4195,16 +4971,6 @@ class StealthOrderManager:
                    ORDER BY created_at ASC"""
             )
             
-            # Helper function to parse JSON safely (handles both str and dict)
-            def parse_json_field(value, default):
-                if value is None:
-                    return default
-                if isinstance(value, dict):
-                    return value  # Already parsed by PostgreSQL
-                if isinstance(value, str):
-                    return json.loads(value)
-                return default
-            
             loaded_count = 0
             for row in results:
                 try:
@@ -4214,6 +4980,17 @@ class StealthOrderManager:
                     condition_first_met = row.get('condition_first_met_at')
                     condition_confirmed = row.get('condition_confirmed_at')
                     
+                    preserved_statuses = {
+                        StealthOrderStatus.REVEALED.value,
+                        StealthOrderStatus.EXECUTED.value,
+                        StealthOrderStatus.CANCELLED.value,
+                        StealthOrderStatus.ERROR.value,
+                    }
+                    reset_statuses = {
+                        StealthOrderStatus.HIDDEN.value,
+                        StealthOrderStatus.PENDING.value,
+                        StealthOrderStatus.TRIGGERED.value,
+                    }
                     order_data = {
                         'stealth_order_id': stealth_order_id,
                         'product_id': row['product_id'],
@@ -4223,27 +5000,35 @@ class StealthOrderManager:
                         'remaining_size': float(row.get('remaining_size', 0)),
                         'executed_size': float(row.get('executed_size', 0)),
                         'limit_price': float(row['limit_price']),
-                        'status': db_status if db_status in ['REVEALED', 'EXECUTED', 'CANCELLED'] else 'HIDDEN',
+                        'status': (
+                            db_status
+                            if db_status in preserved_statuses
+                            else StealthOrderStatus.HIDDEN.value
+                        ),
                         'reveal_condition_type': condition_type,
-                        'reveal_condition_json': parse_json_field(row.get('reveal_condition_json'), {}),
-                        'sizing_strategy_json': parse_json_field(row.get('sizing_strategy_json'), {}),
+                        'reveal_condition_json': _parse_json_container(row.get('reveal_condition_json'), {}),
+                        'sizing_strategy_json': _parse_json_container(row.get('sizing_strategy_json'), {}),
                         'reason': row.get('reason', ''),
                         'notes': row.get('notes', ''),
                         'parent_order_id': row.get('parent_order_id'),
-                        'revealed_orders': parse_json_field(row.get('revealed_orders'), []),
-                        'anchor_repricing_policy_json': parse_json_field(row.get('anchor_repricing_policy_json'), {}),
-                        'anchor_repricing_state_json': parse_json_field(row.get('anchor_repricing_state_json'), {}),
+                        'revealed_orders': _parse_json_container(row.get('revealed_orders'), []),
+                        'anchor_repricing_policy_json': _parse_json_container(row.get('anchor_repricing_policy_json'), {}),
+                        'anchor_repricing_state_json': _parse_json_container(row.get('anchor_repricing_state_json'), {}),
                         'created_at': row.get('created_at'),
                         'updated_at': row.get('updated_at'),
                         'visibility_score': float(row.get('visibility_score', 0.0)),
                         'last_placement_at': row.get('last_placement_at'),
-                        'condition_first_met_at': None if db_status in ['HIDDEN', 'PENDING', 'TRIGGERED'] else condition_first_met,
-                        'condition_confirmed_at': None if db_status in ['HIDDEN', 'PENDING', 'TRIGGERED'] else condition_confirmed,
+                        'condition_first_met_at': None if db_status in reset_statuses else condition_first_met,
+                        'condition_confirmed_at': None if db_status in reset_statuses else condition_confirmed,
+                        'failure_reason': row.get('failure_reason'),
+                        '_persisted_limit_price': float(row['limit_price']),
                         'revealed_count': 0,
                         'condition_monitoring_start': None,
                     }
                     
+                    self._validate_local_price_read_only(order_data)
                     self.in_memory_orders[stealth_order_id] = order_data
+                    self._restore_hydrated_placement_index(order_data)
                     loaded_count += 1
                 except Exception as e:
                     self.log_callback("error", {"event": "stealth_order_load_item_failed", "stealth_order_id": row.get('stealth_order_id'), "error": str(e)})
@@ -4284,21 +5069,25 @@ class StealthOrderManager:
             return f"Condition met: {cond_type}"
         return "Reveal condition met"
 
-    def _record_reveal_event(self, order: Dict[str, Any], reveal_event: Dict[str, Any]):
+    def _record_reveal_event(
+        self,
+        order: Dict[str, Any],
+        reveal_event: Dict[str, Any],
+    ) -> bool:
         """Record reveal event to stealth_order_reveal_history table.
         
         Uses UPSERT (INSERT ... ON CONFLICT) to handle idempotent recording.
         If the same (stealth_order_id, reveal_number) is recorded twice, it updates
         with the latest data instead of failing. This handles race conditions or retries.
         """
-        if not self.db_client:
-            return
+        if not getattr(self, "db_client", None):
+            return True
         
         try:
             # Get stealth_order_id from order dict (not reveal_event)
             stealth_order_id = order.get('stealth_order_id')
             if not stealth_order_id:
-                return
+                return False
             
             reveal_number = reveal_event.get('reveal_number', 1)
             revealed_size = reveal_event.get('revealed_size', 0)
@@ -4344,7 +5133,7 @@ class StealthOrderManager:
             })
 
             # Use UPSERT to handle duplicate reveals (idempotent recording)
-            self.db_client.execute_update(
+            rows_affected = self.db_client.execute_update(
                 """INSERT INTO stealth_order_reveal_history
                    (stealth_order_id, reveal_number, revealed_size, placement_price, placed_order_id,
                     exchange_order_id, market_price, market_bid, market_ask, market_spread, market_volume_1m,
@@ -4390,5 +5179,9 @@ class StealthOrderManager:
                  reference_price_source, reference_price, reference_bid, reference_ask,
                  market_source)
             )
+            if isinstance(rows_affected, int):
+                return rows_affected > 0
+            return True
         except Exception as e:
             self.log_callback("error", {"event": "stealth_reveal_event_recording_failed", "error": str(e)})
+            return False

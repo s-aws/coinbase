@@ -54,6 +54,21 @@ def test_rollback_releases_slot():
     assert d3.allowed
 
 
+def test_indeterminate_quarantine_blocks_entire_key_until_window_expires():
+    rl = _make(cap_n=5, window_seconds=10)
+    first = rl.try_acquire(product_id="X", side="BUY", bucket_id=1, now=0.0)
+    assert first.allowed
+
+    rl.quarantine(product_id="X", side="BUY", bucket_id=1, now=0.0)
+
+    blocked = rl.try_acquire(product_id="X", side="BUY", bucket_id=1, now=9.9)
+    assert blocked.allowed is False
+    assert blocked.current_count == 5
+    assert blocked.reason == "acceptance_indeterminate"
+    allowed = rl.try_acquire(product_id="X", side="BUY", bucket_id=1, now=10.0)
+    assert allowed.allowed is True
+
+
 def test_window_expiry_evicts_old_placements():
     rl = _make(cap_n=2, window_seconds=10)
     rl.try_acquire(product_id="X", side="BUY", bucket_id=1, now=0.0)

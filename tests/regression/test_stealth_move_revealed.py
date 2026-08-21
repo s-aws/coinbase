@@ -473,6 +473,7 @@ class TestExecuteStealthMoveResetsState:
                    return_value="root_parent_coid"):
             rest_mock.cancel_orders.return_value = [{"success": True}]
             rest_mock.place_limit_order.return_value = {
+                "success": True,
                 "success_response": {"order_id": "new_exchange"}
             }
 
@@ -543,6 +544,7 @@ class TestExecuteStealthMoveResetsState:
                    return_value="root_parent_coid"):
             rest_mock.cancel_orders.return_value = [{"success": True}]
             rest_mock.place_limit_order.return_value = {
+                "success": True,
                 "success_response": {"order_id": "new_exchange"}
             }
             result = mgr.execute_stealth_move(plan)
@@ -776,6 +778,7 @@ class TestStealthOrderMovesAuditTable:
              patch("database.order.insert_stealth_order_move") as audit_mock:
             rest_mock.cancel_orders.return_value = [{"success": True}]
             rest_mock.place_limit_order.return_value = {
+                "success": True,
                 "success_response": {"order_id": "new_exchange"}
             }
             mgr.execute_stealth_move(plan)
@@ -790,6 +793,28 @@ class TestStealthOrderMovesAuditTable:
         assert kwargs["new_submitted_price"] == 101.0
         assert kwargs["reason"] == "manual_user_move"
         assert kwargs["notes"] == "audit-test"
+
+    def test_missing_success_audit_row_is_local_finalization_error(self):
+        mgr, order, plan = self._build_executor_fixture()
+        with patch.object(mgr, "_get_stealth_order", return_value=order), \
+             patch.object(mgr, "_update_stealth_order"), \
+             patch.object(mgr, "_record_reveal_event"), \
+             patch("configuration.REST_CLIENT") as rest_mock, \
+             patch("core.stealth_order_manager.insert_order_parent", return_value=1), \
+             patch("core.stealth_order_manager.resolve_stealth_chain_root",
+                   return_value="root_parent_coid"), \
+             patch("database.order.insert_stealth_order_move", return_value=None):
+            rest_mock.cancel_orders.return_value = [{"success": True}]
+            rest_mock.place_limit_order.return_value = {
+                "success": True,
+                "success_response": {"order_id": "new_exchange"},
+            }
+            result = mgr.execute_stealth_move(plan)
+
+        assert result.new_exchange_order_id == "new_exchange"
+        event = order["revealed_orders"][-1]
+        assert "move.persist_move_audit" in event["local_finalization_error"]
+        assert "did not complete" in event["placement_error"]
 
     def test_audit_row_inserted_when_place_fails_after_cancel(self):
         from core.exceptions import StealthMoveError

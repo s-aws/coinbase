@@ -46,7 +46,8 @@ from database.order import (
     get_order_moves_by_new_parent,
 )
 from configuration import OrderBook, DEFAULT_MAX_ORDER_REPLACEMENT
-from core.enums import OrderStatus
+from calculation.price_validation import normalize_price_for_product
+from core.enums import OrderStatus, PriceRoundingPolicy
 
 
 class MoveManager:
@@ -67,6 +68,25 @@ class MoveManager:
                       the default OrderBook from configuration.
         """
         self.orderbook = orderbook or OrderBook()
+
+    @staticmethod
+    def _normalize_new_order_details(
+        new_order_details: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Return a copy with the configured price on the product tick grid."""
+        normalized = dict(new_order_details)
+        price_check = normalize_price_for_product(
+            normalized.get("price"),
+            product_id=normalized.get("product_id"),
+            side=normalized.get("side"),
+            policy=PriceRoundingPolicy.SIDE_CONSERVATIVE,
+        )
+        if not price_check.ok or price_check.effective_price is None:
+            raise ValueError(
+                f"Move order rejected at price boundary: {price_check.reason}"
+            )
+        normalized["price"] = float(price_check.effective_price)
+        return normalized
 
     def can_move_order(self, original_parent_client_order_id: str) -> Tuple[bool, str]:
         """Check if an order can be moved.
@@ -191,6 +211,9 @@ class MoveManager:
             }
 
         try:
+            new_order_details = self._normalize_new_order_details(
+                new_order_details
+            )
             # Generate new parent order ID
             new_parent_client_order_id = str(uuid.uuid4())
 
@@ -438,6 +461,9 @@ class MoveManager:
             }
 
         try:
+            new_order_details = self._normalize_new_order_details(
+                new_order_details
+            )
             # Create pending move record
             move_id = create_pending_move(
                 original_parent_client_order_id=original_parent_client_order_id,

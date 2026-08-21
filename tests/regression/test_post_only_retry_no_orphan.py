@@ -87,13 +87,16 @@ def test_rejected_attempt_marked_failed():
     """When a POST_ONLY rejection arrives, the pre-inserted row for
     that COID must be marked FAILED so the audit trail does not show
     a phantom PENDING row for an order that never made the exchange."""
-    assert "update_order_parent_status(" in _STEALTH_MANAGER_SRC
-    # Specifically, the call must use OrderStatus.FAILED.value.
-    assert "OrderStatus.FAILED.value" in _STEALTH_MANAGER_SRC
-    # And it must reference the rejected attempt's COID, not a
-    # different variable.
-    assert "update_order_parent_status(\n                            attempt_coid" in _STEALTH_MANAGER_SRC \
-        or "update_order_parent_status(attempt_coid" in _STEALTH_MANAGER_SRC
+    loop_start = _STEALTH_MANAGER_SRC.index(
+        "for attempt_num in range(1, max_attempts + 1):"
+    )
+    loop_end = _STEALTH_MANAGER_SRC.index(
+        "if classification is None or not classification.accepted:",
+        loop_start,
+    )
+    loop_body = _STEALTH_MANAGER_SRC[loop_start:loop_end]
+    assert "self._mark_placement_parent_failed(" in loop_body
+    assert "attempt_coid," in loop_body
 
 
 @pytest.mark.regression
@@ -116,10 +119,17 @@ def test_success_log_uses_actual_submitted_price_not_plan():
 
 
 @pytest.mark.regression
-def test_pre_insert_set_tracks_inserted_coids():
-    """The retry loop must track which COIDs were pre-inserted so it
-    only marks-FAILED rows it actually owns. Without this, a racing
-    WS-side insert could be clobbered."""
-    assert "pre_inserted_attempt_coids" in _STEALTH_MANAGER_SRC
-    # Update-status must be guarded by membership in the tracking set.
-    assert "if attempt_coid in pre_inserted_attempt_coids:" in _STEALTH_MANAGER_SRC
+def test_pre_insert_and_rejection_status_use_the_same_attempt_coid():
+    """Each retry's audit row and terminal rejection update must share
+    the exact client_order_id sent to REST."""
+    loop_start = _STEALTH_MANAGER_SRC.index(
+        "for attempt_num in range(1, max_attempts + 1):"
+    )
+    loop_end = _STEALTH_MANAGER_SRC.index(
+        "if classification is None or not classification.accepted:",
+        loop_start,
+    )
+    loop_body = _STEALTH_MANAGER_SRC[loop_start:loop_end]
+    assert "_pre_insert_placement_row(attempt_coid, attempt_price)" in loop_body
+    assert "client_order_id=attempt_coid" in loop_body
+    assert "self._mark_placement_parent_failed(\n                attempt_coid" in loop_body

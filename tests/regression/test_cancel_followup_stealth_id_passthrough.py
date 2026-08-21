@@ -185,7 +185,13 @@ def test_cancel_followup_passes_stealth_order_id_not_placement_uuid():
     )
 
     # has_pending_move is imported lazily inside the method.
-    with patch("database.order.has_pending_move", return_value=False):
+    with patch("database.order.has_pending_move", return_value=False), patch(
+        "database.order.get_parent_order",
+        return_value={
+            "target_movement": 0.001,
+            "target_movement_type": "P",
+        },
+    ):
         engine.handle_cancelled_order({
             "client_order_id": placement_uuid,
             "product_id": "BIP-20DEC30-CDE",
@@ -239,7 +245,13 @@ def test_cancel_followup_none_return_does_not_register_phantom_child():
         wraps=engine.complete_follow_up_processing
     )
 
-    with patch("database.order.has_pending_move", return_value=False):
+    with patch("database.order.has_pending_move", return_value=False), patch(
+        "database.order.get_parent_order",
+        return_value={
+            "target_movement": 0.001,
+            "target_movement_type": "P",
+        },
+    ):
         engine.handle_cancelled_order({
             "client_order_id": placement_uuid,
             "product_id": "BIP-20DEC30-CDE",

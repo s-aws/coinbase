@@ -37,7 +37,18 @@ class TestStealthOrderCreation:
         order = stealth_order_factory(reveal_condition_json=custom_condition)
         assert order["reveal_condition_json"] == custom_condition
 
-    def test_create_stealth_order_normalizes_anchor_repricing_policy(self):
+    def test_create_stealth_order_normalizes_anchor_repricing_policy(self, monkeypatch):
+        from configuration import PRODUCT_METADATA
+
+        monkeypatch.setitem(
+            PRODUCT_METADATA,
+            "BTC-USDC",
+            {"price_increment": "0.01"},
+        )
+        monkeypatch.setattr(
+            "core.stealth_order_manager.insert_order_parent",
+            lambda **kwargs: 1,
+        )
         manager = StealthOrderManager(db_client=None)
 
         stealth_order_id = manager.create_stealth_order(
@@ -187,6 +198,20 @@ class TestRevealConditions:
 
 
 class TestAnchorRepricing:
+    @pytest.fixture(autouse=True)
+    def _product_price_metadata(self, monkeypatch):
+        from configuration import PRODUCT_METADATA
+
+        monkeypatch.setitem(
+            PRODUCT_METADATA,
+            "BTC-USDC",
+            {"price_increment": "0.01"},
+        )
+        monkeypatch.setattr(
+            "core.stealth_order_manager.insert_order_parent",
+            lambda **kwargs: 1,
+        )
+
     def test_hidden_order_reprices_from_midpoint_reference(self):
         manager = StealthOrderManager(db_client=None)
         stealth_order_id = "a91e8400-e29b-41d4-a716-446655440000"
@@ -298,6 +323,7 @@ class TestAnchorRepricing:
             SimpleNamespace(
                 cancel_orders=lambda order_ids: cancelled.append(list(order_ids)) or [],
                 place_limit_order=lambda **kwargs: {
+                    "success": True,
                     "success_response": {
                         "client_order_id": kwargs["client_order_id"],
                         "order_id": "exchange-new",
@@ -541,6 +567,13 @@ class TestRevealAuditExchangeOrderId:
     """Test audit-only exchange_order_id capture during reveal placement."""
 
     def test_reveal_order_slice_records_exchange_order_id(self, monkeypatch):
+        from configuration import PRODUCT_METADATA
+
+        monkeypatch.setitem(
+            PRODUCT_METADATA,
+            "BTC-USDC",
+            {"price_increment": "0.01"},
+        )
         manager = StealthOrderManager(db_client=None)
         stealth_order_id = "770e8400-e29b-41d4-a716-446655440000"
         manager.in_memory_orders[stealth_order_id] = {
@@ -567,6 +600,7 @@ class TestRevealAuditExchangeOrderId:
             "configuration.REST_CLIENT",
             SimpleNamespace(
                 place_limit_order=lambda **kwargs: {
+                    "success": True,
                     "success_response": {
                         "order_id": "exchange-oid-123",
                         "client_order_id": stealth_order_id,

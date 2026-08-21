@@ -133,7 +133,11 @@ class OrderPlacementHookRegistry:
                 # Propagate exception - this blocks submission
                 raise
     
-    def call_post_submission_hooks(self, order: Dict[str, Any], result: Any) -> None:
+    def call_post_submission_hooks(
+        self,
+        order: Dict[str, Any],
+        result: Any,
+    ) -> List[Exception]:
         """Execute all post-submission hooks in sequence.
         
         If a hook raises an exception, it is logged but does not affect order placement.
@@ -144,18 +148,22 @@ class OrderPlacementHookRegistry:
             result: Return value from REST_CLIENT.place_limit_order().
         
         Returns:
-            None
+            Exceptions raised by hooks. They never change placement truth,
+            but the caller must surface them as local-finalization errors.
         """
         with self._lock:
             hooks_to_call = list(self._post_submission_hooks)
-        
+
+        errors: List[Exception] = []
         for hook in hooks_to_call:
             try:
                 hook(order, result)
             except Exception as e:
-                # Log but don't propagate - order is already placed
-                # Extensions should handle their own logging
-                pass
+                # Do not propagate: the order is already placed. Returning
+                # every error keeps the failure observable without stopping
+                # later hooks or inviting a placement retry.
+                errors.append(e)
+        return errors
 
 
 # Global singleton registry

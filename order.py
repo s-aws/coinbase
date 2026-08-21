@@ -60,7 +60,8 @@ from json import dumps
 from time import sleep
 from configuration import REST_CLIENT, \
     ORDER_DIRECTION, ORDERBOOK, format_based_on_reference, quantize_to_increment
-from core.enums import RevealConditionType
+from calculation.price_validation import normalize_price_for_product
+from core.enums import PriceRoundingPolicy, RevealConditionType
 
 # Global stealth bridge reference (set by dashboard_server)
 _stealth_order_bridge = None
@@ -277,8 +278,8 @@ def create_limit_order_span(
     if camouflage_round_numbers:
         try:
             from calculation.price_camouflage import camouflage_round_price
-            from configuration import PRODUCT_METADATA
-            product_meta = (PRODUCT_METADATA or {}).get(product_id) or {}
+            from configuration import get_product_metadata
+            product_meta = get_product_metadata(product_id)
             price_increment = product_meta.get("price_increment")
             if price_increment:
                 effective_start_price = camouflage_round_price(
@@ -312,7 +313,22 @@ def create_limit_order_span(
     
     try:
         from datetime import datetime as dt
-        
+
+        price_check = normalize_price_for_product(
+            effective_start_price,
+            product_id=product_id,
+            side=side,
+            policy=PriceRoundingPolicy.SIDE_CONSERVATIVE,
+        )
+        if not price_check:
+            raise ValueError(
+                f"Order rejected at price boundary: {price_check.reason}"
+            )
+        # The bridge independently enforces the same idempotent boundary.
+        # Echo this exact value so callers see the persisted/wire price rather
+        # than their off-grid request.
+        effective_start_price = float(price_check.effective_price)
+
         sizing_strategy_dict = sizing_strategy or {"type": "fixed"}
         order_id = order_bridge.create_stealth_order(
             product_id=product_id,

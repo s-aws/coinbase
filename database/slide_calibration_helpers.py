@@ -50,6 +50,7 @@ from core.enums import StealthOrderStatus
 # local rather than imported to avoid the helper depending on the dashboard
 # module (which would create a circular import).
 _TERMINAL_STEALTH_STATUSES = frozenset({
+    StealthOrderStatus.ERROR.value,
     StealthOrderStatus.EXECUTED.value,
     StealthOrderStatus.CANCELLED.value,
 })

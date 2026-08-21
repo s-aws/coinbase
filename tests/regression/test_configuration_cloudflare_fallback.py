@@ -58,3 +58,31 @@ def test_orderbook_falls_back_to_cached_products_on_gateway_failure(
     assert orderbook.positions == {"FUTURE": {}}
     assert "using cached products.json metadata" in caplog.text
     assert "starting with an empty position snapshot" in caplog.text
+
+
+def test_orderbook_installs_live_catalog_for_canonical_price_reads(monkeypatch):
+    live_product = {
+        "product_id": "TEST-USD",
+        "product_type": "SPOT",
+        "base_increment": "0.01",
+        "base_min_size": "0.01",
+        "quote_min_size": "1",
+        "price_increment": "5",
+        "trading_disabled": False,
+    }
+    monkeypatch.setattr(
+        configuration,
+        "PRODUCT_METADATA",
+        {"TEST-USD": {"price_increment": "0.01"}},
+    )
+    monkeypatch.setattr(
+        configuration,
+        "rest_get_products",
+        lambda: {"TEST-USD": live_product},
+    )
+    monkeypatch.setattr(configuration, "get_futures_positions", lambda: {})
+
+    orderbook = configuration.OrderBook()
+
+    assert orderbook.product["TEST-USD"]["price_increment"] == "5"
+    assert configuration.get_product_metadata("TEST-USD")["price_increment"] == "5"

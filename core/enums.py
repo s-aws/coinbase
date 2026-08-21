@@ -40,6 +40,27 @@ class OrderStatus(str, Enum):
     SNAPSHOT = "SNAPSHOT"
 
 
+class OrderPlacementOutcome(str, Enum):
+    """Truthful classification of an exchange placement attempt.
+
+    This outcome is deliberately separate from :class:`OrderStatus`.  A REST
+    response classifies whether Coinbase accepted the submission; websocket
+    events and reconciliation establish the later lifecycle status.
+
+    - ACCEPTED: Coinbase explicitly reported success and returned a usable
+      exchange order id for the expected client order id.
+    - REJECTED: Coinbase explicitly reported ``success=False``.
+    - INDETERMINATE: Acceptance cannot be proven (for example a transport
+      exception, malformed response, missing exchange id, or mismatched client
+      order id).  Callers must not treat this as accepted or automatically
+      submit the same intent again.
+    """
+
+    ACCEPTED = "ACCEPTED"
+    REJECTED = "REJECTED"
+    INDETERMINATE = "INDETERMINATE"
+
+
 class StealthOrderStatus(str, Enum):
     """Status of a stealth order throughout its internal lifecycle.
     
@@ -50,6 +71,8 @@ class StealthOrderStatus(str, Enum):
     - PENDING: Reveal condition partially met, watching for full trigger
     - TRIGGERED: Reveal condition fully met, pending placement on exchange
     - REVEALED: Order partially or fully revealed to exchange
+    - ERROR: Exchange placement was rejected or could not be proven accepted;
+      terminal until an explicit operator recovery workflow is implemented
     - EXECUTED: Order fully executed
     - CANCELLED: Order cancelled before execution
     """
@@ -57,6 +80,7 @@ class StealthOrderStatus(str, Enum):
     PENDING = "PENDING"
     TRIGGERED = "TRIGGERED"
     REVEALED = "REVEALED"
+    ERROR = "ERROR"
     EXECUTED = "EXECUTED"
     CANCELLED = "CANCELLED"
 
@@ -153,6 +177,20 @@ class RoundingDirection(str, Enum):
     UP = "up"
     DOWN = "down"
     NEAREST = "nearest"
+
+
+class PriceRoundingPolicy(str, Enum):
+    """Named policy for normalizing exchange-bound limit prices.
+
+    ``SIDE_CONSERVATIVE`` resolves to DOWN for BUY and UP for SELL.  The
+    remaining values request an explicit arithmetic direction and keep that
+    intent visible at each caller rather than embedding it as a magic string.
+    """
+
+    SIDE_CONSERVATIVE = "side_conservative"
+    NEAREST = "nearest"
+    UP = "up"
+    DOWN = "down"
 
 
 class FollowUpRevealDirection(str, Enum):
@@ -475,8 +513,8 @@ class StealthLifecycleEvent(str, Enum):
           â””â”€â–º CONDITION_WATCHING  (condition partially met, watching for hold duration)
                 â””â”€â–º CONDITION_MET (condition fully confirmed, order TRIGGERED)
                       â””â”€â–º REVEAL_ATTEMPTED
-                            â”œâ”€â–º PLACEMENT_BLOCKED  (pre-submission hook raised)  [terminal/retriable]
-                            â”œâ”€â–º REVEAL_FAILED      (REST exception / network error) [terminal/retriable]
+                            â”œâ”€â–º PLACEMENT_BLOCKED  (pre-REST policy/hook block)     [retriable TRIGGERED]
+                            â”œâ”€â–º REVEAL_FAILED      (rejected/acceptance uncertain)   [terminal ERROR]
                             â””â”€â–º REVEAL_SUCCEEDED   (slice placed on exchange books)
                                   â”œâ”€â–º FILL_RECEIVED (fill event arrived from exchange)
                                   â”œâ”€â–º EXECUTED      (all size filled)               [terminal]
@@ -493,8 +531,8 @@ class StealthLifecycleEvent(str, Enum):
     CONDITION_WATCHING = "CONDITION_WATCHING"  # condition first partially met â†’ PENDING
     CONDITION_MET      = "CONDITION_MET"       # condition confirmed â†’ TRIGGERED
     REVEAL_ATTEMPTED   = "REVEAL_ATTEMPTED"    # slice placement about to be sent
-    PLACEMENT_BLOCKED  = "PLACEMENT_BLOCKED"   # pre-submission hook blocked placement
-    REVEAL_FAILED      = "REVEAL_FAILED"       # REST/network exception during placement
+    PLACEMENT_BLOCKED  = "PLACEMENT_BLOCKED"   # retriable pre-REST policy/hook block
+    REVEAL_FAILED      = "REVEAL_FAILED"       # rejected or acceptance could not be proven
     REVEAL_SUCCEEDED   = "REVEAL_SUCCEEDED"    # slice confirmed placed on exchange
     FILL_RECEIVED      = "FILL_RECEIVED"       # fill event received for revealed slice
     EXECUTED           = "EXECUTED"            # all size executed

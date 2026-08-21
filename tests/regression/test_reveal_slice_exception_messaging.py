@@ -17,14 +17,14 @@ inside the SDK wrapper. Operators reading the log saw "order was not
 placed" and didn't realize a real, fillable, live order was sitting on
 the exchange with no follow-up wiring.
 
-The fix adds a ``rest_call_succeeded`` flag that flips True the instant
-``REST_CLIENT.place_limit_order`` returns, and the exception handler
-branches on it:
+The current fix uses the shared fail-closed response classifier. A REST return
+is not accepted unless Coinbase explicitly reports success with a usable
+exchange order id. The flow branches on classified acceptance:
 
-* REST itself raised  -> ``stealth_order_slice_placement_exception`` +
-  "Order was NOT placed on the exchange" (truthful "not placed").
-* REST returned, post-placement code raised
-  -> ``stealth_order_slice_post_placement_exception`` +
+* rejected/indeterminate -> ``stealth_order_slice_placement_failed`` and no
+  success bookkeeping;
+* accepted, then local finalization raised
+  -> ``stealth_order_slice_local_finalization_error`` +
   "Order IS LIVE on the exchange; operator action may be required"
   (truthful "placed but linkage lost").
 
@@ -46,21 +46,11 @@ _SRC = (
 
 
 @pytest.mark.regression
-def test_reveal_slice_tracks_rest_call_success_separately():
-    """The ``rest_call_succeeded`` flag must be initialized False inside
-    the try block and flipped True only after ``place_limit_order``
-    returns, so the exception handler can tell the two failure modes
-    apart."""
-    assert "rest_call_succeeded = False" in _SRC, (
-        "rest_call_succeeded flag missing — exception handler can no "
-        "longer distinguish REST failure from post-placement failure. "
-        "See 2026-04-29 incident in this file's docstring."
-    )
-    assert "rest_call_succeeded = True" in _SRC, (
-        "rest_call_succeeded is never flipped True; the post-placement "
-        "branch will never fire and operators will see the wrong "
-        "'order was not placed' message again."
-    )
+def test_reveal_slice_classifies_acceptance_separately():
+    """REST return alone must never be the success predicate."""
+    assert "classify_placement_response(" in _SRC
+    assert "classification.accepted" in _SRC
+    assert "rest_call_succeeded" not in _SRC
 
 
 @pytest.mark.regression
@@ -68,10 +58,10 @@ def test_reveal_slice_emits_distinct_events_for_two_failure_modes():
     """Two distinct event names are required so dashboards/alerting can
     treat 'order live but unlinked' as the operationally critical
     incident it is, separately from 'order failed to place'."""
-    assert "stealth_order_slice_placement_exception" in _SRC, (
+    assert "stealth_order_slice_placement_failed" in _SRC, (
         "REST-failure event name missing."
     )
-    assert "stealth_order_slice_post_placement_exception" in _SRC, (
+    assert "stealth_order_slice_local_finalization_error" in _SRC, (
         "Post-placement exception event name missing — see "
         "2026-04-29 incident."
     )

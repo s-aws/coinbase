@@ -39,6 +39,22 @@ from core.enums import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _btc_product_metadata(monkeypatch):
+    from configuration import PRODUCT_METADATA
+
+    monkeypatch.setitem(
+        PRODUCT_METADATA,
+        "BTC-USDC",
+        {
+            "price_increment": "1",
+            "base_increment": "0.00000001",
+            "base_min_size": "0.00000001",
+            "quote_min_size": "0",
+        },
+    )
+
+
 def _bare_manager_with_order(order: dict, market_data: dict | None = None):
     """Construct a bare StealthOrderManager populated for plan building."""
     from core.orderbook import ClaimLedger

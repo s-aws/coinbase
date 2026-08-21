@@ -333,9 +333,10 @@ def test_window_minutes_validated(patch_db):
 
 
 def test_active_status_set_excludes_terminal_states():
-    """Helper's active-status filter must not include EXECUTED/CANCELLED."""
+    """Helper's active-status filter must exclude every terminal state."""
     from database.slide_calibration_helpers import _ACTIVE_STEALTH_STATUSES
     from core.enums import StealthOrderStatus
+    assert StealthOrderStatus.ERROR.value not in _ACTIVE_STEALTH_STATUSES
     assert StealthOrderStatus.EXECUTED.value not in _ACTIVE_STEALTH_STATUSES
     assert StealthOrderStatus.CANCELLED.value not in _ACTIVE_STEALTH_STATUSES
     assert StealthOrderStatus.REVEALED.value in _ACTIVE_STEALTH_STATUSES

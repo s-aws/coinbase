@@ -19,7 +19,8 @@ from copy import deepcopy
 import json
 import logging
 from pathlib import Path
-from typing import Any, Optional, Union, overload
+from threading import RLock
+from typing import Any, Mapping, Optional, Union, overload
 from coinbase.rest import RESTClient
 
 from external import CoinbaseRestClient
@@ -32,6 +33,8 @@ from core.constants import (  # noqa: F401  (re-exported for legacy ``from confi
 )
 
 logger = logging.getLogger(__name__)
+
+_PRODUCT_METADATA_LOCK = RLock()
 
 # Load products from products.json
 PRODUCTS_FILE = Path(__file__).parent / "products.json"
@@ -49,6 +52,68 @@ except (FileNotFoundError, json.JSONDecodeError) as e:
     SPOT_PRODUCT_IDS = []
     PRODUCT_METADATA = {}
     TICKER_TO_TRADING = {}
+
+
+def get_product_metadata_snapshot() -> dict[str, dict[str, Any]]:
+    """Return an isolated, internally consistent product-metadata snapshot.
+
+    ``PRODUCT_METADATA`` remains a stable dictionary object for legacy imports,
+    while new exchange-bound calculation code reads through this accessor.  A
+    deep copy prevents callers from mutating the authoritative runtime catalog.
+    """
+    with _PRODUCT_METADATA_LOCK:
+        return deepcopy(PRODUCT_METADATA)
+
+
+def update_product_metadata(
+    metadata: Mapping[str, Mapping[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    """Atomically replace the authoritative in-memory metadata catalog.
+
+    The mapping is validated and copied before the lock is acquired.  Updating
+    the existing ``PRODUCT_METADATA`` object in place preserves references held
+    by legacy modules, while accessor-based readers observe either the complete
+    old snapshot or the complete new snapshot.
+
+    Returns an isolated copy of the installed snapshot.
+    """
+    if not isinstance(metadata, Mapping):
+        raise TypeError("product metadata must be a mapping")
+
+    replacement: dict[str, dict[str, Any]] = {}
+    for product_id, product_metadata in metadata.items():
+        if not isinstance(product_id, str) or not product_id:
+            raise ValueError(f"invalid product metadata key: {product_id!r}")
+        if not isinstance(product_metadata, Mapping):
+            raise TypeError(
+                f"metadata for {product_id!r} must be a mapping"
+            )
+        replacement[product_id] = deepcopy(dict(product_metadata))
+
+    with _PRODUCT_METADATA_LOCK:
+        PRODUCT_METADATA.clear()
+        PRODUCT_METADATA.update(replacement)
+        return deepcopy(PRODUCT_METADATA)
+
+
+def get_product_metadata(product_id: str) -> dict[str, Any]:
+    """Return isolated metadata for ``product_id`` or its trading mapping.
+
+    The ticker-to-trading fallback matches existing runtime behavior.  Missing
+    products return an empty mapping so exchange-bound validators can fail
+    closed with their own domain-specific reason.
+    """
+    if not product_id:
+        return {}
+    normalized_product_id = str(product_id)
+    trading_product_id = get_trading_product_id(normalized_product_id)
+    with _PRODUCT_METADATA_LOCK:
+        metadata = (
+            PRODUCT_METADATA.get(normalized_product_id)
+            or PRODUCT_METADATA.get(trading_product_id)
+            or {}
+        )
+        return deepcopy(dict(metadata))
 
 def get_trading_product_id(ticker_product_id: str) -> str:
     """
@@ -94,9 +159,10 @@ def _local_product_dict(product_id: str, metadata: dict) -> dict:
 
 def local_products_from_metadata() -> dict:
     """Return the last locally cached product catalog without network access."""
+    metadata_snapshot = get_product_metadata_snapshot()
     products = {}
     for product_id in DERIVATIVES_PRODUCT_IDS + SPOT_PRODUCT_IDS:
-        metadata = PRODUCT_METADATA.get(product_id) or PRODUCT_METADATA.get(
+        metadata = metadata_snapshot.get(product_id) or metadata_snapshot.get(
             get_trading_product_id(product_id),
             {},
         )
@@ -911,6 +977,9 @@ class OrderBook():
                     "Coinbase returned an empty product catalog",
                     api_error_code="empty_product_catalog",
                 )
+            # Install the same live catalog used by OrderBook before any
+            # placement or hydration path can read a stale products.json tick.
+            update_product_metadata(products)
         except Exception as exc:
             products = local_products_from_metadata()
             logger.warning(

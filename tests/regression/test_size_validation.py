@@ -61,7 +61,10 @@ def metadata_empty():
 
 
 def _patched(metadata: dict):
-    return patch("calculation.size_validation.PRODUCT_METADATA", metadata)
+    return patch(
+        "calculation.size_validation.get_product_metadata",
+        side_effect=lambda product_id: metadata.get(product_id, {}),
+    )
 
 
 def test_valid_size_passes(metadata_btc):

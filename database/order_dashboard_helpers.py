@@ -12,6 +12,8 @@ from database.order import (
     insert_order_parent,
     update_order_parent_status,
 )
+from calculation.price_validation import normalize_price_for_product
+from core.enums import PriceRoundingPolicy
 
 
 def _serialize_for_json(obj: Any) -> Any:
@@ -98,12 +100,22 @@ def insert_parent_order(
         Inserted order ID, or None on failure.
     """
     try:
+        price_check = normalize_price_for_product(
+            price,
+            product_id=product_id,
+            side=side,
+            policy=PriceRoundingPolicy.SIDE_CONSERVATIVE,
+        )
+        if not price_check.ok or price_check.effective_price is None:
+            raise ValueError(
+                f"Parent order rejected at price boundary: {price_check.reason}"
+            )
         return insert_order_parent(
             client_order_id=client_order_id,
             product_id=product_id,
             side=side,
             size=float(size),
-            price=float(price),
+            price=float(price_check.effective_price),
             target_movement=float(target_movement) if target_movement else 0.0,
             max_order_replacement=int(max_order_replacement),
             status=status
@@ -139,8 +151,24 @@ def update_parent_order(
             params.append(float(update_data['size']))
         
         if 'price' in update_data:
+            existing_order = get_parent_order(client_order_id)
+            if not existing_order:
+                raise ValueError(
+                    f"Parent order not found: {client_order_id}"
+                )
+            price_check = normalize_price_for_product(
+                update_data['price'],
+                product_id=existing_order.get('product_id'),
+                side=existing_order.get('side'),
+                policy=PriceRoundingPolicy.SIDE_CONSERVATIVE,
+            )
+            if not price_check.ok or price_check.effective_price is None:
+                raise ValueError(
+                    "Parent order update rejected at price boundary: "
+                    f"{price_check.reason}"
+                )
             updates.append("price = %s")
-            params.append(float(update_data['price']))
+            params.append(float(price_check.effective_price))
         
         if 'target_movement' in update_data:
             updates.append("target_movement = %s")

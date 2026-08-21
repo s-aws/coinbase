@@ -68,6 +68,10 @@ class HotpointRateLimiter:
         # In-flight placements that have acquired a slot but not yet
         # committed/rolled back. Counted toward the cap.
         self._in_flight: Dict[_BucketKey, int] = defaultdict(int)
+        # A placement whose REST acceptance is indeterminate blocks the
+        # complete key until the window expires. One ordinary committed slot
+        # is insufficient when the configured cap is greater than one.
+        self._quarantined_until: Dict[_BucketKey, float] = {}
         self._lock = threading.RLock()
         self._clock = clock or time.monotonic
 
@@ -92,6 +96,13 @@ class HotpointRateLimiter:
         ts = float(now) if now is not None else self._clock()
         with self._lock:
             self._evict_expired(key, ts)
+            if self._quarantined_until.get(key, 0.0) > ts:
+                return HotpointRateLimitDecision(
+                    allowed=False,
+                    current_count=self._cap,
+                    cap=self._cap,
+                    reason="acceptance_indeterminate",
+                )
             current = len(self._placements[key]) + self._in_flight[key]
             if current >= self._cap:
                 return HotpointRateLimitDecision(
@@ -140,6 +151,30 @@ class HotpointRateLimiter:
             if self._in_flight[key] > 0:
                 self._in_flight[key] -= 1
 
+    def quarantine(
+        self,
+        *,
+        product_id: str,
+        side: str,
+        bucket_id: int,
+        now: Optional[float] = None,
+    ) -> None:
+        """Block a key after exchange acceptance becomes indeterminate.
+
+        The in-flight reservation is consumed by the quarantine. No further
+        placement for the same product/side/bucket is admitted until the
+        normal rate window expires.
+        """
+        key: _BucketKey = (product_id, side, bucket_id)
+        ts = float(now) if now is not None else self._clock()
+        with self._lock:
+            if self._in_flight[key] > 0:
+                self._in_flight[key] -= 1
+            self._quarantined_until[key] = max(
+                self._quarantined_until.get(key, 0.0),
+                ts + self._window_s,
+            )
+
     def record_placement(
         self,
         *,
@@ -172,6 +207,8 @@ class HotpointRateLimiter:
         ts = float(now) if now is not None else self._clock()
         with self._lock:
             self._evict_expired(key, ts)
+            if self._quarantined_until.get(key, 0.0) > ts:
+                return self._cap
             return len(self._placements[key]) + self._in_flight[key]
 
     def reset(self) -> None:
@@ -179,6 +216,7 @@ class HotpointRateLimiter:
         with self._lock:
             self._placements.clear()
             self._in_flight.clear()
+            self._quarantined_until.clear()
 
     def hydrate(self, rows: Iterable[Tuple[str, str, int, float]]) -> int:
         """Populate placement timestamps from external rows.
@@ -203,6 +241,8 @@ class HotpointRateLimiter:
     # ------------------------------------------------------------------
 
     def _evict_expired(self, key: _BucketKey, now_ts: float) -> None:
+        if self._quarantined_until.get(key, 0.0) <= now_ts:
+            self._quarantined_until.pop(key, None)
         cutoff = now_ts - self._window_s
         bucket = self._placements[key]
         while bucket and bucket[0] < cutoff:

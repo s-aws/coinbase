@@ -299,6 +299,58 @@ class TestOrderEventStreamPersistence:
         assert inserted == 1
         assert captured["query"].count("%s") == len(captured["params"])
 
+    @pytest.mark.parametrize(
+        ("lifecycle_event", "expected_status"),
+        [
+            ("PLACEMENT_BLOCKED", "TRIGGERED"),
+            ("REVEAL_FAILED", "ERROR"),
+            ("REVEAL_SUCCEEDED", "REVEALED"),
+        ],
+    )
+    def test_placement_lifecycle_history_uses_canonical_status(
+        self,
+        monkeypatch,
+        lifecycle_event,
+        expected_status,
+    ):
+        captured = {}
+
+        class FakeCursor:
+            def execute(self, query, params):
+                captured["params"] = params
+
+            def fetchone(self):
+                return [1]
+
+        class FakeContextManager:
+            def __enter__(self):
+                return FakeCursor()
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+        monkeypatch.setattr(
+            order_db.DB_CLIENT,
+            "execute_query",
+            lambda query, params: [{"last_lifecycle_event": "CONDITION_MET"}],
+        )
+        monkeypatch.setattr(order_db.DB_CLIENT, "get_cursor", lambda: FakeContextManager())
+
+        inserted = order_db.insert_stealth_order_lifecycle_event(
+            stealth_order_id="550e8400-e29b-41d4-a716-446655440000",
+            lifecycle_event=lifecycle_event,
+            context={
+                # The lifecycle event is authoritative even if a caller's
+                # snapshot contains the opposite placement-failure status.
+                "status": "ERROR" if lifecycle_event == "PLACEMENT_BLOCKED" else "TRIGGERED",
+                "failure_reason": "placement not accepted",
+            },
+        )
+
+        assert inserted == 1
+        assert captured["params"][3] == "TRIGGERED"
+        assert captured["params"][4] == expected_status
+
 
 class TestDataIntegrity:
     """Test data integrity constraints."""

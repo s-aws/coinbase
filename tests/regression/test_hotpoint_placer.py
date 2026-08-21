@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -15,6 +15,7 @@ from business.hotpoint_placer import (
     STATUS_PRODUCT_META_MISSING,
     STATUS_RATE_LIMITED,
     STATUS_REST_FAILED,
+    STATUS_REST_INDETERMINATE,
     derive_placement_price,
     place_hotpoint_order,
 )
@@ -48,11 +49,24 @@ def _good_meta():
     return {"base_min_size": 0.001, "base_increment": 0.001, "price_increment": 0.5}
 
 
+def _accepted_response(**kwargs):
+    return {
+        "success": True,
+        "success_response": {
+            "order_id": "exchange-order-id",
+            "client_order_id": kwargs["client_order_id"],
+        },
+    }
+
+
 def _make_call(**overrides):
     rl = overrides.pop("rate_limiter", None) or HotpointRateLimiter(
         cap_n=5, window_seconds=60
     )
-    rest = overrides.pop("rest_client", None) or MagicMock()
+    provided_rest = overrides.pop("rest_client", None)
+    rest = provided_rest or MagicMock()
+    if provided_rest is None:
+        rest.limit_order_gtc.side_effect = _accepted_response
     insert = overrides.pop("insert_order_parent_fn", None) or MagicMock(return_value=1)
     defaults = dict(
         event=_make_event(),
@@ -66,7 +80,12 @@ def _make_call(**overrides):
         now_epoch=0.0,
     )
     defaults.update(overrides)
-    result = place_hotpoint_order(**defaults)
+    product_meta = defaults["product_meta"]
+    with patch(
+        "calculation.price_validation.get_product_metadata",
+        return_value=product_meta,
+    ):
+        result = place_hotpoint_order(**defaults)
     return result, rl, rest, insert
 
 
@@ -172,14 +191,38 @@ def test_negative_derived_price_releases_slot():
 # Failure paths
 # ----------------------------------------------------------------------------
 
-def test_rest_failure_releases_slot_and_returns_status():
+def test_indeterminate_rest_failure_quarantines_slot_and_returns_status():
     rest = MagicMock()
     rest.limit_order_gtc.side_effect = RuntimeError("boom")
     result, rl, _, insert = _make_call(rest_client=rest)
-    assert result.status == STATUS_REST_FAILED
+    assert result.status == STATUS_REST_INDETERMINATE
     assert "boom" in (result.error or "")
     insert.assert_not_called()
-    # Slot was rolled back.
+    # The request may be live, so the whole key is quarantined—not merely one
+    # of the configured slots.
+    retry = rl.try_acquire(
+        product_id="BTC-USDC",
+        side="BUY",
+        bucket_id=42,
+        now=1.0,
+    )
+    assert retry.allowed is False
+    assert retry.reason == "acceptance_indeterminate"
+
+
+def test_explicit_rest_rejection_is_not_persisted_as_placed():
+    rest = MagicMock()
+    rest.limit_order_gtc.return_value = {
+        "success": False,
+        "failure_reason": "INVALID_PRICE_PRECISION",
+        "error_response": {"message": "price is off tick"},
+    }
+
+    result, rl, _, insert = _make_call(rest_client=rest)
+
+    assert result.status == STATUS_REST_FAILED
+    assert result.error == "INVALID_PRICE_PRECISION"
+    insert.assert_not_called()
     assert rl.current_count(product_id="BTC-USDC", side="BUY", bucket_id=42, now=0.0) == 0
 
 
@@ -191,10 +234,26 @@ def test_db_insert_failure_keeps_slot_committed():
     """
     insert = MagicMock(side_effect=RuntimeError("db down"))
     rest = MagicMock()
+    rest.limit_order_gtc.side_effect = _accepted_response
     result, rl, _, _ = _make_call(rest_client=rest, insert_order_parent_fn=insert)
     assert result.status == STATUS_DB_INSERT_FAILED
     rest.limit_order_gtc.assert_called_once()
     # Slot committed (count = 1).
+    assert rl.current_count(product_id="BTC-USDC", side="BUY", bucket_id=42, now=0.0) == 1
+
+
+def test_db_insert_returning_none_is_local_finalization_error():
+    rest = MagicMock()
+    rest.limit_order_gtc.side_effect = _accepted_response
+    insert = MagicMock(return_value=None)
+
+    result, rl, _, _ = _make_call(
+        rest_client=rest,
+        insert_order_parent_fn=insert,
+    )
+
+    assert result.status == STATUS_DB_INSERT_FAILED
+    assert "no row id" in (result.error or "")
     assert rl.current_count(product_id="BTC-USDC", side="BUY", bucket_id=42, now=0.0) == 1
 
 

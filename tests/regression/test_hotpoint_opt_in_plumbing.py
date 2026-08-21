@@ -19,7 +19,25 @@ These tests pin the contract from the public API down to the DB call:
 
 from unittest.mock import MagicMock
 
+import pytest
+
 from core.stealth_order_manager import StealthOrderManager
+
+
+@pytest.fixture(autouse=True)
+def _btc_product_metadata(monkeypatch):
+    from configuration import PRODUCT_METADATA
+
+    monkeypatch.setitem(
+        PRODUCT_METADATA,
+        "BTC-USDC",
+        {
+            "price_increment": "1",
+            "base_increment": "0.00000001",
+            "base_min_size": "0.00000001",
+            "quote_min_size": "0",
+        },
+    )
 
 
 def _make_manager():
@@ -33,7 +51,7 @@ def _capture_insert(monkeypatch):
     calls = []
     monkeypatch.setattr(
         "core.stealth_order_manager.insert_order_parent",
-        lambda **kwargs: calls.append(kwargs),
+        lambda **kwargs: calls.append(kwargs) or 1,
         raising=True,
     )
     return calls

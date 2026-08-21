@@ -15,8 +15,8 @@ permanently abandon a profitable reveal.
 
 Industry-standard fix: 3 attempts total. On each ``POST_ONLY``
 rejection reprice ONE tick AWAY from the touch and retry.  On
-exhaustion surface ``StealthLifecycleEvent.PLACEMENT_BLOCKED`` with
-``block_category="post_only_rejected_after_retries"`` and STOP — never
+exhaustion surfaces ``StealthLifecycleEvent.REVEAL_FAILED`` and terminal
+``StealthOrderStatus.ERROR`` and STOPS — never
 silently demote to ``post_only=False`` (that would change the fee
 tier the operator agreed to).
 
@@ -62,12 +62,11 @@ def test_post_only_max_attempts_is_three():
 
 
 @pytest.mark.regression
-def test_retry_loop_dispatches_placement_blocked_on_exhaustion():
-    """Exhaustion MUST surface a lifecycle event so operators see the
-    abandoned reveal in their dashboard. Silently giving up was the
-    pre-fix behaviour and is forbidden."""
-    assert "post_only_rejected_after_retries" in _STEALTH_MANAGER_SRC
-    assert "StealthLifecycleEvent.PLACEMENT_BLOCKED" in _STEALTH_MANAGER_SRC
+def test_retry_loop_records_terminal_failure_on_exhaustion():
+    """Exhaustion must use the shared terminal failure path."""
+    assert "stealth_order_post_only_retries_exhausted" in _STEALTH_MANAGER_SRC
+    assert "_record_terminal_placement_failure" in _STEALTH_MANAGER_SRC
+    assert "StealthLifecycleEvent.REVEAL_FAILED" in _STEALTH_MANAGER_SRC
 
 
 @pytest.mark.regression
@@ -100,55 +99,66 @@ def test_retry_loop_uses_fresh_client_order_id_per_attempt():
 
 
 @pytest.mark.regression
-def test_next_safer_tick_buy_retreats_below_ask():
+def test_next_safer_tick_buy_retreats_below_ask(monkeypatch):
     """A BUY post-only rejection means our bid was >= ask. The only
     safe re-submit moves the bid LOWER (further from the ask)."""
+    from configuration import PRODUCT_METADATA
+    monkeypatch.setitem(PRODUCT_METADATA, "TEST-USD", {"price_increment": "0.01"})
     new_price = StealthOrderManager._next_safer_tick(
-        price=100.50, side="BUY", increment="0.01"
+        price=100.50, side="BUY", product_id="TEST-USD"
     )
     assert new_price == pytest.approx(100.49)
 
 
 @pytest.mark.regression
-def test_next_safer_tick_sell_retreats_above_bid():
+def test_next_safer_tick_sell_retreats_above_bid(monkeypatch):
     """A SELL post-only rejection means our ask was <= bid. The only
     safe re-submit moves the ask HIGHER (further from the bid)."""
+    from configuration import PRODUCT_METADATA
+    monkeypatch.setitem(PRODUCT_METADATA, "TEST-USD", {"price_increment": "0.01"})
     new_price = StealthOrderManager._next_safer_tick(
-        price=100.50, side="SELL", increment="0.01"
+        price=100.50, side="SELL", product_id="TEST-USD"
     )
     assert new_price == pytest.approx(100.51)
 
 
 @pytest.mark.regression
-def test_next_safer_tick_handles_unknown_side():
-    """Unknown side → no-op (return the quantized price). We never
-    want to guess a direction and accidentally cross harder."""
-    new_price = StealthOrderManager._next_safer_tick(
-        price=100.50, side="WHATEVER", increment="0.01"
-    )
-    assert new_price == pytest.approx(100.50)
+def test_next_safer_tick_rejects_unknown_side(monkeypatch):
+    """Unknown side must fail closed instead of guessing a direction."""
+    from configuration import PRODUCT_METADATA
+    monkeypatch.setitem(PRODUCT_METADATA, "TEST-USD", {"price_increment": "0.01"})
+    with pytest.raises(ValueError, match="unsupported order side"):
+        StealthOrderManager._next_safer_tick(
+            price=100.50, side="WHATEVER", product_id="TEST-USD"
+        )
 
 
 @pytest.mark.regression
-def test_next_safer_tick_quantizes_to_increment():
+def test_next_safer_tick_quantizes_to_increment(monkeypatch):
     """If the input price is off-grid, the result must still snap to
     the tick grid before retreating."""
     # 100.503 → quantized to 100.50, then BUY retreat by 0.01 = 100.49
+    from configuration import PRODUCT_METADATA
+    monkeypatch.setitem(PRODUCT_METADATA, "TEST-USD", {"price_increment": "0.01"})
     new_price = StealthOrderManager._next_safer_tick(
-        price=100.503, side="BUY", increment="0.01"
+        price=100.503, side="BUY", product_id="TEST-USD"
     )
     assert new_price == pytest.approx(100.49)
 
 
 @pytest.mark.regression
-def test_next_safer_tick_handles_invalid_increment_gracefully():
-    """A malformed increment string must not crash placement. Returning
-    the input price unchanged is acceptable — the caller will then
-    skip the retry rather than guess."""
-    new_price = StealthOrderManager._next_safer_tick(
-        price=100.50, side="BUY", increment="not-a-number"
+def test_next_safer_tick_rejects_invalid_increment(monkeypatch):
+    """Malformed metadata must fail closed rather than return a raw price."""
+    from configuration import PRODUCT_METADATA
+    monkeypatch.setitem(
+        PRODUCT_METADATA,
+        "TEST-USD",
+        {"price_increment": "not-a-number"},
     )
-    assert new_price == pytest.approx(100.50)
+    with pytest.raises(ValueError, match="invalid price_increment"):
+        StealthOrderManager._next_safer_tick(
+            price=100.50, side="BUY", product_id="TEST-USD"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -171,6 +181,15 @@ def test_post_only_rejection_detected_in_error_response():
     assert StealthOrderManager._is_post_only_rejection({
         "success": False,
         "error_response": {"error": "POST_ONLY"},
+    }) is True
+
+
+@pytest.mark.regression
+def test_post_only_rejection_detected_in_scalar_error_response():
+    """A scalar SDK error envelope must not raise after classification."""
+    assert StealthOrderManager._is_post_only_rejection({
+        "success": False,
+        "error_response": "POST_ONLY",
     }) is True
 
 

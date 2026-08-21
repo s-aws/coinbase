@@ -12,6 +12,7 @@ from logging_service import get_logger
 from database.database import PostgresDB
 from typing import Dict, List, Any, Optional
 from core.constants import get_local_now
+from core.enums import StealthLifecycleEvent, StealthOrderStatus
 from core.exceptions import DatabaseConnectionError, OrderPersistenceError, DatabaseTransactionError
 from configuration import DEFAULT_MAX_ORDER_REPLACEMENT
 
@@ -124,7 +125,7 @@ def create_stealth_orders_table() -> None:
         - remaining_size: Quantity still hidden (total - revealed)
         - executed_size: Quantity that has been filled
         - limit_price: Limit price for orders
-        - status: Order status (HIDDEN, PENDING, TRIGGERED, REVEALED, EXECUTED, CANCELLED)
+        - status: Order status (HIDDEN, PENDING, TRIGGERED, REVEALED, ERROR, EXECUTED, CANCELLED)
         - visibility_score: Calculated market visibility metric (0.0-1.0)
         - reveal_condition_type: Type of condition (price, time_delay, spread, etc.)
         - reveal_condition_json: JSONB configuration for the reveal condition
@@ -645,6 +646,7 @@ def insert_order_parent(
     allow_partial_fills: bool = False,
     enable_hotpoint_replication: bool = False,
     auto_placed_by_hotpoint: bool = False,
+    reject_existing: bool = False,
 ) -> Optional[int]:
     """Insert a parent order into the order_parent table.
     
@@ -673,6 +675,15 @@ def insert_order_parent(
     # Check if parent order already exists (handles race condition with multiple threads)
     existing_parent = get_parent_order(client_order_id)
     if existing_parent:
+        if reject_existing:
+            raise OrderPersistenceError(
+                error_type="DuplicateClientOrderId",
+                message=(
+                    "Refusing to reuse an existing order_parent row for "
+                    f"new client_order_id {client_order_id}"
+                ),
+                client_order_id=client_order_id,
+            )
         logger.info(f"âœ“ Parent order already exists: {client_order_id} (DB ID: {existing_parent['id']})")
         return existing_parent['id']
     
@@ -806,6 +817,28 @@ def insert_order_parent_batch(
     logger.info(f"Batch insert complete: {success_count}/{len(orders)} parent orders inserted successfully")
     
     return inserted_ids
+
+
+def update_order_parent_price(client_order_id: str, price: float) -> bool:
+    """Persist the exact canonical limit price about to be submitted."""
+    try:
+        rows_affected = DB_CLIENT.execute_update(
+            """
+            UPDATE order_parent
+               SET price = %s
+             WHERE client_order_id = %s
+            """,
+            (price, client_order_id),
+        )
+        return rows_affected > 0
+    except Exception as exc:
+        logger.error(
+            "Failed to update order_parent placement price for %s: %s: %s",
+            client_order_id,
+            type(exc).__name__,
+            exc,
+        )
+        return False
 
 
 def get_parent_orders() -> List[Dict[str, Any]]:
@@ -3035,16 +3068,16 @@ def insert_stealth_order_lifecycle_event(
     context = dict(context or {})
 
     status_map = {
-        "CREATED": "HIDDEN",
-        "CONDITION_WATCHING": "PENDING",
-        "CONDITION_MET": "TRIGGERED",
-        "REVEAL_ATTEMPTED": "TRIGGERED",
-        "PLACEMENT_BLOCKED": "TRIGGERED",
-        "REVEAL_FAILED": "TRIGGERED",
-        "REVEAL_SUCCEEDED": "REVEALED",
-        "FILL_RECEIVED": "REVEALED",
-        "EXECUTED": "EXECUTED",
-        "CANCELLED": "CANCELLED",
+        StealthLifecycleEvent.CREATED.value: StealthOrderStatus.HIDDEN.value,
+        StealthLifecycleEvent.CONDITION_WATCHING.value: StealthOrderStatus.PENDING.value,
+        StealthLifecycleEvent.CONDITION_MET.value: StealthOrderStatus.TRIGGERED.value,
+        StealthLifecycleEvent.REVEAL_ATTEMPTED.value: StealthOrderStatus.TRIGGERED.value,
+        StealthLifecycleEvent.PLACEMENT_BLOCKED.value: StealthOrderStatus.TRIGGERED.value,
+        StealthLifecycleEvent.REVEAL_FAILED.value: StealthOrderStatus.ERROR.value,
+        StealthLifecycleEvent.REVEAL_SUCCEEDED.value: StealthOrderStatus.REVEALED.value,
+        StealthLifecycleEvent.FILL_RECEIVED.value: StealthOrderStatus.REVEALED.value,
+        StealthLifecycleEvent.EXECUTED.value: StealthOrderStatus.EXECUTED.value,
+        StealthLifecycleEvent.CANCELLED.value: StealthOrderStatus.CANCELLED.value,
     }
 
     try:
@@ -3058,7 +3091,19 @@ def insert_stealth_order_lifecycle_event(
         )
         previous_event = existing_rows[0].get("last_lifecycle_event") if existing_rows else None
         status_from = status_map.get(previous_event) if previous_event else None
-        status_to = context.get("status") or status_map.get(lifecycle_event)
+        canonical_placement_events = {
+            StealthLifecycleEvent.PLACEMENT_BLOCKED.value,
+            StealthLifecycleEvent.REVEAL_FAILED.value,
+            StealthLifecycleEvent.REVEAL_SUCCEEDED.value,
+        }
+        if lifecycle_event in canonical_placement_events:
+            # The event defines whether evaluation may continue: a pre-REST
+            # block stays TRIGGERED, while an attempted REST placement that
+            # failed exchange acceptance becomes terminal ERROR. A stale
+            # context snapshot must not override either decision.
+            status_to = status_map[lifecycle_event]
+        else:
+            status_to = context.get("status") or status_map.get(lifecycle_event)
 
         query = """
         INSERT INTO stealth_order_lifecycle_history (

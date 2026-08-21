@@ -33,7 +33,7 @@ Restart resilience
 On startup call ``OrderInventory.rebuild_from_database(db_client)`` once before
 wiring the hooks. This loads:
   - Working exchange orders from ``order_parent WHERE status IN ('OPEN','PENDING')``
-  - All non-terminal stealth orders from ``stealth_orders``
+  - All stealth orders from ``stealth_orders``, including terminal history
   - Last lifecycle failure information from ``stealth_orders.last_lifecycle_event``
     and ``stealth_orders.failure_reason`` columns (added by migration in database/order.py)
 
@@ -261,7 +261,7 @@ class StealthInventoryEntry:
         side:             OrderSide enum.
         product_type:     ProductType enum.
         status:           StealthOrderStatus (HIDDEN, PENDING, TRIGGERED, REVEALED,
-                          EXECUTED, CANCELLED).
+                          ERROR, EXECUTED, CANCELLED).
         last_event:       Most recent StealthLifecycleEvent.
         failure_reason:   Populated for PLACEMENT_BLOCKED / REVEAL_FAILED events.
         placed_order_id:  client_order_id of the most recently revealed slice.
@@ -518,7 +518,7 @@ class OrderInventory:
             StealthLifecycleEvent.CONDITION_MET:      StealthOrderStatus.TRIGGERED,
             StealthLifecycleEvent.REVEAL_ATTEMPTED:   StealthOrderStatus.TRIGGERED,
             StealthLifecycleEvent.PLACEMENT_BLOCKED:  StealthOrderStatus.TRIGGERED,
-            StealthLifecycleEvent.REVEAL_FAILED:      StealthOrderStatus.TRIGGERED,
+            StealthLifecycleEvent.REVEAL_FAILED:      StealthOrderStatus.ERROR,
             StealthLifecycleEvent.REVEAL_SUCCEEDED:   StealthOrderStatus.REVEALED,
             StealthLifecycleEvent.FILL_RECEIVED:      StealthOrderStatus.REVEALED,
             StealthLifecycleEvent.EXECUTED:           StealthOrderStatus.EXECUTED,
@@ -733,7 +733,8 @@ class OrderInventory:
         """Return stealth orders that failed to be placed, with their failure reason.
 
         Includes entries whose last event was PLACEMENT_BLOCKED or REVEAL_FAILED.
-        These remain in TRIGGERED status and may be retried by the evaluation loop.
+        A pre-REST PLACEMENT_BLOCKED entry remains TRIGGERED/retriable; a REST
+        REVEAL_FAILED entry is terminal ERROR and is not automatically retried.
 
         Returns:
             List of StealthInventoryEntry with a non-None failure_reason.

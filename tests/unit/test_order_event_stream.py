@@ -2,6 +2,8 @@
 
 from datetime import datetime
 
+import pytest
+
 from business.order_event_stream import OrderEventStreamPublisher
 from core.enums import StealthLifecycleEvent
 
@@ -204,3 +206,65 @@ def test_publish_event_enriches_payload_with_fee_manager_audit():
     assert fee_audit["taker_fee_rate"] == 0.006
     assert fee_audit["margin_window_type"] == "INTRADAY"
     assert inserted["trigger_payload_json"]["fee_manager_audit"]["fee_regime_factor"] == 1.2
+
+
+def test_post_submission_hook_publishes_only_explicitly_accepted_placement():
+    db_module = FakeDBModule()
+    publisher = OrderEventStreamPublisher(db_module)
+    order = {
+        "client_order_id": "placement-cid-1",
+        "product_id": "BTC-USDC",
+        "side": "BUY",
+        "price": 50000.0,
+        "size": 0.1,
+    }
+
+    publisher._post_submission_hook(
+        order,
+        {
+            "success": True,
+            "success_response": {
+                "order_id": "exchange-order-1",
+                "client_order_id": "placement-cid-1",
+            },
+        },
+    )
+
+    assert len(db_module.inserted_events) == 1
+    inserted = db_module.inserted_events[0]
+    assert inserted["event_type"] == "order_submitted"
+    assert inserted["client_order_id"] == "placement-cid-1"
+    assert inserted["order_id"] == "exchange-order-1"
+
+
+@pytest.mark.parametrize(
+    "result",
+    [
+        {
+            "success": False,
+            "error_response": {"message": "invalid price increment"},
+        },
+        {"success": True, "success_response": {}},
+        {
+            "success": True,
+            "success_response": {
+                "order_id": "exchange-order-2",
+                "client_order_id": "different-client-id",
+            },
+        },
+        {"success_response": {"order_id": "exchange-order-3"}},
+    ],
+)
+def test_post_submission_hook_does_not_publish_unaccepted_placement(result):
+    db_module = FakeDBModule()
+    publisher = OrderEventStreamPublisher(db_module)
+
+    publisher._post_submission_hook(
+        {
+            "client_order_id": "expected-client-id",
+            "product_id": "BTC-USDC",
+        },
+        result,
+    )
+
+    assert db_module.inserted_events == []

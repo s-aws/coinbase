@@ -403,6 +403,9 @@ class TestOrderInventoryStealthSide:
         entry = inv.get_stealth_entry("so-001")
         assert entry.failure_reason == "Risk limit exceeded"
         assert entry.status == StealthOrderStatus.TRIGGERED
+        assert inv.get_stealth_triggered() == [entry]
+        assert inv.get_stealth_pending() == []
+        assert inv.get_stealth_on_exchange() == []
 
     def test_reveal_failed_stores_failure_reason(self):
         inv = OrderInventory()
@@ -411,15 +414,16 @@ class TestOrderInventoryStealthSide:
         inv.on_stealth_transition("so-001", StealthLifecycleEvent.REVEAL_FAILED, fail_ctx)
         entry = inv.get_stealth_entry("so-001")
         assert entry.failure_reason == "Connection timeout"
+        assert entry.status == StealthOrderStatus.ERROR
 
-    def test_reveal_succeeded_clears_prior_failure(self):
+    def test_failure_query_returns_terminal_error(self):
         inv = OrderInventory()
         inv.on_stealth_transition("so-001", StealthLifecycleEvent.CREATED, _make_stealth_context())
         inv.on_stealth_transition("so-001", StealthLifecycleEvent.REVEAL_FAILED,
                                   _make_stealth_context(failure_reason="timeout"))
-        inv.on_stealth_transition("so-001", StealthLifecycleEvent.REVEAL_SUCCEEDED,
-                                  _make_stealth_context(placed_order_id="placed-001"))
-        assert inv.get_stealth_entry("so-001").failure_reason is None
+        failures = inv.get_stealth_failures()
+        assert [entry.stealth_order_id for entry in failures] == ["so-001"]
+        assert failures[0].status == StealthOrderStatus.ERROR
 
     def test_executed_terminal_status(self):
         inv = OrderInventory()
@@ -863,24 +867,22 @@ class TestEndToEndWiring:
         lc_hooks.call_on_transition(oid, StealthLifecycleEvent.EXECUTED, ctx)
         assert inventory.get_stealth_entry(oid).status == StealthOrderStatus.EXECUTED
 
-    def test_failure_then_retry_lifecycle(self):
-        """REVEAL_FAILED followed by successful REVEAL_SUCCEEDED clears failure_reason."""
+    def test_failed_placement_is_terminal_error(self):
+        """REVEAL_FAILED leaves an ERROR entry outside active query groups."""
         inventory = get_global_order_inventory()
         lc_hooks = get_global_stealth_lifecycle_hook_registry()
         lc_hooks.register_on_transition(inventory.on_stealth_transition)
 
-        oid = "e2e-retry-001"
+        oid = "e2e-error-001"
 
         lc_hooks.call_on_transition(oid, StealthLifecycleEvent.CREATED, _make_stealth_context())
         lc_hooks.call_on_transition(oid, StealthLifecycleEvent.REVEAL_FAILED,
                                     _make_stealth_context(failure_reason="Timeout"))
 
-        assert inventory.get_stealth_entry(oid).failure_reason == "Timeout"
-
-        lc_hooks.call_on_transition(oid, StealthLifecycleEvent.REVEAL_SUCCEEDED,
-                                    _make_stealth_context(placed_order_id="retry-placed"))
-
         entry = inventory.get_stealth_entry(oid)
-        assert entry.failure_reason is None
-        assert entry.status == StealthOrderStatus.REVEALED
-        assert len(inventory.get_stealth_failures()) == 0
+        assert entry.failure_reason == "Timeout"
+        assert entry.status == StealthOrderStatus.ERROR
+        assert inventory.get_stealth_triggered() == []
+        assert inventory.get_stealth_pending() == []
+        assert inventory.get_stealth_on_exchange() == []
+        assert inventory.get_stealth_failures() == [entry]

@@ -46,7 +46,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Optional
 
 from calculation.formatter import quantize_to_increment
-from configuration import PRODUCT_METADATA, get_trading_product_id
+from configuration import get_product_metadata
 from core.enums import RoundingDirection
 
 
@@ -79,14 +79,7 @@ def _to_decimal(value, default: Optional[Decimal] = None) -> Optional[Decimal]:
 
 def _product_metadata(product_id: str) -> dict:
     """Look up product metadata, with the same fallback the manager uses."""
-    if not product_id:
-        return {}
-    trading_product_id = get_trading_product_id(str(product_id))
-    return (
-        PRODUCT_METADATA.get(product_id)
-        or PRODUCT_METADATA.get(trading_product_id)
-        or {}
-    )
+    return get_product_metadata(product_id)
 
 
 def validate_and_quantize_size(

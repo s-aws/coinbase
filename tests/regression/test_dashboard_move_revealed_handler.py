@@ -383,6 +383,7 @@ def test_smoke_handler_drives_real_build_and_execute_end_to_end():
          patch("database.order.insert_stealth_order_move") as audit_mock:
         rest_mock.cancel_orders.return_value = [{"success": True}]
         rest_mock.place_limit_order.return_value = {
+            "success": True,
             "success_response": {"order_id": "new_ex_smoke"},
         }
 
