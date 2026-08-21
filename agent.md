@@ -128,7 +128,16 @@ pytest tests/external/test_coinbase_api.py -v -m websocket --tb=short
 
 ## genai_tools Workflow
 
-`genai_tools/` is gitignored and intended for temporary debugging utilities.
+Human-authored source in `genai_tools/` is versioned so diagnostic methods are
+reviewable and revertible. Generated output, database/schema dumps, browser
+profiles, test-temporary directories, captured account data, and credential
+helpers remain ignored.
+
+The directory is an opt-in toolbox, not required reading or implementation
+authority. A tracked script may be historical, stale, destructive, or capable
+of live exchange/database mutation. Inspect the named file and obtain any
+required operator authorization before running it; presence in Git is not
+approval to execute it.
 
 Use it for:
 - DB state inspection scripts
@@ -140,7 +149,8 @@ Workflow:
 1. Create `genai_tools/debug_<topic>.py`
 2. Use it to gather evidence
 3. Capture findings in code comments, commit notes, or handoff docs
-4. Leave or delete tool as needed (never productionize directly from `genai_tools/`)
+4. Keep and version it only when it is reusable and reviewed; otherwise delete it
+5. Never productionize directly from `genai_tools/`
 
 ---
 

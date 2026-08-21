@@ -180,11 +180,26 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 
-# Agent contract files — COMMIT THESE so fresh clones / new contributors
-# discover the project's agent rules. Working scratch (genai_data/,
-# genai_tools/) stays local-only.
-genai_data/
-genai_tools/
+# Agent contract, context, and reusable diagnostic source are versioned so
+# branch changes and reverts also restore the context used by agents.
+# Generated captures, runtime output, database snapshots, and credential
+# helpers remain local-only.
+genai_data/*.json
+genai_tools/chrome-cdp-profile/
+genai_tools/memory-*/
+genai_tools/output/
+genai_tools/phase_*/
+genai_tools/pytest-tmp*/
+genai_tools/pytest_tmp/
+genai_tools/*.json
+genai_tools/*.jsonl
+genai_tools/*.sql
+genai_tools/*.err.txt
+genai_tools/*.out.txt
+genai_tools/*.exit
+genai_tools/*.pid
+genai_tools/futures_suite_stacks.txt
+genai_tools/read_gh_cred.ps1
 ID_USAGE_ANALYSIS.md
 
 # Agent runtime caches and traces (Copilot / Aider / Continue / Cursor / Codeium)

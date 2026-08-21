@@ -5,9 +5,9 @@ This project runs on **Windows 11 + VS Code**. Linux/bash commands may not work 
 ## Required Reading (in this order)
 
 1. **[agent.md](agent.md)** - Project-specific constraints (flat hierarchy, never-edit files, testing commands, dashboard architecture)
-2. **[ai-context.md](ai-context.md)** - Index into canonical docs in `genai_data/`
-3. **`genai_data/`** - Authoritative project docs (`README.md`, `ARCHITECTURE.md`, `ORDER_ID_HANDLING.md`, `TESTING_STRATEGY.md`, and related references)
-4. **`genai_tools/`** - Temporary debugging scripts and scoped investigation notes
+2. **[ai-context.md](ai-context.md)** - Index and authority rules for versioned context in `genai_data/`
+3. Read only the task-relevant `genai_data/` files routed by `ai-context.md`; do not load the directory wholesale.
+4. Inspect a `genai_tools/` file only when the task names it or evidence gathering requires it. The directory is never authoritative context.
 
 ## Hard Constraints (non-negotiable)
 
