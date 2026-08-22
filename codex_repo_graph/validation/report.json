@@ -1,0 +1,147 @@
+{
+  "content_exclusions": [
+    {
+      "path": "server_log.txt",
+      "reason": "log_or_runtime_output"
+    },
+    {
+      "path": "startup_output.txt",
+      "reason": "log_or_runtime_output"
+    }
+  ],
+  "counts": {
+    "commits": 2046,
+    "edges": 30629,
+    "files": 488,
+    "git_refs": 11,
+    "path_history": 1434,
+    "semantic_records": 172,
+    "symbols": 7840,
+    "tests": 1083
+  },
+  "dangling_edge_ids": [],
+  "duplicate_conflicts": {
+    "edges": [],
+    "symbols": [],
+    "tests": []
+  },
+  "excluded_git_refs": {
+    "count": 4,
+    "prefix": "refs/codex/turn-diffs/<redacted>"
+  },
+  "explicit_exclusions": [
+    {
+      "path": "codex_repo_graph/ENTRYPOINT.md",
+      "reason": "graph_self"
+    },
+    {
+      "path": "codex_repo_graph/build_graph.py",
+      "reason": "graph_self"
+    },
+    {
+      "path": "codex_repo_graph/index/edges.jsonl",
+      "reason": "graph_self"
+    },
+    {
+      "path": "codex_repo_graph/index/files.jsonl",
+      "reason": "graph_self"
+    },
+    {
+      "path": "codex_repo_graph/index/git_commits.jsonl",
+      "reason": "graph_self"
+    },
+    {
+      "path": "codex_repo_graph/index/git_refs.jsonl",
+      "reason": "graph_self"
+    },
+    {
+      "path": "codex_repo_graph/index/path_history.jsonl",
+      "reason": "graph_self"
+    },
+    {
+      "path": "codex_repo_graph/index/symbols.jsonl",
+      "reason": "graph_self"
+    },
+    {
+      "path": "codex_repo_graph/index/tests.jsonl",
+      "reason": "graph_self"
+    },
+    {
+      "path": "codex_repo_graph/manifest.json",
+      "reason": "graph_self"
+    },
+    {
+      "path": "codex_repo_graph/query_graph.py",
+      "reason": "graph_self"
+    },
+    {
+      "path": "codex_repo_graph/schema.json",
+      "reason": "graph_self"
+    },
+    {
+      "path": "codex_repo_graph/semantic/claims.jsonl",
+      "reason": "graph_self"
+    },
+    {
+      "path": "codex_repo_graph/semantic/components.jsonl",
+      "reason": "graph_self"
+    },
+    {
+      "path": "codex_repo_graph/semantic/concurrency.jsonl",
+      "reason": "graph_self"
+    },
+    {
+      "path": "codex_repo_graph/semantic/hazards.jsonl",
+      "reason": "graph_self"
+    },
+    {
+      "path": "codex_repo_graph/semantic/interfaces.jsonl",
+      "reason": "graph_self"
+    },
+    {
+      "path": "codex_repo_graph/semantic/invariants.jsonl",
+      "reason": "graph_self"
+    },
+    {
+      "path": "codex_repo_graph/semantic/persistence.jsonl",
+      "reason": "graph_self"
+    },
+    {
+      "path": "codex_repo_graph/semantic/runtime_flows.jsonl",
+      "reason": "graph_self"
+    },
+    {
+      "path": "codex_repo_graph/semantic/task_routes.jsonl",
+      "reason": "graph_self"
+    },
+    {
+      "path": "codex_repo_graph/validation/report.json",
+      "reason": "graph_self"
+    }
+  ],
+  "fatal_errors": [],
+  "index_hashes": {
+    "edges.jsonl": "1411a1a09a49633ff3d20fb15692323f2703434fba18f6419b1e9f3a0c7cbc00",
+    "files.jsonl": "9b3b32d5fb2efd11625689d0e2c81428191979f7d84305c8e74edb534d81ac67",
+    "git_commits.jsonl": "a9c3abcb84662a7f2b6cc7e9510c36b994c409c6ee8820cf40cce36d91be80da",
+    "git_refs.jsonl": "7143da846095fb75ad5b0ea86bd94686272f026e9f5dfe8ac7aa4c9b7f93bbcb",
+    "path_history.jsonl": "68439aa389c625e200a25a1f3ebc91c03722b879071ed1e568b2d34cd5e1dae7",
+    "symbols.jsonl": "9de7eaf1353acaadcdb9658bfabc5e0bb63a3e724ec4607521653f08d6bfac01",
+    "tests.jsonl": "88d262f0183fa4cea18d6af20454d420ac1f91aa20629c3b1e5f5e5e88fb5483"
+  },
+  "index_invariant_errors": [],
+  "parse_findings": [],
+  "redaction_errors": [],
+  "represented_path_count": 488,
+  "schema_validation": {
+    "error_count": 0,
+    "record_count": 43703,
+    "validator": "built_in_json_schema_subset"
+  },
+  "semantic_reference_errors": [],
+  "sensitive_output_findings": [],
+  "source_edge_ids_missing": [],
+  "source_tree_digest": "1427f148a6cb7b7fe1134df67a21b12d840c3d1328068c880a6c38a1299321fb",
+  "status": "pass",
+  "unresolved_call_edge_count": 14823
+}

@@ -1,0 +1,188 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.invalid/codex-repo-graph-record.schema.json",
+  "title": "Codex repository graph JSONL record",
+  "x-schema-version": "1.1.0",
+  "type": "object",
+  "oneOf": [
+    {"$ref": "#/$defs/file"},
+    {"$ref": "#/$defs/symbol"},
+    {"$ref": "#/$defs/edge"},
+    {"$ref": "#/$defs/test"},
+    {"$ref": "#/$defs/git_commit"},
+    {"$ref": "#/$defs/git_ref"},
+    {"$ref": "#/$defs/path_history"},
+    {"$ref": "#/$defs/semantic"}
+  ],
+  "$defs": {
+    "confidence": {
+      "type": "string",
+      "enum": ["exact", "curated", "heuristic"]
+    },
+    "evidence": {
+      "type": "object",
+      "required": ["path", "line_start", "line_end", "anchor", "file_sha256"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "line_start": {"type": "integer", "minimum": 1},
+        "line_end": {"type": "integer", "minimum": 1},
+        "anchor": {"type": "string", "minLength": 1},
+        "file_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "file": {
+      "type": "object",
+      "required": ["id", "kind", "path", "sha256", "bytes", "lines", "language", "content_indexed", "role_tags"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^f:"},
+        "kind": {"const": "file"},
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "bytes": {"type": "integer", "minimum": 0},
+        "lines": {"type": "integer", "minimum": 0},
+        "language": {"type": "string", "minLength": 1},
+        "content_indexed": {"type": "boolean"},
+        "role_tags": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": true
+    },
+    "symbol": {
+      "type": "object",
+      "required": ["id", "kind", "symbol_kind", "name", "qualname", "path", "line_start", "line_end", "confidence"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^(s:|db:|cfg:|evt:|disc:|rt:)"},
+        "kind": {"const": "symbol"},
+        "symbol_kind": {"type": "string", "minLength": 1},
+        "name": {"type": "string"},
+        "qualname": {"type": "string"},
+        "path": {"type": "string", "minLength": 1},
+        "line_start": {"type": "integer", "minimum": 1},
+        "line_end": {"type": "integer", "minimum": 1},
+        "confidence": {"$ref": "#/$defs/confidence"}
+      },
+      "additionalProperties": true
+    },
+    "edge": {
+      "type": "object",
+      "required": ["id", "kind", "source_id", "edge_kind", "confidence", "path", "line"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^e:"},
+        "kind": {"const": "edge"},
+        "source_id": {"type": "string", "minLength": 1},
+        "target_id": {"type": "string", "minLength": 1},
+        "target_ref": {"type": "string", "minLength": 1},
+        "edge_kind": {"type": "string", "enum": ["calls", "contains", "constructs", "defines_table", "emits_event", "handles_event", "imports", "reads_config", "reads_table", "references", "renders", "tests", "uses_type_discriminator", "writes_table"]},
+        "confidence": {"$ref": "#/$defs/confidence"},
+        "path": {"type": "string", "minLength": 1},
+        "line": {"type": "integer", "minimum": 1}
+      },
+      "oneOf": [
+        {"required": ["target_id"], "not": {"required": ["target_ref"]}},
+        {"required": ["target_ref"], "not": {"required": ["target_id"]}}
+      ],
+      "additionalProperties": true
+    },
+    "test": {
+      "type": "object",
+      "required": ["id", "path", "qualname", "line_start", "suite", "fixtures", "markers", "production_targets", "symbol_id"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^test:"},
+        "path": {"type": "string", "pattern": "^tests/"},
+        "qualname": {"type": "string", "minLength": 1},
+        "line_start": {"type": "integer", "minimum": 1},
+        "suite": {"type": "string", "minLength": 1},
+        "fixtures": {"type": "array", "items": {"type": "string"}},
+        "markers": {"type": "array", "items": {"type": "string"}},
+        "production_targets": {"type": "array", "items": {"type": "string"}},
+        "symbol_id": {"type": "string", "pattern": "^s:"}
+      },
+      "additionalProperties": true
+    },
+    "git_commit": {
+      "type": "object",
+      "required": ["id", "kind", "sha", "parents", "epoch", "author_name", "subject"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^commit:[0-9a-f]{40}$"},
+        "kind": {"const": "git_commit"},
+        "sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "parents": {"type": "array", "items": {"type": "string", "pattern": "^commit:[0-9a-f]{40}$"}},
+        "epoch": {"type": "integer"},
+        "author_name": {"type": "string"},
+        "subject": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "git_ref": {
+      "type": "object",
+      "required": ["id", "kind", "object", "object_type", "ref"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^ref:"},
+        "kind": {"const": "git_ref"},
+        "object": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "object_type": {"type": "string", "minLength": 1},
+        "ref": {"type": "string", "pattern": "^refs/"}
+      },
+      "additionalProperties": true
+    },
+    "path_history": {
+      "type": "object",
+      "required": ["id", "kind", "path", "commit_count", "additions", "deletions", "first_sha", "last_sha"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^history:"},
+        "kind": {"const": "path_history"},
+        "path": {"type": "string", "minLength": 1},
+        "commit_count": {"type": "integer", "minimum": 1},
+        "additions": {"type": "integer", "minimum": 0},
+        "deletions": {"type": "integer", "minimum": 0},
+        "first_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "last_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+      },
+      "additionalProperties": true
+    },
+    "semantic": {
+      "type": "object",
+      "required": ["id", "kind", "state", "confidence", "evidence"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^(component:|inv:|flow:|persist:|conc:|iface:|task:|claim:|risk:)"},
+        "kind": {"type": "string", "enum": ["component", "invariant", "runtime_flow", "persistence", "concurrency", "interface", "task_route", "claim", "hazard"]},
+        "state": {"type": "string", "enum": ["verified_current", "intended_only", "historical", "conflicted", "unknown"]},
+        "confidence": {"$ref": "#/$defs/confidence"},
+        "evidence": {"type": "array", "items": {"$ref": "#/$defs/evidence"}}
+      },
+      "additionalProperties": true
+    }
+  },
+  "x-id-prefixes": {
+    "f": "repository file",
+    "s": "source symbol",
+    "db": "database relation mentioned or defined in SQL",
+    "cfg": "configuration or environment key",
+    "evt": "handled message/event candidate",
+    "disc": "generic type-discriminator candidate; not proof of a transport event",
+    "rt": "runtime/concurrency primitive",
+    "e": "directed graph edge",
+    "test": "collected static test record",
+    "commit": "Git commit",
+    "ref": "Git ref, excluding local Codex turn-diff refs",
+    "history": "per-path Git history aggregate",
+    "component": "curated subsystem or ownership boundary",
+    "conc": "curated concurrency or lock contract",
+    "flow": "curated ordered runtime flow",
+    "iface": "curated external or internal interface",
+    "inv": "curated invariant",
+    "persist": "curated persistence ownership or lifecycle",
+    "risk": "hazard or unresolved contradiction",
+    "claim": "documented or operator-stated assertion",
+    "task": "task-to-evidence retrieval route"
+  },
+  "x-generated-indexes": [
+    "index/files.jsonl",
+    "index/symbols.jsonl",
+    "index/edges.jsonl",
+    "index/tests.jsonl",
+    "index/git_commits.jsonl",
+    "index/git_refs.jsonl",
+    "index/path_history.jsonl"
+  ]
+}

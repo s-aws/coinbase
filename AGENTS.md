@@ -8,6 +8,7 @@ This project runs on **Windows 11 + VS Code**. Linux/bash commands may not work 
 2. **[ai-context.md](ai-context.md)** - Index and authority rules for versioned context in `genai_data/`
 3. Read only the task-relevant `genai_data/` files routed by `ai-context.md`; do not load the directory wholesale.
 4. Inspect a `genai_tools/` file only when the task names it or evidence gathering requires it. The directory is never authoritative context.
+5. **Codex only:** route non-trivial repository work through `codex_repo_graph/ENTRYPOINT.md`; other agents do not need to load that directory.
 
 ## Hard Constraints (non-negotiable)
 
