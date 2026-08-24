@@ -1528,7 +1528,7 @@
                 </div>
                 <div class="condition-field">
                     <label>Hold Duration (sec) *</label>
-                    <input type="number" name="hold_duration_seconds" placeholder="2" step="1" min="0" required>
+                    <input type="number" name="hold_duration_seconds" value="0" step="1" min="0" required>
                 </div>
             `,
             cumulative_volume: `
@@ -1599,7 +1599,9 @@
                 case 'price':
                     if (conditionJson.price_threshold) details.push(`Threshold: $${parseFloat(conditionJson.price_threshold).toFixed(2)}`);
                     if (conditionJson.direction) details.push(`Direction: ${conditionJson.direction}`);
-                    if (conditionJson.hold_duration_seconds) details.push(`Hold: ${conditionJson.hold_duration_seconds}s`);
+                    if (conditionJson.hold_duration_seconds !== undefined && conditionJson.hold_duration_seconds !== null) {
+                        details.push(`Hold: ${conditionJson.hold_duration_seconds}s`);
+                    }
                     break;
                 case 'cumulative_volume':
                     if (conditionJson.price_level) details.push(`Price: $${parseFloat(conditionJson.price_level).toFixed(2)}`);
@@ -3306,11 +3308,26 @@
             const condition = { type };
 
             fields.forEach(field => {
-                if (field.name && field.value) {
+                if (field.name && field.value !== '') {
                     const value = field.type === 'number' ? parseFloat(field.value) : field.value;
                     condition[field.name] = value;
                 }
             });
+
+            if (type === 'price') {
+                const holdDurationField = container
+                    ? container.querySelector('[name="hold_duration_seconds"]')
+                    : null;
+                const rawHoldDuration = holdDurationField ? holdDurationField.value.trim() : '';
+                const holdDuration = Number(rawHoldDuration);
+
+                if (rawHoldDuration === '' || !Number.isInteger(holdDuration) || holdDuration < 0) {
+                    showMessage('Hold duration must be a non-negative whole number of seconds', 'error');
+                    return null;
+                }
+
+                condition.hold_duration_seconds = holdDuration;
+            }
 
             return condition;
         }
@@ -3326,13 +3343,18 @@
             const targetMovementType = document.getElementById('target_movement_type').value;
             const allowPartialFills = document.getElementById('allow_partial_fills').checked;
             const enableHotpointReplication = document.getElementById('enable_hotpoint_replication').checked;
+            const revealCondition = buildRevealCondition();
+
+            if (!revealCondition) {
+                return;
+            }
 
             const order = {
                 product_id: document.getElementById('product_id').value,
                 side: document.getElementById('side').value,
                 total_size: parseFloat(document.getElementById('total_size').value),
                 limit_price: parseFloat(document.getElementById('limit_price').value),
-                reveal_condition: buildRevealCondition(),
+                reveal_condition: revealCondition,
                 follow_up_reveal_direction: document.getElementById('follow_up_reveal_direction').value,
                 reveal_pricing_policy: document.getElementById('reveal_pricing_policy').value,
                 sizing_strategy: buildSizingStrategy(),
