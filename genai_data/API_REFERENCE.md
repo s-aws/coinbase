@@ -1599,10 +1599,78 @@ keeps live Coinbase execution disabled.
 
 ### Account and portfolio
 - `get_account_wallets()`
-- `get_transaction_summary()`
+- `get_transaction_summary(product_type=None, contract_expiry_type=None, product_venue=None)`
 - `get_accounts()`
 - `get_portfolio(portfolio_id)`
 - `list_portfolios()`
+
+#### Transaction-summary fee schedules
+
+`CoinbaseRestClient.get_transaction_summary(...)` wraps the authenticated
+Advanced Trade endpoint:
+
+```text
+GET /api/v3/brokerage/transaction_summary
+```
+
+The wrapper accepts canonical enums and forwards their values using the SDK's
+exact query names:
+
+- `product_type`: `SPOT` or `FUTURE`
+- `contract_expiry_type`: `EXPIRING` or `PERPETUAL`; applicable to futures
+- `product_venue`: project enum currently exposes `CBE` and `FCM` (the
+  Coinbase endpoint also documents `INTX`)
+
+With no filters, the wrapper preserves the SDK's unfiltered call. Production
+fee refreshes do not use that ambiguous aggregate. `FeeManager` makes two
+independent filtered requests:
+
+```text
+SPOT   + CBE
+FUTURE + EXPIRING + FCM
+```
+
+The response is a transaction-summary object, not the historical
+`GET /api/v1/fees` shape. Relevant fields are:
+
+- `total_fees`
+- `fee_tier.pricing_tier`
+- `fee_tier.maker_fee_rate`
+- `fee_tier.taker_fee_rate`
+- `fee_tier.aop_from` / `fee_tier.aop_to`
+- `fee_tier.volume_types_and_range[]`
+- `margin_rate` for futures responses
+- `advanced_trade_only_volume` / `advanced_trade_only_fees`
+- `coinbase_pro_volume` / `coinbase_pro_fees`
+- `total_balance`
+- `volume_breakdown[]`
+- `has_cost_plus_commission`
+- optional `has_promo_fee` when supplied by the SDK/API response
+
+`FeeManager` caches one immutable snapshot per canonical product type, not one
+snapshot per product id. A product id selects either the shared SPOT/CBE cache
+or the shared FUTURE/EXPIRING/FCM cache. A valid explicit `product_type` hint
+wins when a profitability caller has no canonical exchange product id; missing
+or unknown ids without a valid hint resolve to the conservative SPOT cache.
+Each filtered refresh is atomic: one request may succeed while the other
+retains its own last-known-good/default snapshot. A futures response is rejected
+unless `has_cost_plus_commission` is explicitly `true`.
+
+Public inspection surfaces are
+`get_fee_schedule_snapshot(product_id)`,
+`get_profit_validation_fee_quote(product_id, post_only, product_type=None)`, and
+`get_fee_info(product_id)`. A quote uses the maker rate only when
+`post_only=True`; every other order uses the taker rate. Quote telemetry carries
+the selected source, pricing tier, cost-plus flag, liquidity assumption,
+exchange rate, and validation rate from the same immutable sample.
+
+These percentage schedules are separate from the CDE fixed per-contract cost.
+The settlement-confirmed BIP/default fixed cost is `$0.12` per contract side;
+the legacy full-size BTI/ETI/SLC/XRL value remains `$0.27` per contract side
+pending independent reconciliation. This configuration change requires no
+database correction or backfill. Use
+`genai_tools/check_live_fee_tier.py` for a read-only live diagnostic of both
+filtered responses and the corresponding public FeeManager snapshots/quotes.
 
 `get_account_wallets()` follows Coinbase `get_accounts` pagination before
 building the currency-to-wallet map. Do not replace it with a single

@@ -1,28 +1,33 @@
-"""Regression: ``post_only`` propagation across all profitability call sites.
+"""Regression: ``post_only`` propagation across profitability call sites.
 
 Background (2026-05-01)
 ========================
 
-The reveal-time profitability check was wired to derive ``post_only`` from
-``RevealPricingPolicy``, but two sibling call sites were not:
+Reveal-policy callers derive ``post_only`` from ``RevealPricingPolicy``:
 
-1. ``StealthOrderManager._validate_anchor_reprice_profitability``
-   (anchor reprice path) — silently used taker rate, over-rejecting
-   TOP_OF_BOOK / MIDPOINT repricings.
-2. ``OrderEngine`` follow-up creation pre-check — same bug for
-   stealth follow-ups.
+1. Stealth pre-flight feasibility.
+2. ``OrderEngine`` follow-up creation pre-check.
 
 Root cause: the policy → ``post_only`` derivation rule was open-coded.
 Fix: extract ``StealthOrderManager._resolve_post_only_from_policy`` and
-route every site through it. This test file is the static guard that
-prevents the duplication from creeping back.
+route reveal-policy sites through it.
+
+Anchor behavior is state-specific: HIDDEN/PENDING/TRIGGERED processing changes
+only the local price and therefore retains eventual reveal-policy semantics;
+an already-REVEALED order is replaced directly using
+``RepricingPolicy.post_only_required``. This file guards both rules.
 """
 from __future__ import annotations
 
 import re
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
+
+from core.enums import StealthOrderStatus
+from core.models import RepricingPolicy
+from core.stealth_order_manager import StealthOrderManager
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -50,8 +55,8 @@ def test_canonical_post_only_helper_exists():
     )
 
 
-def test_anchor_reprice_validator_passes_post_only():
-    """Anchor-reprice profitability check must thread post_only."""
+def test_anchor_reprice_validator_uses_status_specific_post_only_source():
+    """Anchor validation must match the operation the current state performs."""
     fn_match = re.search(
         r"def _validate_anchor_reprice_profitability\(.*?(?=\n    def )",
         _STEALTH_SRC,
@@ -59,23 +64,86 @@ def test_anchor_reprice_validator_passes_post_only():
     )
     assert fn_match is not None, "_validate_anchor_reprice_profitability not found"
     body = fn_match.group(0)
+    assert "StealthOrderStatus.REVEALED.value" in body, (
+        "Anchor validation must distinguish direct replacements from local reprices."
+    )
+    assert "RepricingPolicy.coerce(repricing_policy)" in body, (
+        "Revealed anchor replacements must consume the replacement policy."
+    )
     assert "_resolve_post_only_from_policy(" in body, (
-        "Anchor-reprice path must derive post_only via canonical helper "
-        "(was: silently passing taker rate, over-rejecting TOP_OF_BOOK reprices)."
+        "Hidden anchor reprices must retain eventual reveal-policy semantics."
     )
     assert "post_only=" in body, (
         "Anchor-reprice path must pass post_only= to validate_order_profitability"
     )
 
 
+@pytest.mark.parametrize(
+    (
+        "status",
+        "reveal_policy",
+        "post_only_required",
+        "expected_post_only",
+    ),
+    [
+        (StealthOrderStatus.HIDDEN.value, "top_of_book", False, True),
+        (StealthOrderStatus.PENDING.value, "top_of_book", False, True),
+        (StealthOrderStatus.TRIGGERED.value, "configured_limit", True, False),
+        (StealthOrderStatus.REVEALED.value, "top_of_book", False, False),
+        (StealthOrderStatus.REVEALED.value, "configured_limit", True, True),
+    ],
+)
+def test_anchor_reprice_validator_matches_actual_state_transition(
+    status,
+    reveal_policy,
+    post_only_required,
+    expected_post_only,
+):
+    """Local reprices use reveal policy; direct replacements use anchor policy."""
+    captured = []
+    validator = SimpleNamespace(
+        derive_follow_up_price_from_target=lambda **_kwargs: 101.0,
+        validate_order_profitability=lambda **kwargs: (
+            captured.append(kwargs)
+            or {"is_profitable": True}
+        ),
+    )
+    manager = StealthOrderManager(db_client=None, profit_validator=validator)
+    order = {
+        "stealth_order_id": "anchor-policy-test",
+        "product_id": "TEST-PRODUCT",
+        "side": "BUY",
+        "total_size": 1.0,
+        "remaining_size": 1.0,
+        "target_movement": 0.01,
+        "target_movement_type": "P",
+        "status": status,
+        "reveal_pricing_policy": reveal_policy,
+    }
+
+    manager._validate_anchor_reprice_profitability(
+        order=order,
+        candidate_entry_price=100.0,
+        repricing_policy=RepricingPolicy(
+            enabled=True,
+            post_only_required=post_only_required,
+        ),
+    )
+
+    assert captured[0]["post_only"] is expected_post_only
+
+
 def test_pre_flight_feasibility_uses_canonical_helper():
     """Pre-flight feasibility must route through the canonical helper."""
-    # The pre-flight method computes min-viable target movement; locate it
-    # by the validate_order_profitability call site near
-    # _compute_min_viable_target_movement.
-    assert _STEALTH_SRC.count("_resolve_post_only_from_policy(") >= 2, (
-        "Pre-flight feasibility was not refactored to the canonical helper "
-        "(expect at least anchor-reprice + pre-flight call sites)."
+    fn_match = re.search(
+        r"def _check_target_movement_feasibility\(.*?(?=\n    def )",
+        _STEALTH_SRC,
+        re.DOTALL,
+    )
+    assert fn_match is not None, "_check_target_movement_feasibility not found"
+    assert "_resolve_post_only_from_policy(" in fn_match.group(0), (
+        "Pre-flight feasibility must derive reveal-policy post_only through "
+        "the canonical helper."
     )
 
 

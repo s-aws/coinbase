@@ -95,7 +95,12 @@ class _StaticFeeManager:
     def __init__(self, rate: float):
         self._rate = rate
 
-    def get_profit_validation_fee_rate(self, product_id=None, post_only=False):
+    def get_profit_validation_fee_rate(
+        self,
+        product_id=None,
+        post_only=False,
+        product_type=None,
+    ):
         # post_only accepted for API parity with FeeManager; this stub
         # pins a single rate regardless of liquidity assumption.
         return self._rate

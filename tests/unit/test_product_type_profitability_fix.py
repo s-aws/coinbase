@@ -22,6 +22,7 @@ import pytest
 
 from calculation.profit_validator import ProfitValidator
 from core.enums import ProductType
+from core.models import RepricingPolicy
 from core.stealth_order_manager import StealthOrderManager
 
 
@@ -63,7 +64,9 @@ class TestStealthManagerPassesOnlyProductId:
         stealth_manager.in_memory_orders["anchor-1"] = order
 
         stealth_manager._validate_anchor_reprice_profitability(
-            order=order, candidate_entry_price=77390.0
+            order=order,
+            candidate_entry_price=77390.0,
+            repricing_policy=RepricingPolicy(post_only_required=True),
         )
 
         call_kwargs = stealth_manager.profit_validator.validate_order_profitability.call_args[1]

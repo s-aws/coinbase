@@ -160,6 +160,27 @@ class ContractExpiryType(str, Enum):
     UNKNOWN_CONTRACT_EXPIRY_TYPE = "UNKNOWN_CONTRACT_EXPIRY_TYPE"
 
 
+class ProductVenue(str, Enum):
+    """Coinbase product venue accepted by transaction-summary filters."""
+
+    CBE = "CBE"
+    FCM = "FCM"
+
+
+class FeeScheduleSource(str, Enum):
+    """Origin of the exchange-rate values held by ``FeeManager``."""
+
+    DEFAULT = "default"
+    COINBASE = "coinbase"
+
+
+class LiquidityAssumption(str, Enum):
+    """Liquidity model used for pre-trade fee validation."""
+
+    MAKER = "maker"
+    TAKER = "taker"
+
+
 class Direction(str, Enum):
     """Directional threshold comparisons for conditions.
     

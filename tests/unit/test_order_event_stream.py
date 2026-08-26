@@ -171,13 +171,21 @@ def test_publish_event_enriches_payload_with_fee_manager_audit():
 
     publisher.set_fee_info_provider(
         lambda product_id=None: {
+            "product_type": "SPOT",
+            "product_venue": "CBE",
             "taker_fee_rate": 0.006,
+            "maker_fee_rate": 0.004,
             "profit_validation_fee_rate": 0.012,
+            "profit_validation_fee_rate_taker": 0.012,
+            "profit_validation_fee_rate_maker": 0.008,
             "target_movement_factor": 1.1,
             "fee_regime_factor": 1.2,
+            "fee_validation_factor": 1.2,
             "volume_ratio": 0.75,
             "overnight_margin_active": False,
             "margin_window_type": "INTRADAY",
+            "pricing_tier": "Advanced 8",
+            "fee_schedule_source": "coinbase",
             "last_updated": "2026-04-25T06:30:00",
             "is_stale": False,
             "product_echo": product_id,
@@ -190,6 +198,7 @@ def test_publish_event_enriches_payload_with_fee_manager_audit():
         payload={
             "client_order_id": "cid-1",
             "product_id": "BTC-USDC",
+            "post_only": True,
             "trigger_payload": {"reason": "unit_test"},
         },
         idempotency_key="ws:OPEN:cid-1:OPEN",
@@ -204,8 +213,52 @@ def test_publish_event_enriches_payload_with_fee_manager_audit():
     assert fee_audit is not None
     assert fee_audit["product_id"] == "BTC-USDC"
     assert fee_audit["taker_fee_rate"] == 0.006
+    assert fee_audit["maker_fee_rate"] == 0.004
+    assert fee_audit["selected_exchange_fee_rate"] == 0.004
+    assert fee_audit["selected_profit_validation_fee_rate"] == 0.008
+    assert fee_audit["liquidity_assumption"] == "maker"
+    assert fee_audit["fee_schedule_source"] == "coinbase"
     assert fee_audit["margin_window_type"] == "INTRADAY"
     assert inserted["trigger_payload_json"]["fee_manager_audit"]["fee_regime_factor"] == 1.2
+
+
+@pytest.mark.parametrize(
+    ("post_only", "expected_liquidity", "expected_rate"),
+    [
+        (True, "maker", 0.004),
+        ("true", "maker", 0.004),
+        (" TRUE ", "maker", 0.004),
+        (False, "taker", 0.006),
+        ("false", "taker", 0.006),
+        (None, "taker", 0.006),
+        ("not-a-boolean", "taker", 0.006),
+    ],
+)
+def test_fee_audit_parses_local_and_websocket_post_only_values(
+    post_only,
+    expected_liquidity,
+    expected_rate,
+):
+    publisher = OrderEventStreamPublisher(FakeDBModule())
+    publisher.set_fee_info_provider(
+        lambda product_id=None: {
+            "product_type": "SPOT",
+            "product_venue": "CBE",
+            "taker_fee_rate": 0.006,
+            "maker_fee_rate": 0.004,
+            "profit_validation_fee_rate_taker": 0.006,
+            "profit_validation_fee_rate_maker": 0.004,
+        }
+    )
+
+    audit = publisher._build_fee_manager_audit_context({
+        "product_id": "BTC-USDC",
+        "post_only": post_only,
+    })
+
+    assert audit["liquidity_assumption"] == expected_liquidity
+    assert audit["selected_exchange_fee_rate"] == expected_rate
+    assert audit["selected_profit_validation_fee_rate"] == expected_rate
 
 
 def test_post_submission_hook_publishes_only_explicitly_accepted_placement():

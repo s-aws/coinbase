@@ -1,46 +1,13 @@
-"""Profit Validator - Ensures trades are profitable after fees.
+"""Validate follow-up profitability against a conservative round-trip model.
 
-Validates that follow-up orders will be profitable after accounting for exchange fees.
-Uses dynamic fee rates from FeeManager to ensure we charge enough to cover costs and profit.
+Percentage exchange fees are budgeted on both the entry and exit notional.
+``FeeManager`` supplies an immutable quote selected from the product-specific
+fee schedule: maker only when ``post_only=True`` and taker otherwise. Futures
+also include the product's all-in fixed per-contract fee on both sides.
 
-Fee Charging Model (CRITICAL):
-- Fees are charged ONLY when orders CLOSE on the exchange
-- Open orders (establishing position) have NO fee yet
-- Close orders (exiting position) incur TWO fee types:
-    1. Percentage fee (adaptive taker fee from FeeManager)
-  2. Mandatory fixed fee (FUTURE/PERPETUAL only: $0.15 per contract)
-
-Fee Components by Product Type:
-- SPOT: Only percentage fee (adaptive effective rate)
-- FUTURE: Percentage fee + Mandatory $0.15 per contract
-- PERPETUAL: Percentage fee + Mandatory $0.15 per contract
-
-What constitutes "open" vs "close" depends on product type:
-- SPOT: BUY=open, SELL=close (always)
-- FUTURE/PERPETUAL: Depends on position
-  - If position is LONG: BUY=open, SELL=close
-  - If position is SHORT: SELL=open, BUY=close
-
-This validator ensures follow-up orders capture enough profit to exceed the fee
-charged when the close order fills.
-
-Example (SPOT: BUY @$50K, SELL @$52.5K):
-    Parent BUY fills @$50,000 (OPEN, taker fee charged on this fill)
-    Follow-up SELL fills @$52,500 (CLOSE, taker fee charged on this fill)
-    Fee rate: live effective rate from FeeManager (base × cushion multiplier)
-    Round-trip percentage fee: ($50,000 + $52,500) × size × effective_fee_rate
-    Gross profit: $52,500 - $50,000 = $2,500
-    Net profit: $2,500 - round_trip_fees ✓ PROFITABLE when positive
-
-Example (FUTURE SHORT position: SELL @$50K, BUY @$48.5K with 5 contracts):
-    Account is SHORT, so SELL=open, BUY=close
-    Parent SELL fills @$50,000 (OPEN for SHORT, no fee yet)
-    Fee when BUY closes:
-            - Percentage: $48,500 × effective_fee_rate
-      - Mandatory: $0.15 × 5 contracts = $0.75
-            - Total: percentage_fee + mandatory_fee
-    Gross profit: ($50,000 - $48,500) × 5 = $7,500
-        Net profit: gross_profit - total_fees ✓ PROFITABLE when positive
+This is pre-trade validation, not fill-ledger accounting. It intentionally
+assumes the same selected liquidity rate for both legs; actual fill liquidity
+and statement rounding are outside this decision path.
 """
 
 from typing import Dict, Any, Optional
@@ -48,7 +15,12 @@ import logging
 from calculation.formatter import safe_float
 from configuration import determine_open_close_sides
 from core.constants import get_derivatives_per_side_fee
-from core.enums import OrderSide, ProductType, TargetMovementType
+from core.enums import (
+    LiquidityAssumption,
+    OrderSide,
+    ProductType,
+    TargetMovementType,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -62,12 +34,12 @@ class ProfitValidator:
     
     **SPOT Products:**
     - No leverage, no liquidation risk
-    - Profit = (sell_price - buy_price) × size - fee_on_close
+    - Profit = (sell_price - buy_price) × size - round_trip_percentage_fees
     - ✅ FULLY IMPLEMENTED: Basic profitability check
     
     **FUTURE Products:**
     - Uses leverage (up to 20x), has liquidation risk
-    - Profit = (close_price - open_price) × size × leverage - fee_on_close
+    - Profit = price movement × contract size - round_trip fees
     - ✅ IMPLEMENTED: Basic profitability + open/close logic
     - ⚠️ TODO: Margin validation (ensure position won't liquidate)
     - ⚠️ TODO: Liquidation distance check
@@ -76,16 +48,16 @@ class ProfitValidator:
     **PERPETUAL Products:**
     - Uses leverage (up to 20x), has liquidation risk
     - Has continuous funding rates (not expiry-based)
-    - Profit = (close_price - open_price) × size × leverage - fee_on_close - funding_costs
+    - Profit = price movement × size - round_trip fees - funding costs
     - ✅ IMPLEMENTED: Basic profitability + open/close logic
     - ⚠️ TODO: Margin validation (ensure position won't liquidate)
     - ⚠️ TODO: Liquidation distance check
     - ⚠️ TODO: Funding rate accounting (continuous cost model)
     
     Ensures follow-up orders will be profitable after accounting for:
-    - Fee charged when close order fills (not open order)
+    - Percentage fees budgeted on both entry and exit fills
     - Correct identification of open vs close orders for the product type
-    - Adaptive taker fee from FeeManager
+    - Atomic maker/taker validation quote from FeeManager
     - (Future work: Margin/liquidation checks for leveraged products)
     
     Thread-safe: Can be called from multiple threads with same fee_manager instance.
@@ -175,7 +147,12 @@ class ProfitValidator:
             "position_side": position_side,
         }
     
-    def _get_fee_rate(self, product_id: str = None, post_only: bool = False) -> float:
+    def _get_fee_rate(
+        self,
+        product_id: str = None,
+        post_only: bool = False,
+        product_type: str = None,
+    ) -> float:
         """Get current effective fee rate (adaptive base multiplier model).
 
         Args:
@@ -185,11 +162,14 @@ class ProfitValidator:
                 instead of the taker rate. Default ``False`` matches the
                 behavior for ``CONFIGURED_LIMIT`` reveals where the user-
                 supplied price may cross the spread (taker semantics).
+            product_type: Optional explicit schedule hint when ``product_id``
+                is missing or is a local alias.
         """
         if self.fee_manager:
             return self.fee_manager.get_profit_validation_fee_rate(
                 product_id=product_id,
                 post_only=post_only,
+                product_type=product_type,
             )
         else:
             # Fallback to conservative default. Use a maker-style estimate
@@ -262,6 +242,7 @@ class ProfitValidator:
         contract_size: float = None,
         triggered_by_fill: bool = False,
         post_only: bool = False,
+        _fee_rate_override: Optional[float] = None,
     ) -> Dict[str, Any]:
         """
         Check if follow-up order is profitable after fees.
@@ -289,37 +270,11 @@ class ProfitValidator:
         - ⚠️ Funding rates NOT accounted for (TODO)
         - Must add: margin, liquidation_price, current_funding_rate
         
-        ⚠️ CRITICAL FEE CHARGING MODEL:
-        
-        Fees are charged ONLY when orders CLOSE (fill on exchange):
-        - Open order (parent): NO FEE YET (order is pending)
-        - Close order (follow-up): FEE CHARGED when it fills
-        
-        For BUY parent → SELL follow-up:
-            - Parent BUY @ $50,000: OPEN, no fee yet
-            - Parent BUY fills: no close fee is charged yet
-            - Follow-up SELL @ $52,500: OPEN, no fee yet
-            - Follow-up SELL fills: fee charged = $52,500 × size × effective_fee_rate
-        
-        But we only validate against the FOLLOW-UP/CLOSE fee, not both:
-        - Profit = (follow_up_price - filled_price) × size
-        - Fee charged = follow_up_price × size × effective_fee_rate
-        - Net profit = Profit - Fee_on_close_only
-        
-        We require: Net profit > 0 (profit must exceed close-order fees)
-        
-        Example with real numbers:
-            Parent BUY fills @$50,000 × 1 BTC (open position)
-            Follow-up SELL @$52,500 × 1 BTC (close position)
-            Base Coinbase fee: 0.6%
-            Effective fee: adaptive effective_rate
-            
-            NO fee on parent buy (it's the open order)
-            Fee on follow-up sell (close): $52,500 × 1 × effective_fee_rate
-            
-            Gross profit: $52,500 - $50,000 = $2,500
-            Total fees: close_fee_amount (only on close)
-            Net profit: $2,500 - close_fee_amount ✓ PROFITABLE when positive
+        Fee model:
+        - Percentage fees = (entry price + exit price) × effective size × rate.
+        - Futures fixed fees = all-in per-contract/side × contracts × 2 sides.
+        - Maker rate is permitted only when ``post_only=True``; otherwise the
+          quote assumes taker regardless of the submitted limit price.
         
         Args:
             filled_price: Price at which parent order filled (the OPEN position)
@@ -345,14 +300,14 @@ class ProfitValidator:
             - net_profit: Profit in USD after fees (percentage + mandatory)
             - net_profit_pct: Profit as percentage of filled_price
             - gross_profit: Profit before fees
-            - total_fees: Total fees charged on close order (percentage + mandatory)
+            - total_fees: Budgeted round-trip percentage + mandatory fees
             - percentage_fees: Percentage-based fee component
             - mandatory_fees: Fixed fee component (FUTURE/PERPETUAL only)
             - fee_rate_applied: Effective fee rate used (base × multiplier × regime)
             - breakeven_price: Price needed to break even
             - minimum_viable_price: Price needed to meet min_profit_margin
             - open_side: Which side is the OPEN order
-            - close_side: Which side is the CLOSE order (where fee is charged)
+            - close_side: Which side closes the position
             
         Example (SPOT):
             >>> validator = ProfitValidator(fee_manager)
@@ -410,7 +365,15 @@ class ProfitValidator:
         # Get the effective fee rate (base_fee_rate x multiplier x regime_factor).
         # post_only orders rest as makers (lower rate); regular orders that
         # may cross the spread pay the taker rate.
-        fee_rate = self._get_fee_rate(product_id=product_id, post_only=post_only)
+        fee_rate = (
+            _fee_rate_override
+            if _fee_rate_override is not None
+            else self._get_fee_rate(
+                product_id=product_id,
+                post_only=post_only,
+                product_type=product_type,
+            )
+        )
         
         # For FUTURE/PERPETUAL products, order_size is in "number of contracts"
         # We need to convert to actual position size (in BTC/units) for fee calculation
@@ -435,8 +398,9 @@ class ProfitValidator:
             # Parent was SELL (open), follow-up will be BUY (close)
             gross_profit = (filled_price - follow_up_price) * effective_size
         
-        # Calculate fees - BOTH sides incur taker fees (open + close).
-        # Coinbase charges its taker fee on every fill, not just on close.
+        # Budget the selected maker/taker rate on BOTH sides (open + close).
+        # The pre-trade model intentionally applies one liquidity assumption
+        # to the complete round trip.
         # The pre-2026-05-01 formula computed only the close-side fee and
         # relied on a hidden 2.0 multiplier in FeeManager to compensate.
         # That coupling silently broke when the multiplier was tuned away
@@ -454,12 +418,13 @@ class ProfitValidator:
         # Add mandatory fixed fee for FUTURE/PERPETUAL contracts.
         # Coinbase's March 2026 schedule charges the per-contract
         # commission per side (open + close), so round-trip = 2 × per-side.
-        # Per-side rate depends on tier (full-size BTI/ETI/SLC/XRL = $0.20,
-        # nano/perp-style = $0.10). Resolved per product_id.
+        # Per-side all-in rate depends on product (settlement-reconciled
+        # default = $0.12; explicit legacy full-size assumption = $0.27).
+        # Resolved per product_id.
         # SPOT products have no mandatory fee.
         mandatory_fees = 0.0
         if product_type == ProductType.FUTURE.value:
-            per_side_fee = get_derivatives_per_side_fee(product_id) if product_id else 0.10
+            per_side_fee = get_derivatives_per_side_fee(product_id or "")
             mandatory_fees = per_side_fee * order_size * 2.0
 
             if triggered_by_fill:
@@ -523,9 +488,9 @@ class ProfitValidator:
                                   close_side: str = 'SELL') -> float:
         """Calculate price needed to break even (zero profit).
         
-        Round-trip fee model: Coinbase charges the taker fee on BOTH the
-        open fill (parent) and the close fill (follow-up). The break-even
-        price therefore has to clear two fee instances, not one.
+        Round-trip fee model: the selected validation rate is budgeted on
+        BOTH the open fill (parent) and the close fill (follow-up). The
+        break-even price therefore has to clear two fee instances, not one.
         
         For BUY parent → SELL follow-up:
             Net profit = (sell - buy) × size - (buy + sell) × size × fee_rate
@@ -571,9 +536,9 @@ class ProfitValidator:
                                        close_side: str = 'SELL') -> float:
         """Calculate price needed to achieve desired minimum profit.
 
-        Builds on the round-trip break-even (taker fee on both open and
-        close fills), then adds the per-unit profit headroom required to
-        clear ``min_profit``.
+        Builds on the round-trip break-even (selected validation rate on both
+        open and close fills), then adds the per-unit profit headroom required
+        to clear ``min_profit``.
 
         Args:
             filled_price: Original fill price (open order)
@@ -632,8 +597,6 @@ class ProfitValidator:
         Returns:
             Dict with profitability assessment and remediation suggestions
         """
-        fee_rate = self._get_fee_rate(product_id=product_id, post_only=post_only)
-        
         # Validate inputs
         if order_size <= 0:
             return {
@@ -661,6 +624,28 @@ class ProfitValidator:
         
         # Calculate profitability
         min_profit = parent_filled_price * min_margin_pct * order_size
+
+        # Sample the complete FeeManager quote once. Every field used by this
+        # decision is then immutable even if the hourly refresh or websocket
+        # regime state changes concurrently while the math is running.
+        fee_quote = None
+        quote_getter = (
+            getattr(type(self.fee_manager), "get_profit_validation_fee_quote", None)
+            if self.fee_manager is not None else None
+        )
+        if callable(quote_getter):
+            fee_quote = self.fee_manager.get_profit_validation_fee_quote(
+                product_id=product_id,
+                post_only=post_only,
+                product_type=product_type,
+            )
+            fee_rate = fee_quote.validation_fee_rate
+        else:
+            fee_rate = self._get_fee_rate(
+                product_id=product_id,
+                post_only=post_only,
+                product_type=product_type,
+            )
         
         # Pass through to is_profitable() which handles auto-resolution of product context
         result = self.is_profitable(
@@ -675,6 +660,7 @@ class ProfitValidator:
             contract_size=contract_size,
             triggered_by_fill=triggered_by_fill,
             post_only=post_only,
+            _fee_rate_override=fee_rate,
         )
         
         # Add validation status and remediation
@@ -685,11 +671,28 @@ class ProfitValidator:
         # FeeManager directly. The legacy ``/ 2.0`` divisor here was a
         # leftover from when DEFAULT_MULTIPLIER was hardcoded to 2.0 and
         # would lie about the base rate after the 2026-05-01 split.
-        result["fee_rate_effective"] = self._get_fee_rate(product_id=product_id, post_only=post_only)
+        result["fee_rate_effective"] = fee_rate
         result["parent_filled_price"] = parent_filled_price
         result["follow_up_proposed_price"] = follow_up_price
         result["order_size"] = order_size
-        result["liquidity_assumption"] = "maker" if post_only else "taker"
+        liquidity_assumption = (
+            LiquidityAssumption.MAKER
+            if post_only else LiquidityAssumption.TAKER
+        )
+        result["liquidity_assumption"] = liquidity_assumption.value
+        if fee_quote is not None:
+            result.update({
+                "exchange_fee_rate": fee_quote.exchange_fee_rate,
+                "fee_product_type": fee_quote.product_type.value,
+                "fee_product_multiplier": fee_quote.product_multiplier,
+                "fee_regime_factor": fee_quote.raw_fee_regime_factor,
+                "fee_validation_factor": fee_quote.applied_fee_regime_factor,
+                "fee_pricing_tier": fee_quote.pricing_tier,
+                "fee_schedule_source": fee_quote.source.value,
+                "fee_has_cost_plus_commission": (
+                    fee_quote.has_cost_plus_commission
+                ),
+            })
         
         if not result["is_profitable"]:
             # Suggest adjusted price

@@ -1,30 +1,15 @@
-"""Regression: fee multiplier must be product-type-aware.
+"""Regression: fee schedule and cushion must both be product-type aware."""
 
-Background (2026-05-01)
-========================
-
-Pre-fix behaviour: ``FeeManager.DEFAULT_MULTIPLIER = 2.0`` doubled the
-live taker fee for every product, futures and spot alike. On futures,
-where the live taker is ~5 bps and the per-contract mandatory fee
-already provides a fixed-cost floor, this made any ``target_movement``
-under ~12 bps structurally infeasible (the BIT-29MAY26-CDE incident).
-
-Fix: split into ``FUTURES_FEE_MULTIPLIER = 1.0`` (no cushion — futures
-fees are too small for a 100% safety margin to be anything but a
-target-movement killer) and ``SPOT_FEE_MULTIPLIER = 1.1`` (10% cushion
-to absorb tier-slip on the higher 60-bps spot schedule). Routed by
-product type via the same orderbook-backed resolver
-``ProfitValidator`` uses, so the two paths can never disagree on
-product classification.
-"""
 from __future__ import annotations
 
+from copy import deepcopy
 from pathlib import Path
-from unittest.mock import Mock
+from types import SimpleNamespace
 
 import pytest
 
 from calculation.fee_manager import FeeManager
+from core.enums import ContractExpiryType, ProductType, ProductVenue
 
 
 _SRC = (
@@ -35,124 +20,134 @@ _SRC = (
 
 
 class _StubRestClient:
-    """Minimal REST client that returns a known taker rate."""
-    def get_transaction_summary(self):
-        return {"fee_tier": {"taker_fee_rate": "0.0006"}}  # 6 bps
+    """Strict client exposing intentionally distinct spot/futures rates."""
+
+    def get_transaction_summary(
+        self,
+        product_type=None,
+        contract_expiry_type=None,
+        product_venue=None,
+    ):
+        if product_type == ProductType.SPOT:
+            assert contract_expiry_type is None
+            assert product_venue == ProductVenue.CBE
+            return deepcopy({
+                "fee_tier": {
+                    "maker_fee_rate": "0.0040",
+                    "taker_fee_rate": "0.0060",
+                    "pricing_tier": "spot-test",
+                },
+                "has_cost_plus_commission": False,
+                "has_promo_fee": False,
+            })
+        if product_type == ProductType.FUTURE:
+            assert contract_expiry_type == ContractExpiryType.EXPIRING
+            assert product_venue == ProductVenue.FCM
+            return deepcopy({
+                "fee_tier": {
+                    "maker_fee_rate": "0.0004",
+                    "taker_fee_rate": "0.0006",
+                    "pricing_tier": "future-test",
+                },
+                "has_cost_plus_commission": True,
+                "has_promo_fee": False,
+            })
+        raise AssertionError(f"unexpected transaction-summary filters: {product_type!r}")
 
 
-def _make_orderbook(product_type_by_id: dict[str, str]) -> Mock:
-    """Build a Mock orderbook whose ``product`` dict carries the given
-    product_type for each id."""
-    ob = Mock()
-    ob.product = {
-        pid: {"product_type": ptype}
-        for pid, ptype in product_type_by_id.items()
-    }
-    return ob
+def _make_orderbook(product_type_by_id: dict[str, str]):
+    return SimpleNamespace(
+        product={
+            product_id: {"product_type": product_type}
+            for product_id, product_type in product_type_by_id.items()
+        }
+    )
 
 
-# ---------------------------------------------------------------------------
-# Static-source guards
-# ---------------------------------------------------------------------------
+def _manager(orderbook=None) -> FeeManager:
+    manager = FeeManager(
+        _StubRestClient(),
+        log_callback=lambda *_: None,
+        orderbook=orderbook,
+    )
+    assert manager._refresh_fee_rate() is True
+    return manager
 
 
 @pytest.mark.regression
 def test_split_multipliers_are_named_constants():
-    """Both multipliers MUST exist as named constants so the split
-    can't silently revert to a single global value."""
     assert "FUTURES_FEE_MULTIPLIER" in _SRC
     assert "SPOT_FEE_MULTIPLIER" in _SRC
 
 
 @pytest.mark.regression
 def test_legacy_default_multiplier_alias_preserved():
-    """Back-compat: tests / external callers still reading
-    ``FeeManager.DEFAULT_MULTIPLIER`` must keep working. The alias
-    should resolve to the SPOT value (the more conservative cushion)."""
     assert FeeManager.DEFAULT_MULTIPLIER == FeeManager.SPOT_FEE_MULTIPLIER
 
 
 @pytest.mark.regression
-def test_resolver_helper_is_called_from_public_paths():
-    """The product-type resolver must be invoked by every fee-rate
-    accessor; missing one would silently revert that path to the
-    pre-fix global multiplier."""
-    assert "_resolve_multiplier_unlocked" in _SRC
-    # All three public read paths must route through the resolver.
-    assert _SRC.count("_resolve_multiplier_unlocked(product_id)") >= 3
+def test_futures_product_uses_futures_schedule_and_multiplier():
+    manager = _manager(
+        _make_orderbook({"BIT-29MAY26-CDE": ProductType.FUTURE.value})
+    )
 
+    quote = manager.get_profit_validation_fee_quote("BIT-29MAY26-CDE")
 
-# ---------------------------------------------------------------------------
-# Behavioural tests
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.regression
-def test_futures_product_uses_futures_multiplier():
-    """A FUTURE product_id must yield base_fee * FUTURES_FEE_MULTIPLIER
-    * regime_factor (no doubling)."""
-    ob = _make_orderbook({"BIT-29MAY26-CDE": "FUTURE"})
-    mgr = FeeManager(_StubRestClient(), log_callback=lambda *_: None, orderbook=ob)
-    # Force a known base rate and bypass the live REST refresh.
-    mgr._taker_fee_rate = 0.0006
-
-    rate = mgr.get_profit_validation_fee_rate(product_id="BIT-29MAY26-CDE")
-    expected = 0.0006 * FeeManager.FUTURES_FEE_MULTIPLIER * 1.0  # neutral regime
-    assert rate == pytest.approx(expected)
-    # Sanity: with a 1.0x multiplier on futures, the rate equals the
-    # raw taker fee (modulo regime). The pre-fix bug would return 2x
-    # this number.
-    assert rate == pytest.approx(0.0006)
+    assert quote.product_type == ProductType.FUTURE
+    assert quote.exchange_fee_rate == pytest.approx(0.0006)
+    assert quote.product_multiplier == FeeManager.FUTURES_FEE_MULTIPLIER
+    assert quote.validation_fee_rate == pytest.approx(
+        0.0006 * FeeManager.FUTURES_FEE_MULTIPLIER
+    )
 
 
 @pytest.mark.regression
-def test_spot_product_uses_spot_multiplier():
-    """A SPOT product_id must yield base_fee * SPOT_FEE_MULTIPLIER."""
-    ob = _make_orderbook({"BTC-USDC": "SPOT"})
-    mgr = FeeManager(_StubRestClient(), log_callback=lambda *_: None, orderbook=ob)
-    mgr._taker_fee_rate = 0.0060
+def test_spot_product_uses_spot_schedule_and_multiplier():
+    manager = _manager(
+        _make_orderbook({"BTC-USD": ProductType.SPOT.value})
+    )
 
-    rate = mgr.get_profit_validation_fee_rate(product_id="BTC-USDC")
-    expected = 0.0060 * FeeManager.SPOT_FEE_MULTIPLIER * 1.0
-    assert rate == pytest.approx(expected)
+    quote = manager.get_profit_validation_fee_quote("BTC-USD")
 
-
-@pytest.mark.regression
-def test_unknown_product_falls_back_to_spot_multiplier():
-    """Conservative default: when product_id cannot be resolved, use
-    the SPOT (higher) multiplier. Cushioning a futures product is
-    suboptimal but not unsafe; under-cushioning a spot product would
-    break profitability checks."""
-    mgr = FeeManager(_StubRestClient(), log_callback=lambda *_: None, orderbook=None)
-    mgr._taker_fee_rate = 0.0006
-
-    rate = mgr.get_profit_validation_fee_rate(product_id="DOES-NOT-EXIST")
-    expected = 0.0006 * FeeManager.SPOT_FEE_MULTIPLIER * 1.0
-    assert rate == pytest.approx(expected)
+    assert quote.product_type == ProductType.SPOT
+    assert quote.exchange_fee_rate == pytest.approx(0.0060)
+    assert quote.product_multiplier == FeeManager.SPOT_FEE_MULTIPLIER
+    assert quote.validation_fee_rate == pytest.approx(
+        0.0060 * FeeManager.SPOT_FEE_MULTIPLIER
+    )
 
 
 @pytest.mark.regression
-def test_no_product_id_falls_back_to_spot_multiplier():
-    """Same fallback applies when product_id is omitted entirely."""
-    mgr = FeeManager(_StubRestClient(), log_callback=lambda *_: None)
-    mgr._taker_fee_rate = 0.0006
+@pytest.mark.parametrize("product_id", [None, "DOES-NOT-EXIST"])
+def test_unknown_or_missing_product_falls_back_to_spot_schedule(product_id):
+    manager = _manager(orderbook=None)
 
-    rate = mgr.get_profit_validation_fee_rate()
-    expected = 0.0006 * FeeManager.SPOT_FEE_MULTIPLIER * 1.0
-    assert rate == pytest.approx(expected)
+    quote = manager.get_profit_validation_fee_quote(product_id)
+
+    assert quote.product_type == ProductType.SPOT
+    assert quote.exchange_fee_rate == pytest.approx(0.0060)
+    assert quote.product_multiplier == FeeManager.SPOT_FEE_MULTIPLIER
 
 
 @pytest.mark.regression
-def test_get_fee_info_reports_resolved_multiplier():
-    """``get_fee_info`` must surface the multiplier it actually used,
-    not a hardcoded default. Operators read this in diagnostics."""
-    ob = _make_orderbook({"BIT-29MAY26-CDE": "FUTURE", "BTC-USDC": "SPOT"})
-    mgr = FeeManager(_StubRestClient(), log_callback=lambda *_: None, orderbook=ob)
-    mgr._taker_fee_rate = 0.0006
+def test_get_fee_info_reports_selected_schedule_and_multiplier():
+    manager = _manager(
+        _make_orderbook({
+            "BIT-29MAY26-CDE": ProductType.FUTURE.value,
+            "BTC-USD": ProductType.SPOT.value,
+        })
+    )
 
-    futures_info = mgr.get_fee_info(product_id="BIT-29MAY26-CDE")
-    spot_info = mgr.get_fee_info(product_id="BTC-USDC")
+    futures_info = manager.get_fee_info("BIT-29MAY26-CDE")
+    spot_info = manager.get_fee_info("BTC-USD")
 
+    assert futures_info["product_type"] == ProductType.FUTURE.value
+    assert futures_info["taker_fee_rate"] == pytest.approx(0.0006)
     assert futures_info["multiplier"] == FeeManager.FUTURES_FEE_MULTIPLIER
+    assert spot_info["product_type"] == ProductType.SPOT.value
+    assert spot_info["taker_fee_rate"] == pytest.approx(0.0060)
     assert spot_info["multiplier"] == FeeManager.SPOT_FEE_MULTIPLIER
-    assert futures_info["profit_validation_fee_rate"] < spot_info["profit_validation_fee_rate"]
+    assert (
+        futures_info["profit_validation_fee_rate"]
+        < spot_info["profit_validation_fee_rate"]
+    )

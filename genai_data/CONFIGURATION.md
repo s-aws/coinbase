@@ -128,6 +128,15 @@ Key values:
 - order side/position mappings (`ORDER_SIDE_SWITCH`, `ORDER_POSITION_SIDE`, `ORDER_DIRECTION`)
 - derivatives fee constants and helper:
   - `get_derivatives_per_side_fee(product_id)`
+  - BIP/default all-in fixed cost: `$0.12` per contract side (`$0.10`
+    venue + `$0.01` clearing + one `$0.01` regulatory/NFA charge)
+  - full-size BTI/ETI/SLC/XRL: unchanged legacy `$0.27` per contract side,
+    explicitly isolated from the BIP/default component calculation
+
+The fixed fee is runtime calculation configuration, not persisted fee truth.
+Changing it requires a process restart to rebuild OrderBook price offsets; it
+does not require or authorize a database correction/backfill. Historical fill
+fees remain the exchange-reported values already stored by the fill pipeline.
 
 ### `calculation/fee_manager.py`
 Adaptive fee telemetry defaults:
@@ -135,6 +144,21 @@ Adaptive fee telemetry defaults:
 - product-type multipliers
 - volume and margin regime factor clamps
 - hourly refresh cadence
+- separate immutable caches for filtered `SPOT/CBE` and
+  `FUTURE/EXPIRING/FCM` transaction summaries
+- partial refresh isolation: a failed product-type request retains only that
+  cache's last-known-good/default snapshot
+- public inspection through `get_fee_schedule_snapshot(product_id)`,
+  `get_profit_validation_fee_quote(product_id, post_only, product_type=None)`, and
+  `get_fee_info(product_id)`
+
+The live source endpoint is
+`GET /api/v3/brokerage/transaction_summary`. Futures snapshots require
+`has_cost_plus_commission=true`. Maker pricing is selected only for
+`post_only=True`; all other orders are modeled as taker. Fee quotes report the
+selected source, pricing tier, cost-plus flag, and exchange/validation rates
+from one atomic snapshot. A valid explicit product-type hint takes precedence
+when a profitability check has no canonical exchange product id.
 
 ### `business/market_metrics.py`
 Window presets:
@@ -206,6 +230,9 @@ py main.py
 
 # Verify the test database endpoint
 python -c "import psycopg2; psycopg2.connect(host='127.0.0.1', port=9876, dbname='postgres', user='postgres', password='postgres').close(); print('ok')"
+
+# Read-only live fee diagnostic: raw filtered summaries + public cache/quotes
+.\.venv\Scripts\python.exe genai_tools\check_live_fee_tier.py
 ```
 
 ## 8) Configuration Anti-Patterns
@@ -216,4 +243,4 @@ python -c "import psycopg2; psycopg2.connect(host='127.0.0.1', port=9876, dbname
 
 ---
 
-Last updated: 2026-05-16
+Last updated: 2026-08-26

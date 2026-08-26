@@ -429,6 +429,83 @@ def test_post_only_ladder_uses_one_flat_child_row_per_attempt(
 
 
 @pytest.mark.regression
+def test_post_only_retry_price_is_revalidated_before_parent_or_rest_write(
+    five_tick_product,
+    monkeypatch,
+):
+    attempts = []
+
+    def reject_post_only(kwargs):
+        attempts.append(dict(kwargs))
+        return {
+            "success": False,
+            "failure_reason": "POST_ONLY",
+        }
+
+    manager, sid, order, post_calls, lifecycle, parent_statuses = (
+        _manager_for_reveal(
+            five_tick_product,
+            reject_post_only,
+            monkeypatch,
+        )
+    )
+    order["reveal_pricing_policy"] = "top_of_book"
+    manager._resolve_target_movement_for_plan = lambda *args, **kwargs: (
+        0.001,
+        "P",
+        "test",
+    )
+    validation_calls = []
+
+    def validate_order_profitability(**kwargs):
+        validation_calls.append(dict(kwargs))
+        return {
+            "is_profitable": kwargs["parent_filled_price"] == 77115.0,
+            "net_profit": 1.0 if kwargs["parent_filled_price"] == 77115.0 else -1.0,
+            "gross_profit": 1.0,
+            "total_fees": 0.0,
+            "percentage_fees": 0.0,
+            "mandatory_fees": 0.0,
+        }
+
+    manager.profit_validator = SimpleNamespace(
+        derive_follow_up_price_from_target=lambda **_kwargs: 77200.0,
+        validate_order_profitability=validate_order_profitability,
+    )
+    parent_rows = []
+    monkeypatch.setattr(
+        "core.stealth_order_manager.insert_order_parent",
+        lambda **kwargs: parent_rows.append(dict(kwargs)) or len(parent_rows),
+    )
+
+    result = manager.reveal_order_slice(sid)
+
+    assert result is None
+    assert [call["parent_filled_price"] for call in validation_calls] == [
+        77115.0,
+        77110.0,
+    ]
+    assert [call["post_only"] for call in validation_calls] == [True, True]
+    assert len(parent_rows) == 1
+    assert parent_rows[0]["price"] == 77115.0
+    assert len(attempts) == 1
+    assert attempts[0]["limit_price"] == "77115.0"
+    assert parent_statuses
+    assert all(
+        status_update
+        == (attempts[0]["client_order_id"], OrderStatus.FAILED.value)
+        for status_update in parent_statuses
+    )
+    assert order["status"] == StealthOrderStatus.ERROR.value
+    assert order["revealed_size"] == 0.0
+    assert post_calls == []
+    assert lifecycle[-1][0] is StealthLifecycleEvent.REVEAL_FAILED
+    assert "post-only retry blocked by profitability" in (
+        lifecycle[-1][1]["failure_reason"]
+    )
+
+
+@pytest.mark.regression
 def test_pre_submission_hook_can_enable_post_only_before_rest(
     five_tick_product,
     monkeypatch,
@@ -499,6 +576,122 @@ def test_pre_submission_hook_can_disable_post_only_before_rest(
     assert attempts[0]["post_only"] is False
     assert attempts[0]["client_order_id"] == sid
     assert result == sid
+
+
+@pytest.mark.regression
+def test_hook_post_only_mutation_is_revalidated_before_local_or_rest_write(
+    five_tick_product,
+    monkeypatch,
+):
+    manager, sid, order, post_calls, lifecycle, parent_statuses = (
+        _manager_for_reveal(
+            five_tick_product,
+            lambda _kwargs: pytest.fail(
+                "REST must not run when final taker economics are unprofitable"
+            ),
+            monkeypatch,
+        )
+    )
+    order["reveal_pricing_policy"] = "top_of_book"
+    manager._resolve_target_movement_for_plan = lambda *args, **kwargs: (
+        0.001,
+        "P",
+        "test",
+    )
+    validation_calls = []
+
+    def validate_order_profitability(**kwargs):
+        validation_calls.append(dict(kwargs))
+        is_profitable = bool(kwargs["post_only"])
+        return {
+            "is_profitable": is_profitable,
+            "net_profit": 1.0 if is_profitable else -1.0,
+            "gross_profit": 1.0,
+            "total_fees": 0.0,
+            "percentage_fees": 0.0,
+            "mandatory_fees": 0.0,
+        }
+
+    manager.profit_validator = SimpleNamespace(
+        derive_follow_up_price_from_target=lambda **_kwargs: 77200.0,
+        validate_order_profitability=validate_order_profitability,
+    )
+    manager.order_placement_hooks.call_pre_submission_hooks = (
+        lambda payload: payload.__setitem__("post_only", False)
+    )
+    monkeypatch.setattr(
+        "core.stealth_order_manager.update_order_parent_price",
+        lambda *_args, **_kwargs: pytest.fail(
+            "order_parent must not be written before final profitability passes"
+        ),
+    )
+    monkeypatch.setattr(
+        "core.stealth_order_manager.insert_order_parent",
+        lambda **_kwargs: pytest.fail(
+            "order_parent must not be inserted before final profitability passes"
+        ),
+    )
+
+    result = manager.reveal_order_slice(sid)
+
+    assert result is None
+    assert [call["post_only"] for call in validation_calls] == [True, False]
+    assert order["status"] == StealthOrderStatus.TRIGGERED.value
+    assert order["revealed_size"] == 0.0
+    assert post_calls == []
+    assert parent_statuses == []
+    assert lifecycle[-1][0] is StealthLifecycleEvent.PLACEMENT_BLOCKED
+    assert lifecycle[-1][1]["validation_stage"] == "post_hook"
+
+
+@pytest.mark.regression
+def test_hook_price_mutation_revalidates_final_normalized_price(
+    five_tick_product,
+    monkeypatch,
+):
+    attempts = []
+
+    def accepted(kwargs):
+        attempts.append(dict(kwargs))
+        return {
+            "success": True,
+            "success_response": {
+                "order_id": "exchange-id",
+                "client_order_id": kwargs["client_order_id"],
+            },
+        }
+
+    manager, sid, _, _, _, _ = _manager_for_reveal(
+        five_tick_product,
+        accepted,
+        monkeypatch,
+    )
+    manager._resolve_target_movement_for_plan = lambda *args, **kwargs: (
+        0.001,
+        "P",
+        "test",
+    )
+    validation_calls = []
+
+    def validate_order_profitability(**kwargs):
+        validation_calls.append(dict(kwargs))
+        return {"is_profitable": True}
+
+    manager.profit_validator = SimpleNamespace(
+        derive_follow_up_price_from_target=lambda **_kwargs: 77200.0,
+        validate_order_profitability=validate_order_profitability,
+    )
+    manager.order_placement_hooks.call_pre_submission_hooks = (
+        lambda payload: payload.__setitem__("limit_price", 77114.0)
+    )
+
+    assert manager.reveal_order_slice(sid) == sid
+
+    assert [
+        call["parent_filled_price"] for call in validation_calls
+    ] == [77115.0, 77110.0]
+    assert [call["post_only"] for call in validation_calls] == [False, False]
+    assert attempts[0]["limit_price"] == "77110.0"
 
 
 @pytest.mark.regression

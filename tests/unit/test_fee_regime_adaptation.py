@@ -1,17 +1,48 @@
 ﻿"""Unit tests for adaptive fee and target-movement regime integration."""
 
+from copy import deepcopy
 from unittest.mock import Mock
 
 from calculation.fee_manager import FeeManager
 from core.order_engine import OrderEngine
+from core.enums import ContractExpiryType, ProductType, ProductVenue
 from configuration import OrderBook
 
 
 class StubRestClient:
     """Simple REST client stub for FeeManager tests."""
 
-    def get_transaction_summary(self):
-        return {"fee_tier": {"taker_fee_rate": "0.0060"}}
+    def get_transaction_summary(
+        self,
+        product_type=None,
+        contract_expiry_type=None,
+        product_venue=None,
+    ):
+        if product_type == ProductType.SPOT:
+            assert contract_expiry_type is None
+            assert product_venue == ProductVenue.CBE
+            return deepcopy({
+                "fee_tier": {
+                    "maker_fee_rate": "0.0040",
+                    "taker_fee_rate": "0.0060",
+                    "pricing_tier": "spot-test",
+                },
+                "has_cost_plus_commission": False,
+                "has_promo_fee": False,
+            })
+        if product_type == ProductType.FUTURE:
+            assert contract_expiry_type == ContractExpiryType.EXPIRING
+            assert product_venue == ProductVenue.FCM
+            return deepcopy({
+                "fee_tier": {
+                    "maker_fee_rate": "0.0004",
+                    "taker_fee_rate": "0.0006",
+                    "pricing_tier": "future-test",
+                },
+                "has_cost_plus_commission": True,
+                "has_promo_fee": False,
+            })
+        raise AssertionError(f"unexpected transaction-summary filters: {product_type!r}")
 
 
 def _create_engine_for_unit_tests() -> OrderEngine:
@@ -64,17 +95,23 @@ def test_fee_manager_high_volume_increases_factors():
 
 def test_fee_manager_overnight_and_low_volume_reduce_target_factor():
     manager = FeeManager(StubRestClient(), log_callback=lambda *_: None)
+    assert manager._refresh_fee_rate() is True
+    product_id = "BIT-29MAY26-CDE"
 
     for _ in range(30):
-        manager.update_volume_signal("BTC-USDC", volume_24h=1440000.0)
+        manager.update_volume_signal(product_id, volume_24h=1440000.0)
     manager.update_margin_window_type("FCM_MARGIN_WINDOW_TYPE_OVERNIGHT")
     for _ in range(30):
-        manager.update_volume_signal("BTC-USDC", volume_24h=14400.0)
+        manager.update_volume_signal(product_id, volume_24h=14400.0)
 
-    factor = manager.get_target_movement_multiplier(product_id="BTC-USDC")
-    info = manager.get_fee_info(product_id="BTC-USDC")
+    factor = manager.get_target_movement_multiplier(product_id=product_id)
+    quote = manager.get_profit_validation_fee_quote(product_id=product_id)
+    info = manager.get_fee_info(product_id=product_id)
 
     assert factor < 1.0
+    assert quote.raw_fee_regime_factor < 1.0
+    assert quote.applied_fee_regime_factor == 1.0
+    assert quote.validation_fee_rate >= quote.exchange_fee_rate
     assert info["overnight_margin_active"] is True
 
 

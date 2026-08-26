@@ -95,7 +95,10 @@ Includes:
 Canonical enum source for statuses, policies, lifecycle events, channels, and runtime states.
 
 ### `core/constants.py`
-Shared constants and fee helpers (`get_derivatives_per_side_fee`, `DEFAULT_MAX_ORDER_REPLACEMENT`, etc.).
+Shared constants and fee helpers (`get_derivatives_per_side_fee`,
+`DEFAULT_MAX_ORDER_REPLACEMENT`, etc.). The fee helper is the canonical fixed
+CDE per-contract-side resolver: settlement-confirmed BIP/default `$0.12`, with
+the legacy full-size BTI/ETI/SLC/XRL `$0.27` behavior explicitly unchanged.
 
 ### `core/exceptions.py`
 Custom exception hierarchy across order, stealth, DB, WS, and API domains.
@@ -160,7 +163,12 @@ Dashboard handlers that route through the bridge must have an explicit bridge me
 - `calculation/formatter.py`: `safe_float`, increment quantization/formatting.
 - `calculation/size_validation.py`: size quantize + minimum checks.
 - `calculation/profit_validator.py`: profitability checks with product-type and fee context.
-- `calculation/fee_manager.py`: dynamic fee rates and adaptive regime multipliers.
+- `calculation/fee_manager.py`: owns separate immutable SPOT/CBE and
+  FUTURE/EXPIRING/FCM transaction-summary caches, atomic public fee quotes,
+  maker selection only for `post_only=True`, taker selection otherwise, and
+  adaptive regime multipliers that cannot discount the selected exchange rate.
+  Explicit product-type hints and canonical product-id resolution select the
+  same schedule and multiplier within each quote.
 - `calculation/price_camouflage.py`: deterministic round-number price nudging.
 
 ## `data/` (State and Repository Abstractions)
@@ -186,9 +194,20 @@ Canonical schema and write/read functions for core trading tables.
 
 ## `external/` (Exchange and External Feed Clients)
 
-- `external/coinbase_client.py`: Coinbase REST wrapper.
+- `external/coinbase_client.py`: Coinbase REST wrapper. Its
+  `get_transaction_summary(product_type, contract_expiry_type, product_venue)`
+  maps canonical enums to the real
+  `/api/v3/brokerage/transaction_summary` query parameters.
 - `external/coinbase_websocket.py`: Coinbase websocket wrapper.
 - `external/binance_perp_ws.py`, `external/bybit_perp_ws.py`, `external/okx_swap_ws.py`: external venue feed clients.
+
+## `genai_tools/` (Reviewed Operator Diagnostics)
+
+- `genai_tools/check_live_fee_tier.py`: read-only one-shot comparison of raw
+  filtered SPOT/CBE and FUTURE/EXPIRING/FCM summaries with FeeManager's public
+  snapshots and post-only maker/non-post-only taker quotes. It displays source,
+  pricing tier, cost-plus state, and fixed CDE fee scope without reading private
+  cache globals or modifying the database.
 
 ## `integration/` (Hook Registries)
 
@@ -225,4 +244,4 @@ Canonical schema and write/read functions for core trading tables.
 
 ---
 
-Last updated: 2026-05-16
+Last updated: 2026-08-26

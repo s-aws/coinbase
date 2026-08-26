@@ -63,6 +63,7 @@ Example: evaluate and reveal from scheduler loop
 import uuid
 import json
 import time
+from dataclasses import replace
 from datetime import datetime, timedelta
 from decimal import Decimal
 from threading import RLock
@@ -410,8 +411,11 @@ class StealthOrderManager:
         CONFIGURED_LIMIT submits as taker (post_only=False, conservative).
         Unknown / missing policies fall back to CONFIGURED_LIMIT.
 
-        Single source of truth for ``post_only`` derivation across pre-flight,
-        anchor-reprice, follow-up pre-check and reveal-time validation paths.
+        Single source of truth for ``post_only`` derivation from a reveal
+        pricing policy across pre-flight, follow-up pre-check and reveal-time
+        planning. Hidden anchor reprices still use this rule because they only
+        change the eventual reveal price; already-revealed replacements use
+        ``RepricingPolicy.post_only_required``.
         """
         from core.enums import RevealPricingPolicy
 
@@ -1164,6 +1168,7 @@ class StealthOrderManager:
         self,
         order: Dict[str, Any],
         candidate_entry_price: float,
+        repricing_policy: Any,
     ) -> Tuple[bool, Optional[str]]:
         """Validate that repricing to candidate entry price remains profitable.
 
@@ -1212,15 +1217,19 @@ class StealthOrderManager:
             # from product_id via its injected orderbook (single source of truth).
             product_id = order.get("product_id", "")
 
-            # post_only follows the order's reveal pricing policy. TOP_OF_BOOK
-            # / MIDPOINT anchor-reprices rest as makers; CONFIGURED_LIMIT
-            # submits as taker. Without this, every TOP_OF_BOOK reprice was
-            # being checked at the (much higher) taker rate and over-rejecting
-            # otherwise-profitable repricings.
-            will_be_post_only = self._resolve_post_only_from_policy(
-                reveal_pricing_policy=order.get("reveal_pricing_policy"),
-                reveal_condition=order.get("reveal_condition_json"),
-            )
+            if order.get("status") == StealthOrderStatus.REVEALED.value:
+                # An already-visible order is cancelled and replaced directly,
+                # so consume the same anchor-policy field as that REST call.
+                policy = RepricingPolicy.coerce(repricing_policy)
+                will_be_post_only = bool(policy.post_only_required)
+            else:
+                # Hidden/PENDING/TRIGGERED anchor processing only changes the
+                # local limit. Its eventual REST placement is still governed
+                # by the reveal policy, including its maker/taker assumption.
+                will_be_post_only = self._resolve_post_only_from_policy(
+                    reveal_pricing_policy=order.get("reveal_pricing_policy"),
+                    reveal_condition=order.get("reveal_condition_json"),
+                )
 
             validation = self.profit_validator.validate_order_profitability(
                 parent_filled_price=entry_price,
@@ -2234,6 +2243,7 @@ class StealthOrderManager:
                 profitable, profitability_reason = self._validate_anchor_reprice_profitability(
                     order,
                     desired_price,
+                    policy,
                 )
                 if not profitable:
                     state["reprice_reason"] = "blocked_unprofitable"
@@ -2568,8 +2578,8 @@ class StealthOrderManager:
         the right order of magnitude. Returns ``None`` when the math
         can't be computed (missing inputs, unknown product context).
 
-        For FUTURE products the mandatory $0.15/contract fee scales with
-        contract count, so a percentage target that's viable at 1
+        For FUTURE products the product-specific per-contract fee scales
+        with contract count, so a percentage target that's viable at 1
         contract can be infeasible at 10. This helper makes that
         relationship visible in the failed-validation log.
         """
@@ -2882,6 +2892,98 @@ class StealthOrderManager:
                 f"Profitability revalidation failed for {stealth_order_id}: {e}"
             )
             return True, None
+
+    def _validate_reveal_execution_before_write(
+        self,
+        stealth_order_id: str,
+        order: Dict[str, Any],
+        reveal_execution_plan: 'RevealExecutionPlan',
+        validation_stage: str,
+    ) -> bool:
+        """Gate one final execution tuple before local or exchange writes.
+
+        Pre-submission hooks can change the exact ``(price, post_only)`` tuple
+        after the initial reveal plan was validated. This helper applies the
+        normal pre-placement block semantics to that final hook result. A
+        rejected post-only attempt is already a placement failure, so its
+        retry candidate uses the same profitability math but follows the
+        terminal retry-abort path instead.
+        """
+        if not self.profit_validator:
+            return True
+
+        reveal_price = float(reveal_execution_plan.submitted_limit_price)
+        post_only = bool(getattr(reveal_execution_plan, "post_only", False))
+        try:
+            is_profitable, profit_reason = self._validate_reveal_profitability(
+                stealth_order_id=stealth_order_id,
+                reveal_execution_plan=reveal_execution_plan,
+            )
+            if is_profitable:
+                return True
+
+            failure_reason = profit_reason or "Final placement is not profitable"
+            self.log_callback("warning", {
+                "event": "stealth_order_reveal_blocked_by_profitability",
+                "stealth_order_id": stealth_order_id,
+                "reason": failure_reason,
+                "reveal_price": reveal_price,
+                "configured_price": reveal_execution_plan.configured_limit_price,
+                "post_only": post_only,
+                "validation_stage": validation_stage,
+            })
+            self._dispatch_lifecycle_event(
+                stealth_order_id=stealth_order_id,
+                event=StealthLifecycleEvent.PLACEMENT_BLOCKED,
+                order_data=order,
+                extra={
+                    "failure_reason": failure_reason,
+                    "block_category": "unprofitable_at_reveal",
+                    "reveal_price": reveal_price,
+                    "post_only": post_only,
+                    "validation_stage": validation_stage,
+                },
+            )
+            return False
+        except RevealPricingError as error:
+            if not self._should_emit_profitability_failure(
+                stealth_order_id,
+                order,
+                reveal_execution_plan,
+            ):
+                return False
+
+            suppressed_repeats = order.pop(
+                "_profit_failure_suppressed_since_last_log",
+                0,
+            )
+            self.log_callback("warning", {
+                "event": "stealth_order_profitability_validation_failed",
+                "stealth_order_id": stealth_order_id,
+                "reason": str(error),
+                "fallback_used": error.fallback_used,
+                "suppressed_repeats": suppressed_repeats,
+                "reveal_pricing_policy": (
+                    reveal_execution_plan.reveal_pricing_policy
+                ),
+                "post_only": post_only,
+                "validation_stage": validation_stage,
+            })
+            self._dispatch_lifecycle_event(
+                stealth_order_id=stealth_order_id,
+                event=StealthLifecycleEvent.PLACEMENT_BLOCKED,
+                order_data=order,
+                extra={
+                    "failure_reason": str(error),
+                    "block_category": "unprofitable_at_reveal",
+                    "fallback_used": error.fallback_used,
+                    "suppressed_repeats": suppressed_repeats,
+                    "reveal_price": reveal_price,
+                    "post_only": post_only,
+                    "validation_stage": validation_stage,
+                },
+            )
+            return False
 
     def _dispatch_lifecycle_event(
         self,
@@ -3673,6 +3775,30 @@ class StealthOrderManager:
         order_for_submission["limit_price"] = float(price_check.effective_price)
         order_for_submission["client_order_id"] = client_order_id
 
+        final_submission_price = float(order_for_submission["limit_price"])
+        hook_changed_execution = (
+            final_submission_price
+            != float(reveal_plan.submitted_limit_price)
+            or retry_post_only
+            != bool(getattr(reveal_plan, "post_only", False))
+        )
+        if self.profit_validator and hook_changed_execution:
+            # Hooks are allowed to change price and post_only. Validate the
+            # final normalized execution values through the same canonical
+            # reveal gate before any order_parent or REST write occurs.
+            final_reveal_plan = replace(
+                reveal_plan,
+                submitted_limit_price=final_submission_price,
+                post_only=retry_post_only,
+            )
+            if not self._validate_reveal_execution_before_write(
+                stealth_order_id=stealth_order_id,
+                order=order,
+                reveal_execution_plan=final_reveal_plan,
+                validation_stage="post_hook",
+            ):
+                return None
+
         placement_parent_errors: Dict[str, Exception] = {}
         root_parent_for_placement = (
             resolve_stealth_chain_root(order)
@@ -3810,6 +3936,32 @@ class StealthOrderManager:
                     f"{retry_price_error}"
                 )
                 break
+
+            if self.profit_validator:
+                retry_reveal_plan = replace(
+                    reveal_plan,
+                    submitted_limit_price=next_price,
+                    post_only=retry_post_only,
+                )
+                try:
+                    is_profitable, profit_reason = (
+                        self._validate_reveal_profitability(
+                            stealth_order_id=stealth_order_id,
+                            reveal_execution_plan=retry_reveal_plan,
+                        )
+                    )
+                    if not is_profitable:
+                        retry_abort_reason = (
+                            "post-only retry blocked by profitability: "
+                            f"{profit_reason or 'candidate is not profitable'}"
+                        )
+                        break
+                except RevealPricingError as retry_profitability_error:
+                    retry_abort_reason = (
+                        "post-only retry blocked by profitability: "
+                        f"{retry_profitability_error}"
+                    )
+                    break
 
             next_coid = str(uuid.uuid4())
             self.log_callback("info", {

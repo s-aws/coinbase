@@ -16,6 +16,7 @@ from core.enums import (
     EventSourceChannel,
     EventStreamType,
     EventTriggerType,
+    LiquidityAssumption,
     OrderStateEvent,
     OrderStatus,
     StealthOrderStatus,
@@ -41,6 +42,21 @@ class OrderEventStreamPublisher:
         """Register optional callback returning fee context for DB audit payloads."""
         self._fee_info_provider = provider if callable(provider) else None
 
+    @staticmethod
+    def _payload_is_post_only(payload: Dict[str, Any]) -> bool:
+        """Interpret the two post-only representations used by our inputs.
+
+        Local REST placement hooks carry a real boolean. Coinbase user-channel
+        order payloads carry the lowercase strings ``"true"``/``"false"``.
+        Only an explicit true value selects maker audit semantics; missing or
+        malformed values remain conservatively taker.
+        """
+        raw_value = payload.get("post_only")
+        return raw_value is True or (
+            isinstance(raw_value, str)
+            and raw_value.strip().casefold() == "true"
+        )
+
     def _build_fee_manager_audit_context(self, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Build fee-manager snapshot for audit enrichment when provider is available."""
         if not callable(self._fee_info_provider):
@@ -58,16 +74,49 @@ class OrderEventStreamPublisher:
         if not isinstance(fee_info, dict):
             return None
 
+        post_only = self._payload_is_post_only(payload)
+        liquidity = (
+            LiquidityAssumption.MAKER
+            if post_only else LiquidityAssumption.TAKER
+        )
+        selected_exchange_rate_key = (
+            "maker_fee_rate" if post_only else "taker_fee_rate"
+        )
+        selected_validation_rate_key = (
+            "profit_validation_fee_rate_maker"
+            if post_only else "profit_validation_fee_rate_taker"
+        )
+
         return {
             "product_id": product_id,
+            "product_type": fee_info.get("product_type"),
+            "product_venue": fee_info.get("product_venue"),
+            "contract_expiry_type": fee_info.get("contract_expiry_type"),
+            "liquidity_assumption": liquidity.value,
             "taker_fee_rate": safe_float(fee_info.get("taker_fee_rate"), default=None),
+            "maker_fee_rate": safe_float(fee_info.get("maker_fee_rate"), default=None),
+            "selected_exchange_fee_rate": safe_float(
+                fee_info.get(selected_exchange_rate_key), default=None
+            ),
             "profit_validation_fee_rate": safe_float(fee_info.get("profit_validation_fee_rate"), default=None),
+            "selected_profit_validation_fee_rate": safe_float(
+                fee_info.get(selected_validation_rate_key), default=None
+            ),
             "target_movement_factor": safe_float(fee_info.get("target_movement_factor"), default=None),
             "fee_regime_factor": safe_float(fee_info.get("fee_regime_factor"), default=None),
+            "fee_validation_factor": safe_float(
+                fee_info.get("fee_validation_factor"), default=None
+            ),
             "volume_ratio": safe_float(fee_info.get("volume_ratio"), default=None),
             "overnight_margin_active": fee_info.get("overnight_margin_active"),
             "margin_window_type": fee_info.get("margin_window_type"),
+            "pricing_tier": fee_info.get("pricing_tier"),
+            "has_cost_plus_commission": fee_info.get("has_cost_plus_commission"),
+            "has_promo_fee": fee_info.get("has_promo_fee"),
+            "fee_schedule_source": fee_info.get("fee_schedule_source"),
+            "last_attempt_at": fee_info.get("last_attempt_at"),
             "last_updated": fee_info.get("last_updated"),
+            "consecutive_errors": fee_info.get("consecutive_errors"),
             "is_stale": fee_info.get("is_stale"),
         }
 

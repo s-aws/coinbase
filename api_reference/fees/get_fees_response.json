@@ -1,43 +1,106 @@
 {
-  "endpoint": "GET /api/v1/fees",
+  "endpoint": "GET /api/v3/brokerage/transaction_summary",
   "method": "GET",
-  "description": "Response structure for get fees",
+  "description": "Documented Coinbase transaction-summary response shape used by FeeManager.",
   "response": {
-    "maker_fee_rate": "string - decimal fee rate for makers (e.g., 0.001 = 0.1%)",
-    "taker_fee_rate": "string - decimal fee rate for takers",
-    "volume_30day": {
-      "value": "string - 30-day trading volume",
-      "currency": "string"
-    },
+    "total_fees": "number - total fees across assets in USD for the filtered summary",
     "fee_tier": {
-      "name": "string - fee tier name (Standard, Advanced, Pro, etc.)",
-      "maker_fee_rate": "string",
-      "taker_fee_rate": "string",
-      "pricing_tier": "string - tier identifier"
+      "pricing_tier": "string - account pricing-tier label",
+      "taker_fee_rate": "string - decimal taker rate",
+      "maker_fee_rate": "string - decimal maker rate",
+      "aop_from": "string - lower bound of the applicable pricing range",
+      "aop_to": "string - upper bound of the applicable pricing range",
+      "volume_types_and_range": [
+        {
+          "volume_types": [
+            "string - contributing volume type such as VOLUME_TYPE_SPOT or VOLUME_TYPE_US_DERIVATIVES"
+          ],
+          "vol_from": "string - lower volume bound",
+          "vol_to": "string - upper volume bound"
+        }
+      ]
     },
-    "perpetuals_volume_30day": {
-      "value": "string - 30-day perpetual trading volume",
-      "currency": "string"
+    "margin_rate": "futures-only margin-rate value/metadata when returned",
+    "goods_and_services_tax": {
+      "rate": "string - tax rate",
+      "type": "string - tax treatment such as INCLUSIVE"
     },
-    "perpetuals_fee_tier": {
-      "name": "string",
-      "maker_fee_rate": "string",
-      "taker_fee_rate": "string",
-      "pricing_tier": "string"
-    },
-    "stablecoin_conversions_enabled": "boolean"
+    "advanced_trade_only_volume": "number - Advanced Trade volume in USD",
+    "advanced_trade_only_fees": "number - Advanced Trade fees in USD",
+    "coinbase_pro_volume": "number - Coinbase Pro volume in USD",
+    "coinbase_pro_fees": "number - Coinbase Pro fees in USD",
+    "total_balance": "string - total balance across spot, INTX, and FCM in USD",
+    "volume_breakdown": [
+      {
+        "volume_type": "string - contributing volume category",
+        "volume": "number - volume in USD"
+      }
+    ],
+    "has_cost_plus_commission": "boolean - whether cost-plus commission pricing applies",
+    "has_promo_fee": "optional boolean - promotional-fee flag when supplied by Coinbase"
+  },
+  "fee_manager_consumption": {
+    "required_fee_tier_fields": [
+      "maker_fee_rate",
+      "taker_fee_rate"
+    ],
+    "metadata_fields": [
+      "pricing_tier",
+      "has_cost_plus_commission",
+      "has_promo_fee"
+    ],
+    "future_validation": "FUTURE/EXPIRING/FCM is accepted only when has_cost_plus_commission is true.",
+    "cache_scope": "One immutable schedule per canonical product type: shared SPOT/CBE and shared FUTURE/EXPIRING/FCM.",
+    "failure_behavior": "A failed filtered request retains that product type's last-known-good/default snapshot without overwriting the other cache.",
+    "quote_selection": "post_only=true selects maker; post_only=false selects taker.",
+    "quote_telemetry": "Public FeeQuote reports product type, liquidity assumption, exchange/validation rates, pricing tier, cost-plus state, promo state, source, and refresh time from one atomic snapshot."
+  },
+  "fixed_cde_cost_scope": {
+    "BIP_and_default_per_contract_side": 0.12,
+    "BIP_and_default_round_trip_per_contract": 0.24,
+    "full_size_BTI_ETI_SLC_XRL_per_contract_side_legacy": 0.27,
+    "database_correction": "none"
   },
   "status_codes": {
     "200": "Success",
     "401": "Unauthorized",
     "403": "Forbidden"
   },
-  "example": {
-    "maker_fee_rate": "0.004",
-    "taker_fee_rate": "0.006",
-    "volume_30day": {
-      "value": "50000.00",
-      "currency": "USD"
-    }
+  "sanitized_example": {
+    "total_fees": 25.0,
+    "fee_tier": {
+      "pricing_tier": "<$10k",
+      "taker_fee_rate": "0.0010",
+      "maker_fee_rate": "0.0005",
+      "aop_from": "0",
+      "aop_to": "10000",
+      "volume_types_and_range": [
+        {
+          "volume_types": [
+            "VOLUME_TYPE_US_DERIVATIVES"
+          ],
+          "vol_from": "0",
+          "vol_to": "50000"
+        }
+      ]
+    },
+    "margin_rate": 0.5,
+    "goods_and_services_tax": {
+      "rate": "0",
+      "type": "INCLUSIVE"
+    },
+    "advanced_trade_only_volume": 1000.0,
+    "advanced_trade_only_fees": 25.0,
+    "coinbase_pro_volume": 0.0,
+    "coinbase_pro_fees": 0.0,
+    "total_balance": "1000",
+    "volume_breakdown": [
+      {
+        "volume_type": "VOLUME_TYPE_US_DERIVATIVES",
+        "volume": 1000.0
+      }
+    ],
+    "has_cost_plus_commission": true,
+    "has_promo_fee": false
   }
 }

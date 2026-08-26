@@ -23,7 +23,13 @@ Usage:
 from typing import Dict, List, Optional, Any
 from coinbase.rest import RESTClient
 from core.models import Product, Wallet, Position, Order
-from core.enums import OrderSide, TimeInForce
+from core.enums import (
+    ContractExpiryType,
+    OrderSide,
+    ProductType,
+    ProductVenue,
+    TimeInForce,
+)
 
 
 class CoinbaseRestClient:
@@ -80,10 +86,23 @@ class CoinbaseRestClient:
         
         return wallets
     
-    def get_transaction_summary(self) -> Dict[str, Any]:
+    def get_transaction_summary(
+        self,
+        product_type: Optional[ProductType] = None,
+        contract_expiry_type: Optional[ContractExpiryType] = None,
+        product_venue: Optional[ProductVenue] = None,
+    ) -> Dict[str, Any]:
         """Retrieve account transaction summary.
         
-        Gets aggregate data on transaction fees and volumes.
+        Gets aggregate data on transaction fees and volumes. Optional filters
+        are forwarded using the Coinbase SDK's exact parameter names. When no
+        filters are supplied, the SDK is called without keyword arguments to
+        preserve the existing unfiltered behavior.
+
+        Args:
+            product_type: Optional Coinbase product-type filter.
+            contract_expiry_type: Optional futures contract-expiry filter.
+            product_venue: Optional Coinbase product-venue filter.
         
         Returns:
             Dictionary with transaction summary data
@@ -95,7 +114,15 @@ class CoinbaseRestClient:
             >>> summary = client.get_transaction_summary()
             >>> fees = summary.get('total_fees')
         """
-        response = self._client.get_transaction_summary()
+        filters = {}
+        if product_type is not None:
+            filters["product_type"] = product_type.value
+        if contract_expiry_type is not None:
+            filters["contract_expiry_type"] = contract_expiry_type.value
+        if product_venue is not None:
+            filters["product_venue"] = product_venue.value
+
+        response = self._client.get_transaction_summary(**filters)
         return response.to_dict() if hasattr(response, 'to_dict') else response
     
     # ========================================================================

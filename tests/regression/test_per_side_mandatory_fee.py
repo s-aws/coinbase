@@ -8,20 +8,19 @@ Sources:
 
 Key facts:
   * "Fees are charged per side (both the buy and the sell side) per contract"
-  * Venue commission per side:
-      - Full-size tier (BTI/ETI/SLC/XRL): $0.20
-      - Nano / Perp-Style and everything else: $0.10
-  * Non-venue charges that ALSO debit per side per contract:
-      - SEC/CFTC regulatory: $0.02
-      - Clearing:            $0.03
-      - NFA:                 $0.02
-      = $0.07 added to every side.
-  * Therefore the ALL-IN per-side cost (what get_derivatives_per_side_fee
-    returns) is $0.27 (full-size) or $0.17 (nano/everything else).
+  * Default-tier venue commission is $0.10 per side.
+  * Aug-25-2026 settlement reconciliation establishes the BIP/default
+    all-in fixed cost as $0.12 per contract side:
+      - Venue:                  $0.10
+      - Clearing:               $0.01
+      - One regulatory/NFA fee: $0.01
+  * Full-size $0.27 all-in behavior is preserved as an explicit legacy
+    scope boundary; the BIP/default reconciliation does not revise it.
 
-Pre-2026-05-01 the resolver returned venue only, underbudgeting fees by
-$0.14/contract round-trip. These tests lock in the corrected all-in
-semantics.
+Before the Aug-25 settlement reconciliation, the resolver returned $0.17
+for BIP/default and overbudgeted the fixed round-trip cost by $0.10 per
+contract. These tests lock in the settlement-confirmed semantics without
+changing the separately scoped full-size behavior.
 
 These tests lock in:
   1. Per-symbol resolver returns the correct all-in tier rate
@@ -48,8 +47,8 @@ from core.constants import (
 # 1. Per-symbol resolver
 # ---------------------------------------------------------------------------
 
-# All-in per-side cost = venue + $0.07 non-venue (reg + clearing + NFA).
-# Full-size: $0.20 + $0.07 = $0.27. Nano / default: $0.10 + $0.07 = $0.17.
+# BIP/default all-in fixed cost = $0.10 venue + $0.02 settled non-venue.
+# Full-size remains explicitly pinned at the pre-existing $0.27 all-in value.
 @pytest.mark.parametrize(
     "product_id,expected",
     [
@@ -58,16 +57,16 @@ from core.constants import (
         ("ETI-29MAY26-CDE", 0.27),
         ("SLC-29MAY26-CDE", 0.27),
         ("XRL-29MAY26-CDE", 0.27),
-        # Nano / Perp-Style tier ($0.17 all-in/side)
-        ("BIT-29MAY26-CDE", 0.17),
-        ("BIP-20DEC30-CDE", 0.17),
-        ("ETP-29MAY26-CDE", 0.17),
-        ("SOL-29MAY26-CDE", 0.17),
-        ("ADA-29MAY26-CDE", 0.17),
-        # Unknown / future listing falls back to default ($0.17)
-        ("ZZZ-29MAY26-CDE", 0.17),
+        # Nano / Perp-Style tier ($0.12 all-in/side)
+        ("BIT-29MAY26-CDE", 0.12),
+        ("BIP-20DEC30-CDE", 0.12),
+        ("ETP-29MAY26-CDE", 0.12),
+        ("SOL-29MAY26-CDE", 0.12),
+        ("ADA-29MAY26-CDE", 0.12),
+        # Unknown / future listing falls back to default ($0.12)
+        ("ZZZ-29MAY26-CDE", 0.12),
         # Edge: empty / None
-        ("", 0.17),
+        ("", 0.12),
     ],
 )
 def test_per_side_fee_resolver(product_id: str, expected: float) -> None:
@@ -78,6 +77,8 @@ def test_full_size_tier_membership() -> None:
     """The full-size tier must contain exactly the four schedule entries
     and the all-in default must equal nano venue + non-venue."""
     from core.constants import (
+        DERIVATIVES_CLEARING_FEE_PER_SIDE,
+        DERIVATIVES_REGULATORY_NFA_FEE_PER_SIDE,
         DERIVATIVES_VENUE_FEE_BY_SYMBOL,
         DERIVATIVES_VENUE_FEE_DEFAULT,
         DERIVATIVES_NON_VENUE_FEES_PER_SIDE,
@@ -85,9 +86,11 @@ def test_full_size_tier_membership() -> None:
     assert set(DERIVATIVES_VENUE_FEE_BY_SYMBOL.keys()) == {"BTI", "ETI", "SLC", "XRL"}
     assert all(v == 0.20 for v in DERIVATIVES_VENUE_FEE_BY_SYMBOL.values())
     assert DERIVATIVES_VENUE_FEE_DEFAULT == 0.10
-    assert DERIVATIVES_NON_VENUE_FEES_PER_SIDE == pytest.approx(0.07, abs=1e-9)
-    assert DERIVATIVES_PER_SIDE_FEE_DEFAULT == pytest.approx(0.17, abs=1e-9)
-    # Back-compat map also reflects all-in cost
+    assert DERIVATIVES_CLEARING_FEE_PER_SIDE == pytest.approx(0.01, abs=1e-9)
+    assert DERIVATIVES_REGULATORY_NFA_FEE_PER_SIDE == pytest.approx(0.01, abs=1e-9)
+    assert DERIVATIVES_NON_VENUE_FEES_PER_SIDE == pytest.approx(0.02, abs=1e-9)
+    assert DERIVATIVES_PER_SIDE_FEE_DEFAULT == pytest.approx(0.12, abs=1e-9)
+    # Full-size all-in values are intentionally explicit and unchanged.
     assert all(
         v == pytest.approx(0.27, abs=1e-9)
         for v in DERIVATIVES_PER_SIDE_FEE_BY_SYMBOL.values()
@@ -99,7 +102,7 @@ def test_full_size_tier_membership() -> None:
 # ---------------------------------------------------------------------------
 
 def test_profit_validator_charges_round_trip_for_nano_tier() -> None:
-    """BIP (nano) at 5 contracts must charge 5 * 0.17 * 2 = $1.70 all-in."""
+    """BIP at 5 contracts must charge 5 * $0.12 * 2 = $1.20 fixed."""
     from calculation.profit_validator import ProfitValidator
 
     validator = ProfitValidator(fee_manager=None)  # uses fallback fee rate
@@ -112,7 +115,17 @@ def test_profit_validator_charges_round_trip_for_nano_tier() -> None:
         product_id="BIP-20DEC30-CDE",
         contract_size=0.01,
     )
-    assert result["mandatory_fees"] == pytest.approx(1.70, abs=1e-9)
+    assert result["mandatory_fees"] == pytest.approx(1.20, abs=1e-9)
+
+
+def test_sanitized_settlement_fixed_total_for_360_contract_sides() -> None:
+    """360 BIP contract-sides at $0.12 reconcile to $43.20 fixed cost."""
+    contract_sides = 360
+    fixed_total = contract_sides * get_derivatives_per_side_fee(
+        "BIP-20DEC30-CDE"
+    )
+
+    assert fixed_total == pytest.approx(43.20, abs=1e-9)
 
 
 def test_profit_validator_charges_round_trip_for_full_size_tier() -> None:
