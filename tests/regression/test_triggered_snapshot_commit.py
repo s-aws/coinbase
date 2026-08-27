@@ -59,7 +59,10 @@ def test_should_trigger_reveal_has_triggered_short_circuit():
     src = _SRC
 
     # Locate the should_trigger_reveal method body.
-    marker = "def should_trigger_reveal(self, stealth_order_id: str)"
+    # Optional event-snapshot arguments may be added as the bridge evolves;
+    # pin the method body and ordering contract without pinning one exact
+    # single-line signature.
+    marker = "def should_trigger_reveal("
     idx = src.find(marker)
     assert idx != -1, "should_trigger_reveal definition missing"
 

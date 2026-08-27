@@ -248,8 +248,9 @@ def test_concurrent_create_partial_fill_follow_up_does_not_overspawn():
             follow_up_ids.append((fu_id, kwargs.get("total_size")))
             return fu_id
 
-    stealth_manager.create_follow_up_stealth_order.side_effect = _create_fu
-    engine.stealth_order_bridge = Mock(stealth_manager=stealth_manager)
+    stealth_bridge = Mock(stealth_manager=stealth_manager)
+    stealth_bridge.create_follow_up_stealth_order.side_effect = _create_fu
+    engine.stealth_order_bridge = stealth_bridge
     engine.db_module.get_parent_order.return_value = {
         "target_movement": 0.001,
         "target_movement_type": "P",

@@ -5,7 +5,9 @@ This is the single source of truth for engine lifecycle state. Every
 entry point that originates new work (REST order placement, stealth
 reveal, dashboard order creation) must consult the controller via
 ``check_admission`` before proceeding, and every critical section that
-must complete before shutdown must be wrapped in ``track_inflight``.
+must complete before shutdown must be wrapped in ``track_inflight``. When
+the admission decision and start of tracked work must be one atomic boundary,
+callers use ``track_admitted_inflight``.
 
 Design follows the integrated-by-design pattern: one shared state
 object, one builder, exposed via ``get_runtime_controller()``.
@@ -166,6 +168,34 @@ class RuntimeController:
         """
         with self._inflight_lock:
             self._inflight[category] = self._inflight.get(category, 0) + 1
+        try:
+            yield
+        finally:
+            with self._inflight_lock:
+                remaining = self._inflight.get(category, 0) - 1
+                if remaining <= 0:
+                    self._inflight.pop(category, None)
+                else:
+                    self._inflight[category] = remaining
+                if not self._inflight:
+                    self._inflight_zero.notify_all()
+
+    @contextmanager
+    def track_admitted_inflight(self, category: str) -> Iterator[None]:
+        """Atomically admit originating work and register it as in flight.
+
+        The state lock is held across the admission check and counter
+        increment. A concurrent pause/shutdown therefore has only two valid
+        outcomes: it wins first and this context raises, or this work is
+        registered before the state transition and may finish as pre-existing
+        in-flight work. User code runs without either controller lock held.
+        """
+
+        with self._state_lock:
+            self.check_admission(category)
+            with self._inflight_lock:
+                self._inflight[category] = self._inflight.get(category, 0) + 1
+
         try:
             yield
         finally:

@@ -351,6 +351,50 @@ class TestOrderEventStreamPersistence:
         assert captured["params"][3] == "TRIGGERED"
         assert captured["params"][4] == expected_status
 
+    def test_condition_reset_lifecycle_history_maps_pending_to_hidden(
+        self,
+        monkeypatch,
+    ):
+        captured = {}
+
+        class FakeCursor:
+            def execute(self, query, params):
+                captured["params"] = params
+
+            def fetchone(self):
+                return [1]
+
+        class FakeContextManager:
+            def __enter__(self):
+                return FakeCursor()
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+        monkeypatch.setattr(
+            order_db.DB_CLIENT,
+            "execute_query",
+            lambda query, params: [
+                {"last_lifecycle_event": "CONDITION_WATCHING"}
+            ],
+        )
+        monkeypatch.setattr(
+            order_db.DB_CLIENT,
+            "get_cursor",
+            lambda: FakeContextManager(),
+        )
+
+        inserted = order_db.insert_stealth_order_lifecycle_event(
+            stealth_order_id="550e8400-e29b-41d4-a716-446655440000",
+            lifecycle_event="CONDITION_RESET",
+            context={},
+        )
+
+        assert inserted == 1
+        assert captured["params"][2] == "CONDITION_WATCHING"
+        assert captured["params"][3] == "PENDING"
+        assert captured["params"][4] == "HIDDEN"
+
 
 class TestDataIntegrity:
     """Test data integrity constraints."""

@@ -12,7 +12,9 @@ The runtime is centered on a single `OrderEngine` instance (`core/order_engine.p
 - `api/v1/app.py`: enterprise Admin API contract app and OpenAPI source.
 - `application/admin_api/`: shared command-service boundary for FastAPI and
   dashboard compatibility adapters.
-- `bridges/stealth_order_bridge.py`: stealth condition evaluation and reveal orchestration.
+- `bridges/stealth_order_bridge.py` +
+  `bridges/stealth_event_deadline_scheduler.py`: ordered stealth condition
+  evaluation, deadline scheduling, and reveal orchestration.
 - `core/runtime_controller.py`: lifecycle admission gate and inflight drain coordinator.
 - `core/startup_reconciler.py` + `core/periodic_reconciler.py`: exchange-vs-local drift audits.
 - `calculation/fee_manager.py`: dynamic maker/taker fee telemetry and adaptive factors.
@@ -60,9 +62,38 @@ The runtime is centered on a single `OrderEngine` instance (`core/order_engine.p
 - fee manager refresh loop (hourly)
 - market tick retention sweeper (if recorder initialized)
 
-`StealthOrderBridge.start()` starts:
-- condition evaluation loop (`~100ms` cadence)
-- stealth DB reconciliation loop (`30s` cadence)
+`StealthOrderBridge.start()` performs strict database hydration and starts only
+the stealth DB reconciliation loop (`30s` cadence). It does not enable reveal
+decisions. After startup exchange/local reconciliation succeeds,
+`activate_decisions()` builds every active order's derived schedule and starts
+one event/deadline worker. An incomplete hydration or failed schedule build
+always blocks engine startup. Unavailable startup reconciliation
+also blocks it unless the operator explicitly set `DISABLE_RECONCILER`; that
+flag bypasses reconciliation only.
+
+The decision scheduler owns one `Condition`, an ordered bounded market-event
+FIFO, and one monotonic generational deadline heap. It has no DB, REST, or
+lifecycle authority. Market-event overflow is explicit and fail-closed:
+one bounded aggregate boundary carries exact loss counts for every discarded
+product and, when applicable, the single retained newest snapshot. An
+intrinsic event field distinguishes snapshots from control-only resets; payload
+shape is not semantic. If the worker stops unexpectedly or an authoritative
+runtime schedule cannot be rebuilt, the bridge clears readiness, terminally
+stops the scheduler, emits one diagnostic, and pauses originating work. A
+later operator resume is paused again on the next rejected publication;
+restart plus hydration/reconciliation is required. Due
+deadlines are dispatched before queued market events, and the worker handles
+at most one market event before checking the heap again, so a hot ticker
+backlog cannot starve time/admission/anchor wakes.
+
+`OrderEngine` also treats its upstream bounded ticker queue as an explicit
+continuity boundary. On overflow it serializes producers, retains the newest
+envelope, carries forward any earlier recovery counts, and records exact loss
+counts per product. The ticker worker publishes those reset markers before the
+retained snapshot reaches the stealth scheduler. Coinbase's top-level message
+timestamp travels with that envelope; it is not expected on each ticker row.
+The local monotonic receipt time is sampled at `on_message` entry, attached only
+after deduplication, and retained with the selected overflow envelope.
 
 `PeriodicReconciler.start()` starts:
 - deep exchange-vs-local audit loop (`15m` default)
@@ -74,6 +105,19 @@ Primary lock boundaries:
 - `OrderEngine._coid_handler_locks[client_order_id]`: serializes ensure-parent-row + delta processing per COID.
 - `PostgresDB._cursor_lock`: serializes cursor/commit/rollback on shared connection.
 - `RuntimeController` state lock + inflight lock: lifecycle state and drain accounting.
+- `OrderEngine._ticker_ingress_lock`: serialized ticker enqueue and explicit
+  full-queue recovery across concurrent websocket producers.
+- `StealthOrderManager._orders_cache_lock`: short structural snapshots and
+  insert/clear operations for the local stealth cache; it is separate from the
+  database creation lock.
+- `StealthOrderManager._market_cache_lock`: atomic ticker snapshot replacement.
+- `StealthEventDeadlineScheduler` condition: market FIFO, deadline heap, and
+  per-`stealth_order_id`/purpose generations, including transient
+  worker-captured deadline ownership.
+- `StealthOrderBridge` per-order action locks: serialize schedule publication,
+  complete root/follow-up creation, reveal/reprice/cancel, continuity reset,
+  price-condition edits, websocket exchange-ID enrichment, and terminal
+  execution updates for one logical stealth order.
 
 Concurrency safety mechanisms:
 - Dedup buckets via `EventBridge`.
@@ -91,7 +135,7 @@ Concurrency safety mechanisms:
 - `STOPPED`: terminal state.
 
 Admission is enforced at dashboard and engine-originated entry points.
-Inflight critical sections (`track_inflight`) allow graceful drain before stop hooks run.
+Inflight critical sections (`track_inflight`) allow graceful drain before stop hooks run. Scheduler-owned anchor actions use `track_admitted_inflight` so the admission decision and inflight registration share one state-lock boundary: pause either wins first or the already-admitted action drains as existing work.
 
 ## Core Data Flows
 
@@ -111,22 +155,58 @@ Inflight critical sections (`track_inflight`) allow graceful drain before stop h
 
 ### 2. Stealth Lifecycle Flow
 
-1. `create_stealth_order` persists root order and in-memory state.
-2. Bridge evaluator polls active stealth orders.
-3. Condition evaluators decide when to transition to `TRIGGERED`.
-4. Reveal plan resolves submitted price (`configured_limit`, `top_of_book`, or `midpoint`) and post-only policy.
-5. Placement happens via REST. For placement client order IDs that differ from
+1. The bridge reserves the new `stealth_order_id` and owns its per-order lock
+   across the manager's complete creation transaction. `create_stealth_order`
+   persists root order and in-memory state, emits `CREATED`, and publishes the
+   schedule before a ticker can evaluate that SID. The same ownership covers
+   follow-up post-create metadata persistence.
+2. The ticker worker publishes a defensive normalized snapshot to the bridge
+   before dashboard/metrics work. The scheduler preserves websocket arrival
+   order and evaluates only active orders for that product. Coinbase's ticker
+   event time is preserved (UTC-normalized; host UTC is only the fallback), so
+   an engine queue delay does not silently lengthen a configured hold. A
+   detected upstream queue loss or out-of-order timestamp breaks continuous
+   evidence before a retained/newer ticker can start a new hold.
+3. Fixed time conditions use stable wall-clock deadlines. Price and spread
+   conditions use continuous-hold deadlines: a true event starts `PENDING`, any
+   later false, unusable, or failed-to-evaluate ordered event emits
+   `CONDITION_RESET` and returns to `HIDDEN`, and elapsed time alone cannot
+   trigger. If that reset cannot be persisted, decision readiness is
+   terminally latched off until restart. A true ordered event at or after the
+   deadline commits `TRIGGERED`. Zero hold commits on the first true event.
+   A failed `PENDING` or `TRIGGERED` write restores the prior in-memory state,
+   requests a runtime pause, and raises before lifecycle publication or reveal.
+   Jitter, volume, ratio, and composite conditions retain the compatibility
+   recheck path; they were not redefined by this scheduler change. Activation
+   rejects malformed configurations that would fail on every recheck while
+   retaining their existing fallback semantics.
+4. `TRIGGERED` is a committed snapshot. Runtime pause can defer placement, but
+   later market events do not roll it back; admission retries use the existing
+   100ms slice/retry cadence.
+5. Anchor deadlines only mark a logical order due. The next live ticker for its
+   product claims that deadline generation and invokes the existing manager
+   repricing path; stale generations are no-ops and anchor repricing REST/DB work
+   does not run on the decision worker. The ticker may atomically claim either
+   an active heap deadline or a wake already captured by the worker, so the
+   first eligible post-deadline ticker cannot miss the handoff window. Anchor
+   eligibility uses that ticker's ingress monotonic time, not the later time at
+   which dashboard/metrics work finishes. Batch processing rechecks admission
+   per SID, atomically registers admitted anchor work with `RuntimeController`,
+   and retains or rebuilds unstarted due work if pause/drain or decision
+   readiness loss begins.
+6. Reveal plan resolves submitted price (`configured_limit`, `top_of_book`, or `midpoint`) and post-only policy.
+7. Placement happens via REST. For placement client order IDs that differ from
    the stealth root, `StealthOrderManager.reveal_order_slice` pre-inserts the
    `order_parent` row before the REST attempt so a racing WS user-channel event
    does not create an orphan root. If REST raises or Coinbase returns a
    rejected placement, the reveal path records a failed reveal event but
    leaves revealed size, remaining size, and active placement pointers
    unchanged.
-6. Reveal events and lifecycle transitions persist to audit/history tables.
-7. Cancel/re-entry policy can cancel a no-fill revealed placement, return the stealth order to `HIDDEN`, and later re-enter through the existing reveal path when the market moves far enough away.
-8. Same-side post-fill retreat can move the nearest opted-in hidden order on the same product/side by configured price ticks after another order fills.
-9. Anchor repricing loop can mutate revealed orders under claim guards and applies any cumulative post-fill retreat offset before computing the next target.
-10. Move-revealed flow executes cancel-and-replace with audit row insertion.
+8. Reveal events and lifecycle transitions persist to audit/history tables.
+9. Cancel/re-entry policy can cancel a no-fill revealed placement, return the stealth order to `HIDDEN`, and later re-enter through the existing reveal path when the market moves far enough away.
+10. Same-side post-fill retreat can move the nearest opted-in hidden order on the same product/side by configured price ticks after another order fills.
+11. Anchor repricing can mutate revealed orders under claim guards and applies any cumulative post-fill retreat offset before computing the next target. Current limitation: canonical full reveal sets `remaining_size` to zero while the revealed repricer also uses `remaining_size` as live venue exposure, so ordinary fully revealed resting placements skip automatic cancel-replace; correcting that exposure model is separate from scheduler timing.
+12. Move-revealed flow executes cancel-and-replace with audit row insertion.
 
 ### Stealth State and Exchange Truth
 
@@ -159,10 +239,15 @@ Same-side post-fill retreat is a separate hidden-order policy:
 ### 3. Reconciliation Flow
 
 Startup (and periodic deep audit):
-- Pull exchange open orders via REST.
+- Pull every page of exchange open orders via REST; malformed pagination,
+  missing order IDs, and repeated cursors make the reconciliation unavailable.
 - Pull local open view from `order_parent` (excluding terminal and pre-reveal stealth statuses).
 - Diff into `unknown_to_local`, `open_on_exchange_terminal_locally`, `closed_on_exchange_open_locally`, `in_sync`.
 - Optional safe auto-heal marks local-open/exchange-closed rows as `RECONCILED_CLOSED`.
+- Startup accepts only an explicit Coinbase `orders` list plus successful local
+  queries. Missing/malformed REST data or failed local reads produce no
+  authoritative report and therefore cannot activate stealth decisions or the
+  engine loop. An explicit empty `orders: []` is valid exchange truth.
 
 Missed-fill audit:
 - Page REST historical fills.

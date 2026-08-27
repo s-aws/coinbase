@@ -70,6 +70,37 @@ class TestStealthOrderCreation:
         assert order["anchor_repricing_policy_json"]["enabled"] is True
         assert order["anchor_repricing_policy_json"]["reference_price_source"] == "midpoint"
 
+    def test_created_lifecycle_precedes_scheduler_publication(self, monkeypatch):
+        from configuration import PRODUCT_METADATA
+
+        monkeypatch.setitem(
+            PRODUCT_METADATA,
+            "BTC-USDC",
+            {"price_increment": "0.01"},
+        )
+        monkeypatch.setattr(
+            "core.stealth_order_manager.insert_order_parent",
+            lambda **kwargs: 1,
+        )
+        manager = StealthOrderManager(db_client=None)
+        sequence = []
+        manager._dispatch_lifecycle_event = (
+            lambda **kwargs: sequence.append(kwargs["event"])
+        )
+        manager.set_schedule_invalidation_callback(
+            lambda _stealth_order_id: sequence.append("scheduled")
+        )
+
+        manager.create_stealth_order(
+            product_id="BTC-USDC",
+            side="BUY",
+            total_size=1.0,
+            limit_price=100.0,
+            reveal_condition={"type": "time_delay", "delay_seconds": 0},
+        )
+
+        assert sequence == [StealthLifecycleEvent.CREATED, "scheduled"]
+
 
 class TestStealthOrderStateTransitions:
     """Test order state transitions."""
@@ -188,7 +219,7 @@ class TestRevealConditions:
             "volume_1m": 0.0,
             "source": "ticker",
         }
-        manager._update_stealth_order = lambda order: None
+        manager._update_stealth_order = lambda order: True
         manager._dispatch_lifecycle_event = lambda *args, **kwargs: None
 
         condition_met, _ = manager.evaluate_conditions(stealth_order_id)
@@ -317,7 +348,6 @@ class TestAnchorRepricing:
         manager._placed_order_index["placement-old"] = manager.in_memory_orders[stealth_order_id]
 
         cancelled = []
-
         monkeypatch.setattr(
             "configuration.REST_CLIENT",
             SimpleNamespace(
@@ -357,14 +387,16 @@ class TestAnchorRepricing:
             "remaining_size": 1.0,
             "executed_size": 0.0,
             "limit_price": 100.0,
-            "status": StealthOrderStatus.HIDDEN.value,
+            "status": StealthOrderStatus.PENDING.value,
             "reveal_condition_type": "price",
             "reveal_condition_json": {
                 "type": "price",
                 "price_threshold": 105.0,
                 "direction": "above",
-                "hold_duration_seconds": 0,
+                "hold_duration_seconds": 10,
             },
+            "condition_first_met_at": datetime.utcnow() - timedelta(seconds=1),
+            "condition_confirmed_at": None,
             "sizing_strategy_json": {"type": "fixed"},
             "revealed_orders": [],
             "anchor_repricing_policy_json": {
@@ -395,7 +427,7 @@ class TestAnchorRepricing:
             "volume_1m": 10.0,
             "source": "ticker",
         }
-        manager._update_stealth_order = lambda order: None
+        manager._update_stealth_order = lambda order: True
 
         processed = manager.process_anchor_repricing_for_product("BTC-USDC")
 
@@ -407,6 +439,11 @@ class TestAnchorRepricing:
         assert order["reveal_condition_json"]["price_threshold"] == new_limit + 5.0
         # Offsets persisted for future reprices.
         assert order["anchor_repricing_state_json"]["reveal_condition_price_offsets"] == {"price_threshold": 5.0}
+        # The timed claim was made against the old absolute threshold and
+        # cannot remain live after anchor repricing changes that threshold.
+        assert order["status"] == StealthOrderStatus.HIDDEN.value
+        assert order["condition_first_met_at"] is None
+        assert order["condition_confirmed_at"] is None
 
     def test_reprice_leaves_non_price_reveal_conditions_untouched(self):
         """Time-delay / spread / ratio conditions carry no absolute price; reprice must not mutate them."""

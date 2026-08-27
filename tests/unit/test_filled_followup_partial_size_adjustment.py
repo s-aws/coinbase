@@ -69,9 +69,12 @@ def _attach_stealth_bridge(engine: OrderEngine) -> Mock:
         "reveal_condition_json": {"type": "price", "direction": "below"},
         "follow_up_reveal_direction": "opposite",
     }
-    stealth_manager.create_follow_up_stealth_order.return_value = "stealth-child-1"
-    engine.stealth_order_bridge = Mock(stealth_manager=stealth_manager)
-    return stealth_manager
+    stealth_bridge = Mock(stealth_manager=stealth_manager)
+    stealth_bridge.create_follow_up_stealth_order.return_value = (
+        "stealth-child-1"
+    )
+    engine.stealth_order_bridge = stealth_bridge
+    return stealth_bridge
 
 
 def _configure_common_followup_mocks(engine: OrderEngine) -> None:
@@ -101,7 +104,7 @@ def _configure_common_followup_mocks(engine: OrderEngine) -> None:
 
 def test_filled_follow_up_size_reduced_by_partial_progress():
     engine = _build_engine()
-    stealth_manager = _attach_stealth_bridge(engine)
+    stealth_bridge = _attach_stealth_bridge(engine)
     _configure_common_followup_mocks(engine)
 
     with patch(
@@ -118,13 +121,15 @@ def test_filled_follow_up_size_reduced_by_partial_progress():
     ):
         engine.handle_filled_order(_filled_order())
 
-    stealth_manager.create_follow_up_stealth_order.assert_called_once()
-    assert stealth_manager.create_follow_up_stealth_order.call_args.kwargs["total_size"] == 19.0
+    stealth_bridge.create_follow_up_stealth_order.assert_called_once()
+    assert stealth_bridge.create_follow_up_stealth_order.call_args.kwargs[
+        "total_size"
+    ] == 19.0
 
 
 def test_filled_follow_up_skipped_when_partial_progress_already_covers_size():
     engine = _build_engine()
-    stealth_manager = _attach_stealth_bridge(engine)
+    stealth_bridge = _attach_stealth_bridge(engine)
     _configure_common_followup_mocks(engine)
 
     with patch(
@@ -141,5 +146,5 @@ def test_filled_follow_up_skipped_when_partial_progress_already_covers_size():
     ):
         engine.handle_filled_order(_filled_order())
 
-    stealth_manager.create_follow_up_stealth_order.assert_not_called()
+    stealth_bridge.create_follow_up_stealth_order.assert_not_called()
     engine.complete_follow_up_processing.assert_called_once_with("filled", "placed-1")

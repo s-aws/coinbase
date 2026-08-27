@@ -158,6 +158,30 @@ class TestInflightTracking:
         assert controller.total_inflight() == 0
 
     @pytest.mark.regression
+    def test_atomic_admission_registers_work_before_pause(self, controller):
+        with controller.track_admitted_inflight(INFLIGHT_REST_PLACE):
+            assert controller.inflight_snapshot() == {
+                INFLIGHT_REST_PLACE: 1
+            }
+            assert controller.request_pause() is True
+            assert controller.state is EngineState.PAUSED
+            assert controller.inflight_snapshot() == {
+                INFLIGHT_REST_PLACE: 1
+            }
+
+        assert controller.total_inflight() == 0
+
+    @pytest.mark.regression
+    def test_atomic_admission_rejects_work_after_pause(self, controller):
+        assert controller.request_pause() is True
+
+        with pytest.raises(EngineNotAdmittingError):
+            with controller.track_admitted_inflight(INFLIGHT_REST_PLACE):
+                pytest.fail("paused work must not enter the admitted context")
+
+        assert controller.total_inflight() == 0
+
+    @pytest.mark.regression
     def test_concurrent_increments(self, controller):
         # Drive 50 threads through the context manager simultaneously and
         # confirm the counter ends at zero with no lost decrements.

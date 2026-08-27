@@ -41,6 +41,8 @@ Can display cross-venue metrics using `market_intel` and external ws feeds.
 Primary runtime engine.
 Responsibilities:
 - websocket event fan-out and dedup integration
+- bounded ticker-ingress recovery with newest-envelope retention, inherited
+  per-product continuity-loss counts, and Coinbase envelope-time forwarding
 - parent/child lifecycle updates
 - follow-up creation (filled/cancelled and partial-fill paths)
 - fill progress delta ingestion and persistence fan-out
@@ -58,6 +60,11 @@ Responsibilities:
 - same-side post-fill retreat for opted-in hidden orders
 - move-revealed cancel-and-replace flow
 - lifecycle hook dispatch and audit writes
+- authoritative condition state transitions, including continuous price/spread
+  hold reset and `TRIGGERED` snapshot commitment, with rollback/pause before
+  lifecycle publication if either transition cannot be persisted
+- thread-safe defensive market snapshots and post-persistence schedule
+  invalidation notifications
 
 Boundary rule: this module owns stealth lifecycle truth. Any change that makes a revealed stealth order no longer revealed must account for the live exchange placement through the existing cancel/move/reprice/reconcile paths before changing local state.
 
@@ -67,6 +74,7 @@ Responsibilities:
 - state transitions (`RUNNING`, `PAUSED`, `DRAINING`, `STOPPED`)
 - admission checks for originating work
 - inflight tracking for graceful drain
+- atomic admission plus inflight registration for scheduler-owned anchor work
 - subsystem stop-hook orchestration
 
 ### `core/startup_reconciler.py`
@@ -76,6 +84,9 @@ Responsibilities:
 - optional safe auto-heal (`RECONCILED_CLOSED`)
 - historical fill audit vs local ledger
 - ownership partition using `order_event_stream` submission evidence
+- distinguish an explicit empty exchange order list from unavailable/malformed
+  REST data, exhaust cursor pagination, and propagate failed local reads as an
+  unavailable reconciliation
 
 ### `core/periodic_reconciler.py`
 Background deep audit loop wrapper around startup reconciler behavior.
@@ -111,12 +122,43 @@ WebSocket event dedup with atomic claim-and-mark; used by `OrderEngine.on_messag
 ### `bridges/stealth_order_bridge.py`
 Coordinates `StealthOrderManager` with `OrderEngine`.
 Responsibilities:
-- condition evaluation loop (~100ms)
+- strict hydration followed by separately gated decision activation after
+  startup reconciliation
+- product-scoped ordered ticker-event evaluation and per-order deadline routing
+- continuous-hold confirmation only from ordered websocket evidence, including
+  reset-on-evaluation-error and terminal latching if reset persistence fails
+- committed reveal admission retries and compatibility-only condition rechecks
+  at 100ms where required
 - stealth DB reconciliation loop (~30s)
-- market data forwarding; ticker updates run cancel/re-entry before anchor repricing
+- market data forwarding at the front of ticker handling
+- UTC-normalized Coinbase ticker event-time preservation with host-time fallback
+- ingress-monotonic anchor eligibility retained through ticker queue recovery
+- anchor deadline handoff to the next live ticker, with generation claims before
+  invoking the canonical manager reprice path; active and worker-captured
+  deadlines use the same atomic claim, with per-SID admission rechecks, atomic
+  RuntimeController admission/inflight registration, and due-work retention or
+  rebuilding across pause/drain
+- per-SID action ownership across complete root/follow-up creation, scheduling,
+  reveal/reprice/cancel, condition reset/edit, websocket exchange-ID
+  enrichment, and terminal execution updates
+- terminal fail-closed scheduler stop/readiness clear on worker or schedule
+  failure; one diagnostic is logged and an unsafe later resume is paused again
 - reveal event recording
 
 Dashboard handlers that route through the bridge must have an explicit bridge method. Do not call manager methods from `dashboard_server.py` through a bridge method that does not exist.
+
+### `bridges/stealth_event_deadline_scheduler.py`
+Manager/DB/REST-independent scheduling primitive. Owns one condition-protected
+bounded market FIFO and one monotonic deadline heap keyed by
+`(stealth_order_id, StealthWakePurpose, generation)`. Reschedule/invalidate
+advances the generation; captured stale work must recheck ownership before it
+can act. Due deadlines have priority over the bounded one-event-at-a-time
+market dispatch. A live ticker may atomically claim a due active or
+worker-captured anchor wake from this same heap; this is not a parallel timer.
+Overflow recovery remains within the configured queue bound by using one
+aggregate continuity boundary with exact per-product loss counts. The event's
+intrinsic snapshot flag, not its opaque payload, identifies a retained ticker.
+The heap is disposable derived state, never lifecycle truth.
 
 > **Removed 2026-05-04:** `bridges/engine_orchestrator.py`
 > (`OrderEngineOrchestrator`), `bridges/calculator_bridge.py`,
@@ -244,4 +286,4 @@ Canonical schema and write/read functions for core trading tables.
 
 ---
 
-Last updated: 2026-08-26
+Last updated: 2026-08-27

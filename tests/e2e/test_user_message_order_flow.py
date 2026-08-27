@@ -52,7 +52,8 @@ def test_user_event_flow_uses_client_order_id_for_stealth_correlation(project_ro
     stealth_manager = Mock()
     stealth_manager.find_stealth_order_by_placed_order_id = Mock(return_value=None)
     stealth_manager.sync_exchange_order_id_for_placed_order = Mock()
-    engine.stealth_order_bridge = Mock(stealth_manager=stealth_manager)
+    stealth_bridge = Mock(stealth_manager=stealth_manager)
+    engine.stealth_order_bridge = stealth_bridge
 
     # Claim must succeed for handle_filled_order to reach the stealth lookup.
     # Disabling should_replace stops execution after the lookup so we don't need
@@ -63,7 +64,7 @@ def test_user_event_flow_uses_client_order_id_for_stealth_correlation(project_ro
 
     engine.process_user_event({"type": "filled", "orders": [sample_order]})
 
-    stealth_manager.sync_exchange_order_id_for_placed_order.assert_called_once_with(
+    stealth_bridge.sync_exchange_order_id_for_placed_order.assert_called_once_with(
         sample_order["client_order_id"],
         sample_order["order_id"],
     )

@@ -165,6 +165,40 @@ def test_stealth_lifecycle_hook_skips_snapshot_for_created(monkeypatch):
     assert called["snapshot"] == 0
 
 
+def test_condition_reset_writes_a_state_snapshot(monkeypatch):
+    db_module = FakeDBModule()
+    publisher = OrderEventStreamPublisher(db_module)
+    snapshots = []
+
+    monkeypatch.setattr(
+        "database.order.insert_stealth_order_lifecycle_event",
+        lambda stealth_order_id, lifecycle_event, context: 1,
+    )
+    monkeypatch.setattr(
+        "database.order.update_stealth_order_lifecycle_event",
+        lambda stealth_order_id, lifecycle_event, failure_reason=None: True,
+    )
+    monkeypatch.setattr(
+        "database.order.insert_stealth_order_snapshot",
+        lambda stealth_order_id, lifecycle_event, context: snapshots.append(
+            (stealth_order_id, lifecycle_event, context)
+        ) or 1,
+    )
+
+    publisher._stealth_lifecycle_hook(
+        "550e8400-e29b-41d4-a716-446655440000",
+        StealthLifecycleEvent.CONDITION_RESET,
+        {
+            "status": "HIDDEN",
+            "timestamp": datetime(2026, 8, 27, 12, 0, 0),
+        },
+    )
+
+    assert len(snapshots) == 1
+    assert snapshots[0][1] == "CONDITION_RESET"
+    assert snapshots[0][2]["status"] == "HIDDEN"
+
+
 def test_publish_event_enriches_payload_with_fee_manager_audit():
     db_module = FakeDBModule()
     publisher = OrderEventStreamPublisher(db_module)

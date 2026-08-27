@@ -183,7 +183,7 @@ def test_process_user_order_backfills_stealth_exchange_order_id_before_hold_retu
 
     engine.process_user_order(order)
 
-    stealth_manager.sync_exchange_order_id_for_placed_order.assert_called_once_with(
+    stealth_bridge.sync_exchange_order_id_for_placed_order.assert_called_once_with(
         order["client_order_id"],
         order["order_id"],
     )

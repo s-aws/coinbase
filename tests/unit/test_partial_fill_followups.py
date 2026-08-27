@@ -369,9 +369,11 @@ def test_create_partial_fill_follow_up_bypasses_replacement_cap():
         "reveal_condition_json": {"type": "price", "direction": "below"},
         "follow_up_reveal_direction": "opposite",
     }
-    stealth_manager.create_follow_up_stealth_order.return_value = "stealth-child-1"
-
-    engine.stealth_order_bridge = Mock(stealth_manager=stealth_manager)
+    stealth_bridge = Mock(stealth_manager=stealth_manager)
+    stealth_bridge.create_follow_up_stealth_order.return_value = (
+        "stealth-child-1"
+    )
+    engine.stealth_order_bridge = stealth_bridge
     engine.db_module.get_parent_order.return_value = {
         "target_movement": 0.001,
         "target_movement_type": "P",
@@ -399,8 +401,10 @@ def test_create_partial_fill_follow_up_bypasses_replacement_cap():
 
     # Carry-bounded, not cap-bounded.
     assert created_units == 5
-    stealth_manager.create_follow_up_stealth_order.assert_called_once()
-    follow_up_kwargs = stealth_manager.create_follow_up_stealth_order.call_args.kwargs
+    stealth_bridge.create_follow_up_stealth_order.assert_called_once()
+    follow_up_kwargs = (
+        stealth_bridge.create_follow_up_stealth_order.call_args.kwargs
+    )
     assert isclose(float(follow_up_kwargs["total_size"]), 0.05, rel_tol=0.0, abs_tol=1e-12)
     # Registration MUST go through the bypass path so the cap counter
     # stays accurate.

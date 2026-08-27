@@ -72,7 +72,8 @@ def test_process_user_order_syncs_exchange_order_id_before_fill_handling():
     engine, _ = _build_engine()
 
     stealth_manager = Mock()
-    engine.stealth_order_bridge = Mock(stealth_manager=stealth_manager)
+    stealth_bridge = Mock(stealth_manager=stealth_manager)
+    engine.stealth_order_bridge = stealth_bridge
     engine.handle_filled_order = Mock()
 
     order = {
@@ -86,7 +87,7 @@ def test_process_user_order_syncs_exchange_order_id_before_fill_handling():
 
     engine.process_user_order(order)
 
-    stealth_manager.sync_exchange_order_id_for_placed_order.assert_called_once_with(
+    stealth_bridge.sync_exchange_order_id_for_placed_order.assert_called_once_with(
         order["client_order_id"],
         order["order_id"],
     )

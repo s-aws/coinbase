@@ -378,6 +378,23 @@ class TestOrderInventoryStealthSide:
         inv.on_stealth_transition("so-001", StealthLifecycleEvent.CONDITION_WATCHING, _make_stealth_context())
         assert inv.get_stealth_entry("so-001").status == StealthOrderStatus.PENDING
 
+    def test_condition_reset_returns_pending_entry_to_hidden(self):
+        inv = OrderInventory()
+        inv.on_stealth_transition(
+            "so-001",
+            StealthLifecycleEvent.CONDITION_WATCHING,
+            _make_stealth_context(),
+        )
+        inv.on_stealth_transition(
+            "so-001",
+            StealthLifecycleEvent.CONDITION_RESET,
+            _make_stealth_context(),
+        )
+
+        assert inv.get_stealth_entry("so-001").status == (
+            StealthOrderStatus.HIDDEN
+        )
+
     def test_condition_met_updates_to_triggered(self):
         inv = OrderInventory()
         inv.on_stealth_transition("so-001", StealthLifecycleEvent.CREATED, _make_stealth_context())

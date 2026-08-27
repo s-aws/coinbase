@@ -1396,13 +1396,11 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     }))
                     return
 
-                # Clear the cooldown so process_anchor_repricing_for_product won't skip it
-                state = mgr._normalize_anchor_repricing_state(order.get("anchor_repricing_state_json"))
-                state.pop("next_reprice_at", None)
-                order["anchor_repricing_state_json"] = state
-
-                product_id = order.get("product_id", "")
-                processed = mgr.process_anchor_repricing_for_product(product_id)
+                # The bridge owns manual anchor scheduling so the persisted
+                # next_reprice_at and disposable heap deadline cannot diverge.
+                processed = stealth_order_bridge.reprice_stealth_order_now(
+                    stealth_order_id
+                )
 
                 add_log_entry("INFO", f"Manual reprice triggered for {stealth_order_id}: processed={processed}")
                 logger.info(f"[REPRICE-NOW] {stealth_order_id} processed={processed}")
@@ -1620,7 +1618,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     return
 
             try:
-                from database.order import get_stealth_order_by_id, update_stealth_order_price_threshold
+                from database.order import get_stealth_order_by_id
 
                 existing = get_stealth_order_by_id(stealth_order_id)
                 if not existing:
@@ -1639,52 +1637,33 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     await websocket.send(json.dumps(response))
                     return
 
-                hold_duration_persisted = hold_secs is None
-                try:
-                    if hold_secs is None:
-                        success = update_stealth_order_price_threshold(
-                            stealth_order_id=stealth_order_id,
-                            price_threshold=threshold,
-                        )
-                    else:
-                        success = update_stealth_order_price_threshold(
-                            stealth_order_id=stealth_order_id,
-                            price_threshold=threshold,
-                            hold_duration_seconds=hold_secs,
-                        )
-                        hold_duration_persisted = True
-                except TypeError as type_err:
-                    # Backward compatibility for stale/legacy runtime where the helper
-                    # still accepts only (stealth_order_id, price_threshold).
-                    if "unexpected keyword argument 'hold_duration_seconds'" not in str(type_err):
-                        raise
-
-                    logger.warning(
-                        "update_stealth_order_price_threshold loaded without hold_duration_seconds support; retrying threshold-only update"
-                    )
-                    success = update_stealth_order_price_threshold(
-                        stealth_order_id=stealth_order_id,
-                        price_threshold=threshold,
-                    )
-                    hold_duration_persisted = False
-
-                if not success:
+                if not stealth_order_bridge:
                     response = {
                         "type": "error",
-                        "message": f"Failed to update threshold for stealth order: {stealth_order_id}"
+                        "message": "Stealth order bridge is not available",
                     }
                     await websocket.send(json.dumps(response))
                     return
 
-                # Sync in-memory cache
-                if stealth_order_bridge:
-                    in_mem = stealth_order_bridge.stealth_manager.in_memory_orders.get(stealth_order_id)
-                    if in_mem is not None:
-                        reveal_json = in_mem.get("reveal_condition_json") or {}
-                        reveal_json["price_threshold"] = threshold
-                        if hold_secs is not None and hold_duration_persisted:
-                            reveal_json["hold_duration_seconds"] = hold_secs
-                        in_mem["reveal_condition_json"] = reveal_json
+                try:
+                    stealth_order_bridge.update_price_condition(
+                        stealth_order_id,
+                        price_threshold=threshold,
+                        hold_duration_seconds=hold_secs,
+                    )
+                except Exception as update_error:
+                    logger.exception(
+                        "Failed to update stealth price condition for %s",
+                        stealth_order_id,
+                    )
+                    response = {
+                        "type": "error",
+                        "message": str(update_error),
+                    }
+                    await websocket.send(json.dumps(response))
+                    return
+
+                hold_duration_persisted = hold_secs is not None
 
                 # Sync state payload cache
                 with state_lock:
@@ -2049,7 +2028,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     # Defensive: drop any cached entries (including terminal-status
                     # rows the cancel path skipped) so the engine can no longer
                     # touch them after the DB wipe below.
-                    mgr.in_memory_orders.clear()
+                    mgr.clear_in_memory_orders()
                     mgr._placed_order_index.clear()
 
                 result = clear_all_stealth_orders()

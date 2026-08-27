@@ -80,9 +80,11 @@ def test_duplicate_filled_event_creates_follow_up_once():
         "reveal_condition_json": {"type": "price", "direction": "below"},
         "follow_up_reveal_direction": "opposite",
     }
-    stealth_manager.create_follow_up_stealth_order.return_value = "stealth-child-1"
-
-    engine.stealth_order_bridge = Mock(stealth_manager=stealth_manager)
+    stealth_bridge = Mock(stealth_manager=stealth_manager)
+    stealth_bridge.create_follow_up_stealth_order.return_value = (
+        "stealth-child-1"
+    )
+    engine.stealth_order_bridge = stealth_bridge
 
     filled_order = {
         "client_order_id": "placed-1",
@@ -102,5 +104,5 @@ def test_duplicate_filled_event_creates_follow_up_once():
     engine.handle_filled_order(filled_order)
 
     # First FILLED creates the follow-up, second is dedup-blocked by claim flag.
-    stealth_manager.create_follow_up_stealth_order.assert_called_once()
+    stealth_bridge.create_follow_up_stealth_order.assert_called_once()
     assert engine.claim_follow_up_processing.call_count == 2

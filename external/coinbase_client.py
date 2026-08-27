@@ -408,11 +408,16 @@ class CoinbaseRestClient:
         response = self._client.get_accounts()
         return response.to_dict() if hasattr(response, 'to_dict') else response
     
-    def list_orders(self, order_status: Optional[List[str]] = None) -> Dict[str, Any]:
-        """List orders with optional status filter.
+    def list_orders(
+        self,
+        order_status: Optional[List[str]] = None,
+        cursor: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """List orders with optional status and pagination cursor.
         
         Args:
             order_status: List of order statuses to filter (e.g., ['OPEN', 'FILLED'])
+            cursor: Opaque cursor returned by the previous page.
         
         Returns:
             Raw SDK response object (call .to_dict() to get dict)
@@ -420,7 +425,10 @@ class CoinbaseRestClient:
         Raises:
             Exception: If API call fails
         """
-        return self._client.list_orders(order_status=order_status)
+        kwargs: Dict[str, Any] = {"order_status": order_status}
+        if cursor is not None:
+            kwargs["cursor"] = cursor
+        return self._client.list_orders(**kwargs)
 
     def list_fills(
         self,

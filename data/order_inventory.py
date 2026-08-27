@@ -515,6 +515,7 @@ class OrderInventory:
         _STATUS_MAP: Dict[StealthLifecycleEvent, StealthOrderStatus] = {
             StealthLifecycleEvent.CREATED:            StealthOrderStatus.HIDDEN,
             StealthLifecycleEvent.CONDITION_WATCHING: StealthOrderStatus.PENDING,
+            StealthLifecycleEvent.CONDITION_RESET:    StealthOrderStatus.HIDDEN,
             StealthLifecycleEvent.CONDITION_MET:      StealthOrderStatus.TRIGGERED,
             StealthLifecycleEvent.REVEAL_ATTEMPTED:   StealthOrderStatus.TRIGGERED,
             StealthLifecycleEvent.PLACEMENT_BLOCKED:  StealthOrderStatus.TRIGGERED,

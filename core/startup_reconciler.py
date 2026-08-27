@@ -175,14 +175,55 @@ def _fetch_exchange_open_client_order_ids() -> Set[str]:
     """
     from configuration import REST_CLIENT  # late import to avoid cycles
 
-    response = REST_CLIENT.list_orders(order_status=["OPEN"])
-    raw = response.to_dict() if hasattr(response, "to_dict") else response
-    orders = raw.get("orders", []) if isinstance(raw, dict) else []
     ids: Set[str] = set()
-    for order in orders:
-        coid = order.get("client_order_id")
-        if coid:
+    cursor: Optional[str] = None
+    seen_cursors: Set[str] = set()
+
+    while True:
+        request_kwargs = {"order_status": ["OPEN"]}
+        if cursor is not None:
+            request_kwargs["cursor"] = cursor
+        response = REST_CLIENT.list_orders(**request_kwargs)
+        raw = response.to_dict() if hasattr(response, "to_dict") else response
+        if not isinstance(raw, dict):
+            raise RuntimeError("Coinbase open-orders response was not a mapping")
+        if raw.get("success") is False:
+            raise RuntimeError("Coinbase open-orders response reported failure")
+        if "orders" not in raw or not isinstance(raw.get("orders"), list):
+            raise RuntimeError(
+                "Coinbase open-orders response omitted a valid orders list"
+            )
+
+        for order in raw["orders"]:
+            if not isinstance(order, dict):
+                raise RuntimeError(
+                    "Coinbase open-orders response contained a malformed order"
+                )
+            coid = order.get("client_order_id")
+            if not coid:
+                raise RuntimeError("Coinbase open order omitted client_order_id")
             ids.add(coid)
+
+        has_next = raw.get("has_next", False)
+        if not isinstance(has_next, bool):
+            raise RuntimeError(
+                "Coinbase open-orders response has invalid has_next"
+            )
+        if not has_next:
+            break
+
+        next_cursor = raw.get("cursor")
+        if not isinstance(next_cursor, str) or not next_cursor:
+            raise RuntimeError(
+                "Coinbase open-orders response indicated another page "
+                "without a cursor"
+            )
+        if next_cursor in seen_cursors:
+            raise RuntimeError(
+                "Coinbase open-orders pagination repeated a cursor"
+            )
+        seen_cursors.add(next_cursor)
+        cursor = next_cursor
     return ids
 
 
@@ -206,16 +247,9 @@ def _fetch_local_open_client_order_ids() -> Set[str]:
     db = PostgresDB()
     try:
         ids: Set[str] = set()
-        try:
-            rows = db.execute_query(
-                "SELECT client_order_id, status FROM order_parent"
-            )
-        except Exception:
-            # Table may not exist in dev environments; log and skip.
-            logger.exception(
-                "Reconciliation: failed to read from order_parent, skipping"
-            )
-            return ids
+        rows = db.execute_query(
+            "SELECT client_order_id, status FROM order_parent"
+        )
         for row in rows or ():
             coid = row.get("client_order_id") if isinstance(row, dict) else None
             status = row.get("status") if isinstance(row, dict) else None
@@ -268,9 +302,10 @@ def run_startup_reconciliation(
     Returns:
         :class:`ReconciliationReport` when reconciliation completed (with
         or without drift), or ``None`` if it could not be performed
-        (e.g. REST client unavailable). A ``None`` return is logged as
-        a warning but is non-fatal so local dev environments without
-        live API credentials can still start up.
+        (e.g. REST client unavailable or local DB unreadable). The caller owns
+        the policy: ``main.py`` treats ``None`` as fatal unless the operator
+        explicitly disabled reconciliation; the periodic wrapper logs and
+        tries again on its next interval.
     """
     logger.info("Startup reconciliation: starting (REST OPEN vs local DB)")
 
@@ -279,7 +314,7 @@ def run_startup_reconciliation(
     except Exception:
         logger.exception(
             "Startup reconciliation skipped: could not fetch open orders "
-            "from REST. Engine will start without verifying exchange state."
+            "from REST. Exchange state was not verified."
         )
         return None
 
@@ -297,12 +332,9 @@ def run_startup_reconciliation(
         db = PostgresDB()
         all_local_ids: Set[str] = set()
         try:
-            try:
-                rows = db.execute_query(
-                    "SELECT client_order_id FROM order_parent"
-                )
-            except Exception:
-                rows = []
+            rows = db.execute_query(
+                "SELECT client_order_id FROM order_parent"
+            )
             for row in rows or ():
                 coid = row.get("client_order_id") if isinstance(row, dict) else None
                 if coid:
@@ -314,7 +346,7 @@ def run_startup_reconciliation(
                 pass
     except Exception:
         logger.exception("Startup reconciliation: failed enumerating local IDs")
-        all_local_ids = local_ids  # safe fallback
+        return None
 
     report = ReconciliationReport(
         exchange_open_count=len(exchange_ids),

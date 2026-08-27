@@ -348,6 +348,16 @@ class RevealConditionType(str, Enum):
     COMPOSITE = "composite"
 
 
+class StealthWakePurpose(str, Enum):
+    """Reason the centralized stealth scheduler should reconsider an order."""
+
+    CONDITION_HOLD = "condition_hold"
+    TIME_DELAY = "time_delay"
+    ADMISSION_RETRY = "admission_retry"
+    ANCHOR_REPRICE = "anchor_reprice"
+    COMPATIBILITY_RECHECK = "compatibility_recheck"
+
+
 # ============================================================================
 # ANCHOR REPRICING POLICY
 # ============================================================================
@@ -550,6 +560,7 @@ class StealthLifecycleEvent(str, Enum):
     """
     CREATED            = "CREATED"             # create_stealth_order() persisted
     CONDITION_WATCHING = "CONDITION_WATCHING"  # condition first partially met â†’ PENDING
+    CONDITION_RESET    = "CONDITION_RESET"     # continuous hold broke â†’ HIDDEN
     CONDITION_MET      = "CONDITION_MET"       # condition confirmed â†’ TRIGGERED
     REVEAL_ATTEMPTED   = "REVEAL_ATTEMPTED"    # slice placement about to be sent
     PLACEMENT_BLOCKED  = "PLACEMENT_BLOCKED"   # retriable pre-REST policy/hook block

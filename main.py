@@ -62,20 +62,65 @@ from dashboard_server import start_dashboard_server, set_stealth_order_bridge, u
 # Set up custom logging backend to use dashboard's add_log_entry function
 set_backend(add_log_entry)
 
+def _run_reconciled_engine(
+    *,
+    reconciler_disabled,
+    stealth_bridge,
+    controller,
+    engine,
+):
+    """Cross the startup safety barrier, then run the engine.
+
+    ``DISABLE_RECONCILER`` is the sole explicit bypass. Otherwise an
+    unavailable reconciliation result, a raised reconciliation error, or a
+    failed stealth scheduler activation is fatal.
+    """
+
+    if reconciler_disabled:
+        logger.warning(
+            "DISABLE_RECONCILER is set; skipping startup reconciliation "
+            "AND periodic audits. Drift detection is OFF until unset."
+        )
+    else:
+        report = run_startup_reconciliation(
+            fail_on_drift=False,
+            auto_heal=True,
+            audit_fills=True,
+        )
+        if report is None:
+            raise RuntimeError(
+                "Startup reconciliation could not verify exchange/local state"
+            )
+
+    if stealth_bridge is not None:
+        stealth_bridge.activate_decisions()
+
+    if not reconciler_disabled:
+        periodic_reconciler = PeriodicReconciler(
+            auto_heal=True,
+            audit_fills=True,
+        )
+        controller.register_stop_hook(
+            "periodic_reconciler",
+            periodic_reconciler.stop,
+        )
+        periodic_reconciler.start()
+
+    engine.run_forever()
+
+
 if __name__ == "__main__":
     import sys
     
     # Initialize stealth order system first (before OrderEngine)
-    stealth_bridge = None
-    try:
-        from bridges.stealth_order_bridge import StealthOrderBridge
-        from core.stealth_order_manager import StealthOrderManager
-        
-        stealth_manager = StealthOrderManager(DB_MODULE.DB_CLIENT)
-        stealth_bridge = StealthOrderBridge(stealth_manager, None)  # engine will be set later
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
+    from bridges.stealth_order_bridge import StealthOrderBridge
+    from core.stealth_order_manager import StealthOrderManager
+
+    stealth_manager = StealthOrderManager(DB_MODULE.DB_CLIENT)
+    stealth_bridge = StealthOrderBridge(
+        stealth_manager,
+        None,
+    )  # engine will be set later
     
     engine = OrderEngine(
         orderbook=ORDERBOOK,
@@ -101,12 +146,8 @@ if __name__ == "__main__":
     
     # Start stealth order system if it was initialized
     if stealth_bridge:
-        try:
-            set_stealth_order_bridge(stealth_bridge)
-            stealth_bridge.start()
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
+        set_stealth_order_bridge(stealth_bridge)
+        stealth_bridge.start()
 
     # ------------------------------------------------------------------
     # Lifecycle controller, signal handlers, startup reconciliation.
@@ -175,31 +216,12 @@ if __name__ == "__main__":
     # you just lose the periodic drift sweep until you flip it back.
     import os
     _reconciler_disabled = os.getenv("DISABLE_RECONCILER", "").strip().lower() in ("1", "true", "yes", "on")
-    if _reconciler_disabled:
-        logger.warning(
-            "DISABLE_RECONCILER is set; skipping startup reconciliation "
-            "AND periodic audits. Drift detection is OFF until unset."
-        )
-    else:
-        try:
-            run_startup_reconciliation(
-                fail_on_drift=False,
-                auto_heal=True,
-                audit_fills=True,
-            )
-        except Exception:
-            logger.exception("Startup reconciliation raised; continuing")
-
-    # Periodic deep-audit against exchange truth. Mirrors the startup
-    # configuration so drift that develops at runtime is healed on the
-    # same cadence (every 15 minutes by default). Registered as a stop
-    # hook so a graceful drain joins the audit thread cleanly.
-    if not _reconciler_disabled:
-        periodic_reconciler = PeriodicReconciler(
-            auto_heal=True,
-            audit_fills=True,
-        )
-        controller.register_stop_hook("periodic_reconciler", periodic_reconciler.stop)
-        periodic_reconciler.start()
-
-    engine.run_forever()
+    # Hydration above is intentionally passive. Only a completed startup
+    # reconciliation (or the explicit operator bypass) can activate decision
+    # processing and enter the engine loop.
+    _run_reconciled_engine(
+        reconciler_disabled=_reconciler_disabled,
+        stealth_bridge=stealth_bridge,
+        controller=controller,
+        engine=engine,
+    )

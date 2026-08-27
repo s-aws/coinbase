@@ -157,7 +157,7 @@ def _wire_cancel_path(
     # DB lookups used in the branch.
     engine.db_module.get_parent_order = Mock(return_value=parent_db_row)
 
-    return stealth_manager, stealth_record
+    return stealth_bridge, stealth_record
 
 
 @pytest.mark.regression
@@ -170,7 +170,7 @@ def test_cancel_followup_passes_stealth_order_id_not_placement_uuid():
     placement_uuid = "78f22189-eb33-4768-91c7-6da14cd3116b"
     stealth_root_id = "a853db8e-b3bc-43c4-8901-d0a80e0f7179"
 
-    stealth_manager, stealth_record = _wire_cancel_path(
+    stealth_bridge, stealth_record = _wire_cancel_path(
         engine,
         placement_uuid=placement_uuid,
         stealth_root_id=stealth_root_id,
@@ -180,7 +180,7 @@ def test_cancel_followup_passes_stealth_order_id_not_placement_uuid():
         },
     )
     # Make the manager return a real follow-up id so the success branch runs.
-    stealth_manager.create_follow_up_stealth_order = Mock(
+    stealth_bridge.create_follow_up_stealth_order = Mock(
         return_value="new-follow-up-id"
     )
 
@@ -200,8 +200,8 @@ def test_cancel_followup_passes_stealth_order_id_not_placement_uuid():
             "price": 80355.0,
         })
 
-    stealth_manager.create_follow_up_stealth_order.assert_called_once()
-    kwargs = stealth_manager.create_follow_up_stealth_order.call_args.kwargs
+    stealth_bridge.create_follow_up_stealth_order.assert_called_once()
+    kwargs = stealth_bridge.create_follow_up_stealth_order.call_args.kwargs
     assert kwargs["original_stealth_order_id"] == stealth_root_id, (
         f"Cancel-path leaked the placement uuid into "
         f"create_follow_up_stealth_order(original_stealth_order_id=...). "
@@ -226,7 +226,7 @@ def test_cancel_followup_none_return_does_not_register_phantom_child():
     placement_uuid = "placement-xyz"
     stealth_root_id = "root-xyz"
 
-    stealth_manager, _ = _wire_cancel_path(
+    stealth_bridge, _ = _wire_cancel_path(
         engine,
         placement_uuid=placement_uuid,
         stealth_root_id=stealth_root_id,
@@ -235,7 +235,7 @@ def test_cancel_followup_none_return_does_not_register_phantom_child():
             "target_movement_type": "P",
         },
     )
-    stealth_manager.create_follow_up_stealth_order = Mock(return_value=None)
+    stealth_bridge.create_follow_up_stealth_order = Mock(return_value=None)
 
     # Spy on the processing-flag lifecycle.
     engine.release_follow_up_processing = Mock(

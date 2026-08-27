@@ -408,6 +408,7 @@ def insert_stealth_order_snapshot(
             status_map = {
                 "CREATED": "HIDDEN",
                 "CONDITION_WATCHING": "PENDING",
+                "CONDITION_RESET": "HIDDEN",
                 "CONDITION_MET": "TRIGGERED",
                 "REVEAL_SUCCEEDED": "REVEALED",
                 "FILL_RECEIVED": "REVEALED",
@@ -3070,6 +3071,7 @@ def insert_stealth_order_lifecycle_event(
     status_map = {
         StealthLifecycleEvent.CREATED.value: StealthOrderStatus.HIDDEN.value,
         StealthLifecycleEvent.CONDITION_WATCHING.value: StealthOrderStatus.PENDING.value,
+        StealthLifecycleEvent.CONDITION_RESET.value: StealthOrderStatus.HIDDEN.value,
         StealthLifecycleEvent.CONDITION_MET.value: StealthOrderStatus.TRIGGERED.value,
         StealthLifecycleEvent.REVEAL_ATTEMPTED.value: StealthOrderStatus.TRIGGERED.value,
         StealthLifecycleEvent.PLACEMENT_BLOCKED.value: StealthOrderStatus.TRIGGERED.value,

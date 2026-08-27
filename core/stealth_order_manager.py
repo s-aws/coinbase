@@ -64,10 +64,10 @@ import uuid
 import json
 import time
 from dataclasses import replace
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from threading import RLock
-from typing import Callable, Dict, Any, Iterator, Mapping, Optional, Tuple, List
+from typing import Callable, Dict, Any, Iterable, Iterator, Mapping, Optional, Tuple, List
 
 from configuration import (
     DEFAULT_MAX_ORDER_REPLACEMENT,
@@ -241,8 +241,26 @@ class StealthOrderManager:
         self.log_callback = log_callback or self._default_log
         self.in_memory_orders = {}  # For caching/quick access
         self._creation_lock = RLock()
+        # Protect only structural access to ``in_memory_orders``.  This lock is
+        # deliberately separate from the creation transaction lock so a slow
+        # database write cannot stall every websocket condition decision.
+        self._orders_cache_lock = RLock()
+        # Market snapshots are published by the ticker worker and consumed by
+        # the stealth decision thread.  Keep this lock independent from
+        # ``_creation_lock`` so a market publication never waits on database
+        # persistence performed during order creation.
+        self._market_cache_lock = RLock()
         self._market_cache: Dict[str, MarketData] = {}  # product_id -> latest market snapshot
         self._placed_order_index = {}  # Index: placed_order_id -> stealth_order (O(1) lookup)
+        # ``load_all_active_orders_from_db`` keeps its historical integer return
+        # for callers, while this flag lets startup distinguish an empty table
+        # from a failed or partial hydration.
+        self._last_hydration_complete = False
+        # Optional bridge-owned callback.  It is invoked only after a local
+        # order mutation has been persisted successfully, allowing the
+        # disposable scheduler heap to invalidate/rebuild derived deadlines
+        # without becoming another source of lifecycle truth.
+        self._schedule_invalidation_callback: Optional[Callable[[str], None]] = None
         self.profit_validator = profit_validator
         # Throttle map for the "reveal returned size=0" diagnostic. Keyed
         # by stealth_order_id, value is the unix-timestamp of the last
@@ -304,6 +322,100 @@ class StealthOrderManager:
             self.logger.error(message)
         else:
             self.logger.info(message)
+
+    # ------------------------------------------------------------------
+    # Scheduler integration and market snapshot ownership
+    # ------------------------------------------------------------------
+
+    def set_schedule_invalidation_callback(
+        self,
+        callback: Optional[Callable[[str], None]],
+    ) -> None:
+        """Register the bridge callback for persisted order-state changes.
+
+        The manager remains authoritative for lifecycle state.  The callback
+        carries only the logical stealth ``client_order_id`` and must not
+        perform database or exchange work inline.
+        """
+
+        self._schedule_invalidation_callback = callback
+
+    def _notify_schedule_invalidated(self, stealth_order_id: str) -> None:
+        """Notify the disposable scheduler after persistence succeeds."""
+
+        callback = getattr(self, "_schedule_invalidation_callback", None)
+        if callback is None:
+            return
+        try:
+            callback(str(stealth_order_id))
+        except Exception as exc:
+            # Scheduler notification must never turn a committed database
+            # mutation into an apparent failure at its caller.
+            self.logger.warning(
+                "stealth schedule invalidation failed for %s: %s",
+                stealth_order_id,
+                exc,
+            )
+
+    def _get_market_cache_lock(self) -> RLock:
+        """Return the cache lock, lazily supporting bare test instances."""
+
+        lock = getattr(self, "_market_cache_lock", None)
+        if lock is None:
+            lock = RLock()
+            self._market_cache_lock = lock
+        return lock
+
+    def _get_orders_cache_lock(self) -> RLock:
+        """Return the short-held structural lock for the order cache."""
+
+        lock = getattr(self, "_orders_cache_lock", None)
+        if lock is None:
+            lock = RLock()
+            self._orders_cache_lock = lock
+        return lock
+
+    def publish_market_data(
+        self,
+        product_id: str,
+        market_data: Mapping[str, Any],
+    ) -> MarketData:
+        """Atomically replace and return one immutable-style market snapshot."""
+
+        snapshot: MarketData = dict(market_data)
+        with self._get_market_cache_lock():
+            market_cache = getattr(self, "_market_cache", None)
+            if market_cache is None:
+                market_cache = {}
+                self._market_cache = market_cache
+            market_cache[product_id] = snapshot
+        return dict(snapshot)
+
+    def snapshot_active_stealth_orders(
+        self,
+        product_id: Optional[str] = None,
+    ) -> List[str]:
+        """Return a stable snapshot of active logical stealth order IDs."""
+
+        active_statuses = {
+            StealthOrderStatus.HIDDEN.value,
+            StealthOrderStatus.PENDING.value,
+            StealthOrderStatus.TRIGGERED.value,
+            StealthOrderStatus.REVEALED.value,
+        }
+        with self._get_orders_cache_lock():
+            return [
+                sid
+                for sid, order in self.in_memory_orders.items()
+                if order.get("status") in active_statuses
+                and (product_id is None or order.get("product_id") == product_id)
+            ]
+
+    def clear_in_memory_orders(self) -> None:
+        """Clear the structural order cache under its dedicated short lock."""
+
+        with self._get_orders_cache_lock():
+            self.in_memory_orders.clear()
 
     # ------------------------------------------------------------------
     # Mutation claim API
@@ -502,14 +614,17 @@ class StealthOrderManager:
 
     @staticmethod
     def _parse_runtime_datetime(value: Any) -> Optional[datetime]:
-        if isinstance(value, datetime):
-            return value
-        if isinstance(value, str) and value:
+        parsed = value if isinstance(value, datetime) else None
+        if parsed is None and isinstance(value, str) and value:
             try:
-                return datetime.fromisoformat(value.replace("Z", "+00:00")).replace(tzinfo=None)
+                parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
             except ValueError:
                 return None
-        return None
+        if parsed is None:
+            return None
+        if parsed.utcoffset() is not None:
+            parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+        return parsed
 
     def _normalize_anchor_repricing_state(
         self,
@@ -2154,19 +2269,46 @@ class StealthOrderManager:
         finally:
             # Mutations are repeatable: always release, never complete.
             self.release_mutation(StealthMutationKind.MOVE, sid)
+            self._notify_schedule_invalidated(sid)
 
-    def process_anchor_repricing_for_product(self, product_id: str) -> int:
-        """Apply ticker-anchored repricing for eligible stealth orders on one product."""
+    def process_anchor_repricing_for_product(
+        self,
+        product_id: str,
+        stealth_order_ids: Optional[Iterable[str]] = None,
+        market_data: Optional[Mapping[str, Any]] = None,
+    ) -> int:
+        """Apply ticker-anchored repricing through the canonical manager path.
+
+        ``stealth_order_ids`` lets the bridge scope work to due logical orders.
+        ``market_data`` carries the live ticker snapshot that admitted the
+        work.  Omitting either argument preserves the historical public path.
+        """
         from core.enums import StealthMutationKind
 
         processed = 0
-        market_data = self._get_current_market_data(product_id)
-        if (market_data or {}).get("source") != "ticker":
+        market_snapshot = (
+            dict(market_data)
+            if market_data is not None
+            else self._get_current_market_data(product_id)
+        )
+        if (market_snapshot or {}).get("source") != "ticker":
             return 0
 
-        for stealth_order_id in list(self._get_active_stealth_orders()):
+        candidates = (
+            list(stealth_order_ids)
+            if stealth_order_ids is not None
+            else self.snapshot_active_stealth_orders(product_id)
+        )
+        for stealth_order_id in candidates:
             order = self.in_memory_orders.get(stealth_order_id)
             if not order or order.get("product_id") != product_id:
+                continue
+            if order.get("status") not in {
+                StealthOrderStatus.HIDDEN.value,
+                StealthOrderStatus.PENDING.value,
+                StealthOrderStatus.TRIGGERED.value,
+                StealthOrderStatus.REVEALED.value,
+            }:
                 continue
 
             policy = RepricingPolicy.from_dict(order.get("anchor_repricing_policy_json"))
@@ -2188,7 +2330,7 @@ class StealthOrderManager:
 
                 reference_price, reference_source = self._resolve_reference_price(
                     order.get("side"),
-                    market_data,
+                    market_snapshot,
                     policy,
                 )
                 if reference_price is None or reference_price <= 0:
@@ -2235,8 +2377,8 @@ class StealthOrderManager:
                 state.update({
                     "last_reference_source": reference_source,
                     "last_reference_price": reference_price,
-                    "last_reference_bid": safe_float(market_data.get("bid"), default=None),
-                    "last_reference_ask": safe_float(market_data.get("ask"), default=None),
+                    "last_reference_bid": safe_float(market_snapshot.get("bid"), default=None),
+                    "last_reference_ask": safe_float(market_snapshot.get("ask"), default=None),
                     "last_reference_at": now.isoformat(),
                 })
 
@@ -2255,7 +2397,7 @@ class StealthOrderManager:
                                 current_price,
                                 target_prices["target_price"],
                                 max_boundary_price,
-                                market_data,
+                                market_snapshot,
                             )
                         )
                     ).isoformat()
@@ -2280,10 +2422,17 @@ class StealthOrderManager:
                     continue
 
                 if order.get("status") in {StealthOrderStatus.HIDDEN.value, StealthOrderStatus.PENDING.value, StealthOrderStatus.TRIGGERED.value}:
-                    if not self._should_skip_anchor_reprice(state, policy, desired_price, current_price, outside_max, market_data):
+                    condition_price_changed = False
+                    if not self._should_skip_anchor_reprice(state, policy, desired_price, current_price, outside_max, market_snapshot):
                         # Track reveal_condition price thresholds before mutating limit_price
                         # so the helper can capture the pre-reprice baseline on first call.
-                        self._apply_reveal_condition_price_tracking(order, state, desired_price)
+                        condition_price_changed = (
+                            self._apply_reveal_condition_price_tracking(
+                                order,
+                                state,
+                                desired_price,
+                            )
+                        )
                         order["limit_price"] = desired_price
                         order["updated_at"] = now
                         state["current_logical_limit_price"] = desired_price
@@ -2305,14 +2454,30 @@ class StealthOrderManager:
                                 "reprice_reason": reprice_reason,
                                 "reference_price_source": reference_source,
                                 "reference_price": reference_price,
-                                "market_bid": market_data.get("bid"),
-                                "market_ask": market_data.get("ask"),
+                                "market_bid": market_snapshot.get("bid"),
+                                "market_ask": market_snapshot.get("ask"),
                             },
                         )
 
-                    state["next_reprice_at"] = (now + timedelta(seconds=self._next_anchor_reprice_seconds(policy, desired_price, target_prices["target_price"], max_boundary_price, market_data))).isoformat()
+                    state["next_reprice_at"] = (now + timedelta(seconds=self._next_anchor_reprice_seconds(policy, desired_price, target_prices["target_price"], max_boundary_price, market_snapshot))).isoformat()
                     order["anchor_repricing_state_json"] = state
-                    self._update_stealth_order(order)
+                    reset_persisted = False
+                    if condition_price_changed:
+                        # A continuous hold cannot span two different absolute
+                        # thresholds.  Reset through the same lifecycle path
+                        # used by a false/unusable ticker, after the new price,
+                        # condition, and anchor state are all coherent in memory.
+                        reset_persisted = self.reset_continuous_condition(
+                            stealth_order_id,
+                            reason=(
+                                "Anchor repricing changed the continuous "
+                                "condition price"
+                            ),
+                            market_data=market_snapshot,
+                            evaluation_time=market_snapshot.get("time"),
+                        )
+                    if not reset_persisted:
+                        self._update_stealth_order(order)
                     continue
 
                 if order.get("status") == StealthOrderStatus.REVEALED.value and policy.allow_revealed_reprice:
@@ -2320,7 +2485,7 @@ class StealthOrderManager:
                         order,
                         policy,
                         state,
-                        market_data,
+                        market_snapshot,
                         desired_price,
                         target_prices["target_price"],
                         max_boundary_price,
@@ -2328,7 +2493,7 @@ class StealthOrderManager:
                     ):
                         processed += 1
                     else:
-                        state["next_reprice_at"] = (now + timedelta(seconds=self._next_anchor_reprice_seconds(policy, current_price, target_prices["target_price"], max_boundary_price, market_data))).isoformat()
+                        state["next_reprice_at"] = (now + timedelta(seconds=self._next_anchor_reprice_seconds(policy, current_price, target_prices["target_price"], max_boundary_price, market_snapshot))).isoformat()
                         order["anchor_repricing_state_json"] = state
                         self._update_stealth_order(order)
             finally:
@@ -3075,6 +3240,42 @@ class StealthOrderManager:
             elif getattr(self, "log_callback", None) is not None:
                 self.log_callback("warning", message)
 
+    @classmethod
+    def _lifecycle_market_evidence(
+        cls,
+        market_data: Optional[Mapping[str, Any]],
+        *,
+        event_time: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        """Build audit fields from the immutable decision snapshot."""
+
+        snapshot = dict(market_data or {})
+        market_bid = snapshot.get("bid")
+        market_ask = snapshot.get("ask")
+        market_spread = snapshot.get("market_spread")
+        if (
+            market_spread is None
+            and market_bid is not None
+            and market_ask is not None
+        ):
+            try:
+                market_spread = float(market_ask) - float(market_bid)
+            except (TypeError, ValueError):
+                market_spread = None
+        return {
+            "market_price": snapshot.get("price"),
+            "market_bid": market_bid,
+            "market_ask": market_ask,
+            "market_spread": market_spread,
+            "market_volume_1m": snapshot.get("volume_1m"),
+            "market_source": snapshot.get("source"),
+            "timestamp": (
+                cls._parse_runtime_datetime(event_time)
+                or cls._parse_runtime_datetime(snapshot.get("time"))
+                or datetime.utcnow()
+            ),
+        }
+
     
     def create_stealth_order(
         self,
@@ -3365,7 +3566,8 @@ class StealthOrderManager:
 
             # The order becomes locally active only after both durable rows
             # exist and the fail-closed database state has been activated.
-            self.in_memory_orders[stealth_order_id] = order_data
+            with self._get_orders_cache_lock():
+                self.in_memory_orders[stealth_order_id] = order_data
 
         reveal_type = reveal_condition.get("type", "time_delay")
         reveal_delay = (
@@ -3384,15 +3586,135 @@ class StealthOrderManager:
             event=StealthLifecycleEvent.CREATED,
             order_data=order_data,
         )
+        self._notify_schedule_invalidated(stealth_order_id)
 
         return stealth_order_id
     
-    def evaluate_conditions(self, stealth_order_id: str) -> Tuple[bool, Optional[str]]:
+    def reset_continuous_condition(
+        self,
+        stealth_order_id: str,
+        *,
+        reason: str,
+        market_data: Optional[Mapping[str, Any]] = None,
+        evaluation_time: Optional[Any] = None,
+    ) -> bool:
+        """Break an in-progress price/spread hold through one state path.
+
+        This is also the fail-closed recovery used if the ordered websocket
+        event FIFO overflows: once an event is missing, continuity can no
+        longer be proven, so a PENDING hold must restart from a later tick.
+        A committed TRIGGERED snapshot is intentionally immutable.
+        """
+
+        order = self._get_stealth_order(stealth_order_id)
+        if not order:
+            return False
+        if order.get("reveal_condition_type") not in {
+            RevealConditionType.PRICE_THRESHOLD.value,
+            RevealConditionType.SPREAD.value,
+        }:
+            return False
+        if order.get("status") not in {
+            StealthOrderStatus.HIDDEN.value,
+            StealthOrderStatus.PENDING.value,
+        }:
+            return False
+        if not (
+            order.get("condition_first_met_at") is not None
+            or order.get("condition_confirmed_at") is not None
+            or order.get("status") == StealthOrderStatus.PENDING.value
+        ):
+            return False
+
+        previous_status = order.get("status")
+        previous_first_met_at = order.get("condition_first_met_at")
+        previous_confirmed_at = order.get("condition_confirmed_at")
+        order["condition_first_met_at"] = None
+        order["condition_confirmed_at"] = None
+        order["status"] = StealthOrderStatus.HIDDEN.value
+        try:
+            persisted = self._update_stealth_order(order)
+        except Exception:
+            order["status"] = previous_status
+            order["condition_first_met_at"] = previous_first_met_at
+            order["condition_confirmed_at"] = previous_confirmed_at
+            get_runtime_controller().request_pause()
+            raise
+        if not persisted:
+            order["status"] = previous_status
+            order["condition_first_met_at"] = previous_first_met_at
+            order["condition_confirmed_at"] = previous_confirmed_at
+            get_runtime_controller().request_pause()
+            raise StealthOrderPersistenceError(
+                "Failed to persist continuous-condition reset for "
+                f"{stealth_order_id}"
+            )
+        lifecycle_extra = {"reason": reason}
+        if market_data is not None:
+            lifecycle_extra.update(
+                self._lifecycle_market_evidence(
+                    market_data,
+                    event_time=evaluation_time,
+                )
+            )
+        self._dispatch_lifecycle_event(
+            stealth_order_id=stealth_order_id,
+            event=StealthLifecycleEvent.CONDITION_RESET,
+            order_data=order,
+            extra=lifecycle_extra,
+        )
+        self._notify_schedule_invalidated(stealth_order_id)
+        return True
+
+    def _persist_continuous_condition_transition(
+        self,
+        order: Dict[str, Any],
+        *,
+        previous_status: Any,
+        previous_first_met_at: Any,
+        previous_confirmed_at: Any,
+        transition_status: StealthOrderStatus,
+    ) -> None:
+        """Persist one continuous-hold transition or restore it fail-closed."""
+
+        try:
+            persisted = self._update_stealth_order(order)
+        except Exception:
+            order["status"] = previous_status
+            order["condition_first_met_at"] = previous_first_met_at
+            order["condition_confirmed_at"] = previous_confirmed_at
+            get_runtime_controller().request_pause()
+            raise
+        if persisted:
+            return
+
+        order["status"] = previous_status
+        order["condition_first_met_at"] = previous_first_met_at
+        order["condition_confirmed_at"] = previous_confirmed_at
+        get_runtime_controller().request_pause()
+        raise StealthOrderPersistenceError(
+            "Failed to persist continuous-condition "
+            f"{transition_status.value} transition for "
+            f"{order.get('stealth_order_id')}"
+        )
+
+    def evaluate_conditions(
+        self,
+        stealth_order_id: str,
+        market_data: Optional[Mapping[str, Any]] = None,
+        evaluation_time: Optional[datetime] = None,
+    ) -> Tuple[bool, Optional[str]]:
         """
         Evaluate if reveal condition is met for a stealth order.
         
         Args:
             stealth_order_id: ID of stealth order to evaluate
+            market_data: Optional immutable snapshot from the event that caused
+                this evaluation.  When omitted, the latest ticker cache is used.
+            evaluation_time: Optional UTC time associated with the event.  For
+                continuous price/spread holds this is deliberately distinct
+                from wall time: a deadline wake cannot use a stale ticker to
+                prove that the condition remained true through the deadline.
             
         Returns:
             Tuple of (condition_met: bool, reason: Optional[str])
@@ -3401,9 +3723,15 @@ class StealthOrderManager:
         if not order:
             return False, "Stealth order not found"
         
-        # Get current market data (would come from OrderEngine's market data)
-        market_data = self._get_current_market_data(order["product_id"])
-        market_source = market_data.get("source", "unknown")
+        # Work against one defensive snapshot.  A websocket publication can
+        # replace the shared cache while persistence/hooks run below, but it
+        # must not change the evidence used for this evaluation midway through.
+        market_snapshot = (
+            dict(market_data)
+            if market_data is not None
+            else self._get_current_market_data(order["product_id"])
+        )
+        market_source = market_snapshot.get("source", "unknown")
         if market_source != "ticker":
             return False, f"Waiting for live ticker market data (source={market_source})"
         
@@ -3412,26 +3740,209 @@ class StealthOrderManager:
         condition_config = order.get("reveal_condition_json", {})
         
         evaluator = get_evaluator(condition_type)
-        condition_met, reason = evaluator.evaluate(market_data, condition_config, order)
+
+        continuous_condition_types = {
+            RevealConditionType.PRICE_THRESHOLD.value,
+            RevealConditionType.SPREAD.value,
+        }
+        continuous_previous_state = None
+        if condition_type in continuous_condition_types:
+            continuous_previous_state = (
+                order.get("status"),
+                order.get("condition_first_met_at"),
+                order.get("condition_confirmed_at"),
+            )
+            truth_result = evaluator.evaluate_truth(
+                market_snapshot,
+                condition_config,
+                order,
+            )
+            if not truth_result.known:
+                # Missing/invalid fields in an ordered market event cannot
+                # prove continuity.  Treat the evidence gap like FIFO loss and
+                # restart any in-progress hold fail-closed.
+                self.reset_continuous_condition(
+                    stealth_order_id,
+                    reason=truth_result.reason,
+                    market_data=market_snapshot,
+                    evaluation_time=evaluation_time,
+                )
+                return False, truth_result.reason
+
+            event_time = self._parse_runtime_datetime(evaluation_time)
+            if event_time is None:
+                event_time = self._parse_runtime_datetime(
+                    market_snapshot.get("time")
+                )
+            if event_time is None:
+                event_time = datetime.utcnow()
+
+            first_met_at = self._parse_runtime_datetime(
+                order.get("condition_first_met_at")
+            )
+
+            if not truth_result.truth:
+                # Continuous means continuous.  Any qualifying false market
+                # event breaks the hold and invalidates the previous deadline.
+                # TRIGGERED is a committed snapshot and is never rolled back.
+                self.reset_continuous_condition(
+                    stealth_order_id,
+                    reason=truth_result.reason,
+                    market_data=market_snapshot,
+                    evaluation_time=event_time,
+                )
+                return False, truth_result.reason
+
+            first_met_was_missing = first_met_at is None
+            if first_met_was_missing:
+                order["condition_first_met_at"] = event_time
+                first_met_at = event_time
+            else:
+                # Normalize ISO/aware persisted values once they are touched so
+                # deadline arithmetic and the next database write use UTC-naive
+                # values consistently with the rest of this module.
+                order["condition_first_met_at"] = first_met_at
+
+            deadline_result = evaluator.resolve_stable_deadline(
+                condition_config,
+                order,
+            )
+            if not deadline_result.available:
+                return False, deadline_result.reason
+
+            deadline_utc = self._parse_runtime_datetime(
+                deadline_result.deadline_utc
+            )
+            if deadline_utc is None:
+                return False, deadline_result.reason
+
+            if event_time < deadline_utc:
+                first_transition = (
+                    first_met_was_missing
+                    or
+                    order.get("status") != StealthOrderStatus.PENDING.value
+                )
+                if first_transition:
+                    order["status"] = StealthOrderStatus.PENDING.value
+                    self._persist_continuous_condition_transition(
+                        order,
+                        previous_status=continuous_previous_state[0],
+                        previous_first_met_at=continuous_previous_state[1],
+                        previous_confirmed_at=continuous_previous_state[2],
+                        transition_status=StealthOrderStatus.PENDING,
+                    )
+                    self._dispatch_lifecycle_event(
+                        stealth_order_id=stealth_order_id,
+                        event=StealthLifecycleEvent.CONDITION_WATCHING,
+                        order_data=order,
+                        extra={
+                            "reason": truth_result.reason,
+                            **self._lifecycle_market_evidence(
+                                market_snapshot,
+                                event_time=event_time,
+                            ),
+                        },
+                    )
+                    self._notify_schedule_invalidated(stealth_order_id)
+                remaining = max(
+                    0.0,
+                    (deadline_utc - event_time).total_seconds(),
+                )
+                return False, (
+                    f"{truth_result.reason}; continuous hold needs "
+                    f"{remaining:.3f}s more"
+                )
+
+            condition_met = True
+            reason = (
+                f"{truth_result.reason}; continuous hold deadline reached"
+            )
+        elif condition_type == RevealConditionType.TIME_DELAY.value:
+            deadline_result = evaluator.resolve_stable_deadline(
+                condition_config,
+                order,
+            )
+            if deadline_result.supported:
+                # A fixed time delay is wall-clock based.  Unlike a continuous
+                # market hold it does not need a fresh ticker at the boundary;
+                # the live-ticker source gate above merely preserves the
+                # existing protection against synthetic cache seeds.
+                time_result = evaluator.evaluate_truth(
+                    market_snapshot,
+                    condition_config,
+                    order,
+                    # Fixed delays are based on local wall-clock time. Exchange
+                    # event timestamps are evidence ordering for continuous
+                    # price/spread holds, not authority to advance a timer.
+                    now_utc=datetime.utcnow(),
+                )
+                condition_met = bool(time_result.truth) if time_result.known else False
+                reason = time_result.reason
+            else:
+                # Non-zero jitter intentionally retains the pre-existing
+                # compatibility behavior; its random sample has no stable
+                # deadline and is not silently redefined by this change.
+                condition_met, reason = evaluator.evaluate(
+                    market_snapshot,
+                    condition_config,
+                    order,
+                )
+        else:
+            # Volume, ratio, and composite evaluators retain their current
+            # mutable/compatibility semantics.  The scheduler merely decides
+            # when to call this one authoritative evaluation path.
+            condition_met, reason = evaluator.evaluate(
+                market_snapshot,
+                condition_config,
+                order,
+            )
         
         # Update condition tracking
         if condition_met and not order.get("condition_confirmed_at"):
-            order["condition_confirmed_at"] = datetime.utcnow()
+            if condition_type in continuous_condition_types:
+                confirmed_at = (
+                    self._parse_runtime_datetime(evaluation_time)
+                    or self._parse_runtime_datetime(market_snapshot.get("time"))
+                    or datetime.utcnow()
+                )
+            else:
+                # Fixed-time and compatibility conditions are evaluated on
+                # host wall time. A Coinbase envelope timestamp is evidence
+                # ordering for continuous holds, not their confirmation clock.
+                confirmed_at = datetime.utcnow()
+            order["condition_confirmed_at"] = confirmed_at
             order["status"] = StealthOrderStatus.TRIGGERED.value
-            self._update_stealth_order(order)
+            if continuous_previous_state is not None:
+                self._persist_continuous_condition_transition(
+                    order,
+                    previous_status=continuous_previous_state[0],
+                    previous_first_met_at=continuous_previous_state[1],
+                    previous_confirmed_at=continuous_previous_state[2],
+                    transition_status=StealthOrderStatus.TRIGGERED,
+                )
+            else:
+                self._update_stealth_order(order)
             # 📊 LOT-TRACKING: Log condition met
-            market_price = market_data.get("price", "unknown") if market_data else "unknown"
+            market_price = market_snapshot.get("price", "unknown")
             self.log_callback("info", f"[LOT-TRACK] Stealth order condition met: {order['stealth_order_id']} ({order['side']} {order['total_size']} {order['product_id']} @ {order['limit_price']}, market_price={market_price})")
             # 🔔 LIFECYCLE HOOK: CONDITION_MET
             self._dispatch_lifecycle_event(
                 stealth_order_id=stealth_order_id,
                 event=StealthLifecycleEvent.CONDITION_MET,
                 order_data=order,
+                extra=self._lifecycle_market_evidence(
+                    market_snapshot,
+                    event_time=confirmed_at,
+                ),
             )
+            self._notify_schedule_invalidated(stealth_order_id)
         elif not condition_met and order.get("condition_first_met_at") is None:
             # First time condition partially met
             if reason and ("watching" in reason or "waiting" in reason):
-                order["condition_first_met_at"] = datetime.utcnow()
+                order["condition_first_met_at"] = (
+                    self._parse_runtime_datetime(evaluation_time)
+                    or datetime.utcnow()
+                )
                 order["status"] = StealthOrderStatus.PENDING.value
                 self._update_stealth_order(order)
                 # 🔔 LIFECYCLE HOOK: CONDITION_WATCHING
@@ -3439,11 +3950,21 @@ class StealthOrderManager:
                     stealth_order_id=stealth_order_id,
                     event=StealthLifecycleEvent.CONDITION_WATCHING,
                     order_data=order,
+                    extra=self._lifecycle_market_evidence(
+                        market_snapshot,
+                        event_time=order.get("condition_first_met_at"),
+                    ),
                 )
+                self._notify_schedule_invalidated(stealth_order_id)
         
         return condition_met, reason
     
-    def should_trigger_reveal(self, stealth_order_id: str) -> Tuple[bool, Optional[str]]:
+    def should_trigger_reveal(
+        self,
+        stealth_order_id: str,
+        market_data: Optional[Mapping[str, Any]] = None,
+        evaluation_time: Optional[datetime] = None,
+    ) -> Tuple[bool, Optional[str]]:
         """
         Determine if order should be revealed now.
         
@@ -3503,7 +4024,11 @@ class StealthOrderManager:
         if order["status"] == StealthOrderStatus.TRIGGERED.value:
             return True, "Reveal condition previously committed (snapshot semantics)"
         
-        condition_met, reason = self.evaluate_conditions(stealth_order_id)
+        condition_met, reason = self.evaluate_conditions(
+            stealth_order_id,
+            market_data=market_data,
+            evaluation_time=evaluation_time,
+        )
         return condition_met, reason
     
     def reveal_order_slice(self, stealth_order_id: str) -> Optional[str]:
@@ -4282,6 +4807,7 @@ class StealthOrderManager:
                     "exchange_order_id": exchange_order_id,
                 },
             )
+        self._notify_schedule_invalidated(stealth_order_id)
     
     def cancel_stealth_order(
         self,
@@ -4328,6 +4854,7 @@ class StealthOrderManager:
         order["notes"] = f"{order['notes']}\nCancelled: {reason}"
 
         self._update_stealth_order(order)
+        self._notify_schedule_invalidated(stealth_order_id)
         return True
 
     def _best_effort_cancel_active_exchange_order(
@@ -4467,13 +4994,17 @@ class StealthOrderManager:
         Raises:
             StealthOrderNotFoundError: If raise_if_missing=True and order not found
         """
-        if stealth_order_id in self.in_memory_orders:
-            return self.in_memory_orders[stealth_order_id]
+        with self._get_orders_cache_lock():
+            cached_order = self.in_memory_orders.get(stealth_order_id)
+        if cached_order is not None:
+            return cached_order
         
         # Load from database
         order = self._load_stealth_order_from_db(stealth_order_id)
         if order:
-            self.in_memory_orders[stealth_order_id] = order
+            with self._get_orders_cache_lock():
+                self.in_memory_orders[stealth_order_id] = order
+            self._notify_schedule_invalidated(stealth_order_id)
             return order
         
         if raise_if_missing:
@@ -4483,9 +5014,10 @@ class StealthOrderManager:
     
     def _get_current_market_data(self, product_id: str) -> MarketData:
         """Get current market data from cache (populated by StealthOrderBridge)."""
-        market_cache = getattr(self, "_market_cache", {})
-        if product_id in market_cache:
-            return market_cache[product_id]
+        with self._get_market_cache_lock():
+            market_cache = getattr(self, "_market_cache", {})
+            if product_id in market_cache:
+                return dict(market_cache[product_id])
 
         # Return placeholder if data not available yet
         return {
@@ -4509,16 +5041,7 @@ class StealthOrderManager:
     
     def _get_active_stealth_orders(self) -> List[str]:
         """Get list of active stealth order IDs."""
-        active_statuses = [
-            StealthOrderStatus.HIDDEN.value,
-            StealthOrderStatus.PENDING.value,
-            StealthOrderStatus.TRIGGERED.value,
-            StealthOrderStatus.REVEALED.value
-        ]
-        return [
-            sid for sid, order in self.in_memory_orders.items()
-            if order.get("status") in active_statuses
-        ]
+        return self.snapshot_active_stealth_orders()
     
     def _serialize_order_for_json(self, order: Dict[str, Any]) -> Dict[str, Any]:
         """Convert order dict to JSON-serializable format.
@@ -4562,8 +5085,12 @@ class StealthOrderManager:
     
     def get_serializable_orders(self) -> Dict[str, Any]:
         """Get all orders in JSON-serializable format."""
-        return {oid: self._serialize_order_for_json(order) 
-                for oid, order in self.in_memory_orders.items()}
+        with self._get_orders_cache_lock():
+            order_items = tuple(self.in_memory_orders.items())
+        return {
+            oid: self._serialize_order_for_json(order)
+            for oid, order in order_items
+        }
     
     def sync_target_movement_to_cache(self, stealth_order_id: str, target_movement: float, target_movement_type: str) -> bool:
         """Sync target_movement changes to in-memory cache.
@@ -4586,8 +5113,80 @@ class StealthOrderManager:
         order['target_movement'] = target_movement
         order['target_movement_type'] = target_movement_type
         order['updated_at'] = datetime.utcnow()
-        
+        self._notify_schedule_invalidated(stealth_order_id)
+
         return True
+
+    def update_price_condition(
+        self,
+        stealth_order_id: str,
+        *,
+        price_threshold: float,
+        hold_duration_seconds: Optional[int] = None,
+    ) -> bool:
+        """Persist and publish one authoritative price-condition edit.
+
+        An in-progress continuous hold is reset because changing either the
+        threshold or duration changes the claim being timed. A committed
+        TRIGGERED snapshot is not rolled back. Database persistence completes
+        before lifecycle publication or scheduler invalidation.
+        """
+
+        order = self._get_stealth_order(stealth_order_id)
+        if not order:
+            return False
+        if order.get("reveal_condition_type") != (
+            RevealConditionType.PRICE_THRESHOLD.value
+        ):
+            return False
+
+        previous_condition = dict(order.get("reveal_condition_json") or {})
+        previous_updated_at = order.get("updated_at")
+        reveal_condition = dict(previous_condition)
+        reveal_condition["price_threshold"] = float(price_threshold)
+        if hold_duration_seconds is not None:
+            reveal_condition["hold_duration_seconds"] = int(
+                hold_duration_seconds
+            )
+        order["reveal_condition_json"] = reveal_condition
+        order["updated_at"] = datetime.utcnow()
+
+        try:
+            if self.reset_continuous_condition(
+                stealth_order_id,
+                reason="Price reveal condition configuration changed",
+                market_data={"source": "configuration"},
+            ):
+                return True
+
+            if not self._update_stealth_order(order):
+                raise StealthOrderPersistenceError(
+                    "Failed to persist price-condition update for "
+                    f"{stealth_order_id}"
+                )
+        except Exception:
+            order["reveal_condition_json"] = previous_condition
+            order["updated_at"] = previous_updated_at
+            get_runtime_controller().request_pause()
+            raise
+
+        self._notify_schedule_invalidated(stealth_order_id)
+        return True
+
+    def sync_price_condition_to_cache(
+        self,
+        stealth_order_id: str,
+        *,
+        price_threshold: float,
+        hold_duration_seconds: Optional[int] = None,
+    ) -> bool:
+        """Compatibility alias for the canonical persisted update path."""
+
+        return self.update_price_condition(
+            stealth_order_id,
+            price_threshold=price_threshold,
+            hold_duration_seconds=hold_duration_seconds,
+        )
     
     def find_stealth_order_by_placed_order_id(self, placed_order_id: str) -> Optional[Dict[str, Any]]:
         """Find stealth order that revealed the given placed_order_id.
@@ -4667,7 +5266,8 @@ class StealthOrderManager:
         reveal_pricing_policy: Optional[str] = None,
         notes: str = "",
         target_movement: Optional[float] = None,
-        target_movement_type: str = "P"
+        target_movement_type: str = "P",
+        follow_up_stealth_order_id: Optional[str] = None,
     ) -> Optional[str]:
         """Create a follow-up stealth order with same conditions as original.
         
@@ -4687,6 +5287,8 @@ class StealthOrderManager:
             notes: Additional notes
             target_movement: Optional override for target movement. If not provided, uses original's target_movement.
             target_movement_type: Type for target movement ('P' or 'A'). Default 'P'.
+            follow_up_stealth_order_id: Optional preselected client order ID
+                used by the bridge to own the complete follow-up transaction.
             
         Returns:
             New stealth_order_id if created, None if original not found
@@ -4730,7 +5332,9 @@ class StealthOrderManager:
         # as the deterministic seed for retreat jitter BEFORE creating
         # the order. Same UUID then flows into create_stealth_order so
         # the seed and the persisted coid match (audit-replayable).
-        follow_up_stealth_order_id = str(uuid.uuid4())
+        follow_up_stealth_order_id = (
+            follow_up_stealth_order_id or str(uuid.uuid4())
+        )
 
         # Apply post-fill retreat if configured. The inherited policy
         # owns the decision; helper returns ``limit_price`` unchanged
@@ -5114,7 +5718,15 @@ class StealthOrderManager:
         Returns:
             Number of orders loaded
         """
+        self._last_hydration_complete = False
         if not self.db_client:
+            self.log_callback(
+                "error",
+                {
+                    "event": "stealth_orders_batch_load_failed",
+                    "error": "database client is unavailable",
+                },
+            )
             return 0
         
         try:
@@ -5124,6 +5736,7 @@ class StealthOrderManager:
             )
             
             loaded_count = 0
+            failed_count = 0
             for row in results:
                 try:
                     stealth_order_id = str(row['stealth_order_id'])
@@ -5179,12 +5792,15 @@ class StealthOrderManager:
                     }
                     
                     self._validate_local_price_read_only(order_data)
-                    self.in_memory_orders[stealth_order_id] = order_data
+                    with self._get_orders_cache_lock():
+                        self.in_memory_orders[stealth_order_id] = order_data
                     self._restore_hydrated_placement_index(order_data)
                     loaded_count += 1
                 except Exception as e:
+                    failed_count += 1
                     self.log_callback("error", {"event": "stealth_order_load_item_failed", "stealth_order_id": row.get('stealth_order_id'), "error": str(e)})
-            
+
+            self._last_hydration_complete = failed_count == 0
             return loaded_count
         except Exception as e:
             self.log_callback("error", {"event": "stealth_orders_batch_load_failed", "error": str(e)})

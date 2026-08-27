@@ -473,6 +473,7 @@ class OrderEventStreamPublisher:
         # Event-scoped snapshots for reveal-timing forensics.
         if event_str in {
             StealthLifecycleEvent.CONDITION_WATCHING.value,
+            StealthLifecycleEvent.CONDITION_RESET.value,
             StealthLifecycleEvent.CONDITION_MET.value,
             StealthLifecycleEvent.REVEAL_SUCCEEDED.value,
         }:

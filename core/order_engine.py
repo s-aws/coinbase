@@ -54,7 +54,8 @@ Example: resolve parent linkage
 import json
 import threading
 import uuid
-from time import sleep
+from datetime import datetime, timezone
+from time import monotonic, sleep
 from queue import Queue, Full, Empty
 from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor
@@ -95,6 +96,13 @@ from bridges.event_bridge import EventBridge
 from business.order_progress import OrderProgressTracker, OrderSnapshotDelta
 from integration.websocket_hooks import WebSocketHookRegistry, get_global_hook_registry
 from integration.order_placement_hooks import get_global_placement_hook_registry
+
+
+# Private metadata carried only through OrderEngine's bounded ticker queue.
+# Coinbase places event time on the websocket message envelope, not each ticker.
+_COINBASE_MESSAGE_TIMESTAMP_KEY = "_coinbase_message_timestamp"
+_TICKER_CONTINUITY_RESET_COUNTS_KEY = "_ticker_continuity_reset_counts"
+_TICKER_RECEIVED_MONOTONIC_KEY = "_ticker_received_monotonic"
 
 # Dashboard integration (optional - will fail gracefully if dashboard_server not available)
 try:
@@ -319,6 +327,10 @@ class OrderEngine:
             channel: Queue(maxsize=self.queue_maxsize)
             for channel in self.subscription.channels
         }
+        # Multiple websocket clients can publish concurrently.  Serializing
+        # ticker enqueue/recovery makes a full-queue replacement an explicit
+        # ordered boundary instead of an unobservable event drop.
+        self._ticker_ingress_lock = threading.Lock()
 
         self.logging_flags = {
             "snapshot": False,
@@ -1293,7 +1305,7 @@ class OrderEngine:
                     else TargetMovementType.PERCENTAGE.value
                 )
 
-                stealth_follow_up_id = stealth_manager.create_follow_up_stealth_order(
+                stealth_follow_up_id = self.stealth_order_bridge.create_follow_up_stealth_order(
                     original_stealth_order_id=original_stealth_order["stealth_order_id"],
                     side=order_template["side"],
                     total_size=follow_up_size,
@@ -2337,6 +2349,137 @@ class OrderEngine:
         """
         self.log_message("connection", "Connection Opened!")
 
+    @staticmethod
+    def _ticker_products_in_event(event: Dict[str, Any]) -> List[str]:
+        """Return valid product IDs represented by one ticker event envelope."""
+
+        tickers = event.get("tickers") if isinstance(event, dict) else None
+        if not isinstance(tickers, list):
+            return []
+        return [
+            str(product_id)
+            for ticker in tickers
+            if isinstance(ticker, dict)
+            for product_id in (ticker.get("product_id"),)
+            if product_id
+        ]
+
+    @staticmethod
+    def _ticker_event_time(event: Dict[str, Any]) -> Optional[float]:
+        """Return a comparable UTC timestamp for one internal ticker envelope."""
+
+        if not isinstance(event, dict):
+            return None
+        value = event.get(_COINBASE_MESSAGE_TIMESTAMP_KEY)
+        if not isinstance(value, str) or not value:
+            return None
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if parsed.utcoffset() is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.timestamp()
+
+    def _get_ticker_ingress_lock(self) -> threading.Lock:
+        """Lazily support focused tests that construct a bare engine."""
+
+        lock = getattr(self, "_ticker_ingress_lock", None)
+        if lock is None:
+            lock = threading.Lock()
+            self._ticker_ingress_lock = lock
+        return lock
+
+    def _enqueue_ticker_event_with_recovery(
+        self,
+        channel: str,
+        queued_event: Dict[str, Any],
+    ) -> tuple[int, Dict[str, int]]:
+        """Enqueue a ticker or replace a full backlog with one reset boundary.
+
+        The newest candidate by Coinbase envelope time is retained (the
+        current event wins ties or absent timestamps). Every discarded event
+        is counted by product and attached to the retained envelope; the ticker
+        worker publishes those reset markers to the stealth scheduler before
+        publishing the retained tickers.
+        """
+
+        ticker_queue = self.event_queue[channel]
+        with self._get_ticker_ingress_lock():
+            try:
+                ticker_queue.put_nowait(queued_event)
+                return 0, {}
+            except Full:
+                discarded_events = []
+                while True:
+                    try:
+                        discarded_events.append(ticker_queue.get_nowait())
+                    except Empty:
+                        break
+                    else:
+                        ticker_queue.task_done()
+
+                candidates = [*discarded_events, queued_event]
+                candidate_event_times = [
+                    self._ticker_event_time(candidate)
+                    for candidate in candidates
+                ]
+                retained_index = max(
+                    range(len(candidates)),
+                    key=lambda index: (
+                        candidate_event_times[index] is not None,
+                        candidate_event_times[index]
+                        if candidate_event_times[index] is not None
+                        else float("-inf"),
+                        index,
+                    ),
+                )
+                retained_event = candidates[retained_index]
+
+                reset_counts: Dict[str, int] = {}
+                for candidate_index, discarded_event in enumerate(candidates):
+                    inherited_reset_counts = (
+                        discarded_event.get(
+                            _TICKER_CONTINUITY_RESET_COUNTS_KEY,
+                            {},
+                        )
+                        if isinstance(discarded_event, dict)
+                        else {}
+                    )
+                    if isinstance(inherited_reset_counts, dict):
+                        for product_id, inherited_count in (
+                            inherited_reset_counts.items()
+                        ):
+                            if (
+                                product_id
+                                and isinstance(inherited_count, int)
+                                and not isinstance(inherited_count, bool)
+                                and inherited_count > 0
+                            ):
+                                normalized_product_id = str(product_id)
+                                reset_counts[normalized_product_id] = (
+                                    reset_counts.get(normalized_product_id, 0)
+                                    + inherited_count
+                                )
+                    if candidate_index == retained_index:
+                        continue
+                    for product_id in self._ticker_products_in_event(
+                        discarded_event
+                    ):
+                        reset_counts[product_id] = (
+                            reset_counts.get(product_id, 0) + 1
+                        )
+                if reset_counts:
+                    retained_event[_TICKER_CONTINUITY_RESET_COUNTS_KEY] = (
+                        reset_counts
+                    )
+
+                # Producers are serialized by _ticker_ingress_lock and the
+                # backlog was just drained, so this non-blocking put cannot
+                # legitimately fail.  Let an impossible failure surface.
+                ticker_queue.put_nowait(retained_event)
+                return len(discarded_events), reset_counts
+
     def on_message(self, msg: str) -> None:
         """Process incoming websocket message.
         
@@ -2348,9 +2491,11 @@ class OrderEngine:
         Returns:
             None
         """
+        ticker_envelope_received_monotonic = monotonic()
         try:
             json_msg = json.loads(msg)
             channel = json_msg.get("channel")
+            message_timestamp = json_msg.get("timestamp")
 
             if any((
                 "events" not in json_msg,
@@ -2361,17 +2506,61 @@ class OrderEngine:
                 return
 
             for event in json_msg["events"]:
+                queued_event = deepcopy(event)
+                if (
+                    channel == ChannelType.TICKER.value
+                    and message_timestamp is not None
+                ):
+                    # Ticker continuity is time-indexed. Include Coinbase's
+                    # envelope timestamp in the atomic dedup identity so a
+                    # later unchanged quote is not mistaken for fan-out of the
+                    # same websocket message.
+                    queued_event[_COINBASE_MESSAGE_TIMESTAMP_KEY] = (
+                        message_timestamp
+                    )
+
                 # Atomic claim: under EventProcessor's dedup lock, check all
                 # buckets and add to the current bucket in one step. This
                 # prevents the fan-out race where N WSClient threads all
                 # observe "new" for the same payload and all enqueue it.
                 # The legacy is_duplicate_event/mark_event_seen pair was
                 # racy across threads â€” do not reintroduce it here.
-                if not self.evt_bridge.claim_event(event):
+                if not self.evt_bridge.claim_event(queued_event):
                     continue
 
+                if channel == ChannelType.TICKER.value:
+                    # Local receipt time is attached only after deduplication
+                    # so websocket fan-out copies retain one identity. It then
+                    # travels with whichever envelope overflow recovery keeps,
+                    # preventing queue/dashboard latency from making a
+                    # pre-deadline ticker eligible for anchor work.
+                    queued_event[_TICKER_RECEIVED_MONOTONIC_KEY] = (
+                        ticker_envelope_received_monotonic
+                    )
+
                 try:
-                    self.event_queue[channel].put(deepcopy(event), timeout=0.01)
+                    if channel == ChannelType.TICKER.value:
+                        discarded_count, reset_counts = (
+                            self._enqueue_ticker_event_with_recovery(
+                                channel,
+                                queued_event,
+                            )
+                        )
+                        if discarded_count:
+                            self.log_message(
+                                "warning",
+                                self.build_event_log_payload(
+                                    "ticker_event_queue_recovered",
+                                    channel=channel,
+                                    discarded_event_count=discarded_count,
+                                    continuity_reset_counts=reset_counts,
+                                ),
+                            )
+                    else:
+                        self.event_queue[channel].put(
+                            queued_event,
+                            timeout=0.01,
+                        )
 
                 except Full:
                     self.log_message(
@@ -2981,12 +3170,8 @@ class OrderEngine:
         if not client_order_id or not exchange_order_id:
             return
 
-        stealth_manager = getattr(self.stealth_order_bridge, "stealth_manager", None)
-        if not stealth_manager:
-            return
-
         try:
-            stealth_manager.sync_exchange_order_id_for_placed_order(
+            self.stealth_order_bridge.sync_exchange_order_id_for_placed_order(
                 client_order_id,
                 exchange_order_id,
             )
@@ -3579,7 +3764,7 @@ class OrderEngine:
             try:
                 # Update the original stealth order status to CANCELLED
                 if original_stealth_order:
-                    self.stealth_order_bridge.stealth_manager.update_execution(
+                    self.stealth_order_bridge.update_execution(
                         stealth_order_id=original_stealth_order["stealth_order_id"],
                         executed_size=0.0,
                         order_status=StealthOrderStatus.CANCELLED.value
@@ -3617,7 +3802,7 @@ class OrderEngine:
                     self.complete_follow_up_processing("cancelled", client_order_id)
                     return
 
-                stealth_follow_up_id = self.stealth_order_bridge.stealth_manager.create_follow_up_stealth_order(
+                stealth_follow_up_id = self.stealth_order_bridge.create_follow_up_stealth_order(
                     original_stealth_order_id=original_stealth_order["stealth_order_id"],
                     side=order_template["side"],
                     total_size=order_template["order_base_size"],
@@ -4099,7 +4284,7 @@ class OrderEngine:
                     
                     # Update the original stealth order status to EXECUTED
                     filled_size = float(order.get("filled_size", order_template["order_base_size"]))
-                    self.stealth_order_bridge.stealth_manager.update_execution(
+                    self.stealth_order_bridge.update_execution(
                         stealth_order_id=original_stealth_order["stealth_order_id"],
                         executed_size=filled_size,
                         order_status=StealthOrderStatus.EXECUTED.value
@@ -4112,7 +4297,7 @@ class OrderEngine:
                     product_id = order["product_id"]
                     fill_price = float(order.get("price", follow_up_price))
                     
-                    self.stealth_order_bridge.stealth_manager._market_cache[product_id] = {
+                    self.stealth_order_bridge.stealth_manager.publish_market_data(product_id, {
                         "product_id": product_id,
                         "price": fill_price,
                         "bid": fill_price,
@@ -4120,7 +4305,7 @@ class OrderEngine:
                         "volume_1m": 0,
                         "time": get_local_now(),
                         "source": "synthetic_follow_up_seed",
-                    }
+                    })
                     
                     # Build the reveal condition for the follow-up using configurable direction
                     follow_up_reveal_condition = dict(original_stealth_order.get("reveal_condition_json", {}))
@@ -4156,11 +4341,15 @@ class OrderEngine:
                             "threshold": follow_up_reveal_condition.get("price_threshold"),
                             "direction": follow_up_reveal_condition.get("direction"),
                             "hold_duration_seconds": follow_up_reveal_condition.get("hold_duration_seconds"),
-                            "market_cache_price": self.stealth_order_bridge.stealth_manager._market_cache.get(product_id, {}).get("price"),
+                            "market_cache_price": (
+                                self.stealth_order_bridge.stealth_manager
+                                ._get_current_market_data(product_id)
+                                .get("price")
+                            ),
                         }
                     )
                     
-                    stealth_follow_up_id = self.stealth_order_bridge.stealth_manager.create_follow_up_stealth_order(
+                    stealth_follow_up_id = self.stealth_order_bridge.create_follow_up_stealth_order(
                         original_stealth_order_id=original_stealth_order["stealth_order_id"],
                         side=order_template["side"],
                         total_size=adjusted_follow_up_size,
@@ -4692,6 +4881,33 @@ class OrderEngine:
                     continue
                 try:
                     if channel == ChannelType.TICKER.value:
+                        message_timestamp = event.get(
+                            _COINBASE_MESSAGE_TIMESTAMP_KEY
+                        )
+                        try:
+                            ticker_received_monotonic = float(
+                                event[_TICKER_RECEIVED_MONOTONIC_KEY]
+                            )
+                        except (KeyError, TypeError, ValueError):
+                            # Compatibility for synthetic/internal queue
+                            # producers that predate the private receipt field.
+                            ticker_received_monotonic = monotonic()
+                        continuity_reset_counts = event.get(
+                            _TICKER_CONTINUITY_RESET_COUNTS_KEY,
+                            {},
+                        )
+                        if (
+                            self.stealth_order_bridge
+                            and isinstance(continuity_reset_counts, dict)
+                        ):
+                            for reset_product_id, discarded_count in (
+                                continuity_reset_counts.items()
+                            ):
+                                self.stealth_order_bridge.publish_market_continuity_reset(
+                                    str(reset_product_id),
+                                    discarded_event_count=int(discarded_count),
+                                    event_time=message_timestamp,
+                                )
                         with self.ticker_lock:
                             self.log_message(
                                 "ticker",
@@ -4702,10 +4918,22 @@ class OrderEngine:
                             )
                             for tickr in event["tickers"]:
                                 self.ticker[tickr["product_id"]] = tickr
-                                trading_product_id = get_trading_product_id(tickr.get("product_id"))
+                                product_id = tickr.get("product_id")
+                                trading_product_id = get_trading_product_id(product_id)
+
+                                # Publish the websocket snapshot at the front
+                                # of local ticker handling.  Dashboard/metrics
+                                # work below must not add latency to stealth
+                                # condition decisions.
+                                if self.stealth_order_bridge and product_id:
+                                    self.stealth_order_bridge.publish_ticker_update(
+                                        product_id,
+                                        tickr,
+                                        event_time=message_timestamp,
+                                    )
+
                                 # Broadcast to price chart
                                 price = float(tickr.get("price", 0))
-                                product_id = tickr.get("product_id")
                                 if price > 0 and product_id:
                                     # Pass the upstream Coinbase tick
                                     # ``time`` so dashboard consumers
@@ -4714,7 +4942,10 @@ class OrderEngine:
                                     broadcast_ticker(
                                         product_id,
                                         price,
-                                        cb_time=tickr.get("time"),
+                                        cb_time=(
+                                            message_timestamp
+                                            or tickr.get("time")
+                                        ),
                                     )
                                 # Record bid/ask for spread monitor
                                 best_bid = float(tickr.get("best_bid", 0))
@@ -4746,15 +4977,26 @@ class OrderEngine:
                                             price=price,
                                         )
 
-                                # Feed market data to stealth order evaluator
-                                if self.stealth_order_bridge and product_id:
-                                    self.stealth_order_bridge.process_ticker_update(product_id, tickr)
-
                                 # Feed adaptive volume regime in FeeManager.
                                 if self.fee_manager and trading_product_id:
                                     self.fee_manager.update_volume_signal(
                                         trading_product_id,
                                         safe_float(tickr.get("volume_24_h"), default=0.0),
+                                    )
+
+                                # Anchor deadlines are merely marked due on the
+                                # stealth decision worker.  Execute their
+                                # canonical manager path only here, in response
+                                # to this live ticker, after latency-sensitive
+                                # condition publication has already occurred.
+                                if self.stealth_order_bridge and product_id:
+                                    self.stealth_order_bridge.process_due_anchor_repricing(
+                                        product_id,
+                                        tickr,
+                                        event_time=message_timestamp,
+                                        received_monotonic=(
+                                            ticker_received_monotonic
+                                        ),
                                     )
 
                     elif channel == ChannelType.USER.value:
