@@ -56,19 +56,23 @@ set_backend(add_log_entry)
 
 
 _TRUE_ENV_VALUES = frozenset({"1", "true", "yes", "on"})
-_FALSE_ENV_VALUES = frozenset({"", "0", "false", "no", "off"})
+_FALSE_ENV_VALUES = frozenset({"0", "false", "no", "off"})
 
 
-def _read_strict_boolean_env(name: str) -> bool:
-    """Read one boolean environment variable without unsafe fall-through."""
+def _read_strict_boolean_env(name: str, *, default: bool) -> bool:
+    """Read one boolean environment variable with an explicit safe default."""
 
-    raw_value = os.getenv(name, "").strip().lower()
+    configured_value = os.getenv(name)
+    if configured_value is None or not configured_value.strip():
+        return default
+
+    raw_value = configured_value.strip().lower()
     if raw_value in _TRUE_ENV_VALUES:
         return True
     if raw_value in _FALSE_ENV_VALUES:
         return False
     raise RuntimeError(
-        f"{name} must be one of "
+        f"{name} must be unset/empty or one of "
         f"{sorted(_TRUE_ENV_VALUES | _FALSE_ENV_VALUES)}, got {raw_value!r}"
     )
 
@@ -255,7 +259,10 @@ def _run_application(
 
 
 if __name__ == "__main__":
-    _start_paused = _read_strict_boolean_env("ENGINE_START_PAUSED")
+    _start_paused = _read_strict_boolean_env(
+        "ENGINE_START_PAUSED",
+        default=True,
+    )
     _reconciler_disabled = os.getenv(
         "DISABLE_RECONCILER", ""
     ).strip().lower() in ("1", "true", "yes", "on")

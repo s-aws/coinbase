@@ -1184,22 +1184,43 @@ def test_websocket_connect_failure_preserves_error_and_disconnects(
 @pytest.mark.parametrize("value", ("1", "TRUE", "yes", "On"))
 def test_engine_start_paused_truthy_values(monkeypatch, value) -> None:
     monkeypatch.setenv("ENGINE_START_PAUSED", value)
-    assert main._read_strict_boolean_env("ENGINE_START_PAUSED") is True
+    assert main._read_strict_boolean_env(
+        "ENGINE_START_PAUSED",
+        default=True,
+    ) is True
 
 
-@pytest.mark.parametrize("value", (None, "", "0", "false", "NO", "off"))
-def test_engine_start_paused_false_values(monkeypatch, value) -> None:
+@pytest.mark.parametrize("value", ("0", "false", "NO", "off"))
+def test_engine_start_paused_explicit_false_values(monkeypatch, value) -> None:
+    monkeypatch.setenv("ENGINE_START_PAUSED", value)
+    assert main._read_strict_boolean_env(
+        "ENGINE_START_PAUSED",
+        default=True,
+    ) is False
+
+
+@pytest.mark.parametrize("value", (None, "", "   "))
+def test_engine_start_paused_unset_or_blank_uses_safe_default(
+    monkeypatch,
+    value,
+) -> None:
     if value is None:
         monkeypatch.delenv("ENGINE_START_PAUSED", raising=False)
     else:
         monkeypatch.setenv("ENGINE_START_PAUSED", value)
-    assert main._read_strict_boolean_env("ENGINE_START_PAUSED") is False
+    assert main._read_strict_boolean_env(
+        "ENGINE_START_PAUSED",
+        default=True,
+    ) is True
 
 
 def test_engine_start_paused_invalid_value_fails_closed(monkeypatch) -> None:
     monkeypatch.setenv("ENGINE_START_PAUSED", "sometimes")
     with pytest.raises(RuntimeError, match="ENGINE_START_PAUSED"):
-        main._read_strict_boolean_env("ENGINE_START_PAUSED")
+        main._read_strict_boolean_env(
+            "ENGINE_START_PAUSED",
+            default=True,
+        )
 
 
 class _QueryDB:

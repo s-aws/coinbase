@@ -20,7 +20,7 @@ Use it to find the single canonical behavior path before editing.
 
 ### `main.py`
 Bootstraps:
-- initial non-admitting runtime state and optional startup-pause latch
+- initial non-admitting runtime state and default-on startup-pause latch
 - stealth bridge
 - order engine
 - ordered runtime stop hooks and lock-free signal intent before hydration

@@ -27,11 +27,14 @@ The host `9876` mapping must point to container port `5432`. Mapping `9876->9876
 
 ### Runtime toggles
 - `ENGINE_START_PAUSED`
+  - defaults to paused when unset or blank.
   - strict boolean values are `1`, `true`, `yes`, `on`, `0`, `false`, `no`,
-    `off`, or empty (case-insensitive).
+    or `off` (case-insensitive).
   - a true value latches the same startup pause used by `admin_pause`; the
     process still completes hydration, reconciliation, scheduler activation,
     and worker startup, then publishes `PAUSED` instead of `RUNNING`.
+  - set an explicit false value to opt into entering `RUNNING` automatically
+    after startup readiness completes.
   - an invalid nonempty value aborts before the dashboard is exposed.
 
 - `DISABLE_RECONCILER`

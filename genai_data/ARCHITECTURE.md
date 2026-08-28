@@ -68,8 +68,9 @@ The runtime is centered on a single `OrderEngine` instance (`core/order_engine.p
 - market tick retention sweeper (if recorder initialized)
 
 `RuntimeController` is constructed in non-admitting `STARTING`. Stop hooks and
-the optional `ENGINE_START_PAUSED` latch are installed before any operator
-surface is exposed. `StealthOrderBridge.start()` then performs strict database
+the default-on `ENGINE_START_PAUSED` latch are installed before any operator
+surface is exposed; an explicit false value opts into automatic readiness as
+`RUNNING`. `StealthOrderBridge.start()` then performs strict database
 hydration and starts only the stealth DB reconciliation loop (`30s` cadence);
 this passive hydration now precedes dashboard startup and does not enable
 reveal decisions. The dashboard may answer queries/admin commands while
@@ -84,8 +85,9 @@ it unless the operator explicitly set `DISABLE_RECONCILER`; that flag bypasses
 reconciliation only. Periodic reconciliation starts next, followed by
 `OrderEngine.start_background_threads()`. Only after that method returns does
 the `run_forever()` readiness callback call `RuntimeController.complete_startup()`
-and publish `RUNNING`, or `PAUSED` when a startup pause was latched. This
-boundary proves that every required, non-fail-soft `Thread.start()` call and
+and publish `PAUSED` by default, or `RUNNING` when startup pause was explicitly
+disabled. This boundary proves that every required, non-fail-soft
+`Thread.start()` call and
 the synchronous initial fee-refresh attempt returned. It does not prove that
 the fail-soft market-tick/hotpoint workers started, that parent/child or
 partial-fill hydration completed without a swallowed error, that either
