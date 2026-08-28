@@ -8,9 +8,9 @@ This is the practical debugging workflow for the current engine.
 2. Confirm the canonical path before editing (avoid parallel fixes).
 3. Preserve ID discipline (`client_order_id` internal, `order_id` exchange).
 4. Treat concurrency bugs as lock/ordering bugs until proven otherwise.
-5. Validate with focused tests that cover the failure before considering the
-   fix complete. Reserve full regression for durable milestone closeout,
-   public/release-candidate handoff, or explicit request.
+5. Validate with the complete local non-external suite before considering the
+   fix complete. Run a focused test selection only when the user explicitly
+   requests it.
 
 ## Recommended Workflow
 
@@ -63,25 +63,19 @@ Examples:
 
 ### Step 6: Add or update regression coverage
 
-Target the exact failure mode.
-Prefer extending existing focused tests in:
+Target the exact failure mode with simple coverage.
+Prefer extending existing tests in:
 - `tests/regression/`
 - `tests/integration/`
 
 ### Step 7: Run required validation
 
-Run the focused tests that cover the patched failure mode. For durable
-milestone closeout, public/release-candidate handoff, deployment
-approval/closeout, release-hardening closeout, Admin API/backend association
-closeout, or explicit request, run the full regression gate:
+Run the complete local non-external suite. It includes the mandatory regression
+gate. Do not narrow the selection unless the user explicitly requests focused
+validation:
 
 ```powershell
-pytest tests/regression/ -v
-```
-
-For broad changes:
-```powershell
-pytest tests/ -v --tb=short --cov=.
+pytest -c tests/pytest.ini tests -m "not external" -v --tb=short
 ```
 
 ## High-Value Debug Anchors
@@ -148,4 +142,4 @@ Check:
 
 ---
 
-Last updated: 2026-05-02
+Last updated: 2026-08-28

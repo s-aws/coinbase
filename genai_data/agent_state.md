@@ -3,19 +3,19 @@
 ## Status
 
 - Last updated (ET): 2026-08-28.
-- Checkout baseline: `prod` at `0a364e27f3` (`part 10`).
-- Active operator-approved objective: implement only the first minimal
-  correction derived from the default-PAUSED live validation: remove recurring
-  admission-retry churn while non-admitting and give each active retry one
-  successor owner. That implementation and its automated verification are
-  complete in the working tree but are not yet committed. Stop at this commit
-  boundary; the separate cancellation/parent-truth correction is not part of
-  this change set.
+- Checkout baseline: `prod` at `49db0fb73f` (`part 11`).
+- Active operator-approved objective: simplify the committed `part 11` test
+  expansion while preserving its production correction. The working tree
+  changes only tests and authoritative agent context; production code remains
+  untouched. The separate cancellation/parent-truth correction remains out of
+  scope.
 - Implementation is committed through `5a8d50b70` (`part 6`), the initial graph
   baseline through `9a85ee36a` (`part 7`), the earlier live-evidence context at
   `814167fb0` (`part 8`), and the deterministic full-suite gate at `41d4e3c33`
   (`part 9`). `0a364e27f3` (`part 10`) commits the corrected guarded evidence and
-  the two approved read-only correction audits.
+  the two approved read-only correction audits. `49db0fb73f` (`part 11`)
+  commits the minimal admission-retry ownership correction and its original
+  expanded test coverage.
 
 ## Fixed design constraints
 
@@ -40,16 +40,14 @@
 
 ## Automated validation
 
-- Focused scheduler contract: 84 passed for the current working tree.
-- Focused runtime-controller contract: 57 passed for the current working tree.
-- Mandatory regression suite: 777 passed for the current working tree
-  (18.04 seconds).
-- Last committed full local suite: 1,542 passed, 11 external tests deselected;
-  it has not been rerun for the current four-file source/test correction.
+- Complete local non-external suite: 1,544 passed, 11 external tests deselected
+  for the current working tree (47.43 seconds).
+- No focused test selection was run. Focused test files, name filters, or
+  individual cases now require an explicit user request.
 - Pytest gate now rejects unknown config, reports warnings, treats unhandled
   thread exceptions as errors, and has a deterministic scheduler concurrency
   test (`part 9`).
-- Current repository graph build: 2,059 commits, 37,632 edges, 507 files, and
+- Current repository graph build: 2,060 commits, 37,464 edges, 507 files, and
   183 semantic records, with zero fatal/history/parse findings. The final
   `--check` must remain clean at handoff.
 - The ordinary port-9876 `coinbase_engine` test database is not a clean live

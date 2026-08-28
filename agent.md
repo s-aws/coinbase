@@ -103,15 +103,15 @@ When extending UI behavior, update both dashboard handler logic and the correspo
 
 ## Testing Commands (PowerShell)
 
-`pytest tests/regression/ -v --tb=short` must pass before any non-agent-file change is done.
+The complete local non-external suite is the default validation for every
+non-agent-file change; it includes the mandatory regression gate. Focused test
+files, name filters, and single-test selections must not be run unless the user
+explicitly requests them.
 Exception: if changes are limited to agent/context files only (`AGENTS.md`, `agent.md`, `ai-context.md`, `genai_data/AGENT_*.md`, `genai_data/agent_state.md`), regression tests may be skipped.
 
 ```powershell
-# Regression - required for non-agent-file changes
-pytest tests/regression/ -v --tb=short
-
-# Full suite - recommended for major or cross-module changes
-pytest tests/ -v --tb=short --cov=.
+# Default local validation (includes regression; excludes opt-in external tests)
+pytest -c tests/pytest.ini tests -m "not external" -v --tb=short
 
 # External (Coinbase REST, sandbox credentials)
 $env:COINBASE_API_KEY = "..."

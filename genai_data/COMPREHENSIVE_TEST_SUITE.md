@@ -2,10 +2,10 @@
 
 ## Overview
 
-This repository maintains a layered pytest suite with focused phase gates and a
-strict full-regression closeout gate. The suite is designed to protect
+This repository maintains a layered pytest suite with one complete local
+non-external validation gate. The suite is designed to protect
 concurrency safety, ID discipline, and stealth/follow-up lifecycle behavior
-while allowing rapid iteration.
+with a simple, repeatable execution policy.
 
 ## Current Inventory (2026-05-16)
 
@@ -25,16 +25,16 @@ while allowing rapid iteration.
 
 ## Required Execution Policy
 
-For ordinary non-agent-file changes, run focused tests and validators covering
-the changed behavior. For durable milestone closeout, public/release-candidate
-handoff, or explicit user request, run the full regression closeout gate:
+For every non-agent-file change, run the complete local non-external suite. It
+includes the mandatory regression tests and must exit `0` before handoff:
 
 ```powershell
-pytest tests/regression/ -v
+pytest -c tests/pytest.ini tests -m "not external" -v --tb=short
 ```
 
 Run this suite sequentially. This repository does not provide a
-parallel-regression runner.
+parallel test runner. Do not run focused test files, name filters, or individual
+test cases unless the user explicitly requests them.
 
 ## Suite Coverage Focus
 
@@ -80,22 +80,14 @@ parallel-regression runner.
 
 ## Command Reference
 
-### Full regression closeout gate
+### Default local validation
 ```powershell
-pytest tests/regression/ -v
+pytest -c tests/pytest.ini tests -m "not external" -v --tb=short
 ```
 
-### Full suite
-```powershell
-pytest tests/ -v --tb=short --cov=.
-```
+### Focused runs
 
-### Examples of focused runs
-```powershell
-pytest tests/unit/test_orderbook_v2.py -v --tb=short
-pytest tests/integration/test_stealth_order_workflow.py -v --tb=short
-pytest tests/regression/test_runtime_controller.py -v --tb=short
-```
+Focused selections require an explicit user request.
 
 ### External sandbox
 ```powershell
@@ -123,16 +115,12 @@ When adding code:
 
 ## Operational Checklist Before Merge
 
-1. Focused tests and validators for the changed behavior pass.
-2. Full regression passes when the change is a durable milestone closeout,
-   public/release-candidate handoff, deployment approval/closeout,
-   release-hardening closeout, Admin API/backend association closeout, or
-   explicit user request.
-3. New tests cover the changed behavior and failure mode.
-4. No unexplained flaky failures.
-5. External tests run when live/sandbox exchange-facing behavior changed and
+1. The complete local non-external suite passes.
+2. New tests remain simple and cover the changed behavior and failure mode.
+3. No focused selection or unexplained flaky retry was used to obtain a pass.
+4. External tests run when live/sandbox exchange-facing behavior changed and
    the run was explicitly enabled.
 
 ---
 
-Last updated: 2026-05-16
+Last updated: 2026-08-28

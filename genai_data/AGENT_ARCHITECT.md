@@ -561,14 +561,12 @@ Hard boundary:
 
 ### Required Gate
 
-Run focused tests and validators that cover the changed behavior before
-ordinary phase completion. Run the full regression gate before durable
-milestone closeout, public/release-candidate handoff, deployment
-approval/closeout, release-hardening closeout, Admin API/backend association
-closeout, or explicit full-gate request:
+Run the complete local non-external suite before ordinary phase completion. It
+includes the mandatory regression gate. Focused test selections may be run only
+when the user explicitly requests them:
 
 ```powershell
-pytest tests/regression/ -v
+pytest -c tests/pytest.ini tests -m "not external" -v --tb=short
 ```
 
 Regression may be skipped when the change set is limited to agent
@@ -667,12 +665,12 @@ When assigning work to a specialist, state:
 3. Files explicitly out of scope.
 4. Required coordinating owners.
 5. Canonical behavior path.
-6. Required focused tests.
-7. Whether the full regression gate is required.
+6. Required simple outcome coverage.
+7. Whether the user explicitly requested focused or external validation.
 
 If those seven fields cannot be stated clearly, the boundary is not ready for
 implementation.
 
 ---
 
-Last updated: 2026-05-17
+Last updated: 2026-08-28

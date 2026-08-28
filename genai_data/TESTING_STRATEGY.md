@@ -1,29 +1,25 @@
 # Testing Strategy
 
-This project uses pytest with focused phase gates and full regression at
-durable milestone closeout.
+This project uses pytest with one simple default gate: the complete local
+non-external suite. Focused selections are opt-in and may be run only when the
+user explicitly requests them.
 
 ## Non-Negotiable Gate
 
-For ordinary phase work, run focused tests and validators that cover the
-changed behavior. For durable milestone closeout, public/release-candidate
-handoff, deployment approval/closeout, release-hardening closeout, Admin
-API/backend association closeout, or explicit user request, run the full
-regression gate:
+For every non-agent-file change, run the complete local non-external suite. It
+contains the mandatory regression directory and must exit `0` before handoff:
 
 ```powershell
-pytest tests/regression/ -v
+pytest -c tests/pytest.ini tests -m "not external" -v --tb=short
 ```
-
-Must exit `0` before the milestone or release handoff is considered complete.
 
 Exception (docs/process-only): if changes are limited to agent/context files (`AGENTS.md`, `agent.md`, `ai-context.md`, `docs/agents/*.md`, `genai_data/AGENT_*.md`, `genai_data/agent_state.md`), regression tests may be skipped.
 
 ## Milestone Closeout
 
-Run the regression suite sequentially. Tests frequently monkeypatch process
-globals and several tests touch shared files or the test database. This
-repository does not provide a parallel-regression runner.
+Run the complete non-external suite sequentially. Tests frequently monkeypatch
+process globals and several tests touch shared files or the test database. This
+repository does not provide a parallel test runner.
 
 ## Current Test Layout
 
@@ -81,24 +77,15 @@ Live/sandbox Coinbase contract tests (opt-in, credential-gated).
 
 ## Standard Command Set (PowerShell)
 
-### Full regression closeout gate
+### Default local validation
 ```powershell
-pytest tests/regression/ -v
-```
-
-### Full validation
-```powershell
-pytest tests/ -v --tb=short --cov=.
+pytest -c tests/pytest.ini tests -m "not external" -v --tb=short
 ```
 
 ### Focused runs
-```powershell
-# Single test file
-pytest tests/regression/test_cross_source_reconciliation.py -v --tb=short
 
-# Name filter
-pytest tests/regression/ -k "reprice or stealth_move" -v --tb=short
-```
+Do not run a single test file, a name-filtered selection, or a single test case
+unless the user explicitly asks for focused validation.
 
 ### External sandbox runs
 ```powershell
@@ -157,23 +144,21 @@ For same-side post-fill retreat, tests should prove:
 
 ## Pre-Merge Checklist
 
-1. Relevant new/updated tests added.
-2. Focused tests and validators for the changed behavior pass.
-3. Full regression passes when this is durable milestone closeout,
-   public/release-candidate handoff, deployment approval/closeout,
-   release-hardening closeout, Admin API/backend association closeout, or
-   explicit request.
-4. For broad changes, full suite run completed or explicitly deferred with rationale.
-5. No flaky retries required to pass.
+1. Relevant new/updated tests stay simple and outcome-oriented.
+2. The complete local non-external suite passes.
+3. External tests run only with explicit opt-in and safe credentials/routing.
+4. No focused selection or flaky retry was used to obtain a pass.
 
 ## Debugging Failed Tests
 
-1. Re-run only the failing test with `-v --tb=short`.
-2. Verify fixture assumptions and enum/string contracts.
-3. Check whether failure is deterministic or race-related.
-4. For race failures, inspect lock scope and claim/release paths before changing business logic.
-5. Use `genai_tools/` scripts for DB/event trace inspection when needed.
+1. Use the complete-suite traceback to verify fixture assumptions and
+   enum/string contracts.
+2. Check whether failure is deterministic or race-related without narrowing
+   the test selection unless the user approves a focused run.
+3. For race failures, inspect lock scope and claim/release paths before changing
+   business logic.
+4. Use `genai_tools/` scripts for DB/event trace inspection when needed.
 
 ---
 
-Last updated: 2026-06-21
+Last updated: 2026-08-28
