@@ -378,7 +378,7 @@ class _FakeEngine:
     """Minimal stand-in carrying just what snapshot_drift_check uses.
 
     Entries default to status=OPEN because the drift check filters its
-    in-memory side to only "venue-open" statuses (OPEN / UPDATE) â€” empty
+    in-memory side to OPEN plus legacy synthetic UPDATE compatibility â€” empty
     dicts would be invisible to the comparison and break the legacy
     test cases that just want "this id is in memory".
     """
@@ -509,7 +509,7 @@ class TestSnapshotDriftCheck:
         self, transient_status
     ):
         """Drift compares apples-to-apples: the venue's open-orders
-        snapshot only contains OPEN/UPDATE orders. In-memory entries
+        snapshot contains OPEN orders (plus legacy synthetic UPDATE). Entries
         with terminal (FILLED/CANCELLED/FAILED) or pre-ack
         (PENDING/CANCEL_QUEUED) or routing-only (SNAPSHOT) statuses
         must NOT count as drift, even if they're transiently still in
@@ -534,12 +534,9 @@ class TestSnapshotDriftCheck:
 
     @pytest.mark.regression
     def test_repeated_drift_call_dedups_emission(self):
-        """Each WS user-event worker thread independently calls
-        snapshot_drift_check with the same WS SNAPSHOT frame. Without
-        dedup, ~6 worker threads produce 6Ã— duplicated WARNING blocks
-        per snapshot. The first call emits; subsequent calls with an
-        identical drift signature must be silent until the signature
-        changes.
+        """Repeated snapshot/reconnect checks can report the same drift.
+        The first call emits; subsequent calls with an identical drift
+        signature must be silent until the signature changes.
 
         Regression for 2026-04-30 log spam: snapshot_drift_detected
         emitted by user_event_thread_1..6 for the same 5 in-memory-only
@@ -605,8 +602,10 @@ class TestHydrateOrderbookFromWsSnapshot:
                     "client_order_id": "venue-1",
                     "status": "OPEN",
                     "product_id": "BTC-USDC",
+                    "order_side": "BUY",
                     "cumulative_quantity": "0",
                     "leaves_quantity": "1",
+                    "filled_value": "0",
                 },
                 {
                     "client_order_id": "venue-2",
@@ -618,6 +617,8 @@ class TestHydrateOrderbookFromWsSnapshot:
         assert "venue-1" in engine.orderbook.order
         assert engine.orderbook.order["venue-1"]["status"] == "OPEN"
         assert engine.orderbook.order["venue-1"]["product_id"] == "BTC-USDC"
+        assert engine.orderbook.order["venue-1"]["order_side"] == "BUY"
+        assert engine.orderbook.order["venue-1"]["filled_value"] == "0"
         assert "venue-2" in engine.orderbook.order
         events = [p["event"] for _, p in engine.log_calls]
         assert "orderbook_hydrated_from_ws_snapshot" in events
@@ -707,7 +708,7 @@ class TestHydrateOrderbookFromWsSnapshot:
 # OrderEngine terminal-state eviction (no in-memory leak)
 #
 # Regression for snapshot_drift_in_memory_only never clearing: terminal
-# WS deltas (FILLED, CANCELLED, FAILED) must remove the entry from
+# WS deltas (FILLED, CANCELLED, FAILED, EXPIRED) must remove the entry from
 # orderbook.order so the next WS snapshot frame sees a consistent set.
 # ---------------------------------------------------------------------------
 
@@ -760,7 +761,10 @@ class TestTerminalStatusEvictsOrderbookEntry:
         return engine
 
     @pytest.mark.regression
-    @pytest.mark.parametrize("status", ["FILLED", "CANCELLED", "FAILED"])
+    @pytest.mark.parametrize(
+        "status",
+        ["FILLED", "CANCELLED", "FAILED", "EXPIRED"],
+    )
     def test_terminal_status_pops_entry(self, monkeypatch, status):
         engine = self._engine_with_stubbed_handlers(monkeypatch)
         order = {
@@ -774,6 +778,29 @@ class TestTerminalStatusEvictsOrderbookEntry:
             f"{status} must evict orderbook.order entry to prevent "
             "snapshot_drift_in_memory_only from re-firing every snapshot"
         )
+
+    @pytest.mark.regression
+    def test_expired_does_not_enter_fill_or_cancel_replacement_handlers(
+        self,
+        monkeypatch,
+    ):
+        engine = self._engine_with_stubbed_handlers(monkeypatch)
+        filled_handler = MagicMock()
+        cancelled_handler = MagicMock()
+        monkeypatch.setattr(engine, "handle_filled_order", filled_handler)
+        monkeypatch.setattr(engine, "handle_cancelled_order", cancelled_handler)
+
+        engine.process_user_order(
+            {
+                "client_order_id": "expired-coid",
+                "status": "EXPIRED",
+                "product_id": "BTC-USDC",
+                "outstanding_hold_amount": "0",
+            }
+        )
+
+        filled_handler.assert_not_called()
+        cancelled_handler.assert_not_called()
 
     @pytest.mark.regression
     def test_open_status_does_not_evict(self, monkeypatch):

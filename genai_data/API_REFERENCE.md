@@ -1755,6 +1755,21 @@ Utility:
 - `sleep_with_exception_check(duration)`
 - `get_sdk_client()`
 
+The wrapper accepts either Coinbase SDK `WSClient` or `WSUserClient`. Runtime
+ownership is split in `OrderEngine`: redundant `WSClient` instances subscribe
+only to public channels; exactly one `WSUserClient` subscribes to user order
+data, futures balance summary, and its heartbeat. Authenticated messages retain
+their entire envelope, share one connection-generation sequence watermark, and
+traverse one ordered reducer queue; they do not use the public payload-hash
+dedup path. Public ingress accepts only the configured public role channels.
+
+Authenticated user order wire kinds are `snapshot`, `update`, and compatibility
+`patch`; each row's `status` remains its independent lifecycle status. Initial
+open orders are accumulated in pages of 50 until the first shorter page, then
+drift-checked/hydrated without DB or order-lifecycle side effects. Only later
+complete live rows enter bounded, keyed canonical `process_user_order`
+dispatch; failed admission desynchronizes and reconnects.
+
 ## 3) Dashboard WebSocket Contract (`ws://localhost:8765`)
 
 ### Client request message types

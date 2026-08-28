@@ -64,6 +64,12 @@ Examples include:
 - startup orchestration order and originating-action rejection before readiness
 - stop races across fee refresh legs, sampled dashboard status publication,
   websocket ownership, and retryable engine cleanup
+- authenticated user-channel topology, connection-generation sequence fencing,
+  PATCH/UPDATE pagination and live dispatch, fail-closed malformed/overflow
+  handling at both queue boundaries, whole-envelope atomic admission, initial
+  snapshot/bootstrap timeout, generation-drain fencing, position isolation,
+  keyed per-COID FIFO, and `EXPIRED` cleanup
+  (`tests/regression/test_user_channel_patch_dispatch.py`)
 - dashboard handler contracts
 - missed-fill reconciliation behavior
 

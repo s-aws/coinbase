@@ -66,9 +66,14 @@ High-impact enums:
 - `FollowUpKind`, `StealthMutationKind`, `StealthMoveReason`
 - `OrderStateEvent`, `StealthLifecycleEvent`
 - `EventStreamType`, `EventSourceChannel`
-- `EngineState`
+- `EngineState`, `WebSocketEventType`, `UserFeedPhase`
 
 Use enums instead of string literals in new behavior.
+
+`WebSocketEventType` is the authenticated wire kind (`snapshot`, `update`, or
+`patch`) and must not be substituted for the lifecycle `OrderStatus` carried
+inside an order row. `UserFeedPhase` is connection-generation state only:
+`AWAITING_SNAPSHOT`, `BOOTSTRAPPING`, `LIVE`, or `DESYNCHRONIZED`.
 
 `EngineState.STARTING` is the initial fail-closed runtime state. It permits
 cancellation, fill handling, and DB completion but rejects originating work.
@@ -96,6 +101,14 @@ Cancel/re-entry uses status plus runtime state:
 Do not add a new stealth status unless the transition is backed by persistence, dashboard display, lifecycle/audit events, and regression tests.
 
 ## In-Memory Runtime Structures
+
+### `UserStreamEnvelope` (`core/order_engine.py`)
+
+Immutable private WebSocket transport record containing `channel`, connection
+`generation`, connection-global `sequence_num`, Coinbase `timestamp`, and the
+complete event tuple. It remains intact in user, futures-balance, and
+private-heartbeat traffic while all three sources traverse one ordered private
+reducer queue, so stale generations can be rejected before state mutation.
 
 ### `OrderBook` (`core/orderbook.py`)
 Primary mutable structures:

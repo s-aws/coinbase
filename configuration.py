@@ -1206,7 +1206,7 @@ class OrderBook():
         return self._impl.diagnostic_snapshot()
 
     def snapshot_open_orders(self) -> dict:
-        """Snapshot of orders whose ``status`` is OPEN or UPDATE."""
+        """Snapshot of OPEN orders plus legacy synthetic UPDATE compatibility."""
 
         return self._impl.snapshot_open_orders()
 
@@ -1235,31 +1235,40 @@ class Subscription():
     """Configuration for websocket connection to Coinbase.
 
     Defines which products and channels to subscribe to for real-time market
-    and account updates. Used by WSClient in the OrderEngine.
+    and account updates. ``OrderEngine`` owns redundant public WSClient
+    connections separately from exactly one private WSUserClient connection.
     
     Attributes:
         product_ids: List of product IDs to subscribe to (derivatives + spot).
         derivatives_product_ids: Subset containing only futures products.
-        channels: List of channel names to subscribe to:
-                  - 'heartbeats': Connection keep-alive
-                  - 'user': Account-specific events (order updates, positions)
-                  - 'ticker': Real-time price updates
+        public_channels: Channels owned by redundant public clients.
+        private_channels: Channels owned by the sole authenticated client.
+        channels: Compatibility union for local routing/worker queues; never
+                  passed to one SDK connection as a mixed subscription.
     
     Example:
         >>> subscription = Subscription()
-        >>> ws_client.subscribe(
+        >>> public_ws_client.subscribe(
         ...     product_ids=subscription.product_ids,
-        ...     channels=subscription.channels
+        ...     channels=subscription.public_channels
         ... )
     """
     product_ids = DERIVATIVES_PRODUCT_IDS + SPOT_PRODUCT_IDS
     derivatives_product_ids = DERIVATIVES_PRODUCT_IDS
 
-    channels = [
+    public_channels = [
+        "heartbeats",
+        "ticker",
+    ]
+
+    private_channels = [
         "heartbeats",
         "user",
-        "ticker",
         "futures_balance_summary",
     ]
+
+    # Logical queue-name union derived from transport ownership. Public
+    # heartbeat uses its worker; private heartbeat stays on the private reducer.
+    channels = list(dict.fromkeys(public_channels + private_channels))
 
 ORDERBOOK = OrderBook()

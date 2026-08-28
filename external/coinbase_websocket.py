@@ -18,13 +18,12 @@ Usage:
     >>> 
     >>> ws_client = WSClient(api_key=..., api_secret=...)
     >>> client = CoinbaseWebSocketClient(ws_client)
-    >>> 
+    >>> client.connect()
     >>> client.subscribe(
     ...     products=['BTC-USDC', 'ETH-USDC'],
     ...     channels=['ticker', 'level2'],
     ...     on_message=on_message
     ... )
-    >>> client.connect()
 """
 
 from typing import Callable, List, Dict, Any, Optional
@@ -38,11 +37,11 @@ class CoinbaseWebSocketClient:
     Manages connection lifecycle and message routing.
     """
     
-    def __init__(self, sdk_client: WSClient):
+    def __init__(self, sdk_client: Any):
         """Initialize with a Coinbase SDK WSClient.
         
         Args:
-            sdk_client: Initialized coinbase.websocket.WSClient instance
+            sdk_client: Initialized WSClient or WSUserClient instance
         
         Raises:
             ValueError: If sdk_client is None
@@ -61,16 +60,16 @@ class CoinbaseWebSocketClient:
     def connect(self) -> None:
         """Establish WebSocket connection.
         
-        Initiates the WebSocket connection. Call subscribe() before this
-        to set up subscriptions.
+        Opens the SDK WebSocket connection. Subscribe after this method
+        returns.
         
         Raises:
             Exception: If connection fails
         
         Examples:
             >>> client = CoinbaseWebSocketClient(ws_client)
+            >>> client.connect()
             >>> client.subscribe(products=['BTC-USDC'], channels=['ticker'])
-            >>> client.connect()  # Blocks until disconnected
         """
         self._is_connected = True
         self._client.open()
@@ -112,11 +111,11 @@ class CoinbaseWebSocketClient:
         """Subscribe to WebSocket channels.
         
         Sets up subscriptions for specified products and channels.
-        Call before connect().
+        Call after connect().
         
         Args:
             products: List of product IDs (e.g., ['BTC-USDC', 'ETH-USDC'])
-            channels: List of channels (e.g., ['ticker', 'level2', 'user'])
+            channels: Channels valid for the selected public or private SDK client role
             on_message: Callback function for messages (optional)
             on_error: Callback function for errors (optional)
         
@@ -277,13 +276,13 @@ class CoinbaseWebSocketClient:
         """
         return self._client.sleep_with_exception_check(duration)
     
-    def get_sdk_client(self) -> WSClient:
+    def get_sdk_client(self) -> Any:
         """Get the underlying SDK client (for advanced use only).
         
         Use with caution - direct SDK access bypasses abstraction.
         
         Returns:
-            The underlying coinbase.websocket.WSClient
+            The underlying Coinbase WSClient or WSUserClient
         
         Examples:
             >>> sdk_client = client.get_sdk_client()

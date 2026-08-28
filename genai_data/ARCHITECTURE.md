@@ -24,7 +24,10 @@ The runtime is centered on a single `OrderEngine` instance (`core/order_engine.p
 ## Runtime Layers
 
 1. **Ingress Layer**
-- Coinbase user/ticker websocket events flow into `OrderEngine.on_message`.
+- Public Coinbase ticker/heartbeat envelopes flow through
+  `OrderEngine.on_message`; authenticated user/futures-balance/heartbeat
+  envelopes flow through `OrderEngine.on_user_message` on a separate
+  `WSUserClient` connection.
 - Dashboard websocket commands flow into `dashboard_server.handle_client_message`.
 - Enterprise Admin API routes flow through `api/v1/routes/*` into
   `application.admin_api.command_service.AdminApiCommandService`. HTTP
@@ -54,7 +57,9 @@ The runtime is centered on a single `OrderEngine` instance (`core/order_engine.p
 ## Threading Model
 
 `OrderEngine.start_background_threads()` starts:
-- websocket connection threads (`websocket_thread_maximum`)
+- `websocket_thread_maximum` redundant public `WSClient` connections for
+  configured public channels and exactly one `WSUserClient` connection when
+  private payload channels are configured
 - one worker per subscribed channel (user, ticker, heartbeats, futures_balance_summary)
 - periodic parent/child reconciliation loop
 - dedup bucket rotation loop
@@ -157,6 +162,19 @@ Primary lock boundaries:
 - `RuntimeController` state lock + inflight lock: lifecycle state and drain accounting.
 - `OrderEngine._ticker_ingress_lock`: serialized ticker enqueue and explicit
   full-queue recovery across concurrent websocket producers.
+- `OrderEngine._user_reducer_lock`: serializes private-envelope reduction
+  against connection-generation changes; `_user_feed_lock` protects only the
+  authenticated stream phase, generation, connection sequence, and bootstrap
+  accumulator state. A per-generation in-flight condition prevents a new
+  generation from hydrating while an admitted old-generation lifecycle is
+  still executing.
+- `OrderEngine._user_order_dispatcher`: keyed FIFO completion for the full
+  live lifecycle of one `client_order_id`, while unrelated COIDs may execute
+  concurrently. All live rows in one Coinbase envelope are admitted atomically;
+  pending work is bounded by `queue_maxsize`, and admission failure
+  desynchronizes the private generation instead of partially accepting it.
+  The narrower `_coid_handler_locks` remain limited to parent assurance plus
+  delta ingestion and are not the lifecycle ordering boundary.
 - `StealthOrderManager._orders_cache_lock`: short structural snapshots and
   insert/clear operations for the local stealth cache; it is separate from the
   database creation lock.
@@ -224,16 +242,36 @@ pause either wins first or the already-admitted action drains as existing work.
 
 ### 1. User Order Event Flow
 
-1. User websocket message arrives.
-2. Event dedup and channel dispatch.
-3. `process_user_order` normalizes payload and resolves ownership.
-4. Parent-row existence is ensured before delta persistence paths.
-5. `OrderProgressTracker` computes per-snapshot deltas.
-6. Delta fan-out:
+1. The sole private `WSUserClient` receives a complete authenticated envelope.
+   Generation, connection-global sequence number, timestamp, channel, and
+   events remain attached through one bounded ordered reducer queue. Subscription
+   acknowledgements, heartbeats, user orders, and futures-balance messages all
+   advance the one sequence watermark for that connection generation.
+2. The user reducer moves through `AWAITING_SNAPSHOT -> BOOTSTRAPPING -> LIVE`.
+   Initial order pages (`snapshot` plus compatibility `patch`/`update` pages)
+   accumulate by `client_order_id`; the first page below 50 completes the
+   venue set. Ten seconds without the initial order snapshot or without a short
+   terminating page, a sequence discontinuity, channel or dispatcher queue
+   overflow, conflicting duplicate, or malformed known payload moves the
+   generation to `DESYNCHRONIZED` and requests reconnect.
+3. A completed bootstrap performs exactly one drift comparison and one
+   in-memory hydration. Bootstrap rows never enter DB/fill/follow-up lifecycle
+   processing. Positions are reduced independently and cannot change the order
+   bootstrap phase when no `orders` member is present.
+4. Post-bootstrap `update` and `patch` rows are validated as complete canonical
+   lifecycle snapshots, then all rows from the complete envelope are admitted
+   atomically, keyed by `client_order_id`, and routed exactly once through
+   `process_user_order`.
+5. `process_user_order` normalizes payload and resolves ownership. Parent-row
+   existence is ensured before delta persistence paths.
+6. `OrderProgressTracker` computes per-snapshot deltas. Delta fan-out:
 - `fill_ledger` append (`WS_DERIVED` rows)
 - `order_match_audit` append
 - partial-fill follow-up evaluation
-7. Terminal statuses trigger filled/cancelled handling and follow-up logic.
+7. `FILLED`/`CANCELLED` use their canonical handlers. `EXPIRED` is terminal
+   cleanup only: exact status persistence/dashboard publication, progress
+   finalization, and in-memory eviction without filled/cancelled replacement
+   handling.
 8. Dashboard state/log broadcast updates.
 
 ### 2. Stealth Lifecycle Flow

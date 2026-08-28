@@ -43,7 +43,13 @@ Can display cross-venue metrics using `market_intel` and external ws feeds.
 ### `core/order_engine.py`
 Primary runtime engine.
 Responsibilities:
-- websocket event fan-out and dedup integration
+- separate public `WSClient` fan-out and single-owner private `WSUserClient`
+  topology; public payload dedup remains isolated from authenticated envelope
+  generation/sequence handling
+- authenticated user-feed phase reduction, paginated bootstrap accumulation,
+  connection-global sequence fencing, fail-closed reconnect, full-envelope
+  retention through one ordered private reducer queue, old-generation
+  lifecycle draining, and atomically admitted bounded keyed live-order FIFO
 - bounded ticker-ingress recovery with newest-envelope retention, inherited
   per-product continuity-loss counts, and Coinbase envelope-time forwarding
 - parent/child lifecycle updates
@@ -57,6 +63,8 @@ Responsibilities:
   before readiness
 - lifecycle-consistent dashboard status publication and per-worker websocket
   disconnect ownership
+- explicit `EXPIRED` terminal cleanup without filled/cancelled replacement
+  handlers, plus order/position failure isolation inside mixed user events
 - startup-conditional early drain quiesce, preserving fully started fill/event
   workers until stealth bridge shutdown precedes full engine cleanup
 

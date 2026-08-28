@@ -120,13 +120,16 @@ Project/package metadata and package inclusion list.
 
 Defined in `configuration.py::Subscription`:
 - `product_ids = DERIVATIVES_PRODUCT_IDS + SPOT_PRODUCT_IDS`
-- channels:
-  - `heartbeats`
-  - `user`
-  - `ticker`
-  - `futures_balance_summary`
+- `public_channels = [heartbeats, ticker]`
+- `private_channels = [heartbeats, user, futures_balance_summary]`
+- `channels`: deduplicated union derived from the two role lists for local
+  queue/worker ownership
 
-These channel names drive worker thread creation in `OrderEngine`.
+The role lists are authoritative for production transport ownership:
+`websocket_thread_maximum` applies only to public connections, while all
+private channels share exactly one `WSUserClient` and one ordered reducer
+queue. Legacy/custom subscription objects exposing only `channels` are
+partitioned by `OrderEngine` for backward compatibility.
 
 ## 4) Core Constants and Defaults
 

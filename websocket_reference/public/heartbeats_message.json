@@ -7,7 +7,7 @@
     "channel": "string - always 'heartbeats'",
     "client_id": "string - empty string",
     "timestamp": "string - ISO8601 timestamp of message",
-    "sequence_num": "integer - always 0 for heartbeats",
+    "sequence_num": "integer - connection-global message sequence number",
     "events": [
       {
         "current_time": "string - server current time with timezone",
@@ -31,7 +31,7 @@
     "channel": "Channel identifier - identifies message as heartbeat",
     "client_id": "Empty for heartbeats",
     "timestamp": "When the server sent this heartbeat message",
-    "sequence_num": "Sequence number (0 for heartbeats)",
+    "sequence_num": "Connection-global sequence number (0 in this example)",
     "current_time": "Server's current time in human-readable format",
     "heartbeat_counter": "Counter that increments with each heartbeat - use to verify continuity"
   },

@@ -56,14 +56,21 @@ Example: resolve parent linkage
 import json
 import threading
 import uuid
+from collections import deque
+from dataclasses import dataclass
 from datetime import datetime, timezone
+from math import isfinite
 from time import monotonic, sleep
 from queue import Queue, Full, Empty
 from copy import deepcopy
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 from types import ModuleType
-from typing import Any, Callable, Dict, List, Optional
-from coinbase.websocket import WSClient, WSClientConnectionClosedException
+from typing import Any, Callable, Deque, Dict, List, Optional, Tuple
+from coinbase.websocket import (
+    WSClient,
+    WSClientConnectionClosedException,
+    WSUserClient,
+)
 
 from external import CoinbaseWebSocketClient
 
@@ -76,7 +83,21 @@ from configuration import (
 )
 
 from core.constants import get_local_now
-from core.enums import OrderStatus, OrderSide, ProductType, FollowUpRevealDirection, Direction, TargetMovementType, ChannelType, StealthOrderStatus, EventStreamType, EventSourceChannel, EngineState
+from core.enums import (
+    ChannelType,
+    Direction,
+    EngineState,
+    EventSourceChannel,
+    EventStreamType,
+    FollowUpRevealDirection,
+    OrderSide,
+    OrderStatus,
+    ProductType,
+    StealthOrderStatus,
+    TargetMovementType,
+    UserFeedPhase,
+    WebSocketEventType,
+)
 from core.stealth_order_manager import resolve_stealth_chain_root
 from core.exceptions import (
     OrderProcessingError,
@@ -110,6 +131,142 @@ from integration.order_placement_hooks import get_global_placement_hook_registry
 _COINBASE_MESSAGE_TIMESTAMP_KEY = "_coinbase_message_timestamp"
 _TICKER_CONTINUITY_RESET_COUNTS_KEY = "_ticker_continuity_reset_counts"
 _TICKER_RECEIVED_MONOTONIC_KEY = "_ticker_received_monotonic"
+
+_USER_SNAPSHOT_PAGE_SIZE = 50
+_USER_BOOTSTRAP_TIMEOUT_SECONDS = 10.0
+_PRIVATE_CHANNELS = frozenset({
+    ChannelType.USER.value,
+    ChannelType.FUTURES_BALANCE_SUMMARY.value,
+})
+_LIVE_USER_ORDER_REQUIRED_FIELDS = frozenset({
+    "client_order_id",
+    "order_id",
+    "product_id",
+    "status",
+    "order_side",
+    "cumulative_quantity",
+    "leaves_quantity",
+    "filled_value",
+    "total_fees",
+    "number_of_fills",
+    "completion_percentage",
+    "outstanding_hold_amount",
+})
+
+
+@dataclass(frozen=True)
+class UserStreamEnvelope:
+    """One authenticated Coinbase envelope retained through its queue."""
+
+    generation: int
+    sequence_num: int
+    timestamp: Optional[str]
+    events: Tuple[dict, ...]
+    channel: str = ChannelType.USER.value
+
+
+class _KeyedSerialDispatcher:
+    """Run one FIFO per key while allowing unrelated keys to run in parallel."""
+
+    def __init__(
+        self,
+        executor: ThreadPoolExecutor,
+        *,
+        max_pending: int,
+    ) -> None:
+        if max_pending <= 0:
+            raise ValueError("max_pending must be positive")
+        self._executor = executor
+        self._max_pending = max_pending
+        self._lock = threading.Lock()
+        self._queues: Dict[str, Deque[tuple]] = {}
+        self._active_keys = set()
+        self._pending_count = 0
+        self._closed = False
+
+    def submit(self, key: str, fn: Callable[..., Any], *args, **kwargs) -> Future:
+        return self.submit_many(((key, fn, args, kwargs),))[0]
+
+    def submit_many(
+        self,
+        requests: Tuple[
+            Tuple[str, Callable[..., Any], tuple, dict],
+            ...,
+        ],
+    ) -> List[Future]:
+        """Atomically admit one validated envelope's lifecycle calls."""
+
+        if not requests:
+            return []
+        with self._lock:
+            if self._closed:
+                raise RuntimeError("user order dispatcher is closed")
+            if self._pending_count + len(requests) > self._max_pending:
+                raise Full("user order dispatcher is full")
+
+            admitted = []
+            newly_active_keys = []
+            futures = []
+            for key, fn, args, kwargs in requests:
+                future = Future()
+                entry = (future, fn, args, kwargs)
+                queue_for_key = self._queues.setdefault(key, deque())
+                queue_for_key.append(entry)
+                admitted.append((key, entry))
+                futures.append(future)
+                if key not in self._active_keys:
+                    self._active_keys.add(key)
+                    newly_active_keys.append(key)
+            self._pending_count += len(admitted)
+
+            try:
+                # The dispatcher lock is held through every schedule call.
+                # Newly started drains therefore cannot pop any batch member
+                # before the whole batch has been scheduled successfully.
+                for key in newly_active_keys:
+                    self._executor.submit(self._drain_key, key)
+            except Exception as exc:
+                for admitted_key, entry in reversed(admitted):
+                    queue_for_key = self._queues[admitted_key]
+                    if queue_for_key[-1] is not entry:
+                        raise RuntimeError(
+                            "user order dispatcher rollback invariant failed"
+                        ) from exc
+                    queue_for_key.pop()
+                    if not queue_for_key:
+                        self._queues.pop(admitted_key, None)
+                for key in newly_active_keys:
+                    self._active_keys.discard(key)
+                self._pending_count -= len(admitted)
+                raise RuntimeError(
+                    "user order dispatcher could not schedule work"
+                ) from exc
+        return futures
+
+    def close(self) -> None:
+        with self._lock:
+            self._closed = True
+
+    def _drain_key(self, key: str) -> None:
+        while True:
+            with self._lock:
+                queue_for_key = self._queues.get(key)
+                if not queue_for_key:
+                    self._queues.pop(key, None)
+                    self._active_keys.discard(key)
+                    return
+                future, fn, args, kwargs = queue_for_key.popleft()
+            if not future.set_running_or_notify_cancel():
+                with self._lock:
+                    self._pending_count -= 1
+                continue
+            try:
+                future.set_result(fn(*args, **kwargs))
+            except BaseException as exc:
+                future.set_exception(exc)
+            finally:
+                with self._lock:
+                    self._pending_count -= 1
 
 # Dashboard integration (optional - will fail gracefully if dashboard_server not available)
 try:
@@ -292,18 +449,19 @@ class OrderEngine:
         # fires. ``None`` means never emitted â€” the first call always logs.
         self._last_reconciled_counts: Optional[tuple] = None
 
-        # Dedup gate for snapshot_drift_detected. Each WS user-event
-        # worker thread (we run ~6) processes the SNAPSHOT frame
-        # independently and previously emitted its own drift report,
-        # producing NÃ— duplicated WARNING lines for the same drift state.
+        # Dedup gate for snapshot_drift_detected. Repeated snapshots or
+        # reconnect checks can report the same drift state; retain only the
+        # first warning for a signature until the observed state changes.
+        # This keeps a real transition visible without repeated log noise.
         # Track the last-emitted signature per source under a lock and
         # skip re-emission when the signature is unchanged.
         self._snapshot_drift_last_signature: Dict[str, tuple] = {}
         self._snapshot_drift_emit_lock = threading.Lock()
 
-        # Per-COID serialisation for the WS user-channel handler.
-        # ``process_user_order`` runs on a ThreadPoolExecutor, so two
-        # threads can race for the same brand-new external COID:
+        # Per-COID serialization for the parent-assurance + progress-ingest
+        # critical section. Two direct or queued callers can otherwise race
+        # for the same brand-new external
+        # COID:
         #   T_A: cache miss â†’ resolve_parent_client_order_id populates
         #        ``orderbook.parent_order_ids`` BEFORE the DB INSERT
         #        commits.
@@ -311,8 +469,9 @@ class OrderEngine:
         #        ensure â†’ calls _process_ws_order_delta â†’
         #        upsert_partial_fill_progress fails with FK violation
         #        because T_A's INSERT hasn't committed yet.
-        # Per-COID lock makes the ensureâ†’delta pair atomic per order.
-        # Different COIDs still process in parallel.
+        # The keyed user-order dispatcher owns full lifecycle FIFO in
+        # production. This narrow lock protects only the FK-dependent write
+        # pair for direct/synthetic compatibility callers as well.
         self._coid_handler_locks: Dict[str, threading.Lock] = {}
         self._coid_handler_locks_guard = threading.Lock()
 
@@ -340,15 +499,20 @@ class OrderEngine:
             max_workers=max_workers,
             thread_name_prefix="user_event_thread",
         )
+        self._user_order_dispatcher = _KeyedSerialDispatcher(
+            self.event_executor,
+            max_pending=self.queue_maxsize,
+        )
 
         self.event_queue = {
             channel: Queue(maxsize=self.queue_maxsize)
-            for channel in self.subscription.channels
+            for channel in self._configured_event_channels()
         }
         # Multiple websocket clients can publish concurrently.  Serializing
         # ticker enqueue/recovery makes a full-queue replacement an explicit
         # ordered boundary instead of an unobservable event drop.
         self._ticker_ingress_lock = threading.Lock()
+        self._ensure_user_stream_state()
 
         self.logging_flags = {
             "snapshot": False,
@@ -429,19 +593,30 @@ class OrderEngine:
         self._initialize_hotpoint_subsystem()
 
         self.websocket_events = {
-            "SNAPSHOT": {
-                "type": "snapshot",
+            WebSocketEventType.SNAPSHOT.name: {
+                "type": WebSocketEventType.SNAPSHOT.value,
                 "orders": [],
                 "positions": [
                     "perpetual_futures_positions",
                     "expiring_futures_positions",
                 ],
             },
-            "OPEN": {"type": "open", "orders": []},
-            "FILLED": {"type": "filled", "orders": []},
-            "CANCELLED": {"type": "cancelled", "orders": []},
-            "UPDATE": {
-                "type": "update",
+            # Historical compatibility inputs. Coinbase's authenticated wire
+            # contract uses SNAPSHOT plus UPDATE/PATCH envelopes; lifecycle
+            # status is carried by each order row.
+            OrderStatus.OPEN.name: {"type": "open", "orders": []},
+            OrderStatus.FILLED.name: {"type": "filled", "orders": []},
+            OrderStatus.CANCELLED.name: {"type": "cancelled", "orders": []},
+            WebSocketEventType.UPDATE.name: {
+                "type": WebSocketEventType.UPDATE.value,
+                "orders": [],
+                "positions": [
+                    "perpetual_futures_positions",
+                    "expiring_futures_positions",
+                ],
+            },
+            WebSocketEventType.PATCH.name: {
+                "type": WebSocketEventType.PATCH.value,
                 "orders": [],
                 "positions": [
                     "perpetual_futures_positions",
@@ -1103,7 +1278,7 @@ class OrderEngine:
     def _finalize_partial_fill_progress(self, client_order_id: str, terminal_status: str) -> None:
         """Drop the order's tracker watermark and mark its DB row terminal.
 
-        Called when an order reaches FILLED, CANCELLED, or FAILED status so
+        Called when an order reaches FILLED, CANCELLED, FAILED, or EXPIRED so
         that the partial-fill progress row is no longer surfaced on restart
         hydration. The tracker owns the in-memory state; this method handles
         the DB finalize and audit emission.
@@ -2519,6 +2694,683 @@ class OrderEngine:
                 ticker_queue.put_nowait(retained_event)
                 return len(discarded_events), reset_counts
 
+    def _ensure_user_stream_state(self) -> None:
+        """Initialize authenticated-stream reducer state for full and bare engines."""
+
+        if not hasattr(self, "_user_feed_lock"):
+            self._user_feed_lock = threading.RLock()
+        if not hasattr(self, "_user_reducer_lock"):
+            self._user_reducer_lock = threading.RLock()
+        if not hasattr(self, "_user_generation_condition"):
+            self._user_generation_condition = threading.Condition(
+                self._user_feed_lock
+            )
+        with self._user_feed_lock:
+            if not hasattr(self, "_user_feed_phase"):
+                self._user_feed_phase = UserFeedPhase.AWAITING_SNAPSHOT
+            if not hasattr(self, "_user_stream_generation"):
+                self._user_stream_generation = 0
+            if not hasattr(self, "_user_last_sequence_num"):
+                self._user_last_sequence_num = None
+            if not hasattr(self, "_user_last_envelope_payload"):
+                self._user_last_envelope_payload = None
+            if not hasattr(self, "_user_bootstrap_orders"):
+                self._user_bootstrap_orders: Dict[str, dict] = {}
+            if not hasattr(self, "_user_bootstrap_deadline_monotonic"):
+                self._user_bootstrap_deadline_monotonic = None
+            if not hasattr(self, "_user_stream_reconnect_event"):
+                self._user_stream_reconnect_event = None
+            if not hasattr(self, "_user_generation_inflight"):
+                self._user_generation_inflight: Dict[int, int] = {}
+
+    def _configured_private_channels(self) -> Tuple[str, ...]:
+        """Return channels owned by the single authenticated connection."""
+
+        explicit = getattr(self.subscription, "private_channels", None)
+        if isinstance(explicit, (list, tuple)):
+            return tuple(dict.fromkeys(explicit))
+
+        channels = tuple(getattr(self.subscription, "channels", ()) or ())
+        payload_channels = tuple(
+            channel for channel in channels if channel in _PRIVATE_CHANNELS
+        )
+        if not payload_channels:
+            return ()
+        return tuple(
+            channel
+            for channel in channels
+            if channel in _PRIVATE_CHANNELS
+            or channel == ChannelType.HEARTBEATS.value
+        )
+
+    def _configured_public_channels(self) -> Tuple[str, ...]:
+        """Return channels owned by each redundant market-data connection."""
+
+        explicit = getattr(self.subscription, "public_channels", None)
+        if isinstance(explicit, (list, tuple)):
+            return tuple(dict.fromkeys(explicit))
+
+        channels = tuple(getattr(self.subscription, "channels", ()) or ())
+        return tuple(channel for channel in channels if channel not in _PRIVATE_CHANNELS)
+
+    def _configured_event_channels(self) -> Tuple[str, ...]:
+        """Return the single deduplicated worker/queue channel union."""
+
+        public_channels = self._configured_public_channels()
+        private_channels = self._configured_private_channels()
+        has_explicit_roles = any(
+            isinstance(
+                getattr(self.subscription, attribute, None),
+                (list, tuple),
+            )
+            for attribute in ("public_channels", "private_channels")
+        )
+        if has_explicit_roles:
+            return tuple(dict.fromkeys(public_channels + private_channels))
+        channels = tuple(getattr(self.subscription, "channels", ()) or ())
+        return tuple(dict.fromkeys(channels))
+
+    def _private_reducer_queue_channel(self) -> Optional[str]:
+        """Return the one local queue that preserves private connection order."""
+
+        private_channels = self._configured_private_channels()
+        for channel in (
+            ChannelType.USER.value,
+            ChannelType.FUTURES_BALANCE_SUMMARY.value,
+            ChannelType.HEARTBEATS.value,
+        ):
+            if channel in private_channels:
+                return channel
+        return None
+
+    def _configured_websocket_connection_count(self) -> int:
+        public_count = (
+            self.websocket_thread_maximum
+            if self._configured_public_channels()
+            else 0
+        )
+        private_count = 1 if self._configured_private_channels() else 0
+        return public_count + private_count
+
+    def _begin_user_stream_generation(
+        self,
+        reconnect_event: Optional[threading.Event] = None,
+    ) -> int:
+        """Reset bootstrap ownership for one newly-opened private connection."""
+
+        self._ensure_user_stream_state()
+        with self._user_reducer_lock:
+            with self._user_generation_condition:
+                previous_generation = self._user_stream_generation
+                while self._user_generation_inflight.get(
+                    previous_generation,
+                    0,
+                ):
+                    self._user_generation_condition.wait()
+                self._user_stream_generation += 1
+                generation = self._user_stream_generation
+                self._user_feed_phase = UserFeedPhase.AWAITING_SNAPSHOT
+                self._user_last_sequence_num = None
+                self._user_last_envelope_payload = None
+                self._user_bootstrap_orders = {}
+                self._user_bootstrap_deadline_monotonic = (
+                    monotonic() + _USER_BOOTSTRAP_TIMEOUT_SECONDS
+                )
+                self._user_stream_reconnect_event = reconnect_event
+        try:
+            self.log_message(
+                "connection",
+                self.build_event_log_payload(
+                    "user_stream_generation_started",
+                    generation=generation,
+                ),
+            )
+        except Exception:
+            pass
+        return generation
+
+    def _mark_user_stream_desynchronized(
+        self,
+        *,
+        generation: Optional[int],
+        reason: str,
+        **details,
+    ) -> bool:
+        """Fail one current generation closed and request a clean reconnect."""
+
+        self._ensure_user_stream_state()
+        with self._user_feed_lock:
+            if (
+                generation is not None
+                and generation != self._user_stream_generation
+            ):
+                return False
+            changed = self._user_feed_phase != UserFeedPhase.DESYNCHRONIZED
+            self._user_feed_phase = UserFeedPhase.DESYNCHRONIZED
+            self._user_bootstrap_orders = {}
+            self._user_bootstrap_deadline_monotonic = None
+            reconnect_event = self._user_stream_reconnect_event
+            if reconnect_event is not None:
+                reconnect_event.set()
+            active_generation = self._user_stream_generation
+
+        if changed:
+            self.log_message(
+                "error",
+                self.build_event_log_payload(
+                    "user_stream_desynchronized",
+                    generation=active_generation,
+                    reason=reason,
+                    **details,
+                ),
+            )
+        return changed
+
+    def _check_user_bootstrap_timeout(self) -> bool:
+        """Reconnect instead of guessing through an unterminated bootstrap."""
+
+        self._ensure_user_stream_state()
+        with self._user_feed_lock:
+            generation = self._user_stream_generation
+            deadline = self._user_bootstrap_deadline_monotonic
+            timed_out = (
+                self._user_feed_phase
+                in (
+                    UserFeedPhase.AWAITING_SNAPSHOT,
+                    UserFeedPhase.BOOTSTRAPPING,
+                )
+                and deadline is not None
+                and monotonic() >= deadline
+            )
+            phase = self._user_feed_phase
+        if not timed_out:
+            return False
+        self._mark_user_stream_desynchronized(
+            generation=generation,
+            reason=(
+                "initial_snapshot_timeout"
+                if phase == UserFeedPhase.AWAITING_SNAPSHOT
+                else "bootstrap_timeout"
+            ),
+            timeout_seconds=_USER_BOOTSTRAP_TIMEOUT_SECONDS,
+        )
+        return True
+
+    def on_user_message(self, msg: str, *, generation: int) -> None:
+        """Validate and enqueue one complete private Coinbase envelope.
+
+        Unlike public market ingress, private message identity is the
+        connection generation plus Coinbase's connection-global sequence.
+        Payload hashing is intentionally not used for authenticated messages.
+        """
+
+        self._ensure_user_stream_state()
+        try:
+            json_msg = json.loads(msg) if isinstance(msg, str) else deepcopy(msg)
+            if not isinstance(json_msg, dict):
+                raise ValueError("private websocket message must be an object")
+
+            channel = json_msg.get("channel")
+            if not isinstance(channel, str) or not channel:
+                self._mark_user_stream_desynchronized(
+                    generation=generation,
+                    reason="invalid_private_channel",
+                )
+                return
+
+            sequence_num = json_msg.get("sequence_num")
+            if (
+                not isinstance(sequence_num, int)
+                or isinstance(sequence_num, bool)
+            ):
+                self._mark_user_stream_desynchronized(
+                    generation=generation,
+                    reason="invalid_sequence_number",
+                )
+                return
+
+            events = json_msg.get("events")
+            if (
+                not isinstance(events, list)
+                or not events
+                or not all(isinstance(event, dict) for event in events)
+            ):
+                self._mark_user_stream_desynchronized(
+                    generation=generation,
+                    reason="invalid_events_payload",
+                    sequence_num=sequence_num,
+                )
+                return
+
+            configured_private_channels = self._configured_private_channels()
+            if (
+                channel != ChannelType.SUBSCRIPTIONS.value
+                and channel not in configured_private_channels
+            ):
+                self._mark_user_stream_desynchronized(
+                    generation=generation,
+                    reason="unexpected_private_channel",
+                    channel=channel,
+                    sequence_num=sequence_num,
+                )
+                return
+
+            with self._user_feed_lock:
+                if generation != self._user_stream_generation:
+                    return
+                if self._user_feed_phase == UserFeedPhase.DESYNCHRONIZED:
+                    return
+                previous_sequence = self._user_last_sequence_num
+                if previous_sequence is not None:
+                    if sequence_num == previous_sequence:
+                        if json_msg == self._user_last_envelope_payload:
+                            self.log_message(
+                                "event",
+                                self.build_event_log_payload(
+                                    "user_envelope_duplicate_ignored",
+                                    generation=generation,
+                                    channel=channel,
+                                    sequence_num=sequence_num,
+                                ),
+                            )
+                        else:
+                            self._mark_user_stream_desynchronized(
+                                generation=generation,
+                                reason="conflicting_duplicate_sequence",
+                                channel=channel,
+                                sequence_num=sequence_num,
+                            )
+                        return
+                    if sequence_num < previous_sequence:
+                        sequence_failure = "sequence_regression"
+                    elif sequence_num != previous_sequence + 1:
+                        sequence_failure = "sequence_gap"
+                    else:
+                        sequence_failure = None
+                    if sequence_failure is not None:
+                        self._mark_user_stream_desynchronized(
+                            generation=generation,
+                            reason=sequence_failure,
+                            channel=channel,
+                            previous_sequence_num=previous_sequence,
+                            sequence_num=sequence_num,
+                        )
+                        return
+
+                if channel == ChannelType.SUBSCRIPTIONS.value:
+                    self._user_last_sequence_num = sequence_num
+                    self._user_last_envelope_payload = deepcopy(json_msg)
+                    return
+                reducer_queue_channel = self._private_reducer_queue_channel()
+                if (
+                    reducer_queue_channel is None
+                    or reducer_queue_channel not in self.event_queue
+                ):
+                    self._mark_user_stream_desynchronized(
+                        generation=generation,
+                        reason="missing_private_event_queue",
+                        channel=channel,
+                        sequence_num=sequence_num,
+                    )
+                    return
+
+                queued_item = UserStreamEnvelope(
+                    generation=generation,
+                    sequence_num=sequence_num,
+                    timestamp=json_msg.get("timestamp"),
+                    events=tuple(deepcopy(events)),
+                    channel=channel,
+                )
+
+                try:
+                    self.event_queue[reducer_queue_channel].put(
+                        queued_item,
+                        timeout=0.01,
+                    )
+                except Full:
+                    self._mark_user_stream_desynchronized(
+                        generation=generation,
+                        reason="private_event_queue_full",
+                        channel=channel,
+                        reducer_queue_channel=reducer_queue_channel,
+                        sequence_num=sequence_num,
+                    )
+                    return
+                self._user_last_sequence_num = sequence_num
+                self._user_last_envelope_payload = deepcopy(json_msg)
+
+        except Exception as exc:
+            self._mark_user_stream_desynchronized(
+                generation=generation,
+                reason="private_message_processing_exception",
+                error=str(exc),
+            )
+
+    def process_user_envelope(self, envelope: UserStreamEnvelope) -> None:
+        """Reduce one private envelope in sequence order on the user worker."""
+
+        self._ensure_user_stream_state()
+        with self._user_reducer_lock:
+            with self._user_feed_lock:
+                if (
+                    envelope.generation != self._user_stream_generation
+                    or self._user_feed_phase == UserFeedPhase.DESYNCHRONIZED
+                ):
+                    return
+
+            try:
+                pending_live_orders = []
+                for event in envelope.events:
+                    self.process_user_event(
+                        event,
+                        dispatch_async=True,
+                        generation=envelope.generation,
+                        pending_live_orders=pending_live_orders,
+                    )
+                    with self._user_feed_lock:
+                        if (
+                            envelope.generation == self._user_stream_generation
+                            and self._user_feed_phase
+                            == UserFeedPhase.DESYNCHRONIZED
+                        ):
+                            return
+                self._dispatch_validated_user_orders(
+                    pending_live_orders,
+                    dispatch_async=True,
+                    generation=envelope.generation,
+                )
+            except Exception as exc:
+                self._mark_user_stream_desynchronized(
+                    generation=envelope.generation,
+                    reason="user_envelope_processing_exception",
+                    sequence_num=envelope.sequence_num,
+                    error=str(exc),
+                )
+
+    def process_private_envelope(self, envelope: UserStreamEnvelope) -> None:
+        """Generation-fence and route one complete private-channel envelope."""
+
+        self._ensure_user_stream_state()
+        with self._user_reducer_lock:
+            with self._user_feed_lock:
+                if (
+                    envelope.generation != self._user_stream_generation
+                    or self._user_feed_phase == UserFeedPhase.DESYNCHRONIZED
+                ):
+                    return
+
+            if envelope.channel == ChannelType.USER.value:
+                self.process_user_envelope(envelope)
+                return
+            if envelope.channel == ChannelType.HEARTBEATS.value:
+                return
+            if envelope.channel == ChannelType.FUTURES_BALANCE_SUMMARY.value:
+                for event in envelope.events:
+                    try:
+                        self.process_futures_balance_summary_event(event)
+                    except Exception as exc:
+                        self.log_message(
+                            "error",
+                            self.build_event_log_payload(
+                                "futures_balance_summary_processing_error",
+                                generation=envelope.generation,
+                                sequence_num=envelope.sequence_num,
+                                error=str(exc),
+                            ),
+                        )
+                return
+
+            self._mark_user_stream_desynchronized(
+                generation=envelope.generation,
+                reason="unexpected_private_envelope_channel",
+                channel=envelope.channel,
+            )
+
+    def _process_user_positions_safely(self, event: dict) -> None:
+        """Keep position-shape failures isolated from order lifecycle work."""
+
+        if "positions" not in event:
+            return
+        try:
+            self.process_user_snapshot(event)
+        except Exception as exc:
+            self.log_message(
+                "error",
+                self.build_event_log_payload(
+                    "user_position_processing_error",
+                    error=str(exc),
+                    **self.include_debug_fields(received_event=event),
+                ),
+            )
+
+    def _validate_complete_user_order(self, order: dict) -> List[str]:
+        if not isinstance(order, dict):
+            return sorted(_LIVE_USER_ORDER_REQUIRED_FIELDS)
+        missing = sorted(_LIVE_USER_ORDER_REQUIRED_FIELDS - order.keys())
+        if missing:
+            return missing
+        raw_status = order.get("status")
+        if not isinstance(raw_status, str) or raw_status != raw_status.upper():
+            return ["status(canonical_order_status)"]
+        try:
+            status = OrderStatus(raw_status)
+        except ValueError:
+            return ["status(valid_order_status)"]
+        if status in (OrderStatus.UPDATE, OrderStatus.SNAPSHOT):
+            return ["status(exchange_lifecycle_status)"]
+        for field in ("client_order_id", "order_id", "product_id"):
+            value = order.get(field)
+            if not isinstance(value, str) or not value.strip():
+                return [field]
+        raw_side = order.get("order_side")
+        if not isinstance(raw_side, str) or raw_side != raw_side.upper():
+            return ["order_side(canonical_order_side)"]
+        try:
+            OrderSide(raw_side)
+        except ValueError:
+            return ["order_side(valid_order_side)"]
+
+        numeric_values = {}
+        for field in (
+            "cumulative_quantity",
+            "leaves_quantity",
+            "filled_value",
+            "total_fees",
+            "number_of_fills",
+            "completion_percentage",
+            "outstanding_hold_amount",
+        ):
+            value = order.get(field)
+            if isinstance(value, bool):
+                return [f"{field}(finite_nonnegative_number)"]
+            try:
+                numeric_value = float(value)
+            except (TypeError, ValueError):
+                return [f"{field}(finite_nonnegative_number)"]
+            if not isfinite(numeric_value) or numeric_value < 0:
+                return [f"{field}(finite_nonnegative_number)"]
+            numeric_values[field] = numeric_value
+
+        number_of_fills = numeric_values["number_of_fills"]
+        if not number_of_fills.is_integer():
+            return ["number_of_fills(nonnegative_integer)"]
+
+        has_fill_progress = any(
+            numeric_values[field] > 0
+            for field in (
+                "cumulative_quantity",
+                "filled_value",
+                "number_of_fills",
+                "completion_percentage",
+            )
+        )
+        if has_fill_progress:
+            effective_price = next(
+                (
+                    order.get(field)
+                    for field in ("avg_price", "limit_price", "price")
+                    if order.get(field) not in (None, "")
+                ),
+                None,
+            )
+            try:
+                parsed_price = float(effective_price)
+            except (TypeError, ValueError):
+                return ["effective_price(finite_positive_number)"]
+            if not isfinite(parsed_price) or parsed_price <= 0:
+                return ["effective_price(finite_positive_number)"]
+        return []
+
+    def _process_dispatched_user_order(
+        self,
+        generation: int,
+        order: dict,
+    ) -> None:
+        with self._user_generation_condition:
+            if (
+                generation != self._user_stream_generation
+                or self._user_feed_phase == UserFeedPhase.DESYNCHRONIZED
+            ):
+                return
+            self._user_generation_inflight[generation] = (
+                self._user_generation_inflight.get(generation, 0) + 1
+            )
+        try:
+            self.process_user_order(order)
+        except Exception as exc:
+            self.log_message(
+                "error",
+                self.build_event_log_payload(
+                    "user_order_processing_exception",
+                    client_order_id=order.get("client_order_id"),
+                    error=str(exc),
+                ),
+            )
+            self._mark_user_stream_desynchronized(
+                generation=generation,
+                reason="user_order_processing_exception",
+                client_order_id=order.get("client_order_id"),
+            )
+        finally:
+            with self._user_generation_condition:
+                remaining = self._user_generation_inflight[generation] - 1
+                if remaining:
+                    self._user_generation_inflight[generation] = remaining
+                else:
+                    self._user_generation_inflight.pop(generation, None)
+                    self._user_generation_condition.notify_all()
+
+    def _dispatch_live_user_orders(
+        self,
+        event: dict,
+        *,
+        dispatch_async: bool,
+        generation: int,
+        require_complete_rows: bool,
+        pending_live_orders: Optional[List[dict]] = None,
+    ) -> bool:
+        if "orders" not in event:
+            return True
+        orders = event.get("orders")
+        if not isinstance(orders, list):
+            self._mark_user_stream_desynchronized(
+                generation=generation,
+                reason="invalid_live_orders_payload",
+            )
+            return False
+
+        valid_orders = []
+        for order in orders:
+            if not isinstance(order, dict):
+                self._mark_user_stream_desynchronized(
+                    generation=generation,
+                    reason="malformed_live_order_row",
+                )
+                return False
+            if require_complete_rows:
+                missing_fields = self._validate_complete_user_order(order)
+                if missing_fields:
+                    self._mark_user_stream_desynchronized(
+                        generation=generation,
+                        reason="incomplete_live_order_row",
+                        client_order_id=order.get("client_order_id"),
+                        missing_fields=missing_fields,
+                    )
+                    return False
+            elif not order.get("client_order_id"):
+                self.log_message(
+                    "warning",
+                    self.build_event_log_payload(
+                        "missing_client_order_id_in_order_event",
+                        source={
+                            "client_order_id": (
+                                order.get("client_order_id")
+                            ),
+                            "order_id": (
+                                order.get("order_id")
+                            ),
+                            "product_id": (
+                                order.get("product_id")
+                            ),
+                            "status": (
+                                order.get("status")
+                            ),
+                        },
+                        **self.include_debug_fields(raw_order=order),
+                    ),
+                )
+                continue
+            valid_orders.append(order)
+
+        if pending_live_orders is not None:
+            pending_live_orders.extend(valid_orders)
+            return True
+        return self._dispatch_validated_user_orders(
+            valid_orders,
+            dispatch_async=dispatch_async,
+            generation=generation,
+        )
+
+    def _dispatch_validated_user_orders(
+        self,
+        valid_orders: List[dict],
+        *,
+        dispatch_async: bool,
+        generation: int,
+    ) -> bool:
+        """Atomically admit all validated lifecycle rows from one envelope."""
+
+        if not valid_orders:
+            return True
+        dispatcher = getattr(self, "_user_order_dispatcher", None)
+        if dispatch_async and dispatcher is not None:
+            try:
+                dispatcher.submit_many(
+                    tuple(
+                        (
+                            order["client_order_id"],
+                            self._process_dispatched_user_order,
+                            (generation, order),
+                            {},
+                        )
+                        for order in valid_orders
+                    )
+                )
+            except Exception as exc:
+                self._mark_user_stream_desynchronized(
+                    generation=generation,
+                    reason="user_order_dispatch_rejected",
+                    client_order_ids=[
+                        order.get("client_order_id") for order in valid_orders
+                    ],
+                    error=str(exc),
+                )
+                return False
+        else:
+            for order in valid_orders:
+                self.process_user_order(order)
+        return True
+
     def on_message(self, msg: str) -> None:
         """Process incoming websocket message.
         
@@ -2540,6 +3392,7 @@ class OrderEngine:
                 "events" not in json_msg,
                 channel == ChannelType.SUBSCRIPTIONS.value,
                 not channel,
+                channel in _PRIVATE_CHANNELS,
                 channel not in self.event_queue,
             )):
                 return
@@ -2621,77 +3474,198 @@ class OrderEngine:
                 ),
             )
 
-    def process_user_event(self, event: dict) -> None:
-        """Process user-channel event (orders or positions).
-        
-        Dispatches to process_user_order or process_user_snapshot.
-        
-        Args:
-            event: Event dict with 'type' and 'orders'/'positions' keys.
-        
-        Returns:
-            None
+    def process_user_event(
+        self,
+        event: dict,
+        *,
+        dispatch_async: bool = False,
+        generation: Optional[int] = None,
+        pending_live_orders: Optional[List[dict]] = None,
+    ) -> None:
+        """Reduce one authenticated event without conflating wire and status.
+
+        Direct calls remain synchronous for compatibility. Production private
+        envelopes pass ``dispatch_async=True`` after ordered bootstrap
+        reduction, which preserves FIFO per ``client_order_id``.
         """
-        try:
-            if event["type"].upper() not in self.websocket_events:
-                self.log_message(
-                    "event",
-                    self.build_event_log_payload(
-                        "user_event_ignored",
-                        **self.include_debug_fields(received_event=event),
-                    ),
-                )
-                return
 
-            if "orders" in event and event["type"].upper() in ["OPEN", "FILLED", "CANCELLED", "UPDATE"]:
-                for order in event["orders"]:
-                    if "client_order_id" not in order:
-                        self.log_message(
-                            "warning",
-                            self.build_event_log_payload(
-                                "missing_client_order_id_in_order_event",
-                                source=self.build_order_log_context(order),
-                                **self.include_debug_fields(raw_order=order),
-                            ),
-                        )
-                        continue
-                    self.process_user_order(order)
-
-            # WS user-channel SNAPSHOT events (sent on connect / reconnect)
-            # carry the venue's view of every open order. We don't mutate
-            # state from them â€” the live update path owns that â€” but we do
-            # use them as a continuous self-check against in-memory state.
-            # Any drift is logged for operator review and is the cheapest
-            # available signal that a delta was missed.
-            elif "orders" in event and event["type"].upper() == "SNAPSHOT":
-                snapshot_orders = [
-                    o for o in event.get("orders", [])
-                    if o.get("client_order_id")
-                ]
-                ws_client_order_ids = {
-                    o["client_order_id"] for o in snapshot_orders
-                }
-                # Drift check FIRST (compares venue snapshot against what we
-                # *believed*), then heal in-memory state from the snapshot.
-                # Order matters: if we hydrated first, drift would always be
-                # zero and we'd lose the signal that we missed a delta.
-                self.snapshot_drift_check(
-                    ws_client_order_ids,
-                    source="ws_user_snapshot",
-                )
-                self._hydrate_orderbook_from_ws_snapshot(snapshot_orders)
-
-            elif "positions" in event:
-                self.process_user_snapshot(event)
-
-        except Exception as e:
+        self._ensure_user_stream_state()
+        if not isinstance(event, dict):
             self.log_message(
-                "error",
+                "event",
+                self.build_event_log_payload("user_event_ignored"),
+            )
+            return
+
+        event_type = str(event.get("type") or "").lower()
+        wire_types = {
+            WebSocketEventType.SNAPSHOT.value,
+            WebSocketEventType.UPDATE.value,
+            WebSocketEventType.PATCH.value,
+        }
+        legacy_types = {
+            OrderStatus.OPEN.value.lower(),
+            OrderStatus.FILLED.value.lower(),
+            OrderStatus.CANCELLED.value.lower(),
+        }
+        if event_type not in wire_types | legacy_types:
+            self.log_message(
+                "event",
                 self.build_event_log_payload(
-                    "user_event_processing_error",
-                    error=str(e),
+                    "user_event_ignored",
+                    event_type=event_type or None,
                     **self.include_debug_fields(received_event=event),
                 ),
+            )
+            return
+
+        if (
+            event_type in wire_types
+            and "orders" not in event
+            and "positions" not in event
+        ):
+            self._mark_user_stream_desynchronized(
+                generation=generation,
+                reason="invalid_user_event_payload",
+                event_type=event_type,
+            )
+            return
+
+        with self._user_feed_lock:
+            active_generation = self._user_stream_generation
+        if generation is None:
+            generation = active_generation
+        if generation != active_generation:
+            return
+
+        # Position snapshots are an independent member of the authenticated
+        # event. Process them before the order reducer so an order-protocol
+        # failure cannot suppress a valid position update.
+        self._process_user_positions_safely(event)
+
+        if event_type in wire_types and "orders" not in event:
+            return
+
+        if event_type in legacy_types:
+            self._dispatch_live_user_orders(
+                event,
+                dispatch_async=dispatch_async,
+                generation=generation,
+                require_complete_rows=False,
+                pending_live_orders=pending_live_orders,
+            )
+            return
+
+        completed_snapshot = None
+        protocol_failure = None
+        protocol_failure_details = {}
+        dispatch_live = False
+        with self._user_feed_lock:
+            if generation != self._user_stream_generation:
+                return
+            phase = self._user_feed_phase
+
+            if event_type == WebSocketEventType.SNAPSHOT.value:
+                if phase == UserFeedPhase.DESYNCHRONIZED:
+                    return
+                if phase in (
+                    UserFeedPhase.AWAITING_SNAPSHOT,
+                    UserFeedPhase.LIVE,
+                ):
+                    self._user_bootstrap_orders = {}
+                    self._user_feed_phase = UserFeedPhase.BOOTSTRAPPING
+                    self._user_bootstrap_deadline_monotonic = (
+                        monotonic() + _USER_BOOTSTRAP_TIMEOUT_SECONDS
+                    )
+                phase = self._user_feed_phase
+            elif phase == UserFeedPhase.AWAITING_SNAPSHOT:
+                protocol_failure = "delta_before_initial_snapshot"
+            elif phase == UserFeedPhase.DESYNCHRONIZED:
+                return
+
+            if protocol_failure is None:
+                phase = self._user_feed_phase
+                if phase == UserFeedPhase.BOOTSTRAPPING:
+                    if "orders" in event:
+                        page_orders = event.get("orders")
+                        if not isinstance(page_orders, list):
+                            protocol_failure = "invalid_bootstrap_orders_payload"
+                        else:
+                            for order in page_orders:
+                                invalid_fields = (
+                                    self._validate_complete_user_order(order)
+                                )
+                                if invalid_fields:
+                                    protocol_failure = (
+                                        "incomplete_bootstrap_order_row"
+                                    )
+                                    protocol_failure_details = {
+                                        "client_order_id": (
+                                            order.get("client_order_id")
+                                            if isinstance(order, dict)
+                                            else None
+                                        ),
+                                        "missing_fields": invalid_fields,
+                                    }
+                                    break
+                                client_order_id = order["client_order_id"]
+                                existing = self._user_bootstrap_orders.get(
+                                    client_order_id
+                                )
+                                if existing is not None and existing != order:
+                                    protocol_failure = (
+                                        "conflicting_duplicate_bootstrap_order"
+                                    )
+                                    break
+                                if existing is None:
+                                    self._user_bootstrap_orders[
+                                        client_order_id
+                                    ] = deepcopy(order)
+
+                            if (
+                                protocol_failure is None
+                                and len(page_orders) < _USER_SNAPSHOT_PAGE_SIZE
+                            ):
+                                completed_snapshot = list(
+                                    self._user_bootstrap_orders.values()
+                                )
+                                self._user_bootstrap_orders = {}
+                                self._user_bootstrap_deadline_monotonic = None
+                                self._user_feed_phase = UserFeedPhase.LIVE
+                elif phase == UserFeedPhase.LIVE:
+                    dispatch_live = event_type in {
+                        WebSocketEventType.UPDATE.value,
+                        WebSocketEventType.PATCH.value,
+                    }
+
+        if protocol_failure is not None:
+            self._mark_user_stream_desynchronized(
+                generation=generation,
+                reason=protocol_failure,
+                event_type=event_type,
+                **protocol_failure_details,
+            )
+            return
+
+        if completed_snapshot is not None:
+            # Compare the complete venue set against prior belief before the
+            # side-effect-free in-memory hydration changes that belief.
+            self.snapshot_drift_check(
+                {
+                    order["client_order_id"]
+                    for order in completed_snapshot
+                },
+                source="ws_user_snapshot",
+            )
+            self._hydrate_orderbook_from_ws_snapshot(completed_snapshot)
+
+        if dispatch_live:
+            self._dispatch_live_user_orders(
+                event,
+                dispatch_async=dispatch_async,
+                generation=generation,
+                require_complete_rows=True,
+                pending_live_orders=pending_live_orders,
             )
 
     def process_futures_balance_summary_event(self, event: dict) -> None:
@@ -2751,7 +3725,7 @@ class OrderEngine:
         #
         # Apples-to-apples principle: the venue's open-orders snapshot
         # only contains orders the exchange currently considers open
-        # (status OPEN or UPDATE). Comparing it against every entry we
+        # (OPEN, plus legacy synthetic UPDATE compatibility). Comparing it
         # ever stored â€” including transient PENDING/CANCEL_QUEUED entries
         # mid-placement and terminal FILLED/CANCELLED/FAILED entries
         # awaiting bookkeeping cleanup â€” produces guaranteed false
@@ -2801,12 +3775,11 @@ class OrderEngine:
         }
 
         if ws_only or in_memory_only:
-            # Dedup gate: each WS user-event worker thread receives the
-            # SNAPSHOT frame and would emit identical drift reports
-            # (~6 worker threads â†’ 6Ã— duplicated WARNING blocks). Hash
-            # the drift contents and skip emission when the signature
-            # matches the previously-emitted one for this source. The
-            # first observation of a new drift state always emits.
+            # Dedup gate: repeated snapshots or reconnect checks can carry
+            # the same drift state. Hash the drift contents and skip
+            # emission when the signature matches the previously-emitted
+            # one for this source. The first observation of a new drift
+            # state always emits.
             signature = (
                 "drift",
                 tuple(ws_only),
@@ -2906,9 +3879,11 @@ class OrderEngine:
             "status",
             "product_id",
             "product_type",
+            "order_side",
             "side",
             "cumulative_quantity",
             "leaves_quantity",
+            "filled_value",
             "filled_size",
             "creation_time",
             "outstanding_hold_amount",
@@ -3036,6 +4011,11 @@ class OrderEngine:
             None
         """
         client_order_id = order.get("client_order_id")
+        if not client_order_id:
+            raise OrderProcessingError(
+                "user order is missing client_order_id"
+            )
+
         status = order.get("status")
 
         # Step 1: Call PRE-hooks on RAW order (before any normalization)
@@ -3059,26 +4039,22 @@ class OrderEngine:
         with self.orderbook_lock:
             self.orderbook.order[client_order_id] = normalized_order
 
-        # Per-COID serialisation: prevents two WS workers from racing on
-        # the same external COID where T_A populates the in-memory cache
-        # before its INSERT commits and T_B then trips the FK violation
-        # on partial_fill_progress. See lock-init comment in __init__.
+        # Step 3a: Ensure the order_parent row exists before any FK-dependent
+        # write. partial_fill_progress.client_order_id_fkey requires a parent
+        # row, so for genuinely-unknown (external) orders we must create one
+        # NOW â€” before _process_ws_order_delta runs the watermark upsert.
+        # See genai_tools/TODO_2026_04_28_partial_fill_root_causes.md (#1).
         coid_lock = self._get_coid_handler_lock(client_order_id)
         with coid_lock:
-            # Step 3a: Ensure the order_parent row exists before any FK-dependent
-            # write. partial_fill_progress.client_order_id_fkey requires a parent
-            # row, so for genuinely-unknown (external) orders we must create one
-            # NOW â€” before _process_ws_order_delta runs the watermark upsert.
-            # See genai_tools/TODO_2026_04_28_partial_fill_root_causes.md (#1).
             self._ensure_order_parent_row_exists(normalized_order)
 
             # Step 3b: Single ingestion point for WS-derived progress.
             # Routes to fill ledger, audit table, watermark persistence and
             # partial-fill follow-up creation in one place â€” see
             # _process_ws_order_delta. Idempotent (deterministic
-            # derived_trade_key); safe on every event regardless of status. Must
-            # run before _finalize_partial_fill_progress wipes state on terminal
-            # status.
+            # derived_trade_key); safe on every event regardless of status.
+            # Must run before _finalize_partial_fill_progress wipes state on
+            # terminal status.
             self._process_ws_order_delta(normalized_order)
 
         if status == OrderStatus.FILLED and outstanding_hold_amount > 0:
@@ -3148,6 +4124,24 @@ class OrderEngine:
             )
             self._finalize_partial_fill_progress(client_order_id, "CANCELLED")
             self._update_dashboard_order_status(client_order_id, normalized_order, status)
+            with self.orderbook_lock:
+                self.orderbook.order.pop(client_order_id, None)
+            self.websocket_hooks.call_post_order_status(status, normalized_order)
+            return
+        if status == OrderStatus.EXPIRED:
+            self.log_message(
+                "warning",
+                self.build_event_log_payload(
+                    "order_expired",
+                    source=self.build_order_log_context(normalized_order),
+                ),
+            )
+            self._finalize_partial_fill_progress(client_order_id, "CANCELLED")
+            self._update_dashboard_order_status(
+                client_order_id,
+                normalized_order,
+                status,
+            )
             with self.orderbook_lock:
                 self.orderbook.order.pop(client_order_id, None)
             self.websocket_hooks.call_post_order_status(status, normalized_order)
@@ -4910,6 +5904,11 @@ class OrderEngine:
         """
         def worker() -> None:
             while not self._shutdown_event.is_set():
+                if (
+                    channel == ChannelType.USER.value
+                    and self._check_user_bootstrap_timeout()
+                ):
+                    continue
                 try:
                     event = self.event_queue[channel].get(
                         timeout=self._worker_queue_poll_seconds,
@@ -5046,59 +6045,88 @@ class OrderEngine:
                                 **self.include_debug_fields(received_event=event),
                             ),
                         )
-                        self.event_executor.submit(self.process_user_event, event)
+                        if isinstance(event, UserStreamEnvelope):
+                            self.process_private_envelope(event)
+                        else:
+                            # Compatibility for internal/tests producers that
+                            # still place one already-reduced event on the
+                            # queue. Production private ingress always retains
+                            # the complete envelope above.
+                            self.process_user_event(event)
 
                     elif channel == ChannelType.FUTURES_BALANCE_SUMMARY.value:
-                        self.process_futures_balance_summary_event(event)
+                        if isinstance(event, UserStreamEnvelope):
+                            self.process_private_envelope(event)
+                        else:
+                            self.process_futures_balance_summary_event(event)
+
+                    elif (
+                        channel == ChannelType.HEARTBEATS.value
+                        and isinstance(event, UserStreamEnvelope)
+                    ):
+                        self.process_private_envelope(event)
 
                 finally:
                     self.event_queue[channel].task_done()
 
         return worker
 
-    def connect_to_websocket(self) -> None:
-        """Establish and maintain websocket connection to Coinbase.
-        
-        Runs in daemon thread, loops forever. Reconnects on disconnect.
-        
-        Returns:
-            None (infinite loop)
-        """
+    def _run_websocket_connection(
+        self,
+        *,
+        sdk_client_factory: Callable[..., Any],
+        channels: Tuple[str, ...],
+        on_open: Callable[[], None],
+        on_message: Callable[[str], None],
+        reconnect_event: Optional[threading.Event] = None,
+        retry: Optional[bool] = None,
+        reconnect_on_close: bool = False,
+    ) -> bool:
+        """Own one SDK client lifecycle for either public or private data."""
+
         # A worker committed immediately before stop may not have entered its
         # target yet. Refuse connection setup once the shared stop intent is
         # already visible.
-        if self._shutdown_event.is_set():
-            return
+        if self._shutdown_event.is_set() or not channels:
+            return False
 
         # Create SDK client and wrap with our abstraction
-        sdk_client = WSClient(
+        sdk_kwargs = dict(
             verbose=True,
             api_key=self.api_key,
             api_secret=self.api_secret,
-            on_open=self.on_open,
-            on_message=self.on_message,
+            on_open=on_open,
+            on_message=on_message,
         )
+        if retry is not None:
+            sdk_kwargs["retry"] = retry
+        sdk_client = sdk_client_factory(**sdk_kwargs)
         ws_client = CoinbaseWebSocketClient(sdk_client)
 
         connection_attempted = False
+        should_reconnect = False
         try:
             if self._shutdown_event.is_set():
-                return
+                return False
             # The wrapper marks itself connected before the SDK open call.
             # Record ownership first so a partial/failed open is still closed.
             connection_attempted = True
             ws_client.connect()
             if self._shutdown_event.is_set():
-                return
+                return False
             ws_client.subscribe(
                 products=self.subscription.product_ids,
-                channels=self.subscription.channels,
+                channels=channels,
             )
 
             while not self._shutdown_event.is_set():
+                if reconnect_event is not None and reconnect_event.is_set():
+                    should_reconnect = True
+                    break
                 if ws_client.sleep_with_exception_check(1):
                     break
         except WSClientConnectionClosedException as e:
+            should_reconnect = reconnect_on_close
             self.log_message(
                 "connection",
                 self.build_event_log_payload(
@@ -5123,6 +6151,80 @@ class OrderEngine:
                         )
                     except Exception:
                         pass
+
+        return should_reconnect
+
+    def connect_to_websocket(self) -> None:
+        """Own one redundant public market-data websocket connection."""
+
+        self._run_websocket_connection(
+            sdk_client_factory=WSClient,
+            channels=self._configured_public_channels(),
+            on_open=self.on_open,
+            on_message=self.on_message,
+        )
+
+    def connect_to_user_websocket(self) -> None:
+        """Own the sole authenticated user stream and its generations."""
+
+        channels = self._configured_private_channels()
+        if self._shutdown_event.is_set() or not channels:
+            return
+
+        while not self._shutdown_event.is_set():
+            reconnect_event = threading.Event()
+            generation_ref = {"value": None}
+
+            def user_on_open() -> None:
+                generation_ref["value"] = self._begin_user_stream_generation(
+                    reconnect_event
+                )
+                self.on_open()
+
+            def user_on_message(message: str) -> None:
+                generation = generation_ref["value"]
+                if generation is None:
+                    return
+                self.on_user_message(message, generation=generation)
+
+            try:
+                should_reconnect = self._run_websocket_connection(
+                    sdk_client_factory=WSUserClient,
+                    channels=channels,
+                    on_open=user_on_open,
+                    on_message=user_on_message,
+                    reconnect_event=reconnect_event,
+                    retry=False,
+                    reconnect_on_close=True,
+                )
+            except Exception as exc:
+                generation = generation_ref["value"]
+                if generation is not None:
+                    self._mark_user_stream_desynchronized(
+                        generation=generation,
+                        reason="user_connection_exception",
+                        error=str(exc),
+                    )
+                self.log_message(
+                    "error",
+                    self.build_event_log_payload(
+                        "user_websocket_connection_exception",
+                        error=str(exc),
+                    ),
+                )
+                should_reconnect = True
+
+            if self._shutdown_event.is_set() or not should_reconnect:
+                return
+
+            generation = generation_ref["value"]
+            if generation is not None:
+                self._mark_user_stream_desynchronized(
+                    generation=generation,
+                    reason="user_connection_restarting",
+                )
+            if self._shutdown_event.wait(timeout=0.25):
+                return
 
     def start_background_threads(self) -> None:
         """Run one-shot preparation and publish owned workers fail closed."""
@@ -5305,7 +6407,7 @@ class OrderEngine:
             daemon=True,
         )
 
-        for channel in self.subscription.channels:
+        for channel in self._configured_event_channels():
             self._start_owned_thread(
                 name=f"{channel}_worker",
                 target=self.generate_process_event_worker(channel),
@@ -5327,10 +6429,18 @@ class OrderEngine:
         self.fee_manager.refresh_now()
         self._raise_if_background_startup_stopped("initial fee refresh")
 
-        for websocket in range(self.websocket_thread_maximum):
+        if self._configured_public_channels():
+            for websocket in range(self.websocket_thread_maximum):
+                self._start_owned_thread(
+                    name=f"websocket_thread_{websocket}",
+                    target=self.connect_to_websocket,
+                    daemon=True,
+                )
+
+        if self._configured_private_channels():
             self._start_owned_thread(
-                name=f"websocket_thread_{websocket}",
-                target=self.connect_to_websocket,
+                name="user_websocket_thread",
+                target=self.connect_to_user_websocket,
                 daemon=True,
             )
 
@@ -5368,7 +6478,11 @@ class OrderEngine:
         :meth:`_publish_engine_status`, at the serialized commit boundary.
         """
         payload = {
-            "threads_active": 2 + len(self.subscription.channels) + self.websocket_thread_maximum,
+            "threads_active": (
+                2
+                + len(self._configured_event_channels())
+                + self._configured_websocket_connection_count()
+            ),
             "event_queue_depth": event_queue_depth,
         }
 
@@ -5504,6 +6618,12 @@ class OrderEngine:
                 recorder = getattr(self, "_market_tick_recorder", None)
                 if recorder is not None:
                     recorder.stop()
+            except Exception:
+                pass
+            try:
+                dispatcher = getattr(self, "_user_order_dispatcher", None)
+                if dispatcher is not None:
+                    dispatcher.close()
             except Exception:
                 pass
             try:

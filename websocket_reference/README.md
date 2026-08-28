@@ -1,6 +1,17 @@
 # Coinbase Advanced Trade WebSocket Channels Reference
 
-This directory contains structured documentation of all Coinbase Advanced Trade API WebSocket channels, subscription formats, and message schemas. Use this as the authoritative reference when working with real-time market and account data.
+This directory is a versioned local reference for Coinbase Advanced Trade
+WebSocket channels, subscription formats, and message schemas. Coinbase's
+current official documentation remains authoritative; verify it before
+changing wire behavior. Runtime compatibility notes below were verified on
+2026-08-28.
+
+Runtime endpoint ownership:
+
+- public market data: `wss://advanced-trade-ws.coinbase.com`, redundant
+  `WSClient` connections
+- user order data: `wss://advanced-trade-ws-user.coinbase.com`, exactly one
+  `WSUserClient` for `user`, `futures_balance_summary`, and heartbeat
 
 ## Directory Structure
 
@@ -242,7 +253,12 @@ Each message has:
 - `sequence_num`: For detecting gaps
 - `timestamp`: ISO8601 server time
 
-Track `sequence_num` to detect missed messages.
+Track `sequence_num` across every envelope on one connection generation to
+detect missed messages. Subscription acknowledgements, heartbeats, user
+orders, and futures-balance messages share that connection watermark. Example
+payloads often begin at `0`; that is an example value, not a heartbeat-only
+sequence rule. Use `heartbeat_counter` as an additional heartbeat-specific
+continuity signal.
 
 ### Snapshot vs Update Pattern
 
@@ -257,6 +273,12 @@ Processing:
   2. Build full state from snapshot
   3. Apply updates to maintain state
 ```
+
+The user channel has an additional compatibility contract. Coinbase documents
+initial open orders in pages of 50: `snapshot(50)`, zero or more continuation
+pages (`patch` historically; `update` in the current schema), then the first
+page with fewer than 50 orders. Wire kind is not order status. Do not dispatch
+any bootstrap page through live order lifecycle handling.
 
 Example with level2 order book:
 ```

@@ -25,9 +25,9 @@ class OrderStatus(str, Enum):
     
     From Coinbase API: PENDING, OPEN, FILLED, CANCELLED, EXPIRED, FAILED
 
-    Engine event statuses also routed through order processing:
-    - UPDATE: Incremental websocket update for an existing order
-    - SNAPSHOT: Initial websocket snapshot payload
+    ``UPDATE`` and ``SNAPSHOT`` are legacy synthetic compatibility statuses.
+    Current authenticated WebSocket envelope kinds live in
+    :class:`WebSocketEventType` and are not order lifecycle status values.
     """
     PENDING = "PENDING"
     OPEN = "OPEN"
@@ -409,13 +409,26 @@ class RepricingUpdateMode(str, Enum):
 class WebSocketEventType(str, Enum):
     """Type of WebSocket event from message.
     
-    - SNAPSHOT: Initial state of orders/positions
-    - UPDATE: Incremental update to existing state
-    - PATCH: Update (used in user channel)
+    - SNAPSHOT: Initial state page for orders/positions
+    - UPDATE: Subsequent state update envelope
+    - PATCH: Snapshot continuation or subsequent state update envelope
     """
     SNAPSHOT = "snapshot"
     UPDATE = "update"
     PATCH = "patch"
+
+
+class UserFeedPhase(str, Enum):
+    """Synchronization phase of the authenticated Coinbase user stream.
+
+    Wire event kinds and order lifecycle statuses are intentionally separate
+    from this connection-local reducer state.
+    """
+
+    AWAITING_SNAPSHOT = "awaiting_snapshot"
+    BOOTSTRAPPING = "bootstrapping"
+    LIVE = "live"
+    DESYNCHRONIZED = "desynchronized"
 
 
 class EventTriggerType(str, Enum):

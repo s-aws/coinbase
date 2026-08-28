@@ -20,27 +20,23 @@ This feature is:
 
 2. Engine starts / restarts
    └─► start_background_threads()
-       ├─► load_parent_child_order_ids()         # reads allow_partial_fills from DB
-       └─► _hydrate_partial_fill_state_from_db() # restores watermarks
+       ├─► load_parent_child_order_ids()                 # reads opt-in from DB
+       └─► _hydrate_order_progress_tracker_from_db()     # restores watermarks
 
-3. WebSocket OPEN / UPDATE event arrives for the child order
-   └─► process_user_order(status=OPEN)
-       └─► _handle_partial_fill_if_enabled(client_order_id, order)
-           ├─► acquire per-order lock (prevents concurrent duplicate events)
-           ├─► read cumulative_quantity from event
-           ├─► on first fill: lazy-init watermark entry in _partial_fill_state
-           ├─► compute delta = cumulative - last_watermark
-           ├─► carry += delta
-           ├─► follow_ups_due = int(carry / min_order_size)
-           ├─► _create_partial_fill_follow_up() → creates stealth child(ren)
-           └─► _save_partial_fill_progress()   → persists new watermark to DB
+3. A post-bootstrap user-channel update/patch envelope carries a complete order row
+   └─► process_user_order(row status remains OPEN/FILLED/etc.)
+       └─► _process_ws_order_delta(order)
+           ├─► OrderProgressTracker.ingest() locks/advances the per-COID watermark
+           ├─► _persist_progress_from_record() persists accepted progress
+           └─► positive nonterminal size delta + parent opt-in
+               └─► _maybe_create_partial_fill_follow_up()
+                   └─► _create_partial_fill_follow_up() creates stealth child(ren)
 
-4. Order reaches terminal status
-   └─► process_user_order(status=FILLED|CANCELLED|FAILED)
-       └─► _finalize_partial_fill_progress(client_order_id, "FINALIZED"|"CANCELLED")
-           ├─► removes from _partial_fill_state (in-memory)
-           ├─► marks DB row terminal
-           └─► releases per-order lock map entry
+4. A terminal lifecycle row arrives (FILLED|CANCELLED|FAILED|EXPIRED)
+   ├─► _process_ws_order_delta() ingests any final cumulative progress
+   └─► _finalize_partial_fill_progress(client_order_id, "FINALIZED"|"CANCELLED")
+       ├─► removes the OrderProgressTracker record and per-order lock
+       └─► marks the DB progress row terminal
 ```
 
 ---
@@ -97,10 +93,11 @@ stealth_order_id = engine.stealth_order_bridge.create_stealth_order(
 ### What Happens Next
 
 1. `insert_order_parent(allow_partial_fills=True)` writes `TRUE` to the `order_parent` table.
-2. On the first OPEN WebSocket event where `cumulative_quantity > 0`, the engine initialises
-   a watermark entry for this order.
-3. On every subsequent OPEN/UPDATE event it advances the watermark and creates follow-up
-   stealth orders when `carry >= min_order_size`.
+2. On the first post-bootstrap live order row whose lifecycle status is `OPEN` and whose
+   `cumulative_quantity > 0`, the engine initialises a watermark entry for this order.
+3. Each subsequent complete live order row (normally `OPEN` until terminal) advances the
+   watermark and creates follow-up stealth orders when `carry >= min_order_size`. The
+   containing wire kind (`update` or `patch`) is not the row's lifecycle status.
 
 ---
 
@@ -139,7 +136,7 @@ Every watermark advance and terminal transition emits an event to `order_event_s
 | `event_type`                         | `source_channel`                   | When                                         |
 |--------------------------------------|------------------------------------|----------------------------------------------|
 | `partial_fill_detected`              | `order_engine_open_handler`        | First fill for this order                    |
-| `partial_fill_progress_updated`      | `order_engine_open_handler`        | Every OPEN/UPDATE with new delta             |
+| `partial_fill_progress_updated`      | `order_engine_open_handler`        | Every live order row with a new delta         |
 | `partial_fill_follow_up_queued`      | `order_engine_open_handler`        | When ≥1 follow-up is created                 |
 | `partial_fill_below_min_accumulated` | `order_engine_open_handler`        | Delta received but carry still below minimum |
 | `partial_fill_finalized`             | `order_engine_terminal_handler`    | FILLED or CANCELLED terminal                 |
@@ -171,37 +168,31 @@ CREATE TABLE partial_fill_progress (
 );
 ```
 
-On restart, `_hydrate_partial_fill_state_from_db()` loads all `ACTIVE` rows into
-`_partial_fill_state` so the engine resumes exactly where it left off, without creating
-duplicate follow-ups or missing accumulated carry.
+On restart, `_hydrate_order_progress_tracker_from_db()` loads all `ACTIVE` rows through
+`OrderProgressTracker.hydrate()` so the engine resumes exactly where it left off, without
+creating duplicate follow-ups or missing accumulated carry.
 
 ---
 
 ## Concurrency Safety
 
-### Per-order lock
+### Per-order ordering and lock
 
-```python
-order_lock = self._get_partial_fill_order_lock(client_order_id)
-with order_lock:
-    # all partial-fill logic for this order runs here
-```
-
-This serialises concurrent duplicate OPEN/UPDATE events for the same order, which the
-WebSocket can deliver under high load or reconnect conditions.
+Production lifecycle rows are FIFO per `client_order_id` in the keyed user-order
+dispatcher. `OrderProgressTracker.ingest()` also locks the per-COID watermark so direct
+or synthetic compatibility callers cannot advance the same record concurrently.
 
 ### Monotonic delta guard
 
-Even if two events slip through before the lock is acquired (impossible under the lock but
-defended against anyway), `resolve_partial_fill_delta()` only returns a positive delta
-when `cumulative > last_watermark`. Replayed or out-of-order events produce `delta=0` and
-are safely no-op'd.
+The tracker emits a positive size delta only when `cumulative > last_watermark`.
+Replayed or regressing cumulative rows therefore cannot create another partial-fill
+follow-up.
 
 ### FILLED claim gate
 
-When a FILLED event arrives, `_finalize_partial_fill_progress()` is called *before*
-`handle_filled_order()`. This removes the in-memory state so any concurrent OPEN/UPDATE
-still in flight will find no state and exit cleanly.
+Every terminal row first enters `_process_ws_order_delta()` so final cumulative progress
+is not lost. `_finalize_partial_fill_progress()` then runs before the terminal lifecycle
+handler and removes the in-memory tracker record.
 
 ---
 
@@ -213,10 +204,10 @@ still in flight will find no state and exit cleanly.
 2. **Carry is never negative.** After creating `N` follow-ups the new carry is
    `carry - N * min_order_size`, which is always `[0, min_order_size)`.
 
-3. **Replacement cap is respected.** `_create_partial_fill_follow_up()` calls
-   `can_create_follow_up_order()` and caps `units_to_create` at
-   `remaining_replacements`. If the cap is exhausted, carry is not consumed and
-   the follow-up is silently skipped (logged at INFO level).
+3. **Replacement cap is intentionally bypassed.** Partial-fill follow-ups represent
+   newly filled inventory, not re-anchor retries. Their child registration uses
+   `bypass_replacement_cap=True` and does not consume `current_order_replacement`;
+   the tracker's atomic carry-unit claim prevents duplicate consumption.
 
 4. **Follow-ups are stealth children.** Every partial-fill follow-up is a hidden stealth
    order with `allow_partial_fills=False`, using the same reveal conditions and target
@@ -263,42 +254,46 @@ class EventStreamType(str, Enum):
 ```
 
 Then call `self.event_stream_publisher.publish_event(...)` with the new value in
-`_handle_partial_fill_if_enabled()` where appropriate.
+`_maybe_create_partial_fill_follow_up()` where appropriate.
 
 ### Add a per-order threshold (minimum fill % before follow-ups start)
 
 Add a `partial_fill_threshold_pct` field to the parent order record and persist it
-alongside `allow_partial_fills`. In `_handle_partial_fill_if_enabled()`, after reading
-`completion_pct`, add a guard:
+alongside `allow_partial_fills`. In `_maybe_create_partial_fill_follow_up()`, use
+`delta.completion_percentage` before claiming units:
 
 ```python
-threshold = state.get("partial_fill_threshold_pct", 0.0)
-if completion_pct < threshold:
+threshold = record.partial_fill_threshold_pct
+if delta.completion_percentage < threshold:
     return  # not enough of the order has filled yet
 ```
 
 ### Store extra context in the watermark
 
-`_save_partial_fill_progress()` is the single write path for all watermark advances. Add
+`_persist_progress_from_record()` is the write path for accepted watermark advances. Add
 new columns to `partial_fill_progress` in `database/order.py`, add them to
-`upsert_partial_fill_progress()`, and update `_hydrate_partial_fill_state_from_db()` to
-restore the new fields on startup.
+`upsert_partial_fill_progress()`, and update `_hydrate_order_progress_tracker_from_db()`
+and `OrderProgressTracker.hydrate()` to restore the new fields on startup.
 
 ### Observe partial-fill events from outside the engine
 
 Register a post-OPEN hook via `WebSocketHookRegistry`:
 
 ```python
+from core.enums import OrderStatus
+
 def on_partial_fill(order: dict) -> None:
-    # Called for every OPEN/UPDATE event
+    # Called for every live row whose lifecycle status is OPEN.
     cumulative = float(order.get("cumulative_quantity") or 0)
     if cumulative > 0:
         # custom logic here
         pass
 
-engine.websocket_hooks.register_post_order_status("OPEN", on_partial_fill)
-engine.websocket_hooks.register_post_order_status("UPDATE", on_partial_fill)
+engine.websocket_hooks.register_post_order_status(OrderStatus.OPEN.value, on_partial_fill)
 ```
+
+Wire `update`/`patch` kinds are not hook statuses. Register terminal lifecycle statuses
+separately if terminal observation is required.
 
 Or subscribe to the `order_event_stream` table directly — all partial-fill events are
 written there with `trigger_type`, `source_channel`, `client_order_id`, and full payload.
@@ -309,7 +304,8 @@ written there with `trigger_type`, `source_channel`, `client_order_id`, and full
 
 | File | Role |
 |------|------|
-| `core/order_engine.py` | `_handle_partial_fill_if_enabled`, `_create_partial_fill_follow_up`, `_save_partial_fill_progress`, `_finalize_partial_fill_progress`, `_hydrate_partial_fill_state_from_db`, `_get_partial_fill_order_lock`, `_resolve_min_order_size`, `_get_parent_allow_partial_fills` |
+| `core/order_engine.py` | `_process_ws_order_delta`, `_maybe_create_partial_fill_follow_up`, `_create_partial_fill_follow_up`, `_persist_progress_from_record`, `_finalize_partial_fill_progress`, `_hydrate_order_progress_tracker_from_db`, `_resolve_min_order_size`, `_get_parent_allow_partial_fills` |
+| `business/order_progress.py` | `OrderProgressTracker` owns the per-COID cumulative/carry watermark and lock |
 | `core/stealth_order_manager.py` | `create_stealth_order(allow_partial_fills=...)`, `create_follow_up_stealth_order(...)` |
 | `database/order.py` | `create_partial_fill_progress_table`, `upsert_partial_fill_progress`, `get_all_active_partial_fill_progress`, `get_partial_fill_progress`, `finalize_partial_fill_progress`, `insert_order_parent(allow_partial_fills=...)` |
 | `calculation/resolver.py` | `resolve_cumulative_filled`, `resolve_remaining_size`, `resolve_partial_fill_delta` |

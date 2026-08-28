@@ -5,8 +5,9 @@ Background (2026-05-02)
 
 The 2026-04-28 hoist (``_ensure_order_parent_row_exists`` runs before
 ``_process_ws_order_delta`` in ``process_user_order``) fixed the
-single-threaded ordering bug. But ``process_user_order`` runs on a
-ThreadPoolExecutor, and ``resolve_parent_client_order_id`` populates
+single-threaded ordering bug. Production lifecycle work now reaches this
+method through a keyed dispatcher on a ThreadPoolExecutor, while direct and
+synthetic callers remain possible. ``resolve_parent_client_order_id`` populates
 ``orderbook.parent_order_ids[coid]`` BEFORE its DB INSERT commits.
 
 Race window:
