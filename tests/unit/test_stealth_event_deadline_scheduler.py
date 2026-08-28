@@ -11,8 +11,8 @@ from bridges.stealth_event_deadline_scheduler import (
     MarketEventQueueFullError,
     SchedulerStoppedError,
     StealthEventDeadlineScheduler,
-    StealthWakePurpose,
 )
+from core.enums import MarketEventMode, StealthWakePurpose
 
 
 class FakeClock:
@@ -43,6 +43,32 @@ def test_market_events_are_fifo_and_never_implicitly_coalesced() -> None:
         "BTC-USD",
     ]
     assert batch.deadline_wakes == ()
+
+
+def test_stale_invalidation_uses_the_existing_market_fifo() -> None:
+    clock = FakeClock()
+    scheduler = StealthEventDeadlineScheduler(clock=clock)
+
+    scheduler.publish_market_event("BTC-USD", {"price": 102})
+    scheduler.publish_market_event(
+        "BTC-USD",
+        {"price": 99},
+        mode=MarketEventMode.STALE_INVALIDATION,
+    )
+    scheduler.publish_market_event("BTC-USD", {"price": 103})
+
+    events = scheduler.run_due(now=clock.value).market_events
+
+    assert [event.sequence for event in events] == [1, 2, 3]
+    assert [event.mode for event in events] == [
+        MarketEventMode.NORMAL,
+        MarketEventMode.STALE_INVALIDATION,
+        MarketEventMode.NORMAL,
+    ]
+    assert events[1].contains_market_snapshot is False
+    assert events[1].continuity_reset is False
+    assert events[1].discarded_event_count == 0
+    assert events[1].continuity_reset_counts == ()
 
 
 def test_fake_clock_deadlines_fire_in_deadline_then_insertion_order() -> None:
@@ -431,8 +457,34 @@ def test_recovery_does_not_count_an_opaque_reset_marker_as_a_lost_tick() -> None
     assert recovery_event.continuity_reset_counts == (("PRODUCT-A", 5),)
 
 
+def test_recovery_counts_discarded_stale_invalidation_as_one_observation() -> None:
+    scheduler = StealthEventDeadlineScheduler(market_queue_limit=1)
+    scheduler.publish_market_event(
+        "PRODUCT-A",
+        {"price": 1},
+        mode=MarketEventMode.STALE_INVALIDATION,
+    )
+
+    scheduler.replace_pending_market_events_for_recovery(
+        "PRODUCT-B",
+        {"price": 2},
+    )
+    recovery_event = scheduler.run_due().market_events[0]
+
+    assert recovery_event.mode == MarketEventMode.NORMAL
+    assert recovery_event.continuity_reset is True
+    assert recovery_event.continuity_reset_counts == (("PRODUCT-A", 1),)
+
+
 def test_enum_purpose_is_required_instead_of_magic_string() -> None:
     scheduler = StealthEventDeadlineScheduler()
 
     with pytest.raises(TypeError):
         scheduler.schedule_deadline("sid-1", "condition_hold", 1.0)  # type: ignore[arg-type]
+
+    with pytest.raises(TypeError):
+        scheduler.publish_market_event(  # type: ignore[arg-type]
+            "BTC-USD",
+            {"price": 1},
+            mode="stale_invalidation",
+        )

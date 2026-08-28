@@ -26,9 +26,11 @@ from bridges.stealth_event_deadline_scheduler import (
 )
 from business.stealth_condition_evaluator import get_evaluator
 from core.enums import (
+    MarketEventMode,
     RevealConditionType,
     StealthOrderStatus,
     StealthWakePurpose,
+    TickerPublicationDisposition,
 )
 from core.stealth_order_manager import StealthOrderManager
 from core.models import MarketData, RepricingPolicy
@@ -776,11 +778,131 @@ class StealthOrderBridge:
                     defer_overdue_continuous=defer_overdue_continuous,
                 )
 
+    def _handle_stale_market_invalidation(
+        self,
+        event: MarketEvent,
+        snapshot: Dict[str, Any],
+    ) -> None:
+        """Use stale evidence only to disprove an existing continuous hold."""
+
+        event_time = StealthOrderManager._parse_runtime_datetime(
+            snapshot.get("time")
+        )
+        reset_failures = []
+        for stealth_order_id in self.stealth_manager.snapshot_active_stealth_orders(
+            event.product_id
+        ):
+            if not self._decisions_ready.is_set():
+                break
+            with self._get_order_action_lock(stealth_order_id):
+                if not self._decisions_ready.is_set():
+                    break
+                order = self.stealth_manager.in_memory_orders.get(
+                    stealth_order_id,
+                    {},
+                )
+                if (
+                    order.get("reveal_condition_type")
+                    not in self._CONTINUOUS_MARKET_CONDITION_TYPES
+                    or order.get("status")
+                    not in {
+                        StealthOrderStatus.HIDDEN.value,
+                        StealthOrderStatus.PENDING.value,
+                    }
+                    or not (
+                        order.get("status") == StealthOrderStatus.PENDING.value
+                        or order.get("condition_first_met_at") is not None
+                        or order.get("condition_confirmed_at") is not None
+                    )
+                ):
+                    continue
+
+                hold_started_at = StealthOrderManager._parse_runtime_datetime(
+                    order.get("condition_first_met_at")
+                )
+                temporal_relevance_unknown = (
+                    event_time is None or hold_started_at is None
+                )
+                if (
+                    event_time is not None
+                    and hold_started_at is not None
+                    and event_time < hold_started_at
+                ):
+                    # A late observation from before this hold began cannot
+                    # disprove the newer interval.
+                    continue
+
+                try:
+                    truth_result = get_evaluator(
+                        order.get("reveal_condition_type")
+                    ).evaluate_truth(
+                        snapshot,
+                        order.get("reveal_condition_json") or {},
+                        order,
+                    )
+                except Exception as error:
+                    self._handle_scheduler_error(error, event)
+                    reset_reason = (
+                        "Stale market evidence could not be evaluated: "
+                        f"{type(error).__name__}: {error}"
+                    )
+                else:
+                    if truth_result.known and truth_result.truth:
+                        # Stale evidence may preserve a hold, but must never
+                        # start, advance, confirm, or reschedule one.
+                        continue
+                    result_kind = (
+                        "false" if truth_result.known else "unknown"
+                    )
+                    reset_reason = (
+                        "Stale market evidence was "
+                        f"{result_kind}: {truth_result.reason}"
+                    )
+
+                if temporal_relevance_unknown:
+                    reset_reason += (
+                        "; temporal relevance to the in-progress hold could "
+                        "not be proven"
+                    )
+
+                try:
+                    self.stealth_manager.reset_continuous_condition(
+                        stealth_order_id,
+                        reason=reset_reason,
+                        market_data=snapshot,
+                        evaluation_time=event_time,
+                    )
+                except Exception as reset_error:
+                    reset_failures.append((stealth_order_id, reset_error))
+
+        if reset_failures:
+            for failed_order_id, reset_error in reset_failures:
+                logger.error(
+                    "Continuous-condition stale invalidation failed for "
+                    "%s: %s",
+                    failed_order_id,
+                    reset_error,
+                    exc_info=(
+                        type(reset_error),
+                        reset_error,
+                        reset_error.__traceback__,
+                    ),
+                )
+            first_order_id, first_error = reset_failures[0]
+            self._latch_continuity_failure(
+                first_error,
+                context=f"stale market invalidation for {first_order_id}",
+            )
+            raise first_error
+
     def _handle_market_event(self, event: MarketEvent) -> None:
         if not self._decisions_ready.is_set():
             return
 
         snapshot = dict(event.payload or {})
+        if event.mode == MarketEventMode.STALE_INVALIDATION:
+            self._handle_stale_market_invalidation(event, snapshot)
+            return
         if event.continuity_reset:
             reset_failures = []
             reset_counts = event.continuity_reset_counts or (
@@ -1284,7 +1406,7 @@ class StealthOrderBridge:
         ticker_data: Dict[str, Any],
         *,
         event_time: Optional[Any] = None,
-    ) -> str:
+    ) -> TickerPublicationDisposition:
         """
         Publish one ordered websocket snapshot to the decision scheduler.
         
@@ -1327,19 +1449,43 @@ class StealthOrderBridge:
                 # are one publication transaction.  Otherwise two direct
                 # producers can both pass the timestamp check and then append
                 # in the opposite order.
-                self.publish_market_continuity_reset(
-                    trading_product_id,
-                    discarded_event_count=1,
-                    event_time=event_time_utc,
-                )
-                logger.warning(
-                    "Discarded out-of-order ticker for %s: event_time=%s, "
-                    "last_event_time=%s",
+                try:
+                    self.scheduler.publish_market_event(
+                        trading_product_id,
+                        dict(market_data),
+                        mode=MarketEventMode.STALE_INVALIDATION,
+                    )
+                except MarketEventQueueFullError as error:
+                    discarded = (
+                        self.scheduler.replace_pending_market_events_for_recovery(
+                            trading_product_id,
+                            dict(market_data),
+                            additional_discarded_event_count=1,
+                            contains_market_snapshot=False,
+                        )
+                    )
+                    logger.error(
+                        "Stealth market-event FIFO overflow while publishing "
+                        "stale invalidation for %s; discarded %d queued "
+                        "events: %s",
+                        trading_product_id,
+                        len(discarded),
+                        error,
+                    )
+                except SchedulerStoppedError:
+                    if self.running:
+                        self._fail_closed_scheduler(
+                            "stale ticker publication rejected for "
+                            f"{trading_product_id}"
+                        )
+                logger.debug(
+                    "Queued out-of-order ticker as invalidation evidence for "
+                    "%s: event_time=%s, last_event_time=%s",
                     trading_product_id,
                     event_time_utc.isoformat(),
                     previous_event_time.isoformat(),
                 )
-                return trading_product_id
+                return TickerPublicationDisposition.STALE_INVALIDATION
 
             self._update_market_cache(trading_product_id, market_data)
             try:
@@ -1372,7 +1518,7 @@ class StealthOrderBridge:
                         "ticker publication rejected for "
                         f"{trading_product_id}"
                     )
-        return trading_product_id
+        return TickerPublicationDisposition.ACCEPTED
 
     def publish_market_continuity_reset(
         self,
@@ -1717,14 +1863,17 @@ class StealthOrderBridge:
     ) -> str:
         """Compatibility wrapper for callers using the historical method."""
 
+        from configuration import get_trading_product_id
+
         received_monotonic = time.monotonic()
-        trading_product_id = self.publish_ticker_update(product_id, ticker_data)
-        self.process_due_anchor_repricing(
-            product_id,
-            ticker_data,
-            received_monotonic=received_monotonic,
-        )
-        return trading_product_id
+        disposition = self.publish_ticker_update(product_id, ticker_data)
+        if disposition == TickerPublicationDisposition.ACCEPTED:
+            self.process_due_anchor_repricing(
+                product_id,
+                ticker_data,
+                received_monotonic=received_monotonic,
+            )
+        return get_trading_product_id(product_id)
     
     def record_reveal_event(self, stealth_order_id: str, client_order_id: str, reason: str):
         """Record a reveal event to the database."""

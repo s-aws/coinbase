@@ -24,7 +24,14 @@ from bridges.stealth_event_deadline_scheduler import (
     MarketEvent,
     StealthEventDeadlineScheduler,
 )
-from core.enums import EngineState, RevealConditionType, StealthOrderStatus, StealthWakePurpose
+from core.enums import (
+    EngineState,
+    MarketEventMode,
+    RevealConditionType,
+    StealthOrderStatus,
+    StealthWakePurpose,
+    TickerPublicationDisposition,
+)
 from core.exceptions import StealthOrderPersistenceError
 from core.runtime_controller import EngineNotAdmittingError, RuntimeController
 from core.stealth_order_manager import StealthOrderManager
@@ -1199,7 +1206,7 @@ def test_websocket_market_publication_preserves_every_event_in_order() -> None:
     manager = FakeStealthManager()
     bridge, scheduler = _new_bridge(manager)
 
-    returned_products = [
+    dispositions = [
         bridge.publish_ticker_update(
             "CONTRACT-A",
             {
@@ -1214,14 +1221,48 @@ def test_websocket_market_publication_preserves_every_event_in_order() -> None:
 
     batch = scheduler.run_due()
 
-    assert returned_products == ["CONTRACT-A", "CONTRACT-A", "CONTRACT-A"]
-    assert [event.product_id for event in batch.market_events] == returned_products
+    assert dispositions == [TickerPublicationDisposition.ACCEPTED] * 3
+    assert [event.product_id for event in batch.market_events] == [
+        "CONTRACT-A",
+        "CONTRACT-A",
+        "CONTRACT-A",
+    ]
     assert [event.payload["price"] for event in batch.market_events] == [
         101.0,
         102.0,
         103.0,
     ]
     assert [event.sequence for event in batch.market_events] == [1, 2, 3]
+    scheduler.stop()
+
+
+@pytest.mark.parametrize(
+    ("disposition", "expected_anchor_calls"),
+    (
+        (TickerPublicationDisposition.ACCEPTED, 1),
+        (TickerPublicationDisposition.STALE_INVALIDATION, 0),
+    ),
+)
+def test_compatibility_ticker_wrapper_preserves_return_and_stale_gate(
+    monkeypatch,
+    disposition,
+    expected_anchor_calls,
+) -> None:
+    manager = FakeStealthManager()
+    bridge, scheduler = _new_bridge(manager)
+    publish = Mock(return_value=disposition)
+    anchor = Mock()
+    monkeypatch.setattr(bridge, "publish_ticker_update", publish)
+    monkeypatch.setattr(bridge, "process_due_anchor_repricing", anchor)
+
+    returned_product = bridge.process_ticker_update(
+        "CONTRACT-A",
+        {"price": "101", "best_bid": "100", "best_ask": "102"},
+    )
+
+    assert returned_product == "CONTRACT-A"
+    assert publish.call_count == 1
+    assert anchor.call_count == expected_anchor_calls
     scheduler.stop()
 
 
@@ -1252,20 +1293,20 @@ def test_ticker_publication_preserves_coinbase_event_time() -> None:
     scheduler.stop()
 
 
-def test_out_of_order_ticker_breaks_continuity_without_overwriting_cache() -> None:
-    manager = FakeStealthManager(
-        (_pending_price_order("sid-pending", "CONTRACT-A"),)
-    )
+def test_out_of_order_false_ticker_invalidates_only_the_existing_hold() -> None:
+    order = _pending_price_order("sid-pending", "CONTRACT-A")
+    order["condition_first_met_at"] = datetime(2026, 8, 27, 12, 34, 55)
+    manager = FakeStealthManager((order,))
     bridge, scheduler = _new_bridge(manager)
 
     newer_time = "2026-08-27T12:34:57Z"
     older_time = "2026-08-27T12:34:56Z"
-    bridge.publish_ticker_update(
+    accepted = bridge.publish_ticker_update(
         "CONTRACT-A",
         {"price": "102", "best_bid": "101", "best_ask": "103"},
         event_time=newer_time,
     )
-    bridge.publish_ticker_update(
+    stale = bridge.publish_ticker_update(
         "CONTRACT-A",
         {"price": "99", "best_bid": "98", "best_ask": "100"},
         event_time=older_time,
@@ -1274,12 +1315,182 @@ def test_out_of_order_ticker_breaks_continuity_without_overwriting_cache() -> No
     batch = scheduler.run_due(on_market_event=bridge._handle_market_event)
 
     assert len(batch.market_events) == 2
+    assert accepted == TickerPublicationDisposition.ACCEPTED
+    assert stale == TickerPublicationDisposition.STALE_INVALIDATION
+    assert batch.market_events[0].mode == MarketEventMode.NORMAL
     assert batch.market_events[0].continuity_reset is False
     assert batch.market_events[0].payload["price"] == 102.0
-    assert batch.market_events[1].continuity_reset is True
+    assert batch.market_events[1].mode == MarketEventMode.STALE_INVALIDATION
+    assert batch.market_events[1].continuity_reset is False
     assert batch.market_events[1].contains_market_snapshot is False
-    assert batch.market_events[1].payload["source"] == "continuity_reset"
+    assert batch.market_events[1].payload["price"] == 99.0
+    assert batch.market_events[1].payload["source"] == "ticker"
     assert manager._market_cache["CONTRACT-A"]["price"] == 102.0
+    assert manager.evaluated_market_prices == [102.0]
+    assert manager.in_memory_orders["sid-pending"]["status"] == (
+        StealthOrderStatus.HIDDEN.value
+    )
+    scheduler.stop()
+
+
+def test_out_of_order_true_ticker_cannot_advance_or_reset_a_hold() -> None:
+    order = _pending_price_order("sid-pending", "CONTRACT-A")
+    hold_start = datetime(2026, 8, 27, 12, 34, 55)
+    order["condition_first_met_at"] = hold_start
+    manager = FakeStealthManager((order,))
+    bridge, scheduler = _new_bridge(manager)
+
+    bridge.publish_ticker_update(
+        "CONTRACT-A",
+        {"price": "103", "best_bid": "102", "best_ask": "104"},
+        event_time="2026-08-27T12:34:57Z",
+    )
+    bridge.publish_ticker_update(
+        "CONTRACT-A",
+        {"price": "101", "best_bid": "100", "best_ask": "102"},
+        event_time="2026-08-27T12:34:56Z",
+    )
+
+    scheduler.run_due(on_market_event=bridge._handle_market_event)
+
+    current = manager.in_memory_orders["sid-pending"]
+    assert current["status"] == StealthOrderStatus.PENDING.value
+    assert current["condition_first_met_at"] == hold_start
+    assert not [action for action in manager.actions if action[0] == "reset"]
+    assert manager.evaluated_market_prices == [103.0]
+    scheduler.stop()
+
+
+def test_out_of_order_false_ticker_before_current_hold_is_irrelevant() -> None:
+    order = _pending_price_order("sid-pending", "CONTRACT-A")
+    hold_start = datetime(2026, 8, 27, 12, 34, 56, 500000)
+    order["condition_first_met_at"] = hold_start
+    manager = FakeStealthManager((order,))
+    bridge, scheduler = _new_bridge(manager)
+
+    bridge.publish_ticker_update(
+        "CONTRACT-A",
+        {"price": "102", "best_bid": "101", "best_ask": "103"},
+        event_time="2026-08-27T12:34:57Z",
+    )
+    bridge.publish_ticker_update(
+        "CONTRACT-A",
+        {"price": "99", "best_bid": "98", "best_ask": "100"},
+        event_time="2026-08-27T12:34:56Z",
+    )
+
+    scheduler.run_due(on_market_event=bridge._handle_market_event)
+
+    current = manager.in_memory_orders["sid-pending"]
+    assert current["status"] == StealthOrderStatus.PENDING.value
+    assert current["condition_first_met_at"] == hold_start
+    assert not [action for action in manager.actions if action[0] == "reset"]
+    scheduler.stop()
+
+
+def test_newer_normal_event_starts_hold_before_older_false_invalidation() -> None:
+    order = _pending_price_order("sid-pending", "CONTRACT-A")
+    order["status"] = StealthOrderStatus.HIDDEN.value
+    order["condition_first_met_at"] = None
+    manager = FakeStealthManager((order,))
+    bridge, scheduler = _new_bridge(manager)
+
+    def start_hold(stealth_order_id, market_data=None, evaluation_time=None):
+        current = manager.in_memory_orders[stealth_order_id]
+        current["status"] = StealthOrderStatus.PENDING.value
+        current["condition_first_met_at"] = evaluation_time
+        manager.evaluated_ids.append(stealth_order_id)
+        manager.evaluated_market_prices.append(market_data.get("price"))
+        return False, "hold started"
+
+    manager.should_trigger_reveal = start_hold
+    bridge.publish_ticker_update(
+        "CONTRACT-A",
+        {"price": "102", "best_bid": "101", "best_ask": "103"},
+        event_time="2026-08-27T12:34:57Z",
+    )
+    bridge.publish_ticker_update(
+        "CONTRACT-A",
+        {"price": "99", "best_bid": "98", "best_ask": "100"},
+        event_time="2026-08-27T12:34:56Z",
+    )
+
+    scheduler.run_due(on_market_event=bridge._handle_market_event)
+
+    current = manager.in_memory_orders["sid-pending"]
+    assert current["status"] == StealthOrderStatus.PENDING.value
+    assert current["condition_first_met_at"] == datetime(
+        2026,
+        8,
+        27,
+        12,
+        34,
+        57,
+    )
+    assert not [action for action in manager.actions if action[0] == "reset"]
+    scheduler.stop()
+
+
+def test_out_of_order_unknown_ticker_resets_a_relevant_hold_fail_closed() -> None:
+    order = _pending_price_order("sid-pending", "CONTRACT-A")
+    order["condition_first_met_at"] = datetime(2026, 8, 27, 12, 34, 55)
+    manager = FakeStealthManager((order,))
+    bridge, scheduler = _new_bridge(manager)
+
+    bridge.publish_ticker_update(
+        "CONTRACT-A",
+        {"price": "102", "best_bid": "101", "best_ask": "103"},
+        event_time="2026-08-27T12:34:57Z",
+    )
+    bridge.publish_ticker_update(
+        "CONTRACT-A",
+        {"price": "0", "best_bid": "0", "best_ask": "0"},
+        event_time="2026-08-27T12:34:56Z",
+    )
+
+    scheduler.run_due(on_market_event=bridge._handle_market_event)
+
+    assert manager.in_memory_orders["sid-pending"]["status"] == (
+        StealthOrderStatus.HIDDEN.value
+    )
+    reset = next(action for action in manager.actions if action[0] == "reset")
+    assert "Stale market evidence was unknown" in reset[2]
+    scheduler.stop()
+
+
+def test_stale_invalidation_overflow_uses_existing_continuity_recovery() -> None:
+    order = _pending_price_order("sid-pending", "CONTRACT-A")
+    manager = FakeStealthManager((order,))
+    scheduler = StealthEventDeadlineScheduler(market_queue_limit=1)
+    bridge = bridge_module.StealthOrderBridge(
+        manager,
+        order_engine=None,
+        scheduler=scheduler,
+    )
+    bridge._decisions_ready.set()
+
+    bridge.publish_ticker_update(
+        "CONTRACT-A",
+        {"price": "102", "best_bid": "101", "best_ask": "103"},
+        event_time="2026-08-27T12:34:57Z",
+    )
+    disposition = bridge.publish_ticker_update(
+        "CONTRACT-A",
+        {"price": "99", "best_bid": "98", "best_ask": "100"},
+        event_time="2026-08-27T12:34:56Z",
+    )
+
+    recovery_event = scheduler.run_due(
+        on_market_event=bridge._handle_market_event
+    ).market_events[0]
+
+    assert disposition == TickerPublicationDisposition.STALE_INVALIDATION
+    assert recovery_event.mode == MarketEventMode.NORMAL
+    assert recovery_event.contains_market_snapshot is False
+    assert recovery_event.continuity_reset is True
+    assert recovery_event.continuity_reset_counts == (("CONTRACT-A", 2),)
+    assert manager._market_cache["CONTRACT-A"]["price"] == 102.0
+    assert manager.evaluated_market_prices == []
     assert manager.in_memory_orders["sid-pending"]["status"] == (
         StealthOrderStatus.HIDDEN.value
     )
@@ -1569,6 +1780,76 @@ def test_continuity_reset_persistence_failure_resets_peers_then_latches(
         with pytest.raises(
             RuntimeError,
             match="synthetic reset persistence failure",
+        ):
+            bridge._handle_market_event(event)
+
+        assert attempted_resets == ["sid-fails", "sid-peer"]
+        assert manager.in_memory_orders["sid-peer"]["status"] == (
+            StealthOrderStatus.HIDDEN.value
+        )
+        assert manager.evaluated_ids == []
+        assert scheduler.stopped is True
+        assert bridge._decisions_ready.is_set() is False
+        assert controller.pause_requests == 1
+        assert controller.state == EngineState.PAUSED
+    finally:
+        bridge.stop()
+
+
+def test_stale_invalidation_persistence_failure_resets_peers_then_latches(
+    monkeypatch,
+) -> None:
+    orders = []
+    for stealth_order_id in ("sid-fails", "sid-peer"):
+        order = _pending_price_order(stealth_order_id, "CONTRACT-A")
+        order["condition_first_met_at"] = datetime(
+            2026,
+            8,
+            27,
+            11,
+            59,
+            59,
+        )
+        orders.append(order)
+    manager = FakeStealthManager(orders)
+    bridge, scheduler = _new_bridge(manager)
+    bridge.running = True
+    controller = MutableRuntimeController(EngineState.RUNNING)
+    monkeypatch.setattr(
+        bridge_module,
+        "get_runtime_controller",
+        lambda: controller,
+    )
+    attempted_resets = []
+    original_reset = manager.reset_continuous_condition
+
+    def reset_with_one_persistence_failure(stealth_order_id, **kwargs):
+        attempted_resets.append(stealth_order_id)
+        if stealth_order_id == "sid-fails":
+            raise RuntimeError("synthetic stale reset persistence failure")
+        return original_reset(stealth_order_id, **kwargs)
+
+    manager.reset_continuous_condition = reset_with_one_persistence_failure
+    event = MarketEvent(
+        sequence=1,
+        product_id="CONTRACT-A",
+        payload={
+            "product_id": "CONTRACT-A",
+            "price": 99.0,
+            "bid": 98.0,
+            "ask": 100.0,
+            "source": "ticker",
+            "time": datetime(2026, 8, 27, 12, 0, 0),
+        },
+        published_monotonic=time.monotonic(),
+        mode=MarketEventMode.STALE_INVALIDATION,
+        contains_market_snapshot=False,
+    )
+
+    try:
+        with pytest.raises(
+            RuntimeError,
+            match="synthetic stale reset persistence failure",
         ):
             bridge._handle_market_event(event)
 

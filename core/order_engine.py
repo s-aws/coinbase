@@ -95,6 +95,7 @@ from core.enums import (
     ProductType,
     StealthOrderStatus,
     TargetMovementType,
+    TickerPublicationDisposition,
     UserFeedPhase,
     WebSocketEventType,
 )
@@ -3399,18 +3400,6 @@ class OrderEngine:
 
             for event in json_msg["events"]:
                 queued_event = deepcopy(event)
-                if (
-                    channel == ChannelType.TICKER.value
-                    and message_timestamp is not None
-                ):
-                    # Ticker continuity is time-indexed. Include Coinbase's
-                    # envelope timestamp in the atomic dedup identity so a
-                    # later unchanged quote is not mistaken for fan-out of the
-                    # same websocket message.
-                    queued_event[_COINBASE_MESSAGE_TIMESTAMP_KEY] = (
-                        message_timestamp
-                    )
-
                 # Atomic claim: under EventProcessor's dedup lock, check all
                 # buckets and add to the current bucket in one step. This
                 # prevents the fan-out race where N WSClient threads all
@@ -3421,11 +3410,14 @@ class OrderEngine:
                     continue
 
                 if channel == ChannelType.TICKER.value:
-                    # Local receipt time is attached only after deduplication
-                    # so websocket fan-out copies retain one identity. It then
-                    # travels with whichever envelope overflow recovery keeps,
-                    # preventing queue/dashboard latency from making a
-                    # pre-deadline ticker eligible for anchor work.
+                    # Coinbase envelope and local receipt metadata are
+                    # socket-specific. Attach both only after the payload wins
+                    # the atomic fan-out claim so redundant public sockets
+                    # retain one event identity.
+                    if message_timestamp is not None:
+                        queued_event[_COINBASE_MESSAGE_TIMESTAMP_KEY] = (
+                            message_timestamp
+                        )
                     queued_event[_TICKER_RECEIVED_MONOTONIC_KEY] = (
                         ticker_envelope_received_monotonic
                     )
@@ -5955,7 +5947,6 @@ class OrderEngine:
                                 ),
                             )
                             for tickr in event["tickers"]:
-                                self.ticker[tickr["product_id"]] = tickr
                                 product_id = tickr.get("product_id")
                                 trading_product_id = get_trading_product_id(product_id)
 
@@ -5964,11 +5955,23 @@ class OrderEngine:
                                 # work below must not add latency to stealth
                                 # condition decisions.
                                 if self.stealth_order_bridge and product_id:
-                                    self.stealth_order_bridge.publish_ticker_update(
-                                        product_id,
-                                        tickr,
-                                        event_time=message_timestamp,
+                                    disposition = (
+                                        self.stealth_order_bridge.publish_ticker_update(
+                                            product_id,
+                                            tickr,
+                                            event_time=message_timestamp,
+                                        )
                                     )
+                                    if disposition == (
+                                        TickerPublicationDisposition.STALE_INVALIDATION
+                                    ):
+                                        # The bridge queued this observation
+                                        # only to disprove an existing hold.
+                                        # It is not current market state for
+                                        # any downstream consumer.
+                                        continue
+
+                                self.ticker[tickr["product_id"]] = tickr
 
                                 # Broadcast to price chart
                                 price = float(tickr.get("price", 0))

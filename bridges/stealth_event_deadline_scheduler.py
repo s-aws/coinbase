@@ -30,7 +30,7 @@ import threading
 import time
 from typing import Any, Callable, Deque, Dict, Optional, Tuple, Union
 
-from core.enums import StealthWakePurpose
+from core.enums import MarketEventMode, StealthWakePurpose
 
 
 class SchedulerStoppedError(RuntimeError):
@@ -53,6 +53,7 @@ class MarketEvent:
     product_id: str
     payload: Any
     published_monotonic: float
+    mode: MarketEventMode = MarketEventMode.NORMAL
     contains_market_snapshot: bool = True
     continuity_reset: bool = False
     discarded_event_count: int = 0
@@ -188,6 +189,8 @@ class StealthEventDeadlineScheduler:
         self,
         product_id: str,
         payload: Any = None,
+        *,
+        mode: MarketEventMode = MarketEventMode.NORMAL,
     ) -> int:
         """Append one market event and return its global insertion sequence.
 
@@ -197,6 +200,8 @@ class StealthEventDeadlineScheduler:
 
         if not isinstance(product_id, str) or not product_id.strip():
             raise ValueError("product_id must be a non-empty string")
+        if not isinstance(mode, MarketEventMode):
+            raise TypeError("mode must be a MarketEventMode enum value")
 
         with self._condition:
             self._require_running_locked()
@@ -215,7 +220,8 @@ class StealthEventDeadlineScheduler:
                     product_id=product_id,
                     payload=payload,
                     published_monotonic=float(self._clock()),
-                    contains_market_snapshot=True,
+                    mode=mode,
+                    contains_market_snapshot=(mode == MarketEventMode.NORMAL),
                     continuity_reset=False,
                     discarded_event_count=0,
                     continuity_reset_counts=(),
@@ -345,6 +351,11 @@ class StealthEventDeadlineScheduler:
                     # The queued snapshot itself is also being discarded.  A
                     # control-only marker carries prior loss but is not another
                     # missing market observation.
+                    add_discarded_count(event.product_id, 1)
+                elif event.mode == MarketEventMode.STALE_INVALIDATION:
+                    # An invalidation-only item still carries one actual
+                    # market observation. Losing it can hide a false/unknown
+                    # boundary, so overflow recovery must count it exactly.
                     add_discarded_count(event.product_id, 1)
 
             add_discarded_count(

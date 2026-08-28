@@ -358,6 +358,20 @@ class StealthWakePurpose(str, Enum):
     COMPATIBILITY_RECHECK = "compatibility_recheck"
 
 
+class MarketEventMode(str, Enum):
+    """How the stealth scheduler may consume one market-event envelope."""
+
+    NORMAL = "normal"
+    STALE_INVALIDATION = "stale_invalidation"
+
+
+class TickerPublicationDisposition(str, Enum):
+    """Result of publishing one ticker through the stealth decision lane."""
+
+    ACCEPTED = "accepted"
+    STALE_INVALIDATION = "stale_invalidation"
+
+
 # ============================================================================
 # ANCHOR REPRICING POLICY
 # ============================================================================
