@@ -3,17 +3,19 @@
 ## Status
 
 - Last updated (ET): 2026-08-28.
-- Checkout baseline: `prod` at `41d4e3c33` (`part 9`), matching
-  `origin/prod` when the guarded validation began.
-- Active operator-approved objective: finish the default-PAUSED live-validation
-  sequence, preserve verified evidence, and identify the smallest next
-  correction. The stateful validation is complete. No runtime correction has
-  been made from its findings. Two read-only follow-up audits are complete; the
-  next source change still requires operator review.
+- Checkout baseline: `prod` at `0a364e27f3` (`part 10`).
+- Active operator-approved objective: implement only the first minimal
+  correction derived from the default-PAUSED live validation: remove recurring
+  admission-retry churn while non-admitting and give each active retry one
+  successor owner. That implementation and its automated verification are
+  complete in the working tree but are not yet committed. Stop at this commit
+  boundary; the separate cancellation/parent-truth correction is not part of
+  this change set.
 - Implementation is committed through `5a8d50b70` (`part 6`), the initial graph
   baseline through `9a85ee36a` (`part 7`), the earlier live-evidence context at
   `814167fb0` (`part 8`), and the deterministic full-suite gate at `41d4e3c33`
-  (`part 9`). This file corrects part 8's database-target claim.
+  (`part 9`). `0a364e27f3` (`part 10`) commits the corrected guarded evidence and
+  the two approved read-only correction audits.
 
 ## Fixed design constraints
 
@@ -36,18 +38,20 @@
   durable condition/anchor state. Perl distance/external-signal timing was not
   ported and is not implied future scope.
 
-## Automated validation at committed baseline
+## Automated validation
 
-- Focused scheduler contract: 79 passed.
-- Mandatory regression suite: 767 passed at the committed baseline and again
-  after the guarded live-validation evidence update (17.90 seconds).
-- Full local suite: 1,542 passed, 11 external tests deselected.
+- Focused scheduler contract: 84 passed for the current working tree.
+- Focused runtime-controller contract: 57 passed for the current working tree.
+- Mandatory regression suite: 777 passed for the current working tree
+  (18.04 seconds).
+- Last committed full local suite: 1,542 passed, 11 external tests deselected;
+  it has not been rerun for the current four-file source/test correction.
 - Pytest gate now rejects unknown config, reports warnings, treats unhandled
   thread exceptions as errors, and has a deterministic scheduler concurrency
   test (`part 9`).
-- Repository graph check after the guarded evidence update: 2,058 commits,
-  37,363 edges, 507 files, 182 semantic records, zero mismatches, fatal errors,
-  history errors, or parse findings.
+- Current repository graph build: 2,059 commits, 37,632 edges, 507 files, and
+  183 semantic records, with zero fatal/history/parse findings. The final
+  `--check` must remain clean at handoff.
 - The ordinary port-9876 `coinbase_engine` test database is not a clean live
   fixture: the full suite left 933 parent rows, 40 HIDDEN stealth rows, and 48
   pending move rows. Stateful live validation therefore used a new schema-only
@@ -111,18 +115,52 @@
   port 8765. No traceback, ERROR, or CRITICAL record appeared in captured
   process output.
 
-## New verified boundary from the stateful run
+## Measured pre-correction boundary from the stateful run
 
 - A TRIGGERED row deferred by PAUSED is not quiescent. In roughly 45 seconds,
   one row produced 844 `ADMISSION_RETRY` schedules and 421 delivered wakes at
   the 100 ms retry constant. It also repeatedly invalidated every condition
-  generation. Current bridge control flow schedules once in
+  generation. Pre-correction bridge control flow scheduled once in
   `_evaluate_scheduled_order_locked` and again in `_handle_deadline_wake`, so
   one delivered retry creates two replacement generations.
-- This did not bypass admission or call Coinbase, but it is avoidable scheduler
-  and lock churn that scales linearly with paused TRIGGERED rows and can amplify
-  debug/log noise. Treat it as a minimal-correction candidate; do not change
-  cadence or resume semantics without an approved plan.
+- This did not bypass admission or call Coinbase, but it was avoidable scheduler
+  and lock churn that scaled linearly with paused TRIGGERED rows and amplified
+  debug/log noise. The current working-tree correction addresses exactly this
+  measured boundary.
+
+## Approved admission-retry correction (working tree)
+
+- `RuntimeController` now owns named, insertion-ordered admission-open hooks.
+  Actual `STARTING -> RUNNING` and `PAUSED -> RUNNING` transitions notify a
+  snapshot outside controller locks; registration while already RUNNING is
+  level-triggered. Shutdown rejects registration, stop can unregister, one
+  callback cannot block the state lock, and generic callback failures are
+  isolated and logged.
+- `StealthOrderBridge` registers its hook only after the sole scheduler worker
+  is live and decision readiness is published, then clears readiness and
+  unregisters before stop cleanup. Opening admission scans authoritative local
+  active rows and schedules exactly one zero-delay `ADMISSION_RETRY` for each
+  positive-remaining TRIGGERED row. It never reveals, writes the database, or
+  calls REST from the hook.
+- A TRIGGERED row schedules no admission retry while runtime admission is
+  closed. A wake already captured when pause wins may drain once, but cannot
+  rearm. On a real admission-open transition the zero-delay wake replaces any
+  older generation.
+- The manager callback, evaluator fallback, and deadline-handler fallback use
+  scheduler generations as one ownership fence. A synchronous manager rebuild
+  suppresses both fallbacks; an evaluator rebuild suppresses the outer
+  fallback; only an otherwise-unowned or failed evaluation receives one normal
+  100 ms successor. Active RUNNING cadence remains 100 ms.
+- Admission-open schedule reconstruction failure is fail-closed: decision
+  readiness clears, the scheduler stops, and runtime returns to PAUSED. The
+  scheduler implementation, condition semantics, placement path, database
+  state, REST behavior, and cancellation semantics are unchanged.
+- This correction has deterministic automated proof but has not been exercised
+  by a new live resume/order-placement run. The earlier guarded run remains the
+  live evidence for the original symptom only.
+
+## Still-open cancellation/parent-truth boundary
+
 - Direct cancellation left the paired root `order_parent` row PENDING while the
   stealth row became CANCELLED. The read-only audit confirmed that pre-reveal
   divergence is intentional, but this terminal divergence is not: direct
@@ -159,11 +197,11 @@
 
 ## Next actions
 
-1. Present the two smallest source/test plans, including exact behavior
-   invariants and the revealed-order cancellation exclusion, before changing
-   either behavior.
-2. If approved, correct one boundary at a time and rerun its focused contracts,
-   the scheduler contract, and the mandatory regression suite before continuing.
+1. Review and commit the admission-retry correction as one isolated boundary.
+2. Do not begin the cancellation/parent-truth correction until the scheduler
+   boundary is committed and the operator explicitly continues that phase.
+3. Any new live resume or exchange-order validation still requires explicit
+   operator authorization and its own guarded procedure.
 
 This file is branch-scoped context, not a substitute for current code and test
 evidence. Confirm branch, HEAD, and worktree at session entry.

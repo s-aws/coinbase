@@ -313,6 +313,7 @@ class MutableRuntimeController:
     def __init__(self, state: EngineState = EngineState.RUNNING) -> None:
         self.state = state
         self.pause_requests = 0
+        self.admission_open_hooks = {}
 
     def is_admitting(self) -> bool:
         return self.state == EngineState.RUNNING
@@ -324,6 +325,19 @@ class MutableRuntimeController:
         self.pause_requests += 1
         self.state = EngineState.PAUSED
         return True
+
+    def register_admission_open_hook(self, name: str, hook) -> bool:
+        if name in self.admission_open_hooks:
+            raise ValueError(name)
+        if self.is_stopping():
+            return False
+        self.admission_open_hooks[name] = hook
+        if self.is_admitting():
+            hook()
+        return True
+
+    def unregister_admission_open_hook(self, name: str) -> bool:
+        return self.admission_open_hooks.pop(name, None) is not None
 
     @contextmanager
     def track_inflight(self, _category: str):
@@ -3391,6 +3405,166 @@ def test_reveal_failure_terminal_status_invalidates_anchor_lane() -> None:
         scheduler.stop()
 
 
+def test_admission_retry_wake_has_one_100ms_successor_and_stale_replay_is_idle(
+    monkeypatch,
+) -> None:
+    """One consumed retry has one owner for the next active retry."""
+
+    stealth_order_id = "sid-triggered"
+    manager = FakeStealthManager(
+        (
+            _time_delay_order(
+                stealth_order_id,
+                "CONTRACT-A",
+                status=StealthOrderStatus.TRIGGERED,
+            ),
+        )
+    )
+    manager.trigger_on_evaluation.add(stealth_order_id)
+    clock = MutableMonotonicClock(100.0)
+    scheduler = StealthEventDeadlineScheduler(clock=clock)
+    bridge = bridge_module.StealthOrderBridge(
+        manager,
+        order_engine=None,
+        scheduler=scheduler,
+    )
+    bridge._decisions_ready.set()
+
+    def defer_reveal(order_id: str) -> None:
+        manager.revealed_ids.append(order_id)
+        return None
+
+    manager.reveal_order_slice = defer_reveal
+    initial_generation = scheduler.schedule_after(
+        stealth_order_id,
+        StealthWakePurpose.ADMISSION_RETRY,
+        0.0,
+    )
+    schedule_after = Mock(wraps=scheduler.schedule_after)
+    monkeypatch.setattr(scheduler, "schedule_after", schedule_after)
+
+    try:
+        batch = scheduler.run_due(on_deadline=bridge._handle_deadline_wake)
+
+        assert len(batch.deadline_wakes) == 1
+        wake = batch.deadline_wakes[0]
+        assert wake.generation == initial_generation
+        assert manager.revealed_ids == [stealth_order_id]
+        assert schedule_after.call_count == 1
+        assert schedule_after.call_args.args == (
+            stealth_order_id,
+            StealthWakePurpose.ADMISSION_RETRY,
+            0.1,
+        )
+        assert scheduler.active_deadline_count == 1
+        assert scheduler.next_deadline_monotonic == pytest.approx(100.1)
+
+        bridge._handle_deadline_wake(wake)
+
+        assert manager.revealed_ids == [stealth_order_id]
+        assert schedule_after.call_count == 1
+        assert scheduler.active_deadline_count == 1
+    finally:
+        scheduler.stop()
+
+
+def test_due_admission_retry_drains_without_successor_when_pause_wins(
+    monkeypatch,
+) -> None:
+    stealth_order_id = "sid-paused-after-capture"
+    manager = FakeStealthManager(
+        (
+            _time_delay_order(
+                stealth_order_id,
+                "CONTRACT-A",
+                status=StealthOrderStatus.TRIGGERED,
+            ),
+        )
+    )
+    manager.trigger_on_evaluation.add(stealth_order_id)
+    controller = RuntimeController()
+    assert controller.complete_startup() is True
+    monkeypatch.setattr(
+        bridge_module,
+        "get_runtime_controller",
+        lambda: controller,
+    )
+    clock = MutableMonotonicClock(100.0)
+    scheduler = StealthEventDeadlineScheduler(clock=clock)
+    bridge = bridge_module.StealthOrderBridge(
+        manager,
+        order_engine=None,
+        scheduler=scheduler,
+    )
+    bridge._decisions_ready.set()
+    scheduler.schedule_after(
+        stealth_order_id,
+        StealthWakePurpose.ADMISSION_RETRY,
+        0.0,
+    )
+    batch = scheduler.take_due()
+    schedule_after = Mock(wraps=scheduler.schedule_after)
+    monkeypatch.setattr(scheduler, "schedule_after", schedule_after)
+
+    try:
+        assert len(batch.deadline_wakes) == 1
+        assert controller.request_pause() is True
+
+        bridge._handle_deadline_wake(batch.deadline_wakes[0])
+
+        assert manager.revealed_ids == []
+        assert schedule_after.call_count == 0
+        assert scheduler.active_deadline_count == 0
+    finally:
+        scheduler.stop()
+
+
+def test_admission_open_schedules_only_positive_remaining_triggered_orders(
+    monkeypatch,
+) -> None:
+    eligible = _time_delay_order(
+        "sid-eligible",
+        "CONTRACT-A",
+        status=StealthOrderStatus.TRIGGERED,
+    )
+    empty_triggered = _time_delay_order(
+        "sid-empty",
+        "CONTRACT-A",
+        status=StealthOrderStatus.TRIGGERED,
+    )
+    empty_triggered["remaining_size"] = 0.0
+    orders = (
+        eligible,
+        empty_triggered,
+        _time_delay_order("sid-hidden", "CONTRACT-A"),
+        _pending_price_order("sid-pending", "CONTRACT-A"),
+        _time_delay_order(
+            "sid-revealed",
+            "CONTRACT-A",
+            status=StealthOrderStatus.REVEALED,
+        ),
+    )
+    manager = FakeStealthManager(orders)
+    bridge, scheduler = _new_bridge(manager)
+    bridge.running = True
+    schedule_after = Mock(wraps=scheduler.schedule_after)
+    monkeypatch.setattr(scheduler, "schedule_after", schedule_after)
+
+    try:
+        bridge._handle_admission_open()
+
+        assert schedule_after.call_count == 1
+        assert schedule_after.call_args.args == (
+            "sid-eligible",
+            StealthWakePurpose.ADMISSION_RETRY,
+            0.0,
+        )
+        assert scheduler.active_deadline_count == 1
+    finally:
+        bridge.running = False
+        scheduler.stop()
+
+
 @pytest.mark.parametrize(
     "runtime_state",
     (EngineState.STARTING, EngineState.PAUSED),
@@ -3422,17 +3596,15 @@ def test_nonadmitting_runtime_may_commit_triggered_but_never_reveals(
         )
 
         assert manager.evaluation_event.wait(timeout=0.75)
-        bridge.stop()
-
+        with bridge._get_order_action_lock("sid-a"):
+            pass
         assert (
             manager.in_memory_orders["sid-a"]["status"]
             == StealthOrderStatus.TRIGGERED.value
         )
         assert manager.revealed_ids == []
-        assert scheduler.current_generation(
-            "sid-a",
-            StealthWakePurpose.ADMISSION_RETRY,
-        ) > 0
+        assert scheduler.active_deadline_count == 0
+        assert manager.evaluated_ids == ["sid-a"]
     finally:
         bridge.stop()
 
@@ -3471,10 +3643,7 @@ def test_reveal_defers_when_pause_wins_atomic_admission(monkeypatch) -> None:
             StealthOrderStatus.TRIGGERED.value
         )
         assert manager.revealed_ids == []
-        assert scheduler.current_generation(
-            stealth_order_id,
-            StealthWakePurpose.ADMISSION_RETRY,
-        ) > 0
+        assert scheduler.active_deadline_count == 0
     finally:
         scheduler.stop()
 
@@ -3510,7 +3679,7 @@ def test_committed_trigger_reveals_once_after_runtime_admits(
         return f"placed-{stealth_order_id}"
 
     manager.reveal_order_slice = reveal_once
-    bridge, _scheduler = _new_bridge(manager)
+    bridge, scheduler = _new_bridge(manager)
 
     try:
         bridge.start()
@@ -3523,16 +3692,28 @@ def test_committed_trigger_reveals_once_after_runtime_admits(
             and time.monotonic() < deadline
         ):
             time.sleep(0.005)
+        with bridge._get_order_action_lock("sid-a"):
+            pass
 
         assert manager.in_memory_orders["sid-a"]["status"] == (
             StealthOrderStatus.TRIGGERED.value
         )
         assert manager.revealed_ids == []
+        assert scheduler.active_deadline_count == 0
+
+        schedule_after = Mock(wraps=scheduler.schedule_after)
+        monkeypatch.setattr(scheduler, "schedule_after", schedule_after)
 
         if runtime_state is EngineState.STARTING:
             assert controller.complete_startup() is True
         else:
             assert controller.resume() is True
+
+        assert schedule_after.call_args_list[0].args == (
+            "sid-a",
+            StealthWakePurpose.ADMISSION_RETRY,
+            0.0,
+        )
         deadline = time.monotonic() + 0.75
         while not manager.revealed_ids and time.monotonic() < deadline:
             time.sleep(0.005)
@@ -3540,6 +3721,88 @@ def test_committed_trigger_reveals_once_after_runtime_admits(
         assert manager.revealed_ids == ["sid-a"]
         time.sleep(0.15)
         assert manager.revealed_ids == ["sid-a"]
+        assert schedule_after.call_count == 1
+        assert scheduler.active_deadline_count == 0
+    finally:
+        bridge.stop()
+
+
+def test_bridge_stop_unregisters_admission_open_hook_before_later_resume(
+    monkeypatch,
+) -> None:
+    manager = FakeStealthManager(
+        (
+            _time_delay_order(
+                "sid-triggered",
+                "CONTRACT-A",
+                status=StealthOrderStatus.TRIGGERED,
+            ),
+        )
+    )
+    controller = RuntimeController()
+    assert controller.request_pause() is True
+    assert controller.complete_startup() is True
+    monkeypatch.setattr(
+        bridge_module,
+        "get_runtime_controller",
+        lambda: controller,
+    )
+    bridge, scheduler = _new_bridge(manager)
+
+    try:
+        bridge.start()
+        bridge.activate_decisions()
+        schedule_after = Mock(wraps=scheduler.schedule_after)
+        monkeypatch.setattr(scheduler, "schedule_after", schedule_after)
+
+        bridge.stop()
+        bridge.stop()
+        assert controller.resume() is True
+
+        assert controller.state is EngineState.RUNNING
+        assert schedule_after.call_count == 0
+        assert scheduler.stopped is True
+    finally:
+        bridge.stop()
+
+
+def test_admission_open_schedule_failure_is_fail_closed_and_repauses(
+    monkeypatch,
+) -> None:
+    manager = FakeStealthManager(
+        (
+            _time_delay_order(
+                "sid-triggered",
+                "CONTRACT-A",
+                status=StealthOrderStatus.TRIGGERED,
+            ),
+        )
+    )
+    controller = RuntimeController()
+    assert controller.request_pause() is True
+    assert controller.complete_startup() is True
+    monkeypatch.setattr(
+        bridge_module,
+        "get_runtime_controller",
+        lambda: controller,
+    )
+    bridge, scheduler = _new_bridge(manager)
+
+    try:
+        bridge.start()
+        bridge.activate_decisions()
+
+        def fail_schedule(*_args, **_kwargs):
+            raise RuntimeError("synthetic admission retry failure")
+
+        monkeypatch.setattr(scheduler, "schedule_after", fail_schedule)
+
+        assert controller.resume() is True
+
+        assert controller.state is EngineState.PAUSED
+        assert bridge._decisions_ready.is_set() is False
+        assert bridge._scheduler_failure_reported is True
+        assert scheduler.stopped is True
     finally:
         bridge.stop()
 
@@ -3715,6 +3978,9 @@ def test_real_manager_continuous_hold_rebuilds_and_reveals_on_next_tick(
         )
         assert first_generation > 0
 
+        schedule_after = Mock(wraps=scheduler.schedule_after)
+        monkeypatch.setattr(scheduler, "schedule_after", schedule_after)
+
         bridge.publish_ticker_update(
             product_id,
             {"price": "99", "best_bid": "98", "best_ask": "100"},
@@ -3731,6 +3997,12 @@ def test_real_manager_continuous_hold_rebuilds_and_reveals_on_next_tick(
             stealth_order_id,
             "revealed-client-order",
             "Price threshold currently met; continuous hold deadline reached",
+        )
+        assert schedule_after.call_count == 1
+        assert schedule_after.call_args.args == (
+            stealth_order_id,
+            StealthWakePurpose.ADMISSION_RETRY,
+            0.1,
         )
         assert scheduler.current_generation(
             stealth_order_id,

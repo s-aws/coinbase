@@ -248,6 +248,176 @@ class TestStartupTransitions:
         assert runtime.state is EngineState.STOPPED
 
 
+class TestAdmissionOpenHooks:
+    """RUNNING notifications are level-triggered and lifecycle-safe."""
+
+    @pytest.mark.regression
+    def test_startup_transition_notifies_hooks_in_registration_order(self):
+        runtime = RuntimeController()
+        events = []
+
+        for name in ("alpha", "beta"):
+            assert runtime.register_admission_open_hook(
+                name,
+                lambda name=name: events.append(
+                    (name, runtime.state, runtime.is_admitting())
+                ),
+            ) is True
+
+        assert runtime.complete_startup() is True
+        assert events == [
+            ("alpha", EngineState.RUNNING, True),
+            ("beta", EngineState.RUNNING, True),
+        ]
+
+        # A no-op readiness call is not another admission-open transition.
+        assert runtime.complete_startup() is False
+        assert len(events) == 2
+
+    @pytest.mark.regression
+    def test_startup_pause_defers_hook_until_each_real_resume(self):
+        runtime = RuntimeController()
+        calls = []
+        assert runtime.register_admission_open_hook(
+            "owner", lambda: calls.append(runtime.state)
+        ) is True
+
+        assert runtime.request_pause() is True
+        assert runtime.complete_startup() is True
+        assert runtime.state is EngineState.PAUSED
+        assert calls == []
+
+        assert runtime.resume() is True
+        assert calls == [EngineState.RUNNING]
+        assert runtime.resume() is False
+        assert calls == [EngineState.RUNNING]
+
+        assert runtime.request_pause() is True
+        assert runtime.resume() is True
+        assert calls == [EngineState.RUNNING, EngineState.RUNNING]
+
+    @pytest.mark.regression
+    def test_registration_while_running_invokes_immediately(self):
+        runtime = RuntimeController()
+        assert runtime.complete_startup() is True
+        calls = []
+
+        assert runtime.register_admission_open_hook(
+            "late", lambda: calls.append(runtime.lifecycle_snapshot())
+        ) is True
+
+        assert calls == [(EngineState.RUNNING, True, False)]
+
+    @pytest.mark.regression
+    def test_hook_runs_outside_state_lock_and_pause_skips_remainder(self):
+        runtime = RuntimeController()
+        assert runtime.request_pause() is True
+        assert runtime.complete_startup() is True
+
+        first_entered = threading.Event()
+        release_first = threading.Event()
+        pause_finished = threading.Event()
+        calls = []
+        pause_results = []
+
+        def first_hook():
+            calls.append("first")
+            first_entered.set()
+            assert release_first.wait(timeout=1.0)
+
+        def pause_while_hook_is_blocked():
+            pause_results.append(runtime.request_pause())
+            pause_finished.set()
+
+        assert runtime.register_admission_open_hook("first", first_hook)
+        assert runtime.register_admission_open_hook(
+            "second", lambda: calls.append("second")
+        )
+
+        resume_thread = threading.Thread(target=runtime.resume)
+        resume_thread.start()
+        assert first_entered.wait(timeout=1.0)
+
+        pause_thread = threading.Thread(target=pause_while_hook_is_blocked)
+        pause_thread.start()
+        lock_was_available = pause_finished.wait(timeout=0.5)
+        release_first.set()
+        resume_thread.join(timeout=1.0)
+        pause_thread.join(timeout=1.0)
+
+        assert lock_was_available is True
+        assert not resume_thread.is_alive()
+        assert not pause_thread.is_alive()
+        assert pause_results == [True]
+        assert runtime.state is EngineState.PAUSED
+        assert calls == ["first"]
+
+    @pytest.mark.regression
+    def test_hook_exception_is_logged_and_does_not_block_later_hooks(
+        self, caplog
+    ):
+        runtime = RuntimeController()
+        calls = []
+
+        def bad_hook():
+            calls.append("bad")
+            raise RuntimeError("hook failed")
+
+        assert runtime.register_admission_open_hook("bad", bad_hook)
+        assert runtime.register_admission_open_hook(
+            "good", lambda: calls.append("good")
+        )
+
+        with caplog.at_level("ERROR", logger="RuntimeController"):
+            assert runtime.complete_startup() is True
+
+        assert calls == ["bad", "good"]
+        assert runtime.state is EngineState.RUNNING
+        assert "Admission-open hook 'bad' raised" in caplog.text
+
+    @pytest.mark.regression
+    def test_duplicate_rejected_and_unregister_is_idempotent(self):
+        runtime = RuntimeController()
+        hook = Mock(name="hook")
+        assert runtime.register_admission_open_hook("owner", hook) is True
+
+        with pytest.raises(ValueError, match="already registered"):
+            runtime.register_admission_open_hook("owner", Mock())
+
+        assert runtime.unregister_admission_open_hook("owner") is True
+        assert runtime.unregister_admission_open_hook("owner") is False
+        assert runtime.complete_startup() is True
+        hook.assert_not_called()
+
+    @pytest.mark.regression
+    def test_reset_clears_registered_hooks(self):
+        runtime = RuntimeController()
+        hook = Mock(name="hook")
+        assert runtime.register_admission_open_hook("owner", hook) is True
+
+        runtime._reset_for_tests()
+
+        assert runtime.complete_startup() is True
+        hook.assert_not_called()
+
+    @pytest.mark.regression
+    @pytest.mark.parametrize("stopping_state", ["draining", "stopped", "signal"])
+    def test_stopping_controller_rejects_registration(self, stopping_state):
+        runtime = RuntimeController()
+        if stopping_state == "draining":
+            assert runtime.request_shutdown() is True
+        elif stopping_state == "stopped":
+            runtime.drain_and_stop(timeout_seconds=0.0)
+            assert runtime.state is EngineState.STOPPED
+        else:
+            runtime.request_shutdown_from_signal()
+            assert runtime.is_stopping() is True
+
+        hook = Mock(name="hook")
+        assert runtime.register_admission_open_hook("late", hook) is False
+        hook.assert_not_called()
+
+
 class TestStateTransitions:
     """The state machine is the contract. These must not regress."""
 

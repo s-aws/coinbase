@@ -58,6 +58,7 @@ class StealthOrderBridge:
     _COMPATIBILITY_RECHECK_SECONDS = 0.1
     _ADMISSION_RETRY_SECONDS = 0.1
     _OVERDUE_DEADLINE_RETRY_SECONDS = 0.1
+    _ADMISSION_OPEN_HOOK_NAME = "stealth_order_bridge_scheduler"
     _CONDITION_WAKE_PURPOSES = (
         StealthWakePurpose.CONDITION_HOLD,
         StealthWakePurpose.TIME_DELAY,
@@ -107,6 +108,8 @@ class StealthOrderBridge:
         # single consumer is deliberately not started until main.py declares
         # reconciliation complete via activate_decisions().
         self._decisions_ready = threading.Event()
+        self._admission_open_hook_registered = False
+        self._admission_open_hook_controller = None
         self._scheduler_failure_lock = threading.Lock()
         self._scheduler_failure_reported = False
         self._market_event_time_lock = threading.RLock()
@@ -301,6 +304,46 @@ class StealthOrderBridge:
                         else ""
                     )
                 )
+
+        # Registration occurs only after the scheduler has proved live. It is
+        # intentionally outside the bridge lifecycle lock because a
+        # level-triggered registration can invoke the callback immediately.
+        controller = get_runtime_controller()
+        try:
+            registered = controller.register_admission_open_hook(
+                self._ADMISSION_OPEN_HOOK_NAME,
+                self._handle_admission_open,
+            )
+        except Exception:
+            self._decisions_ready.clear()
+            raise
+        if not registered:
+            self._decisions_ready.clear()
+            raise RuntimeError(
+                "Stealth decision activation lost to runtime shutdown"
+            )
+
+        activation_lost = False
+        with self._lifecycle_lock:
+            if (
+                not self.running
+                or self._shutdown_event.is_set()
+                or not self._decisions_ready.is_set()
+                or self.scheduler.stopped
+            ):
+                activation_lost = True
+            else:
+                self._admission_open_hook_controller = controller
+                self._admission_open_hook_registered = True
+
+        if activation_lost:
+            controller.unregister_admission_open_hook(
+                self._ADMISSION_OPEN_HOOK_NAME
+            )
+            self._decisions_ready.clear()
+            raise RuntimeError(
+                "Stealth decision activation interrupted after worker start"
+            )
         logger.info("Stealth decision scheduler activated")
     
     def stop(self):
@@ -310,7 +353,74 @@ class StealthOrderBridge:
             self.running = False
             self._shutdown_event.set()
             self._decisions_ready.clear()
+            hook_controller = getattr(
+                self,
+                "_admission_open_hook_controller",
+                None,
+            )
+            hook_registered = getattr(
+                self,
+                "_admission_open_hook_registered",
+                False,
+            )
+            self._admission_open_hook_controller = None
+            self._admission_open_hook_registered = False
+        if hook_registered and hook_controller is not None:
+            hook_controller.unregister_admission_open_hook(
+                self._ADMISSION_OPEN_HOOK_NAME
+            )
         self._stop_unlocked()
+
+    def _handle_admission_open(self) -> None:
+        """Publish one immediate retry for each locally committed trigger."""
+
+        if not self.running or self._shutdown_event.is_set():
+            return
+        if not self._decisions_ready.is_set() or self.scheduler.stopped:
+            self._fail_closed_scheduler(
+                "runtime admission opened without a live decision scheduler"
+            )
+            return
+
+        controller = get_runtime_controller()
+        if not controller.is_admitting():
+            return
+
+        try:
+            stealth_order_ids = (
+                self.stealth_manager.snapshot_active_stealth_orders()
+            )
+            for stealth_order_id in stealth_order_ids:
+                order_id = str(stealth_order_id)
+                with self._get_order_action_lock(order_id):
+                    if (
+                        not self.running
+                        or self._shutdown_event.is_set()
+                        or not self._decisions_ready.is_set()
+                        or not controller.is_admitting()
+                    ):
+                        return
+                    order = self.stealth_manager.in_memory_orders.get(order_id)
+                    if (
+                        not order
+                        or order.get("status")
+                        != StealthOrderStatus.TRIGGERED.value
+                        or float(order.get("remaining_size", 0) or 0) <= 0
+                    ):
+                        continue
+                    self._schedule_condition_wake(
+                        order_id,
+                        order=order,
+                        admission_delay_seconds=0.0,
+                    )
+        except Exception as exc:
+            logger.exception(
+                "Failed to publish admission-open stealth retries"
+            )
+            self._fail_closed_scheduler(
+                "admission-open retry publication failed with "
+                f"{type(exc).__name__}: {exc}"
+            )
 
     def _stop_unlocked(self):
         """Stop background evaluation and reconciliation threads.
@@ -452,6 +562,7 @@ class StealthOrderBridge:
         *,
         order: Optional[Dict[str, Any]] = None,
         minimum_delay: float = 0.0,
+        admission_delay_seconds: Optional[float] = None,
         defer_overdue_continuous: bool = False,
         invalidate_existing: bool = True,
     ) -> None:
@@ -480,10 +591,20 @@ class StealthOrderBridge:
         condition_config = order.get("reveal_condition_json") or {}
 
         if status == StealthOrderStatus.TRIGGERED.value:
+            # A committed trigger is durable local state. While admission is
+            # closed it needs no polling loop; the runtime's admission-open
+            # hook publishes exactly one immediate retry when work may resume.
+            if not get_runtime_controller().is_admitting():
+                return
+            retry_delay = (
+                self._ADMISSION_RETRY_SECONDS
+                if admission_delay_seconds is None
+                else admission_delay_seconds
+            )
             self.scheduler.schedule_after(
                 stealth_order_id,
                 StealthWakePurpose.ADMISSION_RETRY,
-                max(minimum_delay, self._ADMISSION_RETRY_SECONDS),
+                max(minimum_delay, retry_delay),
             )
         else:
             evaluator = get_evaluator(condition_type)
@@ -679,6 +800,10 @@ class StealthOrderBridge:
         status_before = order_before.get("status")
         controller = get_runtime_controller()
         reveal_attempted_or_deferred = False
+        condition_generation_before = self.scheduler.current_generation(
+            stealth_order_id,
+            StealthWakePurpose.ADMISSION_RETRY,
+        )
 
         try:
             should_reveal, reason = self.stealth_manager.should_trigger_reveal(
@@ -759,24 +884,31 @@ class StealthOrderBridge:
                 order_after_final is None
                 or order_after_final.get("status") != status_before
             )
-            if terminal_after:
-                self._invalidate_order_deadlines(stealth_order_id)
-            elif reveal_attempted_or_deferred:
-                self._schedule_condition_wake(
+            manager_callback_owns_successor = (
+                self.scheduler.current_generation(
                     stealth_order_id,
-                    order=order_after_final,
-                    minimum_delay=self._ADMISSION_RETRY_SECONDS,
-                    defer_overdue_continuous=defer_overdue_continuous,
+                    StealthWakePurpose.ADMISSION_RETRY,
                 )
-            elif status_changed:
-                # The manager callback normally scheduled this transition.
-                # Rebuilding just the condition lane also keeps fake/embedded
-                # managers safe without perturbing an independent anchor wake.
-                self._schedule_condition_wake(
-                    stealth_order_id,
-                    order=order_after_final,
-                    defer_overdue_continuous=defer_overdue_continuous,
-                )
+                != condition_generation_before
+            )
+            if not manager_callback_owns_successor:
+                if terminal_after:
+                    self._invalidate_order_deadlines(stealth_order_id)
+                elif reveal_attempted_or_deferred:
+                    self._schedule_condition_wake(
+                        stealth_order_id,
+                        order=order_after_final,
+                        minimum_delay=self._ADMISSION_RETRY_SECONDS,
+                        defer_overdue_continuous=defer_overdue_continuous,
+                    )
+                elif status_changed:
+                    # Real managers publish synchronously. This fallback keeps
+                    # fake/embedded managers safe without a second owner.
+                    self._schedule_condition_wake(
+                        stealth_order_id,
+                        order=order_after_final,
+                        defer_overdue_continuous=defer_overdue_continuous,
+                    )
 
     def _handle_stale_market_invalidation(
         self,
@@ -1147,7 +1279,14 @@ class StealthOrderBridge:
                 # The consumed wake and its replacement are one per-SID
                 # ownership transaction. A concurrent persisted update cannot
                 # publish a newer schedule and then be overwritten here.
-                if self._decisions_ready.is_set():
+                if (
+                    self._decisions_ready.is_set()
+                    and self.scheduler.current_generation(
+                        wake.stealth_order_id,
+                        wake.purpose,
+                    )
+                    == wake.generation
+                ):
                     self._schedule_condition_wake(
                         wake.stealth_order_id,
                         minimum_delay=self._OVERDUE_DEADLINE_RETRY_SECONDS,

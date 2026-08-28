@@ -26,6 +26,8 @@ Threading model
   one owner across signal, dashboard, and startup-failure callers.
 - ``_late_stop_hooks_zero`` (Condition on ``_state_lock``): prevents a hook
   registered during DRAINING from outliving normal STOPPED publication.
+- admission-open hooks are snapshotted under ``_state_lock`` and invoked
+  outside controller locks whenever a transition opens admission.
 
 The state and in-flight locks have a strict ordering: ``_state_lock`` is
 acquired first when both are needed, never the reverse. Registration through
@@ -151,6 +153,10 @@ class RuntimeController:
         # Subsystem stop hooks registered by main.py (e.g. stealth bridge).
         # Called in registration order during drain.
         self._stop_hooks: List[tuple] = []  # list of (name, callable)
+        # Named level-triggered subscribers for the transition into RUNNING.
+        # A normal dict preserves registration order on supported Python
+        # versions. Callbacks are always invoked outside ``_state_lock``.
+        self._admission_open_hooks: Dict[str, Callable[[], None]] = {}
         # Only one caller may own stop-hook execution and the terminal state
         # transition. Signal, dashboard, and startup-failure paths can race.
         self._drain_lock = threading.Lock()
@@ -340,6 +346,72 @@ class RuntimeController:
     # State transitions
     # ------------------------------------------------------------------
 
+    def register_admission_open_hook(
+        self,
+        name: str,
+        hook: Callable[[], None],
+    ) -> bool:
+        """Register one named callback for each transition into RUNNING.
+
+        Registration is level-triggered: when admission is already open, the
+        newly registered hook is invoked once immediately outside the state
+        lock. A shutdown intent rejects new registrations, and duplicate names
+        are programming errors rather than parallel callback ownership.
+        """
+
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError("admission-open hook name must be non-empty")
+        if not callable(hook):
+            raise TypeError("admission-open hook must be callable")
+
+        invoke_immediately = False
+        with self._state_lock:
+            if name in self._admission_open_hooks:
+                raise ValueError(
+                    f"admission-open hook {name!r} is already registered"
+                )
+            state, is_admitting, is_stopping = self._derive_lifecycle_snapshot(
+                self._state,
+                self._shutdown_intent_requested,
+            )
+            if is_stopping:
+                logger.info(
+                    "Admission-open hook %r refused: state is %s",
+                    name,
+                    state.value,
+                )
+                return False
+            self._admission_open_hooks[name] = hook
+            invoke_immediately = is_admitting
+            logger.info("Registered admission-open hook: %s", name)
+
+        if invoke_immediately:
+            self._invoke_admission_open_hooks(((name, hook),))
+        return True
+
+    def unregister_admission_open_hook(self, name: str) -> bool:
+        """Remove a named admission-open callback from future snapshots."""
+
+        with self._state_lock:
+            removed = self._admission_open_hooks.pop(name, None)
+        if removed is not None:
+            logger.info("Unregistered admission-open hook: %s", name)
+            return True
+        return False
+
+    def _invoke_admission_open_hooks(self, hooks: tuple) -> None:
+        """Invoke one RUNNING-transition snapshot without controller locks."""
+
+        for name, hook in hooks:
+            # A concurrent pause or shutdown must stop the remainder of a
+            # previously captured notification snapshot.
+            if not self.is_admitting():
+                return
+            try:
+                hook()
+            except Exception:
+                logger.exception("Admission-open hook %r raised", name)
+
     def complete_startup(self) -> bool:
         """Publish startup readiness as RUNNING or a latched PAUSED state.
 
@@ -350,6 +422,7 @@ class RuntimeController:
 
         Returns True when STARTING was completed, otherwise False.
         """
+        admission_open_hooks = ()
         with self._state_lock:
             if self._state is not EngineState.STARTING:
                 logger.info(
@@ -374,7 +447,12 @@ class RuntimeController:
                 )
             else:
                 self._state = EngineState.RUNNING
+                admission_open_hooks = tuple(
+                    self._admission_open_hooks.items()
+                )
                 logger.info("Engine state: STARTING -> RUNNING")
+        if admission_open_hooks:
+            self._invoke_admission_open_hooks(admission_open_hooks)
         return True
 
     def request_pause(self) -> bool:
@@ -432,7 +510,10 @@ class RuntimeController:
                 logger.info(f"resume ignored: state is {self._state.value}")
                 return False
             self._state = EngineState.RUNNING
+            admission_open_hooks = tuple(self._admission_open_hooks.items())
             logger.info("Engine state: PAUSED -> RUNNING")
+        if admission_open_hooks:
+            self._invoke_admission_open_hooks(admission_open_hooks)
         return True
 
     def request_shutdown(self) -> bool:
@@ -708,6 +789,7 @@ class RuntimeController:
                 self._startup_pause_requested = False
                 self._shutdown_intent_requested = False
                 self._stop_hooks.clear()
+                self._admission_open_hooks.clear()
                 self._drain_owner_thread_id = None
                 self._last_drain_result = None
                 self._late_stop_hooks = 0
