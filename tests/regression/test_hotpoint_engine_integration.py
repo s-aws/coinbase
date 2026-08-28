@@ -22,10 +22,26 @@ import pytest
 
 from business.order_progress import OrderSnapshotDelta
 from configuration import OrderBook
+import core.order_engine as order_engine_module
 from core.order_engine import OrderEngine
+from core.enums import EngineState
+from core.runtime_controller import RuntimeController
 
 
 pytestmark = pytest.mark.regression
+
+
+@pytest.fixture(autouse=True)
+def runtime_controller(monkeypatch):
+    """Give every dispatcher test an explicit completed runtime."""
+    controller = RuntimeController()
+    assert controller.complete_startup() is True
+    monkeypatch.setattr(
+        order_engine_module,
+        "get_runtime_controller",
+        lambda: controller,
+    )
+    return controller
 
 
 def _build_engine():
@@ -176,6 +192,51 @@ def test_three_fills_from_optin_parent_trigger_placement():
     assert submitted_kwargs["auto_placed_by_hotpoint"] is True
     assert submitted_kwargs["enable_hotpoint_replication"] is False
     assert submitted_kwargs["parent_order_id"] is None
+
+
+def test_starting_trigger_is_skipped_and_later_fill_can_place_when_ready(
+    runtime_controller,
+):
+    engine = _build_engine()
+    engine.orderbook.parent_order_ids["parent-root"] = {
+        "enable_hotpoint_replication": True,
+    }
+    engine.get_parent_of_child = Mock(return_value="parent-root")
+    runtime_controller._reset_for_tests()
+    assert runtime_controller.state is EngineState.STARTING
+
+    fake_rest = Mock()
+    fake_rest.limit_order_gtc.side_effect = lambda **kwargs: {
+        "success": True,
+        "success_response": {
+            "order_id": "exchange-order-id",
+            "client_order_id": kwargs["client_order_id"],
+        },
+    }
+    fake_insert = Mock(return_value=1)
+
+    with patch("configuration.REST_CLIENT", fake_rest), \
+         patch("database.order.insert_order_parent", fake_insert), \
+         patch(
+             "calculation.price_validation.get_product_metadata",
+             return_value=engine.orderbook.product["BTC-USDC"],
+         ):
+        for _ in range(3):
+            engine._maybe_dispatch_hotpoint(_delta(price=100.0))
+
+        fake_rest.limit_order_gtc.assert_not_called()
+        fake_insert.assert_not_called()
+        assert runtime_controller.total_inflight() == 0
+
+        assert runtime_controller.complete_startup() is True
+        # Readiness does not replay a consumed startup trigger. A later fill
+        # is required to produce the next detector event.
+        fake_rest.limit_order_gtc.assert_not_called()
+        fake_insert.assert_not_called()
+        engine._maybe_dispatch_hotpoint(_delta(price=100.0))
+
+    fake_rest.limit_order_gtc.assert_called_once()
+    fake_insert.assert_called_once()
 
 
 # ----------------------------------------------------------------------------

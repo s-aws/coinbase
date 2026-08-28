@@ -43,6 +43,7 @@ Examples:
 - fee/profit/size calculations
 - fill reconciler matching logic
 - stealth policy normalization
+- bridge cleanup retry after bounded scheduler joins or stop exceptions
 
 ### Integration
 Cross-module workflows with realistic collaboration boundaries.
@@ -58,7 +59,11 @@ Examples include:
 - follow-up claim and replacement-slot race prevention
 - stealth cancel/re-entry and move/reprice active-placement safety
 - same-side post-fill retreat hidden-order selection, idempotency, reveal-threshold tracking, and anchor-offset persistence
-- runtime controller admission/drain behavior
+- runtime controller STARTING/readiness, sticky startup-pause, and
+  admission/drain behavior
+- startup orchestration order and originating-action rejection before readiness
+- stop races across fee refresh legs, sampled dashboard status publication,
+  websocket ownership, and retryable engine cleanup
 - dashboard handler contracts
 - missed-fill reconciliation behavior
 

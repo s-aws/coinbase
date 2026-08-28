@@ -1859,6 +1859,12 @@ Administrative:
 - `admin_shutdown_response`
 - `admission_rejected`
 
+During process startup, originating dashboard requests receive
+`admission_rejected` with `engine_state="STARTING"`. `admin_status_response`,
+`admin_pause_response`, and `admin_resume_response` expose
+`startup_pause_pending`. A startup pause leaves state `STARTING` until runtime
+readiness; resume cannot open admission during that interval.
+
 Order/parent responses:
 - `order_response`
 - `cancel_response`
@@ -2376,9 +2382,36 @@ Operator contract:
 - `get_runtime_controller()` singleton accessor
 - `check_admission(category)` gate
 - `track_inflight(category)` context manager
+- `track_admitted_inflight(category)` atomic admission/accounting context
+- `complete_startup()` sole `STARTING` readiness transition
+- `startup_pause_pending()` startup-latch inspection
+- `lifecycle_snapshot()` coherent `(state, is_admitting, is_stopping)` status
 - `request_pause()`, `resume()`, `request_shutdown()`
+- `request_shutdown_from_signal()` lock-free sticky signal-handler handoff
 - `drain_and_stop(timeout_seconds)`
-- `register_stop_hook(name, hook)`
+- `register_stop_hook(name, hook)` returns `True` when queued; while effective
+  state is `DRAINING` it invokes and tracks the hook immediately, and after
+  `STOPPED` it invokes outside the already-published terminal result
+- `start_startup_component(name, start, stop)` atomically registers then starts
+  one bounded component only while state is `STARTING`
+
+`drain_and_stop()` is single-owner. Concurrent callers do not execute hooks a
+second time; they receive the owning drain's terminal `DrainResult`. Timeout
+values must be finite, non-negative, and within the platform wait limit.
+
+Dashboard `engine_status` includes the RuntimeController `engine_state` sampled
+when OrderEngine publishes status. `running` means background startup completed
+and RuntimeController currently admits originating work; it would be false in
+a sample taken during STARTING, PAUSED, DRAINING, or STOPPED.
+`admin_status_response` is the live state authority after the engine stop
+hook's final DRAINING sample.
+
+`OrderEngine.prepare_for_global_drain()` is the early ordered hook. It sets the
+local stop event only when background startup is incomplete; for a fully
+started engine it publishes the non-running DRAINING sample while preserving
+fill/event workers until the stealth bridge has stopped. The later
+`OrderEngine.stop()` hook sets the event unconditionally and performs component
+cleanup.
 
 Inflight categories used by callers include:
 - `INFLIGHT_REST_PLACE`
@@ -2386,6 +2419,8 @@ Inflight categories used by callers include:
 - `INFLIGHT_FILL_PROCESSING`
 - `INFLIGHT_STEALTH_REVEAL`
 - `INFLIGHT_DB_WRITE`
+- `INFLIGHT_STOP_HOOK` (reported only when a DRAINING-time late stop hook
+  exceeds the drain wait)
 
 ## 5) Error-Handling Guidance
 

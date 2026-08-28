@@ -35,7 +35,9 @@ Example: initialize and run
     ...     max_workers=8,
     ... )
     >>> engine.logging_flags['order'] = True
-    >>> engine.run_forever()
+
+``main.py`` owns reconciliation and readiness publication; production startup
+must run through that entry point rather than calling ``run_forever`` bare.
 
 Example: register a custom fill hook
     >>> def my_fill_hook(fill_context: dict) -> None:
@@ -60,7 +62,7 @@ from queue import Queue, Full, Empty
 from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor
 from types import ModuleType
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 from coinbase.websocket import WSClient, WSClientConnectionClosedException
 
 from external import CoinbaseWebSocketClient
@@ -74,7 +76,7 @@ from configuration import (
 )
 
 from core.constants import get_local_now
-from core.enums import OrderStatus, OrderSide, ProductType, FollowUpRevealDirection, Direction, TargetMovementType, ChannelType, StealthOrderStatus, EventStreamType, EventSourceChannel
+from core.enums import OrderStatus, OrderSide, ProductType, FollowUpRevealDirection, Direction, TargetMovementType, ChannelType, StealthOrderStatus, EventStreamType, EventSourceChannel, EngineState
 from core.stealth_order_manager import resolve_stealth_chain_root
 from core.exceptions import (
     OrderProcessingError,
@@ -83,6 +85,11 @@ from core.exceptions import (
     FollowUpOrderError,
     WebSocketMessageError,
     CoinbaseAPIError,
+)
+from core.runtime_controller import (
+    INFLIGHT_REST_PLACE,
+    EngineNotAdmittingError,
+    get_runtime_controller,
 )
 from calculation.resolver import (
     resolve_order_size,
@@ -199,7 +206,9 @@ class OrderEngine:
         ...     max_workers=8
         ... )
         >>> engine.logging_flags['order'] = True
-        >>> engine.run_forever()
+
+    ``main.py`` owns reconciliation and readiness publication. A bare
+    ``run_forever`` call intentionally leaves RuntimeController in STARTING.
     """
 
     def __init__(
@@ -313,6 +322,15 @@ class OrderEngine:
         # ``while True``. Threads use ``Event.wait`` instead of ``time.sleep``
         # so they wake immediately on shutdown rather than after the next
         # interval expires.
+        # Short publication boundary for the one-shot background lifecycle.
+        # DB/REST preparation never runs under this lock. Each bounded worker
+        # activation either commits before stop, or observes the sticky
+        # shutdown event and is refused. The executor cannot be reopened.
+        self._lifecycle_lock = threading.RLock()
+        self._startup_claimed = False
+        self._background_threads_started = False
+        self._stop_cleanup_lock = threading.Lock()
+        self._market_tick_recorder = None
         self._shutdown_event = threading.Event()
         # Short blocking timeout used by event-worker queue.get() calls so
         # workers can periodically observe the shutdown event between events.
@@ -733,7 +751,10 @@ class OrderEngine:
                         shutdown_event=self._shutdown_event,
                         log_callback=self.log_message,
                     )
-                    self._hotpoint_decay_sweeper.start()
+                    self._commit_startup_activation(
+                        "hotpoint-decay-sweeper",
+                        self._hotpoint_decay_sweeper.start,
+                    )
                     self.log_message("info", "[HOTPOINT] Decay sweeper started")
                 except Exception as e:
                     self.log_message(
@@ -791,16 +812,34 @@ class OrderEngine:
             from database.order import insert_order_parent
 
             product_meta = self.orderbook.product.get(delta.product_id, {})
-            place_hotpoint_order(
-                event=event,
-                rate_limiter=rate_limiter,
-                product_meta=product_meta,
-                policy=policy,
-                rest_client=REST_CLIENT,
-                insert_order_parent_fn=insert_order_parent,
-                kill_switch_enabled=self.is_hotpoint_auto_place_enabled(),
-                log_callback=self.log_message,
-            )
+            try:
+                # Worker threads start while runtime state is STARTING.  The
+                # hotpoint placer is a true originating exchange action, so
+                # admission and in-flight registration must be atomic here.
+                # Detector history remains intact while placement is blocked.
+                with get_runtime_controller().track_admitted_inflight(
+                    INFLIGHT_REST_PLACE
+                ):
+                    place_hotpoint_order(
+                        event=event,
+                        rate_limiter=rate_limiter,
+                        product_meta=product_meta,
+                        policy=policy,
+                        rest_client=REST_CLIENT,
+                        insert_order_parent_fn=insert_order_parent,
+                        kill_switch_enabled=self.is_hotpoint_auto_place_enabled(),
+                        log_callback=self.log_message,
+                    )
+            except EngineNotAdmittingError as admission_error:
+                self.log_message(
+                    "info",
+                    self.build_event_log_payload(
+                        "hotpoint_placement_skipped_not_admitting",
+                        client_order_id=delta.client_order_id,
+                        product_id=delta.product_id,
+                        engine_state=admission_error.state.value,
+                    ),
+                )
         except Exception as e:
             self.log_message(
                 "warning",
@@ -5025,6 +5064,12 @@ class OrderEngine:
         Returns:
             None (infinite loop)
         """
+        # A worker committed immediately before stop may not have entered its
+        # target yet. Refuse connection setup once the shared stop intent is
+        # already visible.
+        if self._shutdown_event.is_set():
+            return
+
         # Create SDK client and wrap with our abstraction
         sdk_client = WSClient(
             verbose=True,
@@ -5035,13 +5080,21 @@ class OrderEngine:
         )
         ws_client = CoinbaseWebSocketClient(sdk_client)
 
-        ws_client.connect()
-        ws_client.subscribe(
-            products=self.subscription.product_ids,
-            channels=self.subscription.channels,
-        )
-
+        connection_attempted = False
         try:
+            if self._shutdown_event.is_set():
+                return
+            # The wrapper marks itself connected before the SDK open call.
+            # Record ownership first so a partial/failed open is still closed.
+            connection_attempted = True
+            ws_client.connect()
+            if self._shutdown_event.is_set():
+                return
+            ws_client.subscribe(
+                products=self.subscription.product_ids,
+                channels=self.subscription.channels,
+            )
+
             while not self._shutdown_event.is_set():
                 if ws_client.sleep_with_exception_check(1):
                     break
@@ -5053,9 +5106,109 @@ class OrderEngine:
                     error=str(e),
                 ),
             )
+        finally:
+            if connection_attempted:
+                try:
+                    ws_client.disconnect()
+                except Exception as exc:
+                    # A cleanup failure must not mask the connect/subscribe
+                    # failure that caused this worker to unwind.
+                    try:
+                        self.log_message(
+                            "warning",
+                            self.build_event_log_payload(
+                                "websocket_disconnect_failed",
+                                error=str(exc),
+                            ),
+                        )
+                    except Exception:
+                        pass
 
     def start_background_threads(self) -> None:
-        """Start all background worker threads.
+        """Run one-shot preparation and publish owned workers fail closed."""
+
+        with self._lifecycle_lock:
+            if (
+                self._shutdown_event.is_set()
+                or get_runtime_controller().is_stopping()
+            ):
+                raise RuntimeError(
+                    "OrderEngine background startup refused after stop"
+                )
+            if self._startup_claimed:
+                raise RuntimeError(
+                    "OrderEngine background startup has already been attempted"
+                )
+            self._startup_claimed = True
+
+        try:
+            self._start_background_threads_unlocked()
+            with self._lifecycle_lock:
+                if self._shutdown_event.is_set():
+                    raise RuntimeError(
+                        "OrderEngine background startup interrupted by stop"
+                    )
+                self._background_threads_started = True
+        except Exception:
+            self.stop()
+            raise
+
+    def _raise_if_background_startup_stopped(self, stage: str) -> None:
+        """Abort preparation once sticky engine stop intent is visible."""
+
+        with self._lifecycle_lock:
+            if (
+                self._shutdown_event.is_set()
+                or get_runtime_controller().is_stopping()
+            ):
+                raise RuntimeError(
+                    "OrderEngine background startup interrupted during "
+                    f"{stage}"
+                )
+
+    def _commit_startup_activation(
+        self,
+        name: str,
+        start: Callable[[], Any],
+    ) -> Any:
+        """Commit one bounded component start against sticky stop intent."""
+
+        with self._lifecycle_lock:
+            if (
+                self._shutdown_event.is_set()
+                or get_runtime_controller().is_stopping()
+            ):
+                raise RuntimeError(
+                    f"OrderEngine refused {name} activation after stop"
+                )
+            return start()
+
+    def _start_owned_thread(
+        self,
+        *,
+        name: str,
+        target: Callable[..., Any],
+        kwargs: Optional[Dict[str, Any]] = None,
+        daemon: bool = True,
+    ) -> threading.Thread:
+        """Construct a thread, then publish only its bounded ``start`` call."""
+
+        thread = threading.Thread(
+            name=name,
+            target=target,
+            kwargs=kwargs or {},
+            daemon=daemon,
+        )
+        self._commit_startup_activation(name, thread.start)
+        return thread
+
+    def _start_background_threads_unlocked(self) -> None:
+        """Prepare state and commit all background worker activations.
+
+        Despite the compatibility name, this method is intentionally called
+        without holding ``_lifecycle_lock``. Only bounded activation calls use
+        :meth:`_commit_startup_activation`; DB and REST preparation remain
+        interruptible by a concurrent stop request.
         
         Initializes parent/child order mappings, then launches:
         - Reconciliation thread
@@ -5068,28 +5221,38 @@ class OrderEngine:
             None
         """
         self.load_parent_child_order_ids(force_log=True)
+        self._raise_if_background_startup_stopped("parent/child hydration")
         self._hydrate_order_progress_tracker_from_db()
+        self._raise_if_background_startup_stopped("partial-fill hydration")
 
-        # Update dashboard with initial engine status
-        update_engine_status(self._build_engine_status_payload(event_queue_depth=0))
-        add_log_entry("INFO", "Trading engine started")
+        # Publish the explicit non-operational STARTING state. Readiness is
+        # published only after the required launch sequence below returns.
+        self._publish_engine_status(event_queue_depth=0)
 
         # Initialise the market-tick recorder + retention sweeper. Idempotent;
         # safe to call repeatedly. Tickers won't be persisted until this runs,
         # so it must happen before the channel workers start below.
         if MARKET_TICK_RECORDER_AVAILABLE:
             try:
-                _init_market_tick_recorder()
+                recorder = _init_market_tick_recorder(start_sweeper=False)
+                self._market_tick_recorder = recorder
+                self._commit_startup_activation(
+                    "market-tick-retention",
+                    recorder.start_retention_sweeper,
+                )
             except Exception as e:
                 self.log_message(
                     "warning",
                     f"market_tick recorder failed to initialise: {e}",
                 )
 
+        self._raise_if_background_startup_stopped("market-tick recorder startup")
+
         # Hotpoint Auto-Replicate: restart-rebuild the rate-limiter from
         # `order_parent` rows + start the decay sweeper. Both are best-effort;
         # failures degrade the feature, never abort engine startup.
         self._start_hotpoint_background()
+        self._raise_if_background_startup_stopped("hotpoint background startup")
 
         # Decision-support warm-up: replay persisted ticks into the
         # in-memory Fibonacci/standard-window tracker so the longer
@@ -5116,48 +5279,62 @@ class OrderEngine:
                         f"market_metrics warm-load failed: {e}",
                     )
 
-            threading.Thread(
+            self._start_owned_thread(
                 target=_warm_load_metrics,
                 name="market-metrics-warmload",
                 daemon=True,
-            ).start()
+            )
 
-        threading.Thread(
+        self._start_owned_thread(
             name="parent_child_reconcile_thread",
             target=self.reconcile_parent_child_order_ids_periodically,
             kwargs={"interval_seconds": 30},
             daemon=True,
-        ).start()
+        )
         
         # Start status monitoring thread
-        threading.Thread(
+        self._start_owned_thread(
             name="dashboard_status_monitor",
             target=self._monitor_engine_status,
             daemon=True,
-        ).start()
+        )
 
-        threading.Thread(
+        self._start_owned_thread(
             name="rotate_seen_events_buckets_thread",
             target=self.rotate_seen_events_buckets,
             daemon=True,
-        ).start()
+        )
 
         for channel in self.subscription.channels:
-            threading.Thread(
+            self._start_owned_thread(
                 name=f"{channel}_worker",
                 target=self.generate_process_event_worker(channel),
                 daemon=True,
-            ).start()
+            )
         
-        # Start fee manager (fetches taker fees from Coinbase API, refreshes hourly)
-        self.fee_manager.start()
+        # Publish the hourly worker under the short lifecycle boundary, then
+        # perform the historical immediate Coinbase refresh without holding
+        # that boundary. A stop can therefore return while REST is blocked;
+        # the post-refresh checkpoint prevents any later websocket launch.
+        if not self._commit_startup_activation(
+            "fee-manager-refresher",
+            self.fee_manager.start_periodic_refresh,
+        ):
+            raise RuntimeError("Fee manager startup refused after stop")
+        self._raise_if_background_startup_stopped(
+            "before initial fee refresh"
+        )
+        self.fee_manager.refresh_now()
+        self._raise_if_background_startup_stopped("initial fee refresh")
 
         for websocket in range(self.websocket_thread_maximum):
-            threading.Thread(
+            self._start_owned_thread(
                 name=f"websocket_thread_{websocket}",
                 target=self.connect_to_websocket,
                 daemon=True,
-            ).start()
+            )
+
+        self._raise_if_background_startup_stopped("websocket worker startup")
 
     def _monitor_engine_status(self) -> None:
         """Monitor and broadcast engine status periodically to dashboard.
@@ -5173,7 +5350,9 @@ class OrderEngine:
                 # Calculate total events in all queues
                 total_queue_depth = sum(q.qsize() for q in self.event_queue.values())
                 
-                update_engine_status(self._build_engine_status_payload(event_queue_depth=total_queue_depth))
+                self._publish_engine_status(
+                    event_queue_depth=total_queue_depth
+                )
             except Exception as e:
                 self.log_message("error", self.build_event_log_payload(
                     "dashboard_status_update_failed",
@@ -5183,9 +5362,12 @@ class OrderEngine:
                 return
 
     def _build_engine_status_payload(self, event_queue_depth: int) -> dict:
-        """Build dashboard engine status payload with adaptive fee regime metrics."""
+        """Build non-lifecycle dashboard telemetry.
+
+        ``running`` and ``engine_state`` are deliberately added only by
+        :meth:`_publish_engine_status`, at the serialized commit boundary.
+        """
         payload = {
-            "running": True,
             "threads_active": 2 + len(self.subscription.channels) + self.websocket_thread_maximum,
             "event_queue_depth": event_queue_depth,
         }
@@ -5210,12 +5392,84 @@ class OrderEngine:
 
         return payload
 
+    def _publish_engine_status(self, event_queue_depth: int) -> dict:
+        """Commit one lifecycle-consistent dashboard status snapshot.
+
+        Fee telemetry is prepared outside the lifecycle lock. The lifecycle
+        fields are then recomputed at the publication boundary so a snapshot
+        built before ``stop`` can never overwrite its terminal status with a
+        stale ``running=True`` value.
+        """
+
+        payload = self._build_engine_status_payload(event_queue_depth)
+        return self._commit_engine_status(payload)
+
+    def _commit_engine_status(self, payload: Dict[str, Any]) -> dict:
+        """Own the single serialized lifecycle-status publication path."""
+
+        payload = dict(payload)
+        with self._lifecycle_lock:
+            controller = get_runtime_controller()
+            engine_state, is_admitting, _is_stopping = (
+                controller.lifecycle_snapshot()
+            )
+            running = (
+                self._background_threads_started
+                and not self._shutdown_event.is_set()
+                and is_admitting
+            )
+            payload.update({
+                "running": running,
+                "engine_state": engine_state.value,
+            })
+            if (
+                not self._background_threads_started
+                or self._shutdown_event.is_set()
+            ):
+                payload["threads_active"] = 0
+            update_engine_status(payload)
+        return payload
+
+    def prepare_for_global_drain(self) -> None:
+        """Close incomplete startup without reversing normal drain order.
+
+        During startup, the sticky event prevents any later worker activation.
+        Once all workers have launched, they remain available for fills and
+        cancellations until the earlier stealth producer hook has returned;
+        the later full :meth:`stop` hook then closes them. In both cases the
+        dashboard immediately receives the controller's DRAINING state.
+        """
+
+        with self._lifecycle_lock:
+            if not self._background_threads_started:
+                self._shutdown_event.set()
+            try:
+                # update_engine_status merges partial payloads. For a fully
+                # started engine, preserve its worker count until stop(); for
+                # incomplete startup, _commit_engine_status forces it to zero.
+                self._commit_engine_status({})
+            except Exception:
+                # Dashboard telemetry must never prevent startup quiesce.
+                pass
+
+    def request_stop(self) -> None:
+        """Publish unconditional local stop intent without running cleanup."""
+
+        with self._lifecycle_lock:
+            self._shutdown_event.set()
+            try:
+                self._commit_engine_status({"threads_active": 0})
+            except Exception:
+                # Dashboard telemetry must never prevent component quiesce.
+                pass
+
     def stop(self) -> None:
         """Signal cooperative shutdown to all engine background threads.
         
-        Idempotent. Safe to call from a signal handler or from the runtime
-        controller's drain orchestrator. Does NOT join threads itself â€” they
-        are daemon threads, and joining is not needed because:
+        Idempotent and safe for concurrent lifecycle threads, including the
+        runtime controller's drain orchestrator. A Python signal handler must
+        delegate here rather than re-entering an interrupted thread. Ordinary
+        engine workers are daemon threads and are not joined because:
         
         - Periodic loops use ``self._shutdown_event.wait`` and return on the
           next iteration boundary (within their poll interval).
@@ -5227,20 +5481,48 @@ class OrderEngine:
         so the drain waits for outstanding fill processing / DB writes before
         the process exits.
         """
-        self._shutdown_event.set()
-        try:
-            self.event_executor.shutdown(wait=False, cancel_futures=False)
-        except Exception:
-            pass
-        try:
-            if getattr(self, "fee_manager", None) is not None:
-                stop = getattr(self.fee_manager, "stop", None)
-                if callable(stop):
-                    stop()
-        except Exception:
-            pass
+        # Publish sticky stop intent under the same short lock used by worker
+        # activation. Cleanup then runs outside it, so DB/REST preparation can
+        # never make the runtime drain wait for this hook.
+        # Status monitor publications use request_stop's commit boundary and
+        # recompute lifecycle fields at commit time. Therefore a stale
+        # pre-stop payload can only publish before its false status, never
+        # afterward as running.
+        self.request_stop()
 
-    def run_forever(self) -> None:
+        with self._stop_cleanup_lock:
+            # Every component stop is idempotent. Reattempt each one on a
+            # subsequent call so a transient exception or bounded join does
+            # not permanently suppress cleanup from the canonical drain.
+            try:
+                sweeper = getattr(self, "_hotpoint_decay_sweeper", None)
+                if sweeper is not None:
+                    sweeper.stop(timeout=5)
+            except Exception:
+                pass
+            try:
+                recorder = getattr(self, "_market_tick_recorder", None)
+                if recorder is not None:
+                    recorder.stop()
+            except Exception:
+                pass
+            try:
+                self.event_executor.shutdown(wait=False, cancel_futures=False)
+            except Exception:
+                pass
+            try:
+                if getattr(self, "fee_manager", None) is not None:
+                    stop = getattr(self.fee_manager, "stop", None)
+                    if callable(stop):
+                        stop()
+            except Exception:
+                pass
+
+    def run_forever(
+        self,
+        *,
+        on_background_threads_started: Optional[Callable[[], None]] = None,
+    ) -> None:
         """Start all background threads and loop until shutdown is signalled.
         
         Call this to launch the trading engine. Blocks until
@@ -5250,11 +5532,36 @@ class OrderEngine:
         Returns:
             None
         
-        Example:
-            >>> engine = OrderEngine(...)
-            >>> engine.run_forever()  # Starts all threads, returns on shutdown
+        Production startup is owned by ``main.py``. Embedded callers must
+        reproduce its reconciliation/activation barrier and provide
+        ``on_background_threads_started`` to publish runtime readiness.
         """
-        self.start_background_threads()
+        try:
+            self.start_background_threads()
+            if on_background_threads_started is not None:
+                self._commit_startup_activation(
+                    "startup-readiness",
+                    on_background_threads_started,
+                )
+                readiness_status = self._publish_engine_status(
+                    event_queue_depth=0
+                )
+                controller = get_runtime_controller()
+                if (
+                    not self._shutdown_event.is_set()
+                    and controller.state
+                    in (EngineState.RUNNING, EngineState.PAUSED)
+                ):
+                    add_log_entry(
+                        "INFO",
+                        "Trading engine startup complete "
+                        f"({readiness_status['engine_state']})",
+                    )
+        except Exception:
+            # A partial worker launch must be torn down even when startup
+            # fails before the readiness callback can run.
+            self.stop()
+            raise
         # Block on the shutdown event instead of busy-sleeping. Returns
         # promptly when ``stop()`` is called.
         #

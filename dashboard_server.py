@@ -44,6 +44,7 @@ from core.runtime_controller import (
     INFLIGHT_REST_PLACE,
     EngineNotAdmittingError,
     get_runtime_controller,
+    validate_drain_timeout_seconds,
 )
 from database.database import PostgresDB
 from calculation.formatter import safe_float
@@ -61,6 +62,7 @@ _ORIGINATING_MSG_TYPES = frozenset({
     "move_order",
     "premark_move",
     "import_stealth_orders",
+    "place_hotpoint_test_order",
 })
 
 # Stealth-order statuses considered "active" for export. Derived from the
@@ -114,6 +116,7 @@ engine_state = {
     "stealth_orders": {},  # stealth_order_id -> order_data
     "engine_status": {
         "running": False,
+        "engine_state": EngineState.STARTING.value,
         "threads_active": 0,
         "event_queue_depth": 0,
         "taker_fee_rate": None,
@@ -540,14 +543,21 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
         # system and wind down existing positions.
         controller = get_runtime_controller()
         if msg_type in _ORIGINATING_MSG_TYPES and not controller.is_admitting():
+            if controller.state is EngineState.STARTING:
+                rejection_message = (
+                    "Engine startup is still completing; new orders are not "
+                    "being accepted yet."
+                )
+            else:
+                rejection_message = (
+                    f"Engine is {controller.state.value}; new orders are not "
+                    f"being accepted. Resume the engine to place new orders."
+                )
             response = {
                 "type": "admission_rejected",
                 "rejected_type": msg_type,
                 "engine_state": controller.state.value,
-                "message": (
-                    f"Engine is {controller.state.value}; new orders are not "
-                    f"being accepted. Resume the engine to place new orders."
-                ),
+                "message": rejection_message,
             }
             await websocket.send(json.dumps(response))
             add_log_entry(
@@ -562,6 +572,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 "engine_state": controller.state.value,
                 "is_admitting": controller.is_admitting(),
                 "is_stopping": controller.is_stopping(),
+                "startup_pause_pending": controller.startup_pause_pending(),
                 "inflight": controller.inflight_snapshot(),
                 "total_inflight": controller.total_inflight(),
                 "timestamp": datetime.utcnow().isoformat(),
@@ -575,9 +586,16 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 "type": "admin_pause_response",
                 "changed": changed,
                 "engine_state": controller.state.value,
+                "startup_pause_pending": controller.startup_pause_pending(),
             }
             if changed:
-                add_log_entry("WARNING", "Engine paused via admin_pause")
+                if controller.state is EngineState.STARTING:
+                    add_log_entry(
+                        "WARNING",
+                        "Engine pause requested during startup via admin_pause",
+                    )
+                else:
+                    add_log_entry("WARNING", "Engine paused via admin_pause")
             await websocket.send(json.dumps(response))
             return
 
@@ -587,6 +605,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 "type": "admin_resume_response",
                 "changed": changed,
                 "engine_state": controller.state.value,
+                "startup_pause_pending": controller.startup_pause_pending(),
             }
             if changed:
                 add_log_entry("INFO", "Engine resumed via admin_resume")
@@ -594,18 +613,30 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
             return
 
         if msg_type == "admin_shutdown":
-            # Acknowledge first so the dashboard sees the response, then
-            # kick off drain in a worker thread so we don't block the
-            # asyncio event loop.
-            timeout = float(data.get("timeout_seconds", 30.0))
+            # Close admission synchronously, then acknowledge and run the
+            # bounded drain in a worker so the asyncio loop stays responsive.
+            # This prevents startup readiness from winning after the operator
+            # has already requested shutdown.
+            try:
+                timeout = validate_drain_timeout_seconds(
+                    data.get("timeout_seconds", 30.0)
+                )
+            except ValueError as exc:
+                await websocket.send(json.dumps({
+                    "type": "admin_shutdown_response",
+                    "accepted": False,
+                    "engine_state_before": controller.state.value,
+                    "message": str(exc),
+                }))
+                return
+            state_before = controller.state
+            controller.request_shutdown()
             response = {
                 "type": "admin_shutdown_response",
                 "accepted": True,
                 "timeout_seconds": timeout,
-                "engine_state_before": controller.state.value,
+                "engine_state_before": state_before.value,
             }
-            await websocket.send(json.dumps(response))
-            add_log_entry("WARNING", f"Engine shutdown requested (timeout={timeout}s)")
 
             def _drain_worker() -> None:
                 try:
@@ -613,7 +644,26 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 except Exception:
                     logger.exception("Drain worker raised")
 
-            Thread(target=_drain_worker, daemon=True, name="admin-shutdown-drain").start()
+            try:
+                drain_thread = Thread(
+                    target=_drain_worker,
+                    daemon=False,
+                    name="admin-shutdown-drain",
+                )
+                drain_thread.start()
+            except Exception:
+                # Admission is already closed. If the worker cannot be
+                # created, complete the same single-owner drain here instead
+                # of leaving the runtime stranded in DRAINING.
+                logger.exception(
+                    "Could not start admin drain worker; draining synchronously"
+                )
+                controller.drain_and_stop(timeout_seconds=timeout)
+            await websocket.send(json.dumps(response))
+            add_log_entry(
+                "WARNING",
+                f"Engine shutdown requested (timeout={timeout}s)",
+            )
             return
         
         if msg_type == "place_order":
@@ -3148,12 +3198,13 @@ if __name__ == "__main__":
     
     # Simulate some data
     update_engine_status({
-        "running": True,
-        "threads_active": 5,
+        "running": False,
+        "engine_state": EngineState.STARTING.value,
+        "threads_active": 0,
         "event_queue_depth": 3,
     })
     
-    add_log_entry("INFO", "Trading engine started")
+    add_log_entry("INFO", "Dashboard demo started without trading engine")
     
     try:
         while True:

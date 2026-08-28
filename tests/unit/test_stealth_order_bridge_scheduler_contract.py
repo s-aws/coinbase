@@ -26,8 +26,21 @@ from bridges.stealth_event_deadline_scheduler import (
 )
 from core.enums import EngineState, RevealConditionType, StealthOrderStatus, StealthWakePurpose
 from core.exceptions import StealthOrderPersistenceError
-from core.runtime_controller import EngineNotAdmittingError
+from core.runtime_controller import EngineNotAdmittingError, RuntimeController
 from core.stealth_order_manager import StealthOrderManager
+
+
+@pytest.fixture(autouse=True)
+def _completed_runtime_by_default(monkeypatch):
+    """Make each bridge test choose its runtime state explicitly."""
+    controller = RuntimeController()
+    assert controller.complete_startup() is True
+    monkeypatch.setattr(
+        bridge_module,
+        "get_runtime_controller",
+        lambda: controller,
+    )
+    return controller
 
 
 def _time_delay_order(
@@ -255,6 +268,9 @@ class PausedRuntimeController:
     def is_admitting(self) -> bool:
         return False
 
+    def is_stopping(self) -> bool:
+        return False
+
     @contextmanager
     def track_inflight(self, _category: str):
         yield
@@ -276,6 +292,9 @@ class MockRuntimeController:
     def is_admitting(self) -> bool:
         return self.pause_requests == 0
 
+    def is_stopping(self) -> bool:
+        return False
+
     @contextmanager
     def track_admitted_inflight(self, category: str):
         if not self.is_admitting():
@@ -290,6 +309,9 @@ class MutableRuntimeController:
 
     def is_admitting(self) -> bool:
         return self.state == EngineState.RUNNING
+
+    def is_stopping(self) -> bool:
+        return self.state in (EngineState.DRAINING, EngineState.STOPPED)
 
     def request_pause(self) -> bool:
         self.pause_requests += 1
@@ -668,6 +690,194 @@ def test_explicit_creation_id_is_normalized_before_lock_ownership(
         assert set(bridge._order_action_locks) == {normalized_id}
     finally:
         scheduler.stop()
+
+
+def test_bridge_activation_and_stop_have_one_lifecycle_order() -> None:
+    bridge = object.__new__(bridge_module.StealthOrderBridge)
+    bridge._lifecycle_lock = threading.RLock()
+    bridge._stop_cleanup_lock = threading.Lock()
+    bridge._shutdown_event = threading.Event()
+    bridge._decisions_ready = threading.Event()
+    bridge._activation_claimed = False
+    bridge.running = True
+    activation_entered = threading.Event()
+    release_activation = threading.Event()
+    events = []
+
+    def activate_unlocked() -> None:
+        events.append("activation_entered")
+        activation_entered.set()
+        assert release_activation.wait(timeout=1.0)
+        events.append("activation_returned")
+
+    bridge._activate_decisions_unlocked = activate_unlocked
+    bridge._stop_unlocked = lambda: events.append("stop")
+
+    activation_thread = threading.Thread(target=bridge.activate_decisions)
+    stop_thread = threading.Thread(target=bridge.stop)
+    activation_thread.start()
+    assert activation_entered.wait(timeout=1.0)
+    stop_thread.start()
+    stop_thread.join(timeout=1.0)
+    assert not stop_thread.is_alive()
+    assert events == ["activation_entered", "stop"]
+    assert bridge._shutdown_event.is_set()
+    assert bridge.running is False
+
+    release_activation.set()
+    activation_thread.join(timeout=1.0)
+
+    assert not activation_thread.is_alive()
+    assert events == ["activation_entered", "stop", "activation_returned"]
+
+
+def _bridge_stop_surface(scheduler) -> bridge_module.StealthOrderBridge:
+    bridge = object.__new__(bridge_module.StealthOrderBridge)
+    bridge._lifecycle_lock = threading.RLock()
+    bridge._stop_cleanup_lock = threading.Lock()
+    bridge._shutdown_event = threading.Event()
+    bridge._decisions_ready = threading.Event()
+    bridge._anchor_due_lock = threading.Lock()
+    bridge._anchor_due_generations = {"order": 1}
+    bridge.stealth_manager = Mock(name="stealth_manager")
+    bridge.scheduler = scheduler
+    bridge.reconciliation_thread = None
+    bridge.running = True
+    return bridge
+
+
+def test_bridge_stop_retries_workers_after_bounded_join(monkeypatch) -> None:
+    scheduler = Mock(name="scheduler")
+    scheduler.stop.side_effect = [False, True]
+    bridge = _bridge_stop_surface(scheduler)
+    info = Mock(name="info")
+    warning = Mock(name="warning")
+    monkeypatch.setattr(bridge_module.logger, "info", info)
+    monkeypatch.setattr(bridge_module.logger, "warning", warning)
+
+    bridge.stop()
+    warning.assert_called_once()
+    info.assert_not_called()
+
+    bridge.stop()
+    assert scheduler.stop.call_count == 2
+    scheduler.stop.assert_called_with(join_timeout=5)
+    info.assert_called_once_with("Stealth order bridge stopped")
+
+
+def test_bridge_stop_retries_scheduler_exception_and_still_joins(
+    monkeypatch,
+) -> None:
+    scheduler = Mock(name="scheduler")
+    scheduler.stop.side_effect = [RuntimeError("stop failed"), True]
+    bridge = _bridge_stop_surface(scheduler)
+    reconciliation_thread = Mock(name="reconciliation_thread")
+    reconciliation_thread.is_alive.return_value = False
+    bridge.reconciliation_thread = reconciliation_thread
+    monkeypatch.setattr(bridge_module.logger, "info", Mock())
+    monkeypatch.setattr(bridge_module.logger, "warning", Mock())
+
+    with pytest.raises(RuntimeError, match="stop failed"):
+        bridge.stop()
+    reconciliation_thread.join.assert_called_once_with(timeout=5)
+
+    bridge.stop()
+    assert scheduler.stop.call_count == 2
+    assert reconciliation_thread.join.call_count == 2
+
+
+def test_bridge_stop_wins_while_hydration_is_blocked() -> None:
+    manager = FakeStealthManager()
+    hydration_entered = threading.Event()
+    release_hydration = threading.Event()
+    start_errors = []
+
+    def blocked_hydration() -> int:
+        hydration_entered.set()
+        assert release_hydration.wait(timeout=1.0)
+        return 0
+
+    manager.load_all_active_orders_from_db = blocked_hydration
+    bridge, scheduler = _new_bridge(manager)
+
+    def start_bridge() -> None:
+        try:
+            bridge.start()
+        except Exception as exc:
+            start_errors.append(exc)
+
+    start_thread = threading.Thread(target=start_bridge)
+    start_thread.start()
+    assert hydration_entered.wait(timeout=1.0)
+
+    stop_thread = threading.Thread(target=bridge.stop)
+    stop_thread.start()
+    stop_thread.join(timeout=0.5)
+    assert not stop_thread.is_alive()
+    assert bridge._shutdown_event.is_set()
+    assert bridge.running is False
+    assert manager.schedule_change_callback is None
+    assert scheduler.stopped is True
+
+    release_hydration.set()
+    start_thread.join(timeout=1.0)
+    assert not start_thread.is_alive()
+    assert len(start_errors) == 1
+    assert "interrupted during hydration" in str(start_errors[0])
+    assert bridge.reconciliation_thread is None
+
+
+def test_bridge_stop_wins_while_schedule_construction_is_blocked() -> None:
+    manager = FakeStealthManager((_time_delay_order("sid-a", "CONTRACT-A"),))
+    bridge, scheduler = _new_bridge(manager)
+    bridge.start()
+    schedule_entered = threading.Event()
+    release_schedule = threading.Event()
+    activation_errors = []
+
+    def blocked_schedule(_stealth_order_id: str) -> None:
+        schedule_entered.set()
+        assert release_schedule.wait(timeout=1.0)
+
+    bridge._schedule_order = blocked_schedule
+
+    def activate() -> None:
+        try:
+            bridge.activate_decisions()
+        except Exception as exc:
+            activation_errors.append(exc)
+
+    activation_thread = threading.Thread(target=activate)
+    activation_thread.start()
+    assert schedule_entered.wait(timeout=1.0)
+
+    stop_thread = threading.Thread(target=bridge.stop)
+    stop_thread.start()
+    stop_thread.join(timeout=0.5)
+    assert not stop_thread.is_alive()
+    assert bridge.running is False
+    assert bridge._decisions_ready.is_set() is False
+    assert scheduler.stopped is True
+
+    release_schedule.set()
+    activation_thread.join(timeout=1.0)
+    assert not activation_thread.is_alive()
+    assert len(activation_errors) == 1
+    assert "interrupted by stop" in str(activation_errors[0])
+    assert bridge.evaluation_thread is None
+
+
+def test_bridge_stop_before_start_is_terminal() -> None:
+    manager = FakeStealthManager()
+    bridge, scheduler = _new_bridge(manager)
+
+    bridge.stop()
+
+    with pytest.raises(RuntimeError, match="startup refused after stop"):
+        bridge.start()
+    assert bridge.running is False
+    assert scheduler.stopped is True
+    assert manager.schedule_change_callback is None
 
 
 def test_exchange_id_sync_re_resolves_under_sid_action_lock() -> None:
@@ -2386,8 +2596,13 @@ def test_condition_schedule_rebuild_has_no_anchor_handoff_gap(
     assert not rebuild_thread.is_alive()
 
 
-def test_due_anchor_is_retained_while_paused_then_runs_once_after_resume(
+@pytest.mark.parametrize(
+    "runtime_state",
+    (EngineState.STARTING, EngineState.PAUSED),
+)
+def test_due_anchor_is_retained_while_nonadmitting_then_runs_once(
     monkeypatch,
+    runtime_state,
 ) -> None:
     anchored = _time_delay_order("sid-anchor", "CONTRACT-A")
     anchored["anchor_repricing_policy_json"] = {
@@ -2400,7 +2615,11 @@ def test_due_anchor_is_retained_while_paused_then_runs_once_after_resume(
     manager = FakeStealthManager((anchored,))
     bridge, scheduler = _new_bridge(manager)
     bridge._decisions_ready.set()
-    controller = MutableRuntimeController(EngineState.PAUSED)
+    controller = RuntimeController()
+    if runtime_state is EngineState.PAUSED:
+        assert controller.request_pause() is True
+        assert controller.complete_startup() is True
+    assert controller.state is runtime_state
     monkeypatch.setattr(
         bridge_module,
         "get_runtime_controller",
@@ -2430,7 +2649,10 @@ def test_due_anchor_is_retained_while_paused_then_runs_once_after_resume(
         "sid-anchor": handoff_generation
     }
 
-    controller.state = EngineState.RUNNING
+    if runtime_state is EngineState.STARTING:
+        assert controller.complete_startup() is True
+    else:
+        assert controller.resume() is True
     bridge.process_due_anchor_repricing("CONTRACT-A", ticker)
     bridge.process_due_anchor_repricing("CONTRACT-A", ticker)
 
@@ -2820,15 +3042,27 @@ def test_reveal_failure_terminal_status_invalidates_anchor_lane() -> None:
         scheduler.stop()
 
 
-def test_paused_runtime_may_commit_triggered_but_never_reveals(monkeypatch) -> None:
+@pytest.mark.parametrize(
+    "runtime_state",
+    (EngineState.STARTING, EngineState.PAUSED),
+)
+def test_nonadmitting_runtime_may_commit_triggered_but_never_reveals(
+    monkeypatch,
+    runtime_state,
+) -> None:
     manager = FakeStealthManager((_time_delay_order("sid-a", "CONTRACT-A"),))
     manager.trigger_on_evaluation.add("sid-a")
+    controller = RuntimeController()
+    if runtime_state is EngineState.PAUSED:
+        assert controller.request_pause() is True
+        assert controller.complete_startup() is True
+    assert controller.state is runtime_state
     monkeypatch.setattr(
         bridge_module,
         "get_runtime_controller",
-        lambda: PausedRuntimeController(),
+        lambda: controller,
     )
-    bridge, _scheduler = _new_bridge(manager)
+    bridge, scheduler = _new_bridge(manager)
 
     try:
         bridge.start()
@@ -2846,6 +3080,10 @@ def test_paused_runtime_may_commit_triggered_but_never_reveals(monkeypatch) -> N
             == StealthOrderStatus.TRIGGERED.value
         )
         assert manager.revealed_ids == []
+        assert scheduler.current_generation(
+            "sid-a",
+            StealthWakePurpose.ADMISSION_RETRY,
+        ) > 0
     finally:
         bridge.stop()
 
@@ -2892,11 +3130,22 @@ def test_reveal_defers_when_pause_wins_atomic_admission(monkeypatch) -> None:
         scheduler.stop()
 
 
-def test_committed_trigger_reveals_once_after_runtime_resumes(monkeypatch) -> None:
+@pytest.mark.parametrize(
+    "runtime_state",
+    (EngineState.STARTING, EngineState.PAUSED),
+)
+def test_committed_trigger_reveals_once_after_runtime_admits(
+    monkeypatch,
+    runtime_state,
+) -> None:
     order = _time_delay_order("sid-a", "CONTRACT-A", delay_seconds=0)
     manager = FakeStealthManager((order,))
     manager.trigger_on_evaluation.add("sid-a")
-    controller = MutableRuntimeController(EngineState.PAUSED)
+    controller = RuntimeController()
+    if runtime_state is EngineState.PAUSED:
+        assert controller.request_pause() is True
+        assert controller.complete_startup() is True
+    assert controller.state is runtime_state
     monkeypatch.setattr(
         bridge_module,
         "get_runtime_controller",
@@ -2931,7 +3180,10 @@ def test_committed_trigger_reveals_once_after_runtime_resumes(monkeypatch) -> No
         )
         assert manager.revealed_ids == []
 
-        controller.state = EngineState.RUNNING
+        if runtime_state is EngineState.STARTING:
+            assert controller.complete_startup() is True
+        else:
+            assert controller.resume() is True
         deadline = time.monotonic() + 0.75
         while not manager.revealed_ids and time.monotonic() < deadline:
             time.sleep(0.005)

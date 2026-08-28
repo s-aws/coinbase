@@ -594,7 +594,11 @@ class EngineState(str, Enum):
 
     State machine (industry-standard quiesce-drain-stop model):
 
-        RUNNING  --request_pause()-->     PAUSING  --(drain)-->  PAUSED
+        STARTING --complete_startup()--> RUNNING
+        STARTING --request_pause()-->    STARTING (pause latched)
+        STARTING --complete_startup()--> PAUSED  (when pause latched)
+        STARTING --request_shutdown()--> DRAINING --(drain)--> STOPPED
+        RUNNING  --request_pause()-->     PAUSING  --> PAUSED
         PAUSED   --resume()-->            RUNNING
         RUNNING  --request_shutdown()-->  DRAINING --(drain)-->  STOPPED
         PAUSED   --request_shutdown()-->  DRAINING --(drain)-->  STOPPED
@@ -602,15 +606,19 @@ class EngineState(str, Enum):
     Admission rules (what is accepted at each state):
 
         | State    | New orders | Cancellations | Fill processing | DB writes |
+        | STARTING |    no      |     yes       |       yes       |    yes    |
         | RUNNING  |    yes     |     yes       |       yes       |    yes    |
         | PAUSING  |    no      |     yes       |       yes       |    yes    |
         | PAUSED   |    no      |     yes       |       yes       |    yes    |
         | DRAINING |    no      |     yes       |       yes       |    yes    |
         | STOPPED  |    no      |     no        |       no        |    no     |
 
-    "Soft pause" â€” pause stops *originating* new orders but keeps WS, fills,
-    and cancellations active so existing positions remain manageable.
+    ``request_pause`` publishes PAUSING then PAUSED synchronously in one call;
+    PAUSING is an instantaneous transition marker, not a drain phase. "Soft
+    pause" stops *originating* new orders but keeps WS, fills, and
+    cancellations active so existing positions remain manageable.
     """
+    STARTING = "STARTING"
     RUNNING = "RUNNING"
     PAUSING = "PAUSING"
     PAUSED = "PAUSED"

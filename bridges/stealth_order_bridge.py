@@ -89,9 +89,16 @@ class StealthOrderBridge:
         self.evaluation_thread = None
         self.reconciliation_thread = None
         self.running = False
+        # Short one-shot publication boundary. Hydration and schedule
+        # construction may block on DB/order locks and therefore never run
+        # under it; only bounded thread/scheduler starts arbitrate with stop.
+        self._lifecycle_lock = threading.RLock()
+        self._startup_claimed = False
+        self._activation_claimed = False
+        self._stop_cleanup_lock = threading.Lock()
         # Drives interruptible sleeps in the background loops so stop()
         # collapses near-instantly instead of waiting out the current
-        # tick. Set by stop() / cleared on (re)start.
+        # tick. Stop intent is sticky because the scheduler is one-shot.
         self._shutdown_event = threading.Event()
         # Startup hydration may run before exchange/local reconciliation.  The
         # scheduler can accept derived deadlines during that window, but its
@@ -126,6 +133,24 @@ class StealthOrderBridge:
         )
     
     def start(self):
+        """Hydrate, then publish passive workers through a short boundary."""
+
+        with self._lifecycle_lock:
+            if self.running:
+                return
+            if (
+                self._shutdown_event.is_set()
+                or get_runtime_controller().is_stopping()
+            ):
+                raise RuntimeError("Stealth order bridge startup refused after stop")
+            if self._startup_claimed:
+                raise RuntimeError(
+                    "Stealth order bridge startup has already been attempted"
+                )
+            self._startup_claimed = True
+        return self._start_unlocked()
+
+    def _start_unlocked(self):
         """Start background evaluation and reconciliation threads.
         
         Initializes local state and reconciliation.  Decision processing is
@@ -135,9 +160,17 @@ class StealthOrderBridge:
         if self.running:
             return
 
-        self.stealth_manager.set_schedule_invalidation_callback(
-            self._handle_order_schedule_change
-        )
+        with self._lifecycle_lock:
+            if (
+                self._shutdown_event.is_set()
+                or get_runtime_controller().is_stopping()
+            ):
+                raise RuntimeError(
+                    "Stealth order bridge startup refused before hydration"
+                )
+            self.stealth_manager.set_schedule_invalidation_callback(
+                self._handle_order_schedule_change
+            )
 
         # Load existing stealth orders from database.  Zero rows is valid, but
         # a failed/partial load is not: activating decisions from an incomplete
@@ -154,20 +187,36 @@ class StealthOrderBridge:
             )
         logger.info(f"Loaded {loaded_count} existing stealth orders from database")
 
-        self._shutdown_event.clear()
-        self._decisions_ready.clear()
-        with self._scheduler_failure_lock:
-            self._scheduler_failure_reported = False
-        self.running = True
-        
-        # Start reconciliation thread (sync with database every 30s)
-        self.reconciliation_thread = threading.Thread(
-            target=self.reconcile_stealth_orders_periodically,
-            kwargs={"interval_seconds": 30},
-            daemon=True,
-            name="StealthOrderBridge-Reconciliation"
-        )
-        self.reconciliation_thread.start()
+        with self._lifecycle_lock:
+            if (
+                self._shutdown_event.is_set()
+                or get_runtime_controller().is_stopping()
+            ):
+                self.stealth_manager.set_schedule_invalidation_callback(None)
+                raise RuntimeError(
+                    "Stealth order bridge startup interrupted during hydration"
+                )
+
+            self._decisions_ready.clear()
+            with self._scheduler_failure_lock:
+                self._scheduler_failure_reported = False
+            self.running = True
+
+            # Thread.start is the only operation inside the publication
+            # boundary; hydration above remains interruptible by stop.
+            self.reconciliation_thread = threading.Thread(
+                target=self.reconcile_stealth_orders_periodically,
+                kwargs={"interval_seconds": 30},
+                daemon=True,
+                name="StealthOrderBridge-Reconciliation",
+            )
+            try:
+                self.reconciliation_thread.start()
+            except Exception:
+                self.running = False
+                self._shutdown_event.set()
+                self.stealth_manager.set_schedule_invalidation_callback(None)
+                raise
         
         logger.info(
             "Stealth order bridge started; decision scheduler awaiting "
@@ -175,6 +224,27 @@ class StealthOrderBridge:
         )
 
     def activate_decisions(self) -> None:
+        """Build schedules, then atomically publish the decision worker."""
+
+        with self._lifecycle_lock:
+            if (
+                not self.running
+                or self._shutdown_event.is_set()
+                or get_runtime_controller().is_stopping()
+            ):
+                raise RuntimeError(
+                    "Stealth order bridge must be running before activation"
+                )
+            if self._decisions_ready.is_set():
+                return
+            if self._activation_claimed:
+                raise RuntimeError(
+                    "Stealth decision activation has already been attempted"
+                )
+            self._activation_claimed = True
+        self._activate_decisions_unlocked()
+
+    def _activate_decisions_unlocked(self) -> None:
         """Start the single scheduler consumer after startup reconciliation."""
 
         if not self.running:
@@ -190,38 +260,57 @@ class StealthOrderBridge:
             # than leave an apparently healthy but incomplete decision set.
             self._schedule_order(str(stealth_order_id))
 
-        # Strict schedule construction is complete. Publish readiness before
-        # starting the consumer so prequeued events/zero deadlines cannot run
-        # in a set-after-start gap. Any start/death path clears it again.
-        self._decisions_ready.set()
-        try:
-            self.evaluation_thread = self.scheduler.start(
-                on_market_event=self._handle_market_event,
-                on_deadline=self._handle_deadline_wake,
-                on_error=self._handle_scheduler_error,
-                on_fatal=self._handle_scheduler_fatal,
-                daemon=True,
-            )
-        except Exception:
-            self._decisions_ready.clear()
-            raise
-        if (
-            self.scheduler.stopped
-            or not self.evaluation_thread.is_alive()
-        ):
-            self._decisions_ready.clear()
-            worker_error = self.scheduler.worker_error
-            raise RuntimeError(
-                "Stealth decision scheduler failed during activation"
-                + (
-                    f": {type(worker_error).__name__}: {worker_error}"
-                    if worker_error is not None
-                    else ""
+        # Strict schedule construction is complete. Only readiness and the
+        # bounded scheduler Thread.start are serialized with stop. A shutdown
+        # that occurred while waiting on an order-action lock therefore wins
+        # without waiting for the full construction pass.
+        with self._lifecycle_lock:
+            if (
+                not self.running
+                or self._shutdown_event.is_set()
+                or get_runtime_controller().is_stopping()
+            ):
+                raise RuntimeError(
+                    "Stealth decision activation interrupted by stop"
                 )
-            )
+            self._decisions_ready.set()
+            try:
+                self.evaluation_thread = self.scheduler.start(
+                    on_market_event=self._handle_market_event,
+                    on_deadline=self._handle_deadline_wake,
+                    on_error=self._handle_scheduler_error,
+                    on_fatal=self._handle_scheduler_fatal,
+                    daemon=True,
+                )
+            except Exception:
+                self._decisions_ready.clear()
+                raise
+            if (
+                self.scheduler.stopped
+                or not self.evaluation_thread.is_alive()
+            ):
+                self._decisions_ready.clear()
+                worker_error = self.scheduler.worker_error
+                raise RuntimeError(
+                    "Stealth decision scheduler failed during activation"
+                    + (
+                        f": {type(worker_error).__name__}: {worker_error}"
+                        if worker_error is not None
+                        else ""
+                    )
+                )
         logger.info("Stealth decision scheduler activated")
     
     def stop(self):
+        """Publish sticky stop intent, then clean up without long lock holds."""
+
+        with self._lifecycle_lock:
+            self.running = False
+            self._shutdown_event.set()
+            self._decisions_ready.clear()
+        self._stop_unlocked()
+
+    def _stop_unlocked(self):
         """Stop background evaluation and reconciliation threads.
 
         Idempotent. Sets the shared shutdown event so loops exit at the
@@ -229,18 +318,48 @@ class StealthOrderBridge:
         sleep tick), then joins each thread with a generous safety
         ceiling. Typical observed shutdown latency is < 100ms.
         """
-        if not self.running and not self._shutdown_event.is_set():
-            return
-        self.running = False
-        self._shutdown_event.set()
-        self._decisions_ready.clear()
-        with self._anchor_due_lock:
-            self._anchor_due_generations.clear()
-        self.stealth_manager.set_schedule_invalidation_callback(None)
-        self.scheduler.stop(join_timeout=5)
-        if hasattr(self, 'reconciliation_thread') and self.reconciliation_thread:
-            self.reconciliation_thread.join(timeout=5)
-        logger.info("Stealth order bridge stopped")
+        with self._stop_cleanup_lock:
+            # Component stops are idempotent. Re-run them on later calls so a
+            # bounded join or transient cleanup exception is never converted
+            # into a permanent false "done" latch.
+            with self._anchor_due_lock:
+                self._anchor_due_generations.clear()
+            self.stealth_manager.set_schedule_invalidation_callback(None)
+            scheduler_stopped = False
+            scheduler_error = None
+            try:
+                scheduler_stopped = self.scheduler.stop(join_timeout=5)
+            except Exception as exc:
+                # Still join the independent reconciliation worker before
+                # propagating; a later stop call will retry the scheduler.
+                scheduler_error = exc
+            reconciliation_thread = getattr(
+                self,
+                "reconciliation_thread",
+                None,
+            )
+            reconciliation_stopped = True
+            if (
+                reconciliation_thread is not None
+                and reconciliation_thread is not threading.current_thread()
+            ):
+                reconciliation_thread.join(timeout=5)
+                reconciliation_stopped = not reconciliation_thread.is_alive()
+            elif reconciliation_thread is threading.current_thread():
+                reconciliation_stopped = False
+
+            if scheduler_stopped and reconciliation_stopped:
+                logger.info("Stealth order bridge stopped")
+            else:
+                logger.warning(
+                    "Stealth order bridge stop requested; workers still "
+                    "exiting (scheduler_stopped=%s, "
+                    "reconciliation_stopped=%s)",
+                    scheduler_stopped,
+                    reconciliation_stopped,
+                )
+            if scheduler_error is not None:
+                raise scheduler_error
 
     def _invalidate_order_deadlines(self, stealth_order_id: str) -> None:
         """Invalidate every derived wake for one logical client_order_id."""

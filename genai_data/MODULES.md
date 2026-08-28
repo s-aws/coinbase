@@ -20,12 +20,15 @@ Use it to find the single canonical behavior path before editing.
 
 ### `main.py`
 Bootstraps:
-- dashboard server
+- initial non-admitting runtime state and optional startup-pause latch
 - stealth bridge
 - order engine
-- runtime controller stop hooks
+- ordered runtime stop hooks and lock-free signal intent before hydration
+- passive stealth hydration before dashboard exposure
+- dashboard server while admission remains `STARTING`
 - startup reconciliation
 - periodic reconciler
+- post-worker readiness publication
 
 ### `dashboard_server.py`
 WebSocket server for operator commands and state broadcasts.
@@ -48,6 +51,14 @@ Responsibilities:
 - fill progress delta ingestion and persistence fan-out
 - ownership classification (`local`, `external`, `unknown`)
 - dashboard status/ticker/log broadcasts
+- atomic RuntimeController admission for worker-originated hotpoint placement
+- one-shot DB/REST preparation outside the lifecycle lock, bounded worker
+  publication serialized against cooperative stop, and partial-start cleanup
+  before readiness
+- lifecycle-consistent dashboard status publication and per-worker websocket
+  disconnect ownership
+- startup-conditional early drain quiesce, preserving fully started fill/event
+  workers until stealth bridge shutdown precedes full engine cleanup
 
 ### `core/stealth_order_manager.py`
 Stealth order state machine.
@@ -72,12 +83,17 @@ Boundary rule: this module owns stealth lifecycle truth. Any change that makes a
 ### `core/runtime_controller.py`
 Runtime lifecycle gate.
 Responsibilities:
-- state transitions (`RUNNING`, `PAUSED`, `DRAINING`, `STOPPED`)
+- state transitions (`STARTING`, `RUNNING`, transitional `PAUSING`, `PAUSED`,
+  `DRAINING`, `STOPPED`)
+- sticky pause requests during startup and sole readiness completion
 - admission checks for originating work
 - inflight tracking for graceful drain
 - atomic admission plus inflight registration for scheduler-owned reveal and
   anchor work
-- subsystem stop-hook orchestration
+- atomic register/start for bounded startup components
+- lock-free signal shutdown intent and shared terminal state/inflight boundary
+- single-owner subsystem stop-hook orchestration and tracked immediate
+  late-hook stop before terminal publication
 
 ### `core/startup_reconciler.py`
 Exchange truth diff and missed-fill audit.
@@ -167,8 +183,9 @@ The heap is disposable derived state, never lifecycle truth.
 > `bridges/processor_bridge.py`. Strangler-fig scaffolding from the v2
 > `OrderEngine` refactor; the migration was complete and the wrappers
 > were unused (orchestrator was a 250-line pass-through facade with one
-> live one-line method). `main.py` now calls `engine.run_forever()`
-> directly. `business.OrderCalculator` and `business.OrderProcessor`
+> live one-line method). `main.py` now owns reconciliation and readiness,
+> then calls `engine.run_forever()` with the readiness callback.
+> `business.OrderCalculator` and `business.OrderProcessor`
 > were also removed later the same day after audit confirmed they had
 > zero production callers once the bridges were gone.
 > `business.EventProcessor` survives — it backs the live `EventBridge`.

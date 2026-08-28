@@ -37,7 +37,7 @@ Agent process files:
 This is a multithreaded Coinbase trading engine with:
 - Parent/child order lifecycle management under a strict flat hierarchy.
 - Stealth orders with condition-based reveal, anchor repricing, cancel/re-entry, same-side post-fill retreat, and move-revealed flows.
-- Runtime lifecycle control (`RUNNING`, `PAUSED`, `DRAINING`, `STOPPED`) via `core/runtime_controller.py`.
+- Runtime lifecycle control (`STARTING`, `RUNNING`, transitional `PAUSING`, `PAUSED`, `DRAINING`, `STOPPED`) via `core/runtime_controller.py`.
 - Startup and periodic reconciliation against exchange truth (`core/startup_reconciler.py`, `core/periodic_reconciler.py`).
 - Fill ledger + cross-source fill reconciliation (`business/fill_ledger.py`, `business/fill_reconciler.py`).
 - Dashboard WebSocket server (`dashboard_server.py`) plus browser/terminal consumers.

@@ -62,14 +62,64 @@ The runtime is centered on a single `OrderEngine` instance (`core/order_engine.p
 - fee manager refresh loop (hourly)
 - market tick retention sweeper (if recorder initialized)
 
-`StealthOrderBridge.start()` performs strict database hydration and starts only
-the stealth DB reconciliation loop (`30s` cadence). It does not enable reveal
-decisions. After startup exchange/local reconciliation succeeds,
+`RuntimeController` is constructed in non-admitting `STARTING`. Stop hooks and
+the optional `ENGINE_START_PAUSED` latch are installed before any operator
+surface is exposed. `StealthOrderBridge.start()` then performs strict database
+hydration and starts only the stealth DB reconciliation loop (`30s` cadence);
+this passive hydration now precedes dashboard startup and does not enable
+reveal decisions. The dashboard may answer queries/admin commands while
+startup continues, but every configured originating message is rejected as
+`STARTING`.
+
+After startup exchange/local reconciliation succeeds,
 `activate_decisions()` builds every active order's derived schedule and starts
 one event/deadline worker. An incomplete hydration or failed schedule build
-always blocks engine startup. Unavailable startup reconciliation
-also blocks it unless the operator explicitly set `DISABLE_RECONCILER`; that
-flag bypasses reconciliation only.
+always blocks engine startup. Unavailable startup reconciliation also blocks
+it unless the operator explicitly set `DISABLE_RECONCILER`; that flag bypasses
+reconciliation only. Periodic reconciliation starts next, followed by
+`OrderEngine.start_background_threads()`. Only after that method returns does
+the `run_forever()` readiness callback call `RuntimeController.complete_startup()`
+and publish `RUNNING`, or `PAUSED` when a startup pause was latched. This
+boundary proves that every required, non-fail-soft `Thread.start()` call and
+the synchronous initial fee-refresh attempt returned. It does not prove that
+the fail-soft market-tick/hotpoint workers started, that parent/child or
+partial-fill hydration completed without a swallowed error, that either
+filtered fee request succeeded, that websocket connection/subscription
+completed, that a first Coinbase snapshot arrived, or that metrics warm-load
+finished.
+
+Periodic reconciler hook registration plus thread start is one bounded atomic
+startup action. Bridge hydration and schedule construction, plus OrderEngine
+DB/REST preparation, run outside component lifecycle locks. Sticky stop
+checkpoints surround those potentially blocking stages; only bounded
+callback/thread/scheduler publication is serialized with `stop()`. A stopped
+component therefore cannot publish or revive a worker, and a partial
+worker-start exception forces cooperative cleanup before readiness.
+
+An already-started Coinbase REST call is not force-cancelled and has no
+project-configured request timeout. Stop can return while that call is still
+blocked, but its post-call checkpoint prevents subsequent websocket launch or
+runtime readiness. Each websocket worker owns and closes its wrapper in a
+`finally` block once connection was attempted; a connection call that never
+returns cannot reach that cleanup until the SDK call unwinds.
+
+Runtime drain has one owner; concurrent callers receive the same terminal
+result, and a hook registered while the effective state is `DRAINING` is
+invoked immediately and counted until it returns, instead of being stranded
+behind an earlier hook snapshot. A hook registered after `STOPPED` is also
+invoked immediately, but necessarily runs outside the already-published
+terminal result. `STOPPED` is the logical admission/accounting terminal state.
+Bounded component joins or a drain timeout may still leave cooperative daemon
+work exiting; the guarantee is no new component activation or readiness
+revival, not that every OS thread has already terminated.
+
+Fill handling remains allowed during `STARTING`, including persistence of
+local hidden follow-up plans for existing exposure. Their exchange reveal is
+still admission-gated. Worker-originated hotpoint placement is separately
+wrapped in atomic admission/inflight registration, so it can retain detector
+history but cannot submit while `STARTING`. A trigger emitted during startup is
+skipped, not queued for readiness replay; a later qualifying fill is required
+to produce another placement attempt.
 
 The decision scheduler owns one `Condition`, an ordered bounded market-event
 FIFO, and one monotonic generational deadline heap. It has no DB, REST, or
@@ -129,13 +179,46 @@ Concurrency safety mechanisms:
 ## Lifecycle State Machine
 
 `RuntimeController` states:
+- `STARTING`: initial fail-closed state; originating work is rejected while
+  hydration/reconciliation/scheduler/worker startup completes.
 - `RUNNING`: full admission.
 - `PAUSING` -> `PAUSED`: no new originating work; cancels/fill handling continue.
 - `DRAINING`: shutdown requested; no new originating work.
 - `STOPPED`: terminal state.
 
-Admission is enforced at dashboard and engine-originated entry points.
-Inflight critical sections (`track_inflight`) allow graceful drain before stop hooks run. Scheduler-owned reveal and anchor actions use `track_admitted_inflight` so the admission decision and inflight registration share one state-lock boundary: pause either wins first or the already-admitted action drains as existing work.
+`request_pause()` during `STARTING` latches a pause without changing state, so
+`resume()` cannot open admission early. `complete_startup()` consumes that
+latch and publishes `PAUSED`; otherwise it publishes `RUNNING`. A shutdown
+that reaches `DRAINING` or `STOPPED` cannot be resurrected by late readiness.
+Dashboard shutdown changes state to `DRAINING` and starts its non-daemon drain
+worker before awaiting the acknowledgment, so a disconnected UI cannot orphan
+cleanup. Python signal handlers first publish a lock-free sticky shutdown
+intent, then delegate lock-taking drain work to the sole drain worker to avoid
+re-entering a lifecycle transition on the interrupted main thread.
+
+Dashboard `engine_status.engine_state` samples RuntimeController at each engine
+status publication. Its `running` field is true only after OrderEngine worker
+launch has completed and the controller is admitting; STARTING, PAUSED,
+DRAINING, and STOPPED would each have `running=false` when sampled. Monitor and
+stop publications share the engine's short lifecycle commit boundary, so a
+status snapshot prepared before stop cannot overwrite the stop hook's false
+value. That hook normally publishes DRAINING; the later logical STOPPED
+transition is immediately visible through `admin_status` but is not
+republished by OrderEngine. Existing dashboard and terminal-console consumers
+still label every `running=false` sample as “Stopped”; they do not yet render
+STARTING or PAUSED distinctly.
+
+Admission is enforced at dashboard and engine-originated entry points. The
+main-owned shutdown order first runs OrderEngine's startup-quiesce/status hook.
+That hook sets the local stop event only while background startup is incomplete;
+for a fully started engine it publishes `DRAINING/running=false` while preserving
+fill/event workers. The bridge stops next, then full OrderEngine cleanup sets
+the local stop event; the periodic reconciler hook is registered later during
+startup. Inflight critical sections (`track_inflight`) are allowed to finish
+within the drain timeout.
+Scheduler-owned reveal and anchor actions use `track_admitted_inflight` so the
+admission decision and inflight registration share one state-lock boundary:
+pause either wins first or the already-admitted action drains as existing work.
 
 ## Core Data Flows
 

@@ -22,8 +22,9 @@ Historical note (2026-05-04):
         its own dedup buckets \u2014 a latent twin of the same race we
         had just fixed in the engine's primary ``EventBridge``.
 
-    All three were deleted. ``main.py`` now calls ``engine.run_forever()``
-    directly. The underlying business classes (``OrderCalculator``,
+    All three were deleted. ``main.py`` now owns reconciliation and readiness,
+    then calls ``engine.run_forever`` with the readiness callback. The
+    underlying business classes (``OrderCalculator``,
     ``OrderProcessor``) were also removed later the same day after the
     audit confirmed they had zero production callers once the bridges
     were gone. ``business.EventProcessor`` survives — it backs the

@@ -26,6 +26,14 @@ Expected local Docker layout:
 The host `9876` mapping must point to container port `5432`. Mapping `9876->9876` creates a TCP listener that is not a working Postgres endpoint because the stock Postgres image listens on `5432`.
 
 ### Runtime toggles
+- `ENGINE_START_PAUSED`
+  - strict boolean values are `1`, `true`, `yes`, `on`, `0`, `false`, `no`,
+    `off`, or empty (case-insensitive).
+  - a true value latches the same startup pause used by `admin_pause`; the
+    process still completes hydration, reconciliation, scheduler activation,
+    and worker startup, then publishes `PAUSED` instead of `RUNNING`.
+  - an invalid nonempty value aborts before the dashboard is exposed.
+
 - `DISABLE_RECONCILER`
   - values like `1`, `true`, `yes`, `on` disable both startup and periodic reconciliation in `main.py`.
 

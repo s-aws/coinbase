@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import threading
 import time
+from unittest.mock import Mock
 
 import pytest
 
@@ -36,15 +37,222 @@ from core.runtime_controller import (
 
 @pytest.fixture
 def controller():
-    """Fresh, isolated controller instance for each test (no singleton sharing)."""
-    return RuntimeController()
+    """Fresh controller whose normal runtime startup has completed."""
+    runtime = RuntimeController()
+    assert runtime.complete_startup() is True
+    return runtime
+
+
+class TestStartupTransitions:
+    """Startup is fail-closed until the sole readiness transition."""
+
+    @pytest.mark.regression
+    def test_initial_state_is_starting_and_non_admitting(self):
+        runtime = RuntimeController()
+
+        assert runtime.state is EngineState.STARTING
+        assert runtime.is_admitting() is False
+        assert runtime.is_stopping() is False
+        assert runtime.lifecycle_snapshot() == (
+            EngineState.STARTING,
+            False,
+            False,
+        )
+        assert runtime.startup_pause_pending() is False
+
+    @pytest.mark.regression
+    def test_starting_admission_matrix(self):
+        runtime = RuntimeController()
+
+        for category in (INFLIGHT_REST_PLACE, INFLIGHT_STEALTH_REVEAL):
+            with pytest.raises(EngineNotAdmittingError) as exc_info:
+                runtime.check_admission(category)
+            assert exc_info.value.state is EngineState.STARTING
+
+        for category in (
+            INFLIGHT_REST_CANCEL,
+            INFLIGHT_FILL_PROCESSING,
+            INFLIGHT_DB_WRITE,
+        ):
+            runtime.check_admission(category)
+
+    @pytest.mark.regression
+    def test_complete_startup_opens_admission_once(self):
+        runtime = RuntimeController()
+
+        assert runtime.complete_startup() is True
+        assert runtime.state is EngineState.RUNNING
+        assert runtime.is_admitting() is True
+        assert runtime.complete_startup() is False
+
+    @pytest.mark.regression
+    def test_startup_pause_is_sticky_and_cannot_resume_early(self):
+        runtime = RuntimeController()
+
+        assert runtime.request_pause() is True
+        assert runtime.request_pause() is False
+        assert runtime.state is EngineState.STARTING
+        assert runtime.startup_pause_pending() is True
+        assert runtime.resume() is False
+        assert runtime.state is EngineState.STARTING
+
+        assert runtime.complete_startup() is True
+        assert runtime.state is EngineState.PAUSED
+        assert runtime.startup_pause_pending() is False
+        assert runtime.is_admitting() is False
+
+    @pytest.mark.regression
+    def test_shutdown_wins_over_late_startup_completion(self):
+        runtime = RuntimeController()
+
+        assert runtime.request_shutdown() is True
+        assert runtime.state is EngineState.DRAINING
+        assert runtime.complete_startup() is False
+        assert runtime.state is EngineState.DRAINING
+        assert runtime.is_admitting() is False
+
+    @pytest.mark.regression
+    def test_signal_intent_closes_startup_without_taking_state_lock(self):
+        runtime = RuntimeController()
+        start = Mock(name="start")
+        stop = Mock(name="stop")
+        late_stop = Mock(name="late_stop")
+
+        runtime.request_shutdown_from_signal()
+
+        assert runtime.state is EngineState.DRAINING
+        assert runtime.is_stopping() is True
+        assert runtime.is_admitting() is False
+        assert runtime.lifecycle_snapshot() == (
+            EngineState.DRAINING,
+            False,
+            True,
+        )
+        assert runtime.register_stop_hook("late", late_stop) is False
+        late_stop.assert_called_once_with()
+        assert runtime.start_startup_component("periodic", start, stop) is False
+        start.assert_not_called()
+        stop.assert_not_called()
+        assert runtime.complete_startup() is False
+        assert runtime.state is EngineState.DRAINING
+
+    @pytest.mark.regression
+    def test_pause_complete_race_always_finishes_paused(self):
+        for _ in range(25):
+            runtime = RuntimeController()
+            start = threading.Barrier(3)
+
+            def pause():
+                start.wait()
+                runtime.request_pause()
+
+            def complete():
+                start.wait()
+                runtime.complete_startup()
+
+            pause_thread = threading.Thread(target=pause)
+            complete_thread = threading.Thread(target=complete)
+            pause_thread.start()
+            complete_thread.start()
+            start.wait()
+            pause_thread.join(timeout=1.0)
+            complete_thread.join(timeout=1.0)
+
+            assert not pause_thread.is_alive()
+            assert not complete_thread.is_alive()
+            assert runtime.state is EngineState.PAUSED
+            assert runtime.is_admitting() is False
+
+    @pytest.mark.regression
+    def test_reset_restores_fresh_startup_latch(self):
+        runtime = RuntimeController()
+        runtime.request_pause()
+        runtime.complete_startup()
+
+        runtime._reset_for_tests()
+
+        assert runtime.state is EngineState.STARTING
+        assert runtime.startup_pause_pending() is False
+        assert runtime.is_admitting() is False
+
+    @pytest.mark.regression
+    def test_startup_component_refuses_to_start_after_shutdown(self):
+        runtime = RuntimeController()
+        start_calls = []
+        stop_calls = []
+        runtime.request_shutdown()
+
+        started = runtime.start_startup_component(
+            "periodic",
+            lambda: start_calls.append("start"),
+            lambda: stop_calls.append("stop"),
+        )
+
+        assert started is False
+        assert start_calls == []
+        assert stop_calls == []
+
+    @pytest.mark.regression
+    def test_startup_component_register_and_start_precede_shutdown_hooks(self):
+        runtime = RuntimeController()
+        start_entered = threading.Event()
+        release_start = threading.Event()
+        events = []
+
+        def start_component():
+            events.append("start_entered")
+            start_entered.set()
+            assert release_start.wait(timeout=1.0)
+            events.append("start_returned")
+
+        starter = threading.Thread(
+            target=lambda: runtime.start_startup_component(
+                "periodic",
+                start_component,
+                lambda: events.append("stop"),
+            )
+        )
+        drainer = threading.Thread(
+            target=lambda: runtime.drain_and_stop(timeout_seconds=1.0)
+        )
+
+        starter.start()
+        assert start_entered.wait(timeout=1.0)
+        drainer.start()
+        time.sleep(0.02)
+        assert drainer.is_alive()
+        release_start.set()
+        starter.join(timeout=1.0)
+        drainer.join(timeout=1.0)
+
+        assert not starter.is_alive()
+        assert not drainer.is_alive()
+        assert events == ["start_entered", "start_returned", "stop"]
+        assert runtime.state is EngineState.STOPPED
+
+    @pytest.mark.regression
+    def test_startup_component_failure_retains_cleanup_hook(self):
+        runtime = RuntimeController()
+        stop_calls = []
+
+        with pytest.raises(RuntimeError, match="start failed"):
+            runtime.start_startup_component(
+                "periodic",
+                lambda: (_ for _ in ()).throw(RuntimeError("start failed")),
+                lambda: stop_calls.append("stop"),
+            )
+
+        assert runtime.state is EngineState.STARTING
+        runtime.drain_and_stop(timeout_seconds=0.1)
+        assert stop_calls == ["stop"]
+        assert runtime.state is EngineState.STOPPED
 
 
 class TestStateTransitions:
     """The state machine is the contract. These must not regress."""
 
     @pytest.mark.regression
-    def test_initial_state_is_running(self, controller):
+    def test_completed_startup_state_is_running(self, controller):
         assert controller.state is EngineState.RUNNING
         assert controller.is_admitting() is True
         assert controller.is_stopping() is False
@@ -158,6 +366,17 @@ class TestInflightTracking:
         assert controller.total_inflight() == 0
 
     @pytest.mark.regression
+    def test_unadmitted_tracking_is_rejected_after_stopped(self, controller):
+        controller.drain_and_stop(timeout_seconds=0.1)
+
+        with pytest.raises(EngineNotAdmittingError) as exc_info:
+            with controller.track_inflight(INFLIGHT_DB_WRITE):
+                pass
+
+        assert exc_info.value.state is EngineState.STOPPED
+        assert controller.total_inflight() == 0
+
+    @pytest.mark.regression
     def test_atomic_admission_registers_work_before_pause(self, controller):
         with controller.track_admitted_inflight(INFLIGHT_REST_PLACE):
             assert controller.inflight_snapshot() == {
@@ -239,6 +458,284 @@ class TestDrain:
         result = controller.drain_and_stop(timeout_seconds=0.5)
         assert called == ["bad", "good"]
         assert result.state_after is EngineState.STOPPED
+
+    @pytest.mark.regression
+    def test_late_hook_is_invoked_while_owning_drain_is_in_progress(
+        self,
+        controller,
+    ):
+        first_entered = threading.Event()
+        release_first = threading.Event()
+        called = []
+
+        def first_hook():
+            called.append("first_entered")
+            first_entered.set()
+            assert release_first.wait(timeout=1.0)
+            called.append("first_returned")
+
+        controller.register_stop_hook("first", first_hook)
+        drain_thread = threading.Thread(
+            target=lambda: controller.drain_and_stop(timeout_seconds=1.0)
+        )
+        drain_thread.start()
+        assert first_entered.wait(timeout=1.0)
+
+        queued = controller.register_stop_hook(
+            "late",
+            lambda: called.append("late"),
+        )
+        assert queued is False
+        assert called == ["first_entered", "late"]
+
+        release_first.set()
+        drain_thread.join(timeout=1.0)
+        assert not drain_thread.is_alive()
+        assert called == ["first_entered", "late", "first_returned"]
+        assert controller.state is EngineState.STOPPED
+
+    @pytest.mark.regression
+    def test_hook_registered_after_stopped_is_invoked_immediately(
+        self,
+        controller,
+    ):
+        controller.drain_and_stop(timeout_seconds=0.1)
+        called = []
+
+        queued = controller.register_stop_hook(
+            "late",
+            lambda: called.append("late"),
+        )
+
+        assert queued is False
+        assert called == ["late"]
+
+    @pytest.mark.regression
+    def test_drain_waits_for_hook_registered_while_draining(
+        self,
+        controller,
+    ):
+        owner_hook_entered = threading.Event()
+        release_owner_hook = threading.Event()
+        late_hook_entered = threading.Event()
+        release_late_hook = threading.Event()
+
+        def owner_hook():
+            owner_hook_entered.set()
+            assert release_owner_hook.wait(timeout=1.0)
+
+        def late_hook():
+            late_hook_entered.set()
+            assert release_late_hook.wait(timeout=1.0)
+
+        controller.register_stop_hook("owner", owner_hook)
+        drain_thread = threading.Thread(
+            target=lambda: controller.drain_and_stop(timeout_seconds=1.0)
+        )
+        late_thread = threading.Thread(
+            target=lambda: controller.register_stop_hook("late", late_hook)
+        )
+
+        drain_thread.start()
+        assert owner_hook_entered.wait(timeout=1.0)
+        late_thread.start()
+        assert late_hook_entered.wait(timeout=1.0)
+        release_owner_hook.set()
+        time.sleep(0.02)
+
+        assert drain_thread.is_alive()
+        assert controller.state is EngineState.DRAINING
+
+        release_late_hook.set()
+        late_thread.join(timeout=1.0)
+        drain_thread.join(timeout=1.0)
+        assert not late_thread.is_alive()
+        assert not drain_thread.is_alive()
+        assert controller.state is EngineState.STOPPED
+
+    @pytest.mark.regression
+    def test_late_stop_hook_cannot_reenter_owning_drain(
+        self,
+        controller,
+    ):
+        owner_entered = threading.Event()
+        release_owner = threading.Event()
+        nested_errors = []
+
+        def owner_hook():
+            owner_entered.set()
+            assert release_owner.wait(timeout=1.0)
+
+        def late_hook():
+            try:
+                controller.drain_and_stop(timeout_seconds=0.5)
+            except RuntimeError as exc:
+                nested_errors.append(str(exc))
+
+        controller.register_stop_hook("owner", owner_hook)
+        drain_thread = threading.Thread(
+            target=lambda: controller.drain_and_stop(timeout_seconds=1.0)
+        )
+        drain_thread.start()
+        assert owner_entered.wait(timeout=1.0)
+
+        late_thread = threading.Thread(
+            target=lambda: controller.register_stop_hook("late", late_hook)
+        )
+        late_thread.start()
+        late_thread.join(timeout=1.0)
+        assert not late_thread.is_alive()
+        assert nested_errors == [
+            "drain_and_stop cannot be called from stop-hook execution"
+        ]
+
+        release_owner.set()
+        drain_thread.join(timeout=1.0)
+        assert not drain_thread.is_alive()
+        assert controller.state is EngineState.STOPPED
+
+    @pytest.mark.regression
+    def test_work_started_during_late_hook_joins_same_terminal_wait(
+        self,
+        controller,
+    ):
+        owner_entered = threading.Event()
+        release_owner = threading.Event()
+        late_entered = threading.Event()
+        release_late = threading.Event()
+        work_entered = threading.Event()
+        release_work = threading.Event()
+        results = []
+
+        def owner_hook():
+            owner_entered.set()
+            assert release_owner.wait(timeout=1.0)
+
+        def late_hook():
+            late_entered.set()
+            assert release_late.wait(timeout=1.0)
+
+        def late_work():
+            with controller.track_inflight(INFLIGHT_DB_WRITE):
+                work_entered.set()
+                assert release_work.wait(timeout=1.0)
+
+        controller.register_stop_hook("owner", owner_hook)
+        drain_thread = threading.Thread(
+            target=lambda: results.append(
+                controller.drain_and_stop(timeout_seconds=1.0)
+            )
+        )
+        drain_thread.start()
+        assert owner_entered.wait(timeout=1.0)
+
+        late_hook_thread = threading.Thread(
+            target=lambda: controller.register_stop_hook("late", late_hook)
+        )
+        late_hook_thread.start()
+        assert late_entered.wait(timeout=1.0)
+        release_owner.set()
+
+        work_thread = threading.Thread(target=late_work)
+        work_thread.start()
+        assert work_entered.wait(timeout=1.0)
+        release_late.set()
+        late_hook_thread.join(timeout=1.0)
+        time.sleep(0.02)
+
+        assert drain_thread.is_alive()
+        assert controller.state is EngineState.DRAINING
+        assert controller.inflight_snapshot() == {INFLIGHT_DB_WRITE: 1}
+
+        release_work.set()
+        work_thread.join(timeout=1.0)
+        drain_thread.join(timeout=1.0)
+        assert not work_thread.is_alive()
+        assert not drain_thread.is_alive()
+        assert len(results) == 1
+        assert results[0].drained_clean is True
+        assert results[0].inflight_at_timeout == {}
+        assert controller.state is EngineState.STOPPED
+
+    @pytest.mark.regression
+    def test_concurrent_drains_have_one_owner_and_invoke_hooks_once(
+        self,
+        controller,
+    ):
+        hook_entered = threading.Event()
+        release_hook = threading.Event()
+        called = []
+        results = []
+
+        def hook():
+            called.append("hook")
+            hook_entered.set()
+            assert release_hook.wait(timeout=1.0)
+
+        controller.register_stop_hook("only", hook)
+
+        def drain():
+            results.append(controller.drain_and_stop(timeout_seconds=1.0))
+
+        first = threading.Thread(target=drain)
+        second = threading.Thread(target=drain)
+        first.start()
+        assert hook_entered.wait(timeout=1.0)
+        second.start()
+        time.sleep(0.02)
+        assert called == ["hook"]
+        release_hook.set()
+        first.join(timeout=1.0)
+        second.join(timeout=1.0)
+
+        assert not first.is_alive()
+        assert not second.is_alive()
+        assert called == ["hook"]
+        assert len(results) == 2
+        assert results[0] is results[1]
+
+    @pytest.mark.regression
+    def test_recursive_drain_from_stop_hook_fails_fast(self, controller):
+        nested_errors = []
+
+        def recursive_hook():
+            try:
+                controller.drain_and_stop(timeout_seconds=0.1)
+            except RuntimeError as exc:
+                nested_errors.append(str(exc))
+
+        controller.register_stop_hook("recursive", recursive_hook)
+
+        result = controller.drain_and_stop(timeout_seconds=0.5)
+
+        assert result.state_after is EngineState.STOPPED
+        assert result.drained_clean is True
+        assert nested_errors == [
+            "drain_and_stop cannot be called from stop-hook execution"
+        ]
+
+    @pytest.mark.regression
+    @pytest.mark.parametrize(
+        "timeout",
+        (
+            float("nan"),
+            float("inf"),
+            1e308,
+            -1.0,
+            True,
+            "not-a-number",
+        ),
+    )
+    def test_invalid_timeout_is_rejected_before_state_change(
+        self,
+        controller,
+        timeout,
+    ):
+        state_before = controller.state
+        with pytest.raises(ValueError, match="finite non-negative"):
+            controller.drain_and_stop(timeout_seconds=timeout)
+
+        assert controller.state is state_before
 
     @pytest.mark.regression
     def test_drain_waits_for_inflight_work(self, controller):

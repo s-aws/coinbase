@@ -204,6 +204,12 @@ class FeeManager:
         }
         self._refresh_thread = None
         self._running = False
+        # The manager is owned by the one-shot OrderEngine lifecycle. Start
+        # and stop publication are serialized, and a stop request is sticky so
+        # a late startup path can never clear the event and revive the worker.
+        self._lifecycle_lock = threading.Lock()
+        self._compat_start_lock = threading.Lock()
+        self._stop_requested = False
         # Drives interruptible sleeps in the refresh loop so stop()
         # collapses near-instantly instead of waiting out the hourly
         # refresh interval.
@@ -240,28 +246,60 @@ class FeeManager:
         """Fallback logging if no callback provided."""
         print(f"[{log_type.upper()}] {message}")
     
-    def start(self):
-        """Start background refresh thread.
-        
-        Spawns daemon thread that refreshes fee rates every hour.
-        Safe to call multiple times (no-op if already running).
-        """
-        if self._running:
-            return
+    def start_periodic_refresh(self) -> bool:
+        """Publish the hourly refresh worker without performing REST I/O.
 
-        self._shutdown_event.clear()
-        self._running = True
-        self._refresh_thread = threading.Thread(
-            target=self._refresh_loop,
-            daemon=True,
-            name="FeeManager-Refresher"
-        )
-        self._refresh_thread.start()
-        
+        The publication is bounded and serialized with :meth:`stop`. Returns
+        ``False`` when stop has already won; that stop intent is deliberately
+        one-shot and is never cleared by a late start.
+        """
+
+        with self._lifecycle_lock:
+            if self._running:
+                return True
+            if self._stop_requested:
+                return False
+
+            self._shutdown_event.clear()
+            self._running = True
+            refresh_thread = threading.Thread(
+                target=self._refresh_loop,
+                daemon=True,
+                name="FeeManager-Refresher",
+            )
+            self._refresh_thread = refresh_thread
+            try:
+                refresh_thread.start()
+            except Exception:
+                self._running = False
+                self._shutdown_event.set()
+                self._refresh_thread = None
+                raise
+
         self.log_callback("info", "Fee manager started (hourly refresh)")
-        
-        # Fetch immediately on startup
-        self._refresh_fee_rate()
+        return True
+
+    def refresh_now(self) -> bool:
+        """Synchronously refresh both fee schedules through the canonical path."""
+
+        return self._refresh_fee_rate()
+
+    def start(self) -> bool:
+        """Start hourly refresh and perform the historical immediate refresh.
+
+        Kept as the compatibility entry point. OrderEngine uses the split
+        methods so its lifecycle lock never spans Coinbase REST calls.
+        """
+
+        with self._compat_start_lock:
+            with self._lifecycle_lock:
+                if self._running:
+                    return True
+            if not self.start_periodic_refresh():
+                return False
+            self.refresh_now()
+            with self._lifecycle_lock:
+                return self._running and not self._stop_requested
     
     def stop(self):
         """Stop background refresh thread.
@@ -269,13 +307,21 @@ class FeeManager:
         Idempotent. Sets the shared shutdown event so the refresh loop
         wakes immediately rather than waiting out the hourly interval.
         """
-        if not self._running and not self._shutdown_event.is_set():
-            return
-        self._running = False
-        self._shutdown_event.set()
-        if self._refresh_thread:
-            self._refresh_thread.join(timeout=5)
-        self.log_callback("info", "Fee manager stopped")
+        with self._lifecycle_lock:
+            already_stopped = self._stop_requested
+            was_active = self._running or self._refresh_thread is not None
+            self._stop_requested = True
+            self._running = False
+            self._shutdown_event.set()
+            refresh_thread = self._refresh_thread
+
+        if (
+            refresh_thread is not None
+            and refresh_thread is not threading.current_thread()
+        ):
+            refresh_thread.join(timeout=5)
+        if was_active and not already_stopped:
+            self.log_callback("info", "Fee manager stopped")
 
     def _refresh_loop(self):
         """Background loop that refreshes fee rates hourly."""
@@ -299,10 +345,16 @@ class FeeManager:
         succeeded; a partial success updates only its own schedule.
         """
         with self._refresh_lock:
-            outcomes = [
-                self._refresh_fee_schedule(ProductType.SPOT),
-                self._refresh_fee_schedule(ProductType.FUTURE),
-            ]
+            outcomes = []
+            for product_type in (ProductType.SPOT, ProductType.FUTURE):
+                # Stop cannot cancel a Coinbase request that is already in
+                # progress, but it must prevent the second request (or a
+                # queued refresh) from beginning afterward.  Never hold the
+                # lifecycle lock across REST I/O.
+                with self._lifecycle_lock:
+                    if self._stop_requested:
+                        return False
+                outcomes.append(self._refresh_fee_schedule(product_type))
         return all(outcomes)
 
     @staticmethod

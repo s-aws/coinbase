@@ -70,6 +70,16 @@ High-impact enums:
 
 Use enums instead of string literals in new behavior.
 
+`EngineState.STARTING` is the initial fail-closed runtime state. It permits
+cancellation, fill handling, and DB completion but rejects originating work.
+`RuntimeController.complete_startup()` is its sole admission-opening exit;
+startup pause requests cause that exit to publish `PAUSED` instead of
+`RUNNING`. Startup component registration/start and component-local publication
+locks prevent new worker activation or readiness revival after stop wins;
+concurrent drain callers share one terminal result. `STOPPED` is a logical
+admission/accounting boundary: bounded joins and drain timeouts can leave
+cooperative daemon work finishing afterward.
+
 ### Stealth Status Semantics
 
 - `HIDDEN`, `PENDING`, and `TRIGGERED`: no active exchange placement should exist.

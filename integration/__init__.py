@@ -19,6 +19,7 @@ runtime crash by silently diverging from its live twin in ``bridges/``.
 The ``bridges/`` package was then audited the same day and the
 ``OrderEngineOrchestrator`` + ``CalculatorBridge`` + ``ProcessorBridge``
 trio there was also deleted as completed strangler-fig scaffolding from
-the v2 OrderEngine refactor. ``main.py`` now drives ``OrderEngine``
-directly via ``engine.run_forever()``.
+the v2 OrderEngine refactor. ``main.py`` now owns the full reconciliation and
+readiness barrier, then invokes ``OrderEngine.run_forever`` with its readiness
+callback.
 """

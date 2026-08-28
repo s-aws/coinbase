@@ -441,6 +441,11 @@ def test_dashboard_premark_routes_through_canonical_move_manager():
              "business.move_manager.MoveManager",
              return_value=move_manager,
          ), \
+         patch.object(
+             dashboard_server,
+             "get_runtime_controller",
+             return_value=_admitting_controller(),
+         ), \
          patch.object(dashboard_server, "connected_clients", {websocket}), \
          patch.object(dashboard_server, "add_log_entry"):
         _run(dashboard_server.handle_client_message(websocket, message))

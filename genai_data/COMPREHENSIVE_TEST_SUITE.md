@@ -55,7 +55,13 @@ parallel-regression runner.
 - order id/client order id discipline
 - follow-up dedupe and replacement-slot race prevention
 - partial-fill atomic claim behavior
-- runtime controller pause/resume/drain correctness
+- runtime controller STARTING/readiness, sticky startup-pause, pause/resume,
+  and drain correctness
+- startup admission rejection across dashboard, stealth reveal, and hotpoint
+  placement origins
+- stop-dominant initial fee refresh, coherent sampled dashboard status with
+  stop-dominant publication, websocket disconnect ownership, and retryable
+  engine cleanup
 - cross-source reconciliation and ownership partitioning
 - DB cursor thread-safety guarantees
 - DB production-guard behavior for pytest and direct test-shaped scripts
@@ -64,6 +70,9 @@ parallel-regression runner.
 ### E2E coverage highlights
 - top-level trading workflow traces
 - user-message order flow traces
+
+### Unit coverage highlights
+- bridge cleanup retry after bounded scheduler joins or stop exceptions
 
 ### External coverage highlights
 - sandbox Coinbase REST contract checks

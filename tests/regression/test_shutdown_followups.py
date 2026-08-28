@@ -339,10 +339,13 @@ class TestEngineShutdownPlumbing:
         from core.order_engine import OrderEngine
 
         engine = SimpleNamespace(
+            _lifecycle_lock=threading.RLock(),
+            _stop_cleanup_lock=threading.Lock(),
             _shutdown_event=threading.Event(),
             event_executor=SimpleNamespace(shutdown=lambda **kw: None),
             fee_manager=None,
         )
+        engine.request_stop = lambda: OrderEngine.request_stop(engine)
         # Invoke the unbound method against our stand-in instance.
         OrderEngine.stop(engine)
         assert engine._shutdown_event.is_set()
@@ -352,10 +355,13 @@ class TestEngineShutdownPlumbing:
         from core.order_engine import OrderEngine
 
         engine = SimpleNamespace(
+            _lifecycle_lock=threading.RLock(),
+            _stop_cleanup_lock=threading.Lock(),
             _shutdown_event=threading.Event(),
             event_executor=SimpleNamespace(shutdown=lambda **kw: None),
             fee_manager=None,
         )
+        engine.request_stop = lambda: OrderEngine.request_stop(engine)
         OrderEngine.stop(engine)
         # Calling twice must not raise even though the executor was
         # already shut down conceptually.
