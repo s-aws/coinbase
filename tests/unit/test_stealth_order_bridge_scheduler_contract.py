@@ -2839,42 +2839,110 @@ def test_condition_schedule_rebuild_has_no_anchor_handoff_gap(
 
     condition_rebuild_entered = threading.Event()
     release_condition_rebuild = threading.Event()
+    anchor_claim_committed = threading.Event()
     original_schedule_condition = bridge._schedule_condition_wake
+    original_invalidate_deadline = scheduler.invalidate_deadline
+    claimed_anchor_generations: list[int] = []
+    thread_errors: list[tuple[str, Exception]] = []
 
     def delayed_condition_rebuild(*args, **kwargs) -> None:
         condition_rebuild_entered.set()
-        assert release_condition_rebuild.wait(timeout=0.75)
+        if not release_condition_rebuild.wait(timeout=2.0):
+            raise TimeoutError("test did not release condition rebuild")
         original_schedule_condition(*args, **kwargs)
+
+    def observed_invalidate_deadline(
+        stealth_order_id,
+        purpose,
+        *,
+        expected_generation=None,
+    ):
+        result = original_invalidate_deadline(
+            stealth_order_id,
+            purpose,
+            expected_generation=expected_generation,
+        )
+        if (
+            purpose is StealthWakePurpose.ANCHOR_REPRICE
+            and expected_generation is not None
+            and result is not None
+        ):
+            claimed_anchor_generations.append(result)
+            anchor_claim_committed.set()
+        return result
 
     monkeypatch.setattr(
         bridge,
         "_schedule_condition_wake",
         delayed_condition_rebuild,
     )
-    rebuild_thread = threading.Thread(
-        target=bridge._schedule_order,
-        args=("sid-anchor",),
+    monkeypatch.setattr(
+        scheduler,
+        "invalidate_deadline",
+        observed_invalidate_deadline,
     )
-    rebuild_thread.start()
+
+    def capture_thread_error(name, action) -> None:
+        try:
+            action()
+        except Exception as error:
+            thread_errors.append((name, error))
+
+    rebuild_thread = threading.Thread(
+        target=capture_thread_error,
+        args=("rebuild", lambda: bridge._schedule_order("sid-anchor")),
+        name="condition-rebuild",
+    )
+    ticker_thread = threading.Thread(
+        target=capture_thread_error,
+        args=(
+            "ticker",
+            lambda: bridge.process_due_anchor_repricing(
+                "CONTRACT-A",
+                {"price": "101", "best_bid": "100", "best_ask": "102"},
+            ),
+        ),
+        name="anchor-ticker",
+    )
+    rebuild_started = False
+    ticker_started = False
 
     try:
-        assert condition_rebuild_entered.wait(timeout=0.75)
+        rebuild_thread.start()
+        rebuild_started = True
+        assert condition_rebuild_entered.wait(timeout=1.0)
 
         # Rebuilding an unrelated condition lane must not temporarily remove
         # the due anchor deadline seen by this sole live ticker.
-        bridge.process_due_anchor_repricing(
-            "CONTRACT-A",
-            {"price": "101", "best_bid": "100", "best_ask": "102"},
-        )
+        ticker_thread.start()
+        ticker_started = True
+        assert anchor_claim_committed.wait(timeout=1.0)
 
+        # The ticker now owns the due anchor generation but is blocked on the
+        # per-order action lock. Complete the rebuild before it proceeds.
+        release_condition_rebuild.set()
+        rebuild_thread.join(timeout=1.0)
+        ticker_thread.join(timeout=1.0)
+
+        assert not rebuild_thread.is_alive()
+        assert not ticker_thread.is_alive()
+        assert thread_errors == []
+        assert len(claimed_anchor_generations) == 1
         assert len(manager.anchor_calls) == 1
         assert manager.anchor_calls[0][1] == ("sid-anchor",)
+        assert bridge._anchor_due_generations == {}
+        assert scheduler.current_generation(
+            "sid-anchor",
+            StealthWakePurpose.ANCHOR_REPRICE,
+        ) > claimed_anchor_generations[0]
+        assert scheduler.active_deadline_count == 2
     finally:
         release_condition_rebuild.set()
-        rebuild_thread.join(timeout=0.75)
+        if rebuild_started:
+            rebuild_thread.join(timeout=2.0)
+        if ticker_started:
+            ticker_thread.join(timeout=2.0)
         scheduler.stop()
-
-    assert not rebuild_thread.is_alive()
 
 
 @pytest.mark.parametrize(

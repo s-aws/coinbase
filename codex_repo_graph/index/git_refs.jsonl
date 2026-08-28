@@ -1,5 +1,5 @@
 {"id":"ref:refs/heads/codex/stealth-live-service-decision-3501","kind":"git_ref","object":"ab174f8aaa0fcc775a60ecf98b400597890c729a","object_type":"commit","ref":"refs/heads/codex/stealth-live-service-decision-3501","upstream":null}
-{"id":"ref:refs/heads/prod","kind":"git_ref","object":"9a85ee36ab2801b4ffbd70bbc7596baa0a3b70a9","object_type":"commit","ref":"refs/heads/prod","upstream":"origin/prod"}
+{"id":"ref:refs/heads/prod","kind":"git_ref","object":"814167fb0d7c04d84c11833b3b685421c4bbe0c2","object_type":"commit","ref":"refs/heads/prod","upstream":"origin/prod"}
 {"id":"ref:refs/remotes/origin/HEAD","kind":"git_ref","object":"96486679fb9a26405775385d3b99f42dbca510dc","object_type":"commit","ref":"refs/remotes/origin/HEAD","upstream":null}
 {"id":"ref:refs/remotes/origin/main","kind":"git_ref","object":"96486679fb9a26405775385d3b99f42dbca510dc","object_type":"commit","ref":"refs/remotes/origin/main","upstream":null}
 {"id":"ref:refs/remotes/origin/prod","kind":"git_ref","object":"9a85ee36ab2801b4ffbd70bbc7596baa0a3b70a9","object_type":"commit","ref":"refs/remotes/origin/prod","upstream":null}
