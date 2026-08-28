@@ -2,122 +2,168 @@
 
 ## Status
 
-- Last updated (ET): 2026-08-28
-- Active operator-approved objective: review the completed bounded
-  default-PAUSED live validation and decide whether its passive evidence closes
-  the current milestone or whether a separately approved stateful validation is
-  warranted.
-- Active implementation status: runtime changes are committed through
-  `5a8d50b70` (`part 6`), and the context/graph baseline is committed as
-  `9a85ee36a` (`part 7`). The bounded live validation is complete. No runtime
-  correction was made as a result of the run; this evidence update is
-  uncommitted pending operator review.
+- Last updated (ET): 2026-08-28.
+- Checkout baseline: `prod` at `41d4e3c33` (`part 9`), matching
+  `origin/prod` when the guarded validation began.
+- Active operator-approved objective: finish the default-PAUSED live-validation
+  sequence, preserve verified evidence, and identify the smallest next
+  correction. The stateful validation is complete. No runtime correction has
+  been made from its findings. Two read-only follow-up audits are complete; the
+  next source change still requires operator review.
+- Implementation is committed through `5a8d50b70` (`part 6`), the initial graph
+  baseline through `9a85ee36a` (`part 7`), the earlier live-evidence context at
+  `814167fb0` (`part 8`), and the deterministic full-suite gate at `41d4e3c33`
+  (`part 9`). This file corrects part 8's database-target claim.
 
 ## Fixed design constraints
 
 - Keep redundant public `WSClient` connections for ticker/heartbeat and exactly
-  one authenticated `WSUserClient` connection for `user`, futures balance, and
-  heartbeat payloads.
+  one authenticated `WSUserClient` connection for user, futures-balance, and
+  private-heartbeat payloads.
 - Reduce authenticated envelopes in connection-global sequence order on one
-  private reducer queue. Preserve row lifecycle status independently from wire
-  kinds (`snapshot`, `update`, `patch`).
+  private reducer queue. Keep wire kinds (`snapshot`, `update`, `patch`)
+  separate from row lifecycle statuses.
 - Bootstrap paginated order snapshots without database, fill-accounting, or
   follow-up side effects. Admit live order rows atomically to bounded FIFO lanes
   keyed by `client_order_id`.
-- Fail closed and reconnect on sequence corruption, malformed payloads,
+- Fail closed and reconnect on sequence corruption, malformed known payloads,
   dispatcher rejection/overflow, or snapshot timeout. Ignore stale generations.
-- `EXPIRED` receives terminal cleanup only; do not route it through filled or
-  cancelled replacement behavior.
-- Any further live validation remains PAUSED unless the operator separately
-  authorizes resume; hydration, reconciliation, websocket ingress, and
-  scheduler activation may be observed without originating new placements.
-- The approved scheduler uses ordered market evidence plus deadlines derived
-  from stored condition and anchor state. Perl-style distance-based or
-  external-signal timing augmentation was not ported and is not implied future
-  scope.
+- `EXPIRED` receives terminal cleanup only; it is not a fill/cancel replacement
+  trigger.
+- Live validation remains PAUSED unless the operator explicitly authorizes
+  resume. PAUSED is an origination-admission boundary, not database read-only.
+- Scheduler decisions use ordered market evidence plus deadlines derived from
+  durable condition/anchor state. Perl distance/external-signal timing was not
+  ported and is not implied future scope.
 
-## Automated validation state
+## Automated validation at committed baseline
 
-- Mandatory regression suite after the final source correction: 767 passed;
-  rerun after this live-evidence/graph update: 767 passed.
-- Focused scheduler/ticker suite after the final source correction: 108 passed.
-- Focused authenticated routing audit: 78 passed; no remaining in-scope defect
-  or lock-order inversion found.
-- Python compilation and `git diff --check`: passed.
-- Repository graph baseline build/check committed at `9a85ee36a`: 2,055 commits
-  and 179 semantic records indexed with zero mismatches, fatal errors, or parse
-  findings.
-- Current live-evidence graph rebuild/check: 2,056 commits and 180 semantic
-  records indexed with zero mismatches, fatal errors, or parse findings.
-- Existing `server_log.txt` predates the committed scheduler/PATCH sequence and
-  is not live-validation evidence for the current implementation.
+- Focused scheduler contract: 79 passed.
+- Mandatory regression suite: 767 passed at the committed baseline and again
+  after the guarded live-validation evidence update (17.90 seconds).
+- Full local suite: 1,542 passed, 11 external tests deselected.
+- Pytest gate now rejects unknown config, reports warnings, treats unhandled
+  thread exceptions as errors, and has a deterministic scheduler concurrency
+  test (`part 9`).
+- Repository graph check after the guarded evidence update: 2,058 commits,
+  37,363 edges, 507 files, 182 semantic records, zero mismatches, fatal errors,
+  history errors, or parse findings.
+- The ordinary port-9876 `coinbase_engine` test database is not a clean live
+  fixture: the full suite left 933 parent rows, 40 HIDDEN stealth rows, and 48
+  pending move rows. Stateful live validation therefore used a new schema-only
+  database instead.
 
-## Bounded live validation (2026-08-28)
+## Correction to the part-8 passive live evidence
 
-- Ran the committed engine against the isolated PostgreSQL clone on host port
-  `9876` from approximately 11:04:42 through 11:08:43 ET with
-  `ENGINE_START_PAUSED=true`. The engine completed hydration and reconciliation,
-  activated the stealth deadline scheduler and periodic reconciler, then entered
-  PAUSED with admission disabled and zero in-flight operations.
-- Three public ticker websocket clients and one authenticated user websocket
-  generation logged successful connections. The private generation remained
-  connected beyond its bootstrap deadline with no logged desynchronization or
-  reconnect; because the snapshot was empty, this is inferred bootstrap success
-  rather than an explicit snapshot-success log.
-- Two dashboard observation windows received 995 accepted ticker broadcasts.
-  The instrumented 400-event window contained no repeated
-  `(product_id, price, cb_time_ms)` keys and no per-product `cb_time_ms`
-  regression. This validates accepted output in that window, not the absence of
-  duplicate raw messages arriving from the redundant sockets.
-- `market_tick` increased by 1,137 rows during the observation window, spanning
-  all eight configured products. The seven monitored lifecycle tables began and
-  ended at zero, so no run-attributable lifecycle row appeared; no placement or
-  cancellation was observed, and the dashboard log probe observed no warning,
-  error, or critical entries.
-- One Ctrl+C produced an orderly `PAUSED -> DRAINING -> STOPPED` transition,
-  stopped the stealth bridge and periodic reconciler, exited with code 0, and
-  released dashboard port `8765`. The worktree and tracked `server_log.txt`
-  remained unchanged by the runtime.
+- The earlier commands used Bash inline `COINBASE_DB_*` assignments before a
+  Windows Python executable. In this WSL/Windows environment those variables do
+  not cross that process boundary. A reproduction showed the Windows process
+  received no port override and retained database `coinbase_engine`; archived
+  probes also resolved the nominal 9876 and 5432 runs to server port 5432.
+- Therefore the part-8 claim that its four-minute passive run targeted the
+  port-9876 clone is not accepted. Its general runtime observations may be
+  informative, but they are not isolated-9876/database evidence and must not be
+  cited as such.
+- While correcting the launch method, one synthetic HIDDEN stealth row and its
+  PENDING parent were accidentally written to the host-5432 `coinbase_engine`.
+  The engine was stopped, the row had no exchange pointer or dependent records,
+  and exactly those two marker-matched synthetic rows were permanently deleted
+  in one validated transaction. Post-delete counts for that identifier were
+  zero. No user row or exchange order was touched.
+- Correct Windows launches must originate in PowerShell with `$env:` variables,
+  then prove `PostgresDB().port`, `PostgresDB().database`, `current_database()`,
+  and the container-side `inet_server_port()` before any stateful work.
 
-## Open boundary
+## Guarded active-row live validation (2026-08-28)
 
-- Existing snapshot hydration does not evict a local OPEN row absent from a
-  completed Coinbase snapshot, returns early for an empty snapshot, and leaves
-  same-status quantity differences untouched. This was not changed because it
-  is a separate reconciliation/database-correction design decision.
+- Created schema-only database `coinbase_validation_part9` in
+  `coinbase-test-postgres` (`127.0.0.1:9876 -> container 5432`). An in-process
+  identity gate proved configured host port 9876, database
+  `coinbase_validation_part9`, and server-side port 5432 before seeding and on
+  every observer/audit process.
+- Seeded exactly one canonical BIP-20DEC30-CDE BUY through
+  `StealthOrderManager.create_stealth_order`: size 1, tick-valid limit 5,
+  price-below threshold 1,000,000,000, continuous hold 5 seconds, fixed sizing,
+  configured-limit pricing, zero replacements/movement, and anchor/hotpoint/
+  partial-fill behavior disabled. Preflight proved zero other stealth/parent
+  rows, zero active exchange pointers, and zero hotpoint-cancel candidates.
+- The validation process monkeypatched all five `CoinbaseRestClient` mutation
+  methods and all non-GET Coinbase SDK transport requests to record and raise.
+  Static inspection found no current production mutation path outside that
+  boundary. Final count: zero attempted REST mutations.
+- Engine startup completed with `ENGINE_START_PAUSED=true`. Two independent
+  dashboard status samples proved `PAUSED`, `is_admitting=false`,
+  `is_stopping=false`, and `total_inflight=0` before and after trigger commit.
+- Ordered ticker evidence persisted `HIDDEN -> PENDING` at
+  2026-08-28 16:44:06.675810 UTC and `PENDING -> TRIGGERED` at
+  16:44:11.845914 UTC (5.170104 seconds). The observer received three ticker
+  broadcasts. The next Coinbase event timestamp crossed the hold deadline
+  before the derived local monotonic wake fired, so it correctly invalidated
+  that disposable wake and committed TRIGGERED; a timer alone would not have
+  proved continuous market truth.
+- The row stayed unexposed: revealed/executed size zero, remaining size one,
+  empty `revealed_orders`, no active placement/exchange pointer, no reveal
+  history, no child row, and no submission event. Event-stream evidence was
+  limited to `stealth_condition_watching` and `stealth_condition_met`.
+- After proving no exchange pointer, dashboard cancellation changed only the
+  validation stealth row to CANCELLED. Dashboard shutdown was accepted from
+  PAUSED; the process reached STOPPED with zero in-flight work and released
+  port 8765. No traceback, ERROR, or CRITICAL record appeared in captured
+  process output.
+
+## New verified boundary from the stateful run
+
+- A TRIGGERED row deferred by PAUSED is not quiescent. In roughly 45 seconds,
+  one row produced 844 `ADMISSION_RETRY` schedules and 421 delivered wakes at
+  the 100 ms retry constant. It also repeatedly invalidated every condition
+  generation. Current bridge control flow schedules once in
+  `_evaluate_scheduled_order_locked` and again in `_handle_deadline_wake`, so
+  one delivered retry creates two replacement generations.
+- This did not bypass admission or call Coinbase, but it is avoidable scheduler
+  and lock churn that scales linearly with paused TRIGGERED rows and can amplify
+  debug/log noise. Treat it as a minimal-correction candidate; do not change
+  cadence or resume semantics without an approved plan.
+- Direct cancellation left the paired root `order_parent` row PENDING while the
+  stealth row became CANCELLED. The read-only audit confirmed that pre-reveal
+  divergence is intentional, but this terminal divergence is not: direct
+  `cancel_stealth_order` updates only the stealth row, skips the existing
+  CANCELLED lifecycle event, ignores stealth persistence failure, and the
+  dashboard reports success without checking its boolean result. Startup
+  reconciliation deliberately excludes the stale PENDING parent, so it will not
+  heal the mismatch. Hydration and scheduling still exclude the CANCELLED
+  stealth row, making the observed execution risk low but leaving durable
+  parent/audit truth wrong.
+- Any cancellation correction must distinguish a proven pre-reveal order from a
+  revealed order. Revealed-order REST cancellation is currently best-effort;
+  terminalizing its parent without exchange confirmation could conceal a live
+  Coinbase order. The safe minimal boundary is the same-SID pre-reveal parent,
+  the existing CANCELLED lifecycle event, honest persistence/result handling,
+  and a dashboard response that honors failure.
+
+## Other open boundaries
+
+- Existing authenticated snapshot hydration reports but does not evict a local
+  OPEN row absent from a completed Coinbase snapshot, returns early for an
+  empty snapshot, and leaves same-status quantity differences untouched.
+- Coinbase emitted no authenticated live order/PATCH envelope during the
+  bounded runs. Canonical PATCH dispatch remains automated-test evidence.
 - Perpetual-position rows use a different field schema from expiring futures;
-  the existing position snapshot handler catches/logs that mismatch and drops
-  the perpetual update while order processing remains isolated. Supporting
-  that schema requires a separate position-model correction.
-- Fully revealed anchor repricing still conflates unexposed `remaining_size`
-  with live venue exposure, and cumulative-volume evaluation has a ticker-field
-  and evaluator-lifetime mismatch. Both are separately recorded graph hazards,
-  not unfinished scheduler phases.
-- The live clone had no active stealth row, so no condition hold, reveal,
-  re-hide, anchor reprice, or exchange placement was exercised. Coinbase also
-  emitted no live authenticated `PATCH` envelope, so canonical PATCH dispatch
-  remains automated-test evidence rather than direct live evidence.
-- PAUSED is an origin-admission boundary, not a read-only mode. Ticker
-  persistence, reconciliation, authenticated fill/cancel handling, and scheduler
-  condition/snapshot transitions can still write state. The hotpoint decay
-  sweeper can also issue live REST cancellation calls for eligible persisted
-  rows without RuntimeController admission. The empty clone had no candidate,
-  but a future live test must preflight this independently rather than treating
-  PAUSED as a universal no-side-effects guarantee.
+  existing position handling logs/drops that mismatch while order processing
+  remains isolated.
+- Fully revealed anchor repricing still conflates hidden `remaining_size` with
+  venue exposure. Cumulative-volume evaluation still has ticker-field and
+  evaluator-lifetime mismatches. These are separately indexed hazards.
+- External tests remain deselected. Their configured sandbox URL does not yet
+  prove that every SDK call is sandbox-routed, so running them is not authorized
+  by the local full-suite result.
 
 ## Next actions
 
-- Inspect and commit this live-evidence context/graph diff after operator review.
-- Decide whether to close the passive live-validation milestone or separately
-  approve a controlled stateful test with an active stealth row and/or captured
-  authenticated PATCH envelope. Do not seed state, resume trading, place, or
-  cancel an order without that approval.
+1. Present the two smallest source/test plans, including exact behavior
+   invariants and the revealed-order cancellation exclusion, before changing
+   either behavior.
+2. If approved, correct one boundary at a time and rerun its focused contracts,
+   the scheduler contract, and the mandatory regression suite before continuing.
 
-This file is intentionally short and branch-neutral. Confirm the current Git
-branch and working tree at session start. Do not infer active work from chat
-history, topical fix summaries, or files under `genai_data/history/`.
-
-When an operator explicitly approves work that must survive a session handoff,
-record only the objective, fixed constraints, in-scope files, verified facts,
-open risks, validation state, and next actions here. Remove or archive that
-state when the work is completed, reverted, or abandoned.
+This file is branch-scoped context, not a substitute for current code and test
+evidence. Confirm branch, HEAD, and worktree at session entry.
