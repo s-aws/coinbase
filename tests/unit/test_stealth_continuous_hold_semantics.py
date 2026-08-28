@@ -593,7 +593,7 @@ def test_pending_transition_persistence_failure_rolls_back_and_pauses(
 
     with pytest.raises(
         StealthOrderPersistenceError,
-        match="continuous-condition PENDING transition",
+        match="condition PENDING transition for price stealth order",
     ):
         manager.evaluate_conditions(STEALTH_ORDER_ID)
 
@@ -632,7 +632,7 @@ def test_triggered_transition_persistence_failure_rolls_back_and_pauses(
 
     with pytest.raises(
         StealthOrderPersistenceError,
-        match="continuous-condition TRIGGERED transition",
+        match="condition TRIGGERED transition for price stealth order",
     ):
         manager.evaluate_conditions(STEALTH_ORDER_ID)
 

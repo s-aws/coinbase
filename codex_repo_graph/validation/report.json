@@ -10,14 +10,14 @@
     }
   ],
   "counts": {
-    "commits": 2049,
-    "edges": 34142,
-    "files": 501,
+    "commits": 2050,
+    "edges": 34360,
+    "files": 503,
     "git_refs": 11,
-    "path_history": 1460,
-    "semantic_records": 174,
-    "symbols": 8402,
-    "tests": 1232
+    "path_history": 1469,
+    "semantic_records": 175,
+    "symbols": 8427,
+    "tests": 1241
   },
   "dangling_edge_ids": [],
   "duplicate_conflicts": {
@@ -29,119 +29,30 @@
     "count": 4,
     "prefix": "refs/codex/turn-diffs/<redacted>"
   },
-  "explicit_exclusions": [
-    {
-      "path": "codex_repo_graph/ENTRYPOINT.md",
-      "reason": "graph_self"
-    },
-    {
-      "path": "codex_repo_graph/build_graph.py",
-      "reason": "graph_self"
-    },
-    {
-      "path": "codex_repo_graph/index/edges.jsonl",
-      "reason": "graph_self"
-    },
-    {
-      "path": "codex_repo_graph/index/files.jsonl",
-      "reason": "graph_self"
-    },
-    {
-      "path": "codex_repo_graph/index/git_commits.jsonl",
-      "reason": "graph_self"
-    },
-    {
-      "path": "codex_repo_graph/index/git_refs.jsonl",
-      "reason": "graph_self"
-    },
-    {
-      "path": "codex_repo_graph/index/path_history.jsonl",
-      "reason": "graph_self"
-    },
-    {
-      "path": "codex_repo_graph/index/symbols.jsonl",
-      "reason": "graph_self"
-    },
-    {
-      "path": "codex_repo_graph/index/tests.jsonl",
-      "reason": "graph_self"
-    },
-    {
-      "path": "codex_repo_graph/manifest.json",
-      "reason": "graph_self"
-    },
-    {
-      "path": "codex_repo_graph/query_graph.py",
-      "reason": "graph_self"
-    },
-    {
-      "path": "codex_repo_graph/schema.json",
-      "reason": "graph_self"
-    },
-    {
-      "path": "codex_repo_graph/semantic/claims.jsonl",
-      "reason": "graph_self"
-    },
-    {
-      "path": "codex_repo_graph/semantic/components.jsonl",
-      "reason": "graph_self"
-    },
-    {
-      "path": "codex_repo_graph/semantic/concurrency.jsonl",
-      "reason": "graph_self"
-    },
-    {
-      "path": "codex_repo_graph/semantic/hazards.jsonl",
-      "reason": "graph_self"
-    },
-    {
-      "path": "codex_repo_graph/semantic/interfaces.jsonl",
-      "reason": "graph_self"
-    },
-    {
-      "path": "codex_repo_graph/semantic/invariants.jsonl",
-      "reason": "graph_self"
-    },
-    {
-      "path": "codex_repo_graph/semantic/persistence.jsonl",
-      "reason": "graph_self"
-    },
-    {
-      "path": "codex_repo_graph/semantic/runtime_flows.jsonl",
-      "reason": "graph_self"
-    },
-    {
-      "path": "codex_repo_graph/semantic/task_routes.jsonl",
-      "reason": "graph_self"
-    },
-    {
-      "path": "codex_repo_graph/validation/report.json",
-      "reason": "graph_self"
-    }
-  ],
+  "explicit_exclusions": [],
   "fatal_errors": [],
   "index_hashes": {
-    "edges.jsonl": "84b94c4efa9e0a32b2a505644ccf05f1fec3e2a641459be1dbce0deee8778718",
-    "files.jsonl": "d274433105c3ed0dc77ab5e2567f7daa6168817bafb543c38afff8a49018c13c",
-    "git_commits.jsonl": "541ddcbac0d9e860be0330ddb5e4e1560d97f873c3759a0722d3d0b9bffc3b49",
-    "git_refs.jsonl": "5a59fbb21f52f7542c7c4401ac95be01cc9b2539d40431080791b5365d13913e",
-    "path_history.jsonl": "ce60a3333978c427f1fd84d5d75886362ae74656997e2e449765db123d94c6b9",
-    "symbols.jsonl": "6222dc9afa0a4fbfc9e0ec825ec22a93814dfd23ee5431458bd627103f6b0873",
-    "tests.jsonl": "7ea1d6ab034a3b854fa48864e9b4fbd66a6c81c2f2aa755b9732f4ee3c6a0bc6"
+    "edges.jsonl": "c6e0610ebc2afd2f3ba4c2f9060fca6983464b627ab7084469c442aefd513b6a",
+    "files.jsonl": "191a284c12abe1d9af1cc60fb43c16af8fc35e15b854a6e03fc0e5b3ae83330d",
+    "git_commits.jsonl": "69c6c21dc7aedf1834ae098317cca5036655d2d2e12410215e1d5241875abe91",
+    "git_refs.jsonl": "33625cb6aec9c20205fbe1ec4e4a9ee8837445d6a7d2f12177e09bfd21774caa",
+    "path_history.jsonl": "70b6c1ac96468230f8c277bc35fdc0c7f90771b92abfc44a67a3fbc8d210446a",
+    "symbols.jsonl": "b9aacf468d189c9b0ad0b555ad9f569a670b59dc089afaf38c5e7b74574bfc29",
+    "tests.jsonl": "18cc6a191f960e9dfcd04199183791b981d80b92eee4f6eab73446f31d430180"
   },
   "index_invariant_errors": [],
   "parse_findings": [],
   "redaction_errors": [],
-  "represented_path_count": 501,
+  "represented_path_count": 503,
   "schema_validation": {
     "error_count": 0,
-    "record_count": 47971,
+    "record_count": 48236,
     "validator": "built_in_json_schema_subset"
   },
   "semantic_reference_errors": [],
   "sensitive_output_findings": [],
   "source_edge_ids_missing": [],
-  "source_tree_digest": "2c7020650def8ee32aa6e65b047ef343dab5ee5487d0ee51062bcf98004c665e",
+  "source_tree_digest": "af8239c7e0931393aa4cc6e655cfc7d10f61497c2a5434c4cbcfdc6a6e7544b9",
   "status": "pass",
-  "unresolved_call_edge_count": 16747
+  "unresolved_call_edge_count": 16864
 }

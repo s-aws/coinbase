@@ -1,8 +1,11 @@
-# CODEX_REPO_GRAPH/1
+# CODEX_REPO_GRAPH/2
 
 PURPOSE=token-bounded current-checkout retrieval; not narrative documentation
 AUTHORITY=AGENTS.md>agent.md>current_code+schema+config+tests>verified_current semantic records>other docs
 FRESHNESS_KEYS=manifest.json.graph_digest+manifest.json.source_tree_digest
+HISTORY_SNAPSHOT=manifest.json.history_snapshot_head+index/git_refs.jsonl
+CHECK_CONTRACT=source_indexes_match_current_worktree;git_history_indexes_match_persisted_snapshot
+COMMIT_WINDOW=one_post_snapshot_source_changing_commit+unlimited_graph_only_successors
 
 LOAD_PROTOCOL:
 1. Read `manifest.json`.
@@ -10,6 +13,7 @@ LOAD_PROTOCOL:
 3. Route with `query_graph.py task <tag>`; do not preload `index/*.jsonl`.
 4. Load only returned files/records, then inspect cited source lines.
 5. Treat `heuristic`, `unknown`, `conflicted`, `intended_only`, and `historical` records as non-proof.
+6. Rebuild before a second commit touching paths outside `codex_repo_graph/` is added after `history_snapshot_head`.
 
 QUERY_PROTOCOL:
 - `query_graph.py task websocket`
@@ -52,6 +56,8 @@ STATIC_GRAPH_LIMITS:
 - Raw constant/default/decorator payloads and UUID-shaped operational identifiers are omitted or redacted.
 - Log, dump, captured-account, credential, browser-profile, dependency, cache, and graph-output contents are excluded; tracked runtime logs retain metadata only.
 - `validation/report.json.status=pass` requires source parsing, schema conformance, semantic references/evidence, index locations, redaction, sensitive-pattern checks, IDs, and edges to pass.
+- Write mode captures Git history/ref/path-history inputs at `history_snapshot_head`; check mode reuses that snapshot so its containing commit does not invalidate it.
+- Check mode requires the snapshot commit to exist and remain an ancestor of current HEAD. Live HEAD and snapshot distance are transient validation inputs and are not stored in generated artifacts.
 
 REBUILD=`.venv/Scripts/python.exe codex_repo_graph/build_graph.py`
 CHECK=`.venv/Scripts/python.exe codex_repo_graph/build_graph.py --check`

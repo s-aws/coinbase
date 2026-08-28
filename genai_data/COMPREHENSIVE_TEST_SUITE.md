@@ -30,12 +30,11 @@ the changed behavior. For durable milestone closeout, public/release-candidate
 handoff, or explicit user request, run the full regression closeout gate:
 
 ```powershell
-python tools/run_parallel_regression.py --workers 4
+pytest tests/regression/ -v
 ```
 
-The helper runs non-serial regression tests with pytest-xdist process workers
-and runs tests marked `serial` in a separate sequential lane. Do not use Python
-threads to parallelize the regression suite.
+Run this suite sequentially. This repository does not provide a
+parallel-regression runner.
 
 ## Suite Coverage Focus
 
@@ -74,7 +73,7 @@ threads to parallelize the regression suite.
 
 ### Full regression closeout gate
 ```powershell
-python tools/run_parallel_regression.py --workers 4
+pytest tests/regression/ -v
 ```
 
 ### Full suite

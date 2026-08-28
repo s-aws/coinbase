@@ -591,17 +591,36 @@ class StealthOrderBridge:
                     stealth_order_id,
                     reason,
                 )
-                with controller.track_inflight(INFLIGHT_STEALTH_REVEAL):
-                    client_order_id = self.stealth_manager.reveal_order_slice(
-                        stealth_order_id
-                    )
-                    if client_order_id:
-                        logger.debug("Revealed slice: %s", client_order_id)
-                        self.record_reveal_event(
-                            stealth_order_id,
-                            client_order_id,
-                            reason or "Reveal condition met",
+                try:
+                    # Admission and in-flight registration must be one
+                    # state-lock boundary. The optimistic check above keeps
+                    # the common paused path cheap, while this context closes
+                    # the race where pause wins immediately afterward.
+                    with controller.track_admitted_inflight(
+                        INFLIGHT_STEALTH_REVEAL
+                    ):
+                        client_order_id = (
+                            self.stealth_manager.reveal_order_slice(
+                                stealth_order_id
+                            )
                         )
+                        if client_order_id:
+                            logger.debug(
+                                "Revealed slice: %s", client_order_id
+                            )
+                            self.record_reveal_event(
+                                stealth_order_id,
+                                client_order_id,
+                                reason or "Reveal condition met",
+                            )
+                except EngineNotAdmittingError:
+                    logger.debug(
+                        "Reveal deferred after atomic admission closed "
+                        "(engine state %s): %s",
+                        controller.state.value,
+                        stealth_order_id,
+                    )
+                    return
         finally:
             order_after_final = self.stealth_manager.in_memory_orders.get(
                 stealth_order_id
@@ -1641,7 +1660,11 @@ class StealthOrderBridge:
         Returns:
             The stealth_order_id (either provided or newly generated)
         """
-        order_id = stealth_order_id or str(uuid.uuid4())
+        order_id = (
+            str(stealth_order_id)
+            if stealth_order_id
+            else str(uuid.uuid4())
+        )
         with self._get_order_action_lock(order_id):
             return self.stealth_manager.create_stealth_order(
                 stealth_order_id=order_id,
@@ -1655,7 +1678,11 @@ class StealthOrderBridge:
     ) -> Optional[str]:
         """Serialize a complete follow-up factory transaction by its new SID."""
 
-        order_id = follow_up_stealth_order_id or str(uuid.uuid4())
+        order_id = (
+            str(follow_up_stealth_order_id)
+            if follow_up_stealth_order_id
+            else str(uuid.uuid4())
+        )
         with self._get_order_action_lock(order_id):
             return self.stealth_manager.create_follow_up_stealth_order(
                 follow_up_stealth_order_id=order_id,

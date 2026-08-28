@@ -14,6 +14,7 @@ import threading
 import time
 from typing import Any, Dict, Iterable, Mapping, Optional
 from unittest.mock import Mock
+import uuid
 
 import pytest
 
@@ -24,6 +25,7 @@ from bridges.stealth_event_deadline_scheduler import (
     StealthEventDeadlineScheduler,
 )
 from core.enums import EngineState, RevealConditionType, StealthOrderStatus, StealthWakePurpose
+from core.exceptions import StealthOrderPersistenceError
 from core.runtime_controller import EngineNotAdmittingError
 from core.stealth_order_manager import StealthOrderManager
 
@@ -616,6 +618,56 @@ def test_follow_up_creation_lock_covers_post_create_fields() -> None:
         "evaluate"
     )
     scheduler.stop()
+
+
+@pytest.mark.parametrize(
+    ("bridge_method", "manager_method", "id_keyword"),
+    (
+        (
+            "create_stealth_order",
+            "create_stealth_order",
+            "stealth_order_id",
+        ),
+        (
+            "create_follow_up_stealth_order",
+            "create_follow_up_stealth_order",
+            "follow_up_stealth_order_id",
+        ),
+    ),
+)
+def test_explicit_creation_id_is_normalized_before_lock_ownership(
+    bridge_method: str,
+    manager_method: str,
+    id_keyword: str,
+) -> None:
+    manager = FakeStealthManager()
+    bridge, scheduler = _new_bridge(manager)
+    explicit_id = uuid.uuid4()
+    received_ids = []
+
+    def create_with_schedule_callback(**kwargs):
+        order_id = kwargs[id_keyword]
+        received_ids.append(order_id)
+        manager.in_memory_orders[order_id] = _time_delay_order(
+            order_id,
+            "CONTRACT-A",
+        )
+        manager.schedule_change_callback(order_id)
+        return order_id
+
+    setattr(manager, manager_method, create_with_schedule_callback)
+
+    try:
+        result = getattr(bridge, bridge_method)(
+            **{id_keyword: explicit_id}
+        )
+
+        normalized_id = str(explicit_id)
+        assert result == normalized_id
+        assert received_ids == [normalized_id]
+        assert set(bridge._order_action_locks) == {normalized_id}
+    finally:
+        scheduler.stop()
 
 
 def test_exchange_id_sync_re_resolves_under_sid_action_lock() -> None:
@@ -2798,6 +2850,48 @@ def test_paused_runtime_may_commit_triggered_but_never_reveals(monkeypatch) -> N
         bridge.stop()
 
 
+def test_reveal_defers_when_pause_wins_atomic_admission(monkeypatch) -> None:
+    """A pause between the optimistic read and admission must win."""
+
+    stealth_order_id = "sid-atomic-reveal"
+    manager = FakeStealthManager(
+        (_time_delay_order(stealth_order_id, "CONTRACT-A"),)
+    )
+    manager.trigger_on_evaluation.add(stealth_order_id)
+    controller = RejectAtAtomicAdmissionController()
+    monkeypatch.setattr(
+        bridge_module,
+        "get_runtime_controller",
+        lambda: controller,
+    )
+    bridge, scheduler = _new_bridge(manager)
+
+    try:
+        bridge._evaluate_scheduled_order(
+            stealth_order_id,
+            market_data={
+                "product_id": "CONTRACT-A",
+                "price": 101.0,
+                "bid": 100.0,
+                "ask": 102.0,
+                "source": "ticker",
+                "time": datetime.utcnow(),
+            },
+        )
+
+        assert controller.state == EngineState.PAUSED
+        assert manager.in_memory_orders[stealth_order_id]["status"] == (
+            StealthOrderStatus.TRIGGERED.value
+        )
+        assert manager.revealed_ids == []
+        assert scheduler.current_generation(
+            stealth_order_id,
+            StealthWakePurpose.ADMISSION_RETRY,
+        ) > 0
+    finally:
+        scheduler.stop()
+
+
 def test_committed_trigger_reveals_once_after_runtime_resumes(monkeypatch) -> None:
     order = _time_delay_order("sid-a", "CONTRACT-A", delay_seconds=0)
     manager = FakeStealthManager((order,))
@@ -2864,6 +2958,91 @@ def test_stop_interrupts_bridge_and_far_future_scheduler_wait_promptly() -> None
     assert scheduler.stopped is True
     assert bridge.evaluation_thread is None or not bridge.evaluation_thread.is_alive()
     assert not bridge.reconciliation_thread.is_alive()
+
+
+def test_due_time_persistence_failure_never_reveals_and_rebuilds_wake(
+    monkeypatch,
+) -> None:
+    product_id = "PERSISTENCE-FAILURE-PRODUCT"
+    stealth_order_id = "persistence-failure-order"
+    manager = StealthOrderManager(db_client=None, log_callback=Mock())
+    manager._validate_local_price_read_only = Mock(return_value=True)
+    manager._update_stealth_order = Mock(return_value=False)
+    manager._dispatch_lifecycle_event = Mock()
+    manager.reveal_order_slice = Mock(return_value="must-not-be-placed")
+    manager.in_memory_orders[stealth_order_id] = {
+        **_time_delay_order(
+            stealth_order_id,
+            product_id,
+            delay_seconds=0.0,
+        ),
+        "side": "BUY",
+        "total_size": 1.0,
+        "revealed_size": 0.0,
+        "executed_size": 0.0,
+        "limit_price": 100.0,
+        "revealed_orders": [],
+        "reason": "deadline persistence failure contract",
+    }
+    manager.publish_market_data(
+        product_id,
+        {
+            "product_id": product_id,
+            "price": 100.0,
+            "bid": 99.0,
+            "ask": 101.0,
+            "time": datetime.utcnow(),
+            "source": "ticker",
+        },
+    )
+    controller = MutableRuntimeController()
+    monkeypatch.setattr(
+        bridge_module,
+        "get_runtime_controller",
+        lambda: controller,
+    )
+    monkeypatch.setattr(
+        "core.stealth_order_manager.get_runtime_controller",
+        lambda: controller,
+    )
+    clock = MutableMonotonicClock(100.0)
+    scheduler = StealthEventDeadlineScheduler(clock=clock)
+    bridge = bridge_module.StealthOrderBridge(
+        manager,
+        order_engine=None,
+        scheduler=scheduler,
+    )
+    bridge._decisions_ready.set()
+    initial_generation = scheduler.schedule_after(
+        stealth_order_id,
+        StealthWakePurpose.TIME_DELAY,
+        0.0,
+    )
+    errors = []
+
+    try:
+        batch = scheduler.run_due(
+            on_deadline=bridge._handle_deadline_wake,
+            on_error=lambda error, item: errors.append((error, item)),
+        )
+
+        assert len(batch.deadline_wakes) == 1
+        assert len(errors) == 1
+        assert isinstance(errors[0][0], StealthOrderPersistenceError)
+        order = manager.in_memory_orders[stealth_order_id]
+        assert order["status"] == StealthOrderStatus.HIDDEN.value
+        assert order["condition_first_met_at"] is None
+        assert order["condition_confirmed_at"] is None
+        assert controller.pause_requests == 1
+        manager.reveal_order_slice.assert_not_called()
+        manager._dispatch_lifecycle_event.assert_not_called()
+        assert scheduler.current_generation(
+            stealth_order_id,
+            StealthWakePurpose.TIME_DELAY,
+        ) > initial_generation
+        assert scheduler.next_deadline_monotonic == pytest.approx(100.1)
+    finally:
+        scheduler.stop()
 
 
 def test_real_manager_continuous_hold_rebuilds_and_reveals_on_next_tick(

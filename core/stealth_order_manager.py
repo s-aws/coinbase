@@ -3666,7 +3666,7 @@ class StealthOrderManager:
         self._notify_schedule_invalidated(stealth_order_id)
         return True
 
-    def _persist_continuous_condition_transition(
+    def _persist_condition_transition(
         self,
         order: Dict[str, Any],
         *,
@@ -3675,7 +3675,7 @@ class StealthOrderManager:
         previous_confirmed_at: Any,
         transition_status: StealthOrderStatus,
     ) -> None:
-        """Persist one continuous-hold transition or restore it fail-closed."""
+        """Persist one condition transition or restore it fail-closed."""
 
         try:
             persisted = self._update_stealth_order(order)
@@ -3693,8 +3693,9 @@ class StealthOrderManager:
         order["condition_confirmed_at"] = previous_confirmed_at
         get_runtime_controller().request_pause()
         raise StealthOrderPersistenceError(
-            "Failed to persist continuous-condition "
+            "Failed to persist condition "
             f"{transition_status.value} transition for "
+            f"{order.get('reveal_condition_type')} stealth order "
             f"{order.get('stealth_order_id')}"
         )
 
@@ -3738,6 +3739,11 @@ class StealthOrderManager:
         # Get evaluator for this condition type
         condition_type = order.get("reveal_condition_type", "time_delay")
         condition_config = order.get("reveal_condition_json", {})
+        previous_condition_state = (
+            order.get("status"),
+            order.get("condition_first_met_at"),
+            order.get("condition_confirmed_at"),
+        )
         
         evaluator = get_evaluator(condition_type)
 
@@ -3745,13 +3751,7 @@ class StealthOrderManager:
             RevealConditionType.PRICE_THRESHOLD.value,
             RevealConditionType.SPREAD.value,
         }
-        continuous_previous_state = None
         if condition_type in continuous_condition_types:
-            continuous_previous_state = (
-                order.get("status"),
-                order.get("condition_first_met_at"),
-                order.get("condition_confirmed_at"),
-            )
             truth_result = evaluator.evaluate_truth(
                 market_snapshot,
                 condition_config,
@@ -3824,11 +3824,11 @@ class StealthOrderManager:
                 )
                 if first_transition:
                     order["status"] = StealthOrderStatus.PENDING.value
-                    self._persist_continuous_condition_transition(
+                    self._persist_condition_transition(
                         order,
-                        previous_status=continuous_previous_state[0],
-                        previous_first_met_at=continuous_previous_state[1],
-                        previous_confirmed_at=continuous_previous_state[2],
+                        previous_status=previous_condition_state[0],
+                        previous_first_met_at=previous_condition_state[1],
+                        previous_confirmed_at=previous_condition_state[2],
                         transition_status=StealthOrderStatus.PENDING,
                     )
                     self._dispatch_lifecycle_event(
@@ -3912,16 +3912,13 @@ class StealthOrderManager:
                 confirmed_at = datetime.utcnow()
             order["condition_confirmed_at"] = confirmed_at
             order["status"] = StealthOrderStatus.TRIGGERED.value
-            if continuous_previous_state is not None:
-                self._persist_continuous_condition_transition(
-                    order,
-                    previous_status=continuous_previous_state[0],
-                    previous_first_met_at=continuous_previous_state[1],
-                    previous_confirmed_at=continuous_previous_state[2],
-                    transition_status=StealthOrderStatus.TRIGGERED,
-                )
-            else:
-                self._update_stealth_order(order)
+            self._persist_condition_transition(
+                order,
+                previous_status=previous_condition_state[0],
+                previous_first_met_at=previous_condition_state[1],
+                previous_confirmed_at=previous_condition_state[2],
+                transition_status=StealthOrderStatus.TRIGGERED,
+            )
             # 📊 LOT-TRACKING: Log condition met
             market_price = market_snapshot.get("price", "unknown")
             self.log_callback("info", f"[LOT-TRACK] Stealth order condition met: {order['stealth_order_id']} ({order['side']} {order['total_size']} {order['product_id']} @ {order['limit_price']}, market_price={market_price})")
@@ -3944,7 +3941,13 @@ class StealthOrderManager:
                     or datetime.utcnow()
                 )
                 order["status"] = StealthOrderStatus.PENDING.value
-                self._update_stealth_order(order)
+                self._persist_condition_transition(
+                    order,
+                    previous_status=previous_condition_state[0],
+                    previous_first_met_at=previous_condition_state[1],
+                    previous_confirmed_at=previous_condition_state[2],
+                    transition_status=StealthOrderStatus.PENDING,
+                )
                 # 🔔 LIFECYCLE HOOK: CONDITION_WATCHING
                 self._dispatch_lifecycle_event(
                     stealth_order_id=stealth_order_id,

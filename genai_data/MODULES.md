@@ -61,8 +61,9 @@ Responsibilities:
 - move-revealed cancel-and-replace flow
 - lifecycle hook dispatch and audit writes
 - authoritative condition state transitions, including continuous price/spread
-  hold reset and `TRIGGERED` snapshot commitment, with rollback/pause before
-  lifecycle publication if either transition cannot be persisted
+  hold reset and every condition type's `PENDING`/`TRIGGERED` commitment, with
+  rollback/pause before lifecycle publication if a transition cannot be
+  persisted
 - thread-safe defensive market snapshots and post-persistence schedule
   invalidation notifications
 
@@ -74,7 +75,8 @@ Responsibilities:
 - state transitions (`RUNNING`, `PAUSED`, `DRAINING`, `STOPPED`)
 - admission checks for originating work
 - inflight tracking for graceful drain
-- atomic admission plus inflight registration for scheduler-owned anchor work
+- atomic admission plus inflight registration for scheduler-owned reveal and
+  anchor work
 - subsystem stop-hook orchestration
 
 ### `core/startup_reconciler.py`

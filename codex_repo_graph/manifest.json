@@ -11,35 +11,36 @@
     "opaque_identifiers_and_literal_payloads"
   ],
   "excluded_git_ref_count": 4,
-  "graph_digest": "401a3f18f3f0053c641d01c5b21f08d6356f9c9225e1bd43368f56bdcc90f81c",
+  "graph_digest": "a04da2a98778cd9548cda2ca00793e83bfd1956ad42d1601b0808e30c5e64cac",
+  "graph_format_version": "2.0.0",
   "graph_schema_version": "1.1.0",
-  "head": "28f3a0aced0a9717149515122716eff759d91c01",
+  "history_snapshot_head": "5857b36a715e66e8a0dc5ab715385bcd308cf862",
   "index_hashes": {
-    "edges.jsonl": "84b94c4efa9e0a32b2a505644ccf05f1fec3e2a641459be1dbce0deee8778718",
-    "files.jsonl": "d274433105c3ed0dc77ab5e2567f7daa6168817bafb543c38afff8a49018c13c",
-    "git_commits.jsonl": "541ddcbac0d9e860be0330ddb5e4e1560d97f873c3759a0722d3d0b9bffc3b49",
-    "git_refs.jsonl": "5a59fbb21f52f7542c7c4401ac95be01cc9b2539d40431080791b5365d13913e",
-    "path_history.jsonl": "ce60a3333978c427f1fd84d5d75886362ae74656997e2e449765db123d94c6b9",
-    "symbols.jsonl": "6222dc9afa0a4fbfc9e0ec825ec22a93814dfd23ee5431458bd627103f6b0873",
-    "tests.jsonl": "7ea1d6ab034a3b854fa48864e9b4fbd66a6c81c2f2aa755b9732f4ee3c6a0bc6"
+    "edges.jsonl": "c6e0610ebc2afd2f3ba4c2f9060fca6983464b627ab7084469c442aefd513b6a",
+    "files.jsonl": "191a284c12abe1d9af1cc60fb43c16af8fc35e15b854a6e03fc0e5b3ae83330d",
+    "git_commits.jsonl": "69c6c21dc7aedf1834ae098317cca5036655d2d2e12410215e1d5241875abe91",
+    "git_refs.jsonl": "33625cb6aec9c20205fbe1ec4e4a9ee8837445d6a7d2f12177e09bfd21774caa",
+    "path_history.jsonl": "70b6c1ac96468230f8c277bc35fdc0c7f90771b92abfc44a67a3fbc8d210446a",
+    "symbols.jsonl": "b9aacf468d189c9b0ad0b555ad9f569a670b59dc089afaf38c5e7b74574bfc29",
+    "tests.jsonl": "18cc6a191f960e9dfcd04199183791b981d80b92eee4f6eab73446f31d430180"
   },
-  "indexed_file_count": 501,
+  "indexed_file_count": 503,
   "metadata_only_file_count": 2,
   "semantic_hashes": {
-    "claims.jsonl": "fdc8069a51249f771a0aa61e339e6ac2824c3b4afff51557e4364e73e65ddfde",
-    "components.jsonl": "e38370ab3cde0cfa68954980d4bdd3747e679ba9461b13cb194df258c54e3b9b",
-    "concurrency.jsonl": "3d400a5a23ab45b57ea6da7a0cde932d9a9564dfeed8031800d9bde0f6415594",
-    "hazards.jsonl": "bcdfe03a6d979c9ef666b1c8ebc6b301bb969c72d88bf6694e3693577b1513ce",
+    "claims.jsonl": "bfcfeae2078c82de856a18995e332ba39d657c1c2049b7d68418a6fb401eb2ef",
+    "components.jsonl": "bd5544c0bba2a903f6b73a878b48ef67026eecf55b1972d3e6a79dd4f700451e",
+    "concurrency.jsonl": "fafd9b7444ab800a837ad6c81ed04587cafdafed9b10d8b59f1b87306e9b740d",
+    "hazards.jsonl": "88d6300c8650d4393b8dc17a55379f13e307d41b9787f73a07802d91e212fe48",
     "interfaces.jsonl": "cc1aef12646c9e8d4da78745b5673f21774e2aedb9a78e69f29545babed2897b",
-    "invariants.jsonl": "5e309e036c1bafc60beaeae335b76ce011db75677381a865dc47258ea9b4283f",
-    "persistence.jsonl": "cc53bad120344e8d97900439af91f34bf7083b919454817e6bd15c7d87d013b5",
-    "runtime_flows.jsonl": "1f3964d285e2af4d6effabd2a683913fefb764f921cbf6ecfb5614c585c53212",
-    "task_routes.jsonl": "ffc07800eb23c20e29c7b3d9d322011d3153f0ec6e2de839fd8ab97e505348bb"
+    "invariants.jsonl": "cfb8fbb8ecf064bc7f0b631dc42f6d9f0e17cc05f759bcbe64202df1399fc164",
+    "persistence.jsonl": "b30a3f44134ed412d15da15521faa67317f9be02aa5b549efda3305757a0dbf7",
+    "runtime_flows.jsonl": "56d955cf405ef57a588ae2b2a9faf3bc8277c6c96664e1cde2b1664dc1684943",
+    "task_routes.jsonl": "8aaf638371e627bb485c02fdc70c44933fbe0ea4368ba0fa43c39f5e256a601e"
   },
-  "source_tree_digest": "2c7020650def8ee32aa6e65b047ef343dab5ee5487d0ee51062bcf98004c665e",
+  "source_tree_digest": "af8239c7e0931393aa4cc6e655cfc7d10f61497c2a5434c4cbcfdc6a6e7544b9",
   "tool_hashes": {
-    "ENTRYPOINT.md": "ec751646d05aaf923b230057b5fe5566123ed73dd5ba09e52717f47f133ca410",
-    "build_graph.py": "e01cc14fed643ce11201c10f0b234b3bcdea0a3c60c67cf25c861dc70d13a2e2",
+    "ENTRYPOINT.md": "5fa321f88af471ef32a25df932bd7378003f830bfc599674a538ca692b622ba6",
+    "build_graph.py": "216faeddd15940f5f9c33a626e19d5b3b9b84d8833269bf26d28591d206602bc",
     "query_graph.py": "3115b987b4c18d8fece23b6fbedb950a270cd290c41340b337c41f9240bc923f",
     "schema.json": "f51e34485f34f56b8377b3eaccd07bae9e0fc5248fac9724279dc0f3e9c73416"
   }

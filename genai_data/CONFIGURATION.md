@@ -212,10 +212,7 @@ Do not introduce duplicate global settings when a per-order canonical field alre
 
 ```powershell
 # Full regression gate for durable milestone closeout or explicit request
-python tools/run_parallel_regression.py --workers 4
-
-# Sequential fallback only when pytest-xdist is unavailable
-pytest tests/regression/ -v --tb=short
+pytest tests/regression/ -v
 
 # Full suite (major changes)
 pytest tests/ -v --tb=short --cov=.

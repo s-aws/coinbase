@@ -9,6 +9,7 @@ import pytest
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock
 
+import calculation.price_validation as price_validation
 from core.stealth_order_manager import StealthOrderManager
 from core.enums import StealthOrderStatus
 
@@ -16,6 +17,28 @@ from core.enums import StealthOrderStatus
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+@pytest.fixture(autouse=True)
+def _historical_product_price_increments(monkeypatch):
+    """Keep historical product fixtures on a deterministic price grid."""
+    configured_get_product_metadata = price_validation.get_product_metadata
+    test_price_increments = {
+        "BTC-USDC": "0.01",
+        "ETH-USDC": "0.01",
+    }
+
+    def get_product_metadata(product_id):
+        price_increment = test_price_increments.get(str(product_id))
+        if price_increment is None:
+            return configured_get_product_metadata(product_id)
+        return {"price_increment": price_increment}
+
+    monkeypatch.setattr(
+        price_validation,
+        "get_product_metadata",
+        get_product_metadata,
+    )
+
 
 def _make_manager() -> StealthOrderManager:
     """Create a manager with no DB and noop persistence helpers."""

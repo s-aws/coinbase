@@ -135,7 +135,7 @@ Concurrency safety mechanisms:
 - `STOPPED`: terminal state.
 
 Admission is enforced at dashboard and engine-originated entry points.
-Inflight critical sections (`track_inflight`) allow graceful drain before stop hooks run. Scheduler-owned anchor actions use `track_admitted_inflight` so the admission decision and inflight registration share one state-lock boundary: pause either wins first or the already-admitted action drains as existing work.
+Inflight critical sections (`track_inflight`) allow graceful drain before stop hooks run. Scheduler-owned reveal and anchor actions use `track_admitted_inflight` so the admission decision and inflight registration share one state-lock boundary: pause either wins first or the already-admitted action drains as existing work.
 
 ## Core Data Flows
 
@@ -174,15 +174,18 @@ Inflight critical sections (`track_inflight`) allow graceful drain before stop h
    trigger. If that reset cannot be persisted, decision readiness is
    terminally latched off until restart. A true ordered event at or after the
    deadline commits `TRIGGERED`. Zero hold commits on the first true event.
-   A failed `PENDING` or `TRIGGERED` write restores the prior in-memory state,
-   requests a runtime pause, and raises before lifecycle publication or reveal.
+   Every condition type uses the same fail-closed persistence boundary for
+   `PENDING` and `TRIGGERED`: a failed write restores the prior in-memory
+   state, requests a runtime pause, and raises before logging success,
+   lifecycle publication, schedule invalidation, or reveal.
    Jitter, volume, ratio, and composite conditions retain the compatibility
    recheck path; they were not redefined by this scheduler change. Activation
    rejects malformed configurations that would fail on every recheck while
    retaining their existing fallback semantics.
 4. `TRIGGERED` is a committed snapshot. Runtime pause can defer placement, but
-   later market events do not roll it back; admission retries use the existing
-   100ms slice/retry cadence.
+   later market events do not roll it back; reveal admission and inflight
+   registration are atomic, and admission retries use the existing 100ms
+   slice/retry cadence.
 5. Anchor deadlines only mark a logical order due. The next live ticker for its
    product claims that deadline generation and invokes the existing manager
    repricing path; stale generations are no-ops and anchor repricing REST/DB work

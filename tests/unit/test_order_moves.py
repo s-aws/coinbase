@@ -14,6 +14,7 @@ import pytest
 import uuid
 from typing import Dict, Any
 
+import calculation.price_validation as price_validation
 from business.move_manager import MoveManager
 from database.order import (
     insert_order_parent,
@@ -26,6 +27,28 @@ from database.order import (
 )
 from configuration import OrderBook
 from core.enums import OrderStatus
+
+
+@pytest.fixture(autouse=True)
+def _historical_product_price_increments(monkeypatch):
+    """Keep historical product fixtures on a deterministic price grid."""
+    configured_get_product_metadata = price_validation.get_product_metadata
+    test_price_increments = {
+        "BTC-USDC": "0.01",
+        "ETH-USDC": "0.01",
+    }
+
+    def get_product_metadata(product_id):
+        price_increment = test_price_increments.get(str(product_id))
+        if price_increment is None:
+            return configured_get_product_metadata(product_id)
+        return {"price_increment": price_increment}
+
+    monkeypatch.setattr(
+        price_validation,
+        "get_product_metadata",
+        get_product_metadata,
+    )
 
 
 class TestMoveManager:

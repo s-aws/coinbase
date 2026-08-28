@@ -22,6 +22,7 @@ from typing import Any, Iterable, Iterator, Sequence
 
 
 SCHEMA_VERSION = "1.1.0"
+GRAPH_FORMAT_VERSION = "2.0.0"
 ROOT = Path(__file__).resolve().parents[1]
 GRAPH_DIR = Path(__file__).resolve().parent
 INDEX_DIR = GRAPH_DIR / "index"
@@ -34,6 +35,8 @@ OPAQUE_UUID_PATTERN = re.compile(
     r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-"
     r"[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\b"
 )
+
+GIT_SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 
 SEMANTIC_FILES = (
     "components.jsonl",
@@ -270,11 +273,9 @@ def discover_repository_paths() -> tuple[list[str], list[dict[str, str]]]:
     for raw_path in sorted(set(path for path in raw_paths if path)):
         path = normalized_path(raw_path)
         if path == GRAPH_PREFIX.rstrip("/") or path.startswith(GRAPH_PREFIX):
-            excluded.append({"path": path, "reason": "graph_self"})
             continue
         absolute = ROOT / path
         if not absolute.exists() and not absolute.is_symlink():
-            excluded.append({"path": path, "reason": "missing_worktree_path"})
             continue
         if absolute.is_dir():
             excluded.append({"path": path, "reason": "directory_entry"})
@@ -1594,22 +1595,25 @@ def validate_index_invariants(
     return errors
 
 
-def collect_git_commits() -> list[dict[str, Any]]:
+def collect_git_commits(
+    history_roots: Sequence[str],
+    decorations_by_commit: dict[str, list[str]],
+) -> list[dict[str, Any]]:
     output = run_git([
         "log",
-        "--all",
         "--date-order",
-        "--format=%H%x1f%P%x1f%ct%x1f%an%x1f%D%x1f%s",
+        "--format=%H%x1f%P%x1f%ct%x1f%an%x1f%s",
+        *history_roots,
     ])
     records: list[dict[str, Any]] = []
     for line in output.splitlines():
-        fields = line.split("\x1f", 5)
-        if len(fields) != 6:
+        fields = line.split("\x1f", 4)
+        if len(fields) != 5:
             continue
-        commit, parents, epoch, author, decorations, subject = fields
+        commit, parents, epoch, author, subject = fields
         records.append({
             "author_name": author,
-            "decorations": decorations,
+            "decorations": ", ".join(decorations_by_commit.get(commit, [])),
             "epoch": int(epoch),
             "id": f"commit:{commit}",
             "kind": "git_commit",
@@ -1646,13 +1650,174 @@ def collect_git_refs() -> tuple[list[dict[str, Any]], int]:
     return records, excluded_count
 
 
-def collect_path_history() -> list[dict[str, Any]]:
+def _load_jsonl_records(path: Path) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    for line_number, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        if not raw_line.strip():
+            continue
+        try:
+            record = json.loads(raw_line)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"{path.name}:{line_number}: invalid JSON: {exc}") from exc
+        if not isinstance(record, dict):
+            raise ValueError(f"{path.name}:{line_number}: expected an object")
+        records.append(record)
+    return records
+
+
+def capture_history_snapshot() -> dict[str, Any]:
+    """Capture the immutable Git inputs used by the history indexes."""
+    for _ in range(3):
+        head_before = run_git(["rev-parse", "HEAD"]).strip()
+        branch = run_git(["branch", "--show-current"]).strip() or None
+        refs, excluded_git_ref_count = collect_git_refs()
+        head_after = run_git(["rev-parse", "HEAD"]).strip()
+        if head_before == head_after:
+            return {
+                "branch": branch,
+                "excluded_git_ref_count": excluded_git_ref_count,
+                "head": head_before,
+                "refs": refs,
+            }
+    raise RuntimeError("HEAD changed repeatedly while the Git history snapshot was captured")
+
+
+def load_history_snapshot() -> dict[str, Any]:
+    """Load and integrity-check the history snapshot persisted by write mode."""
+    manifest_path = GRAPH_DIR / "manifest.json"
+    if not manifest_path.exists():
+        raise ValueError("missing manifest.json; run the graph builder without --check")
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"manifest.json is invalid JSON: {exc}") from exc
+    if not isinstance(manifest, dict):
+        raise ValueError("manifest.json must contain an object")
+    if manifest.get("graph_format_version") != GRAPH_FORMAT_VERSION:
+        raise ValueError(
+            "manifest graph format is not supported; run the graph builder without --check"
+        )
+
+    head = manifest.get("history_snapshot_head")
+    if not isinstance(head, str) or not GIT_SHA_PATTERN.fullmatch(head):
+        raise ValueError("manifest history_snapshot_head must be a 40-character Git SHA")
+    branch = manifest.get("branch")
+    if branch is not None and not isinstance(branch, str):
+        raise ValueError("manifest branch must be a string or null")
+    excluded_git_ref_count = manifest.get("excluded_git_ref_count")
+    if (
+        not isinstance(excluded_git_ref_count, int)
+        or isinstance(excluded_git_ref_count, bool)
+        or excluded_git_ref_count < 0
+    ):
+        raise ValueError("manifest excluded_git_ref_count must be a non-negative integer")
+
+    refs_path = INDEX_DIR / "git_refs.jsonl"
+    if not refs_path.exists():
+        raise ValueError("missing persisted Git ref snapshot: index/git_refs.jsonl")
+    expected_hash = manifest.get("index_hashes", {}).get("git_refs.jsonl")
+    if not isinstance(expected_hash, str) or sha256_bytes(refs_path.read_bytes()) != expected_hash:
+        raise ValueError("persisted Git ref snapshot does not match manifest integrity metadata")
+
+    return {
+        "branch": branch,
+        "excluded_git_ref_count": excluded_git_ref_count,
+        "head": head,
+        "refs": _load_jsonl_records(refs_path),
+    }
+
+
+def history_roots_and_decorations(
+    snapshot: dict[str, Any],
+) -> tuple[list[str], dict[str, list[str]]]:
+    head = str(snapshot["head"])
+    roots = {head}
+    decorations: dict[str, set[str]] = defaultdict(set)
+    decorations[head].add("HEAD@snapshot")
+    for ref in snapshot["refs"]:
+        object_name = str(ref.get("object", ""))
+        commit = run_git(
+            ["rev-parse", "--verify", f"{object_name}^{{commit}}"],
+            allow_failure=True,
+        ).strip()
+        if not GIT_SHA_PATTERN.fullmatch(commit):
+            continue
+        roots.add(commit)
+        decorations[commit].add(str(ref.get("ref", "")))
+    ordered_roots = [head, *sorted(roots - {head})]
+    ordered_decorations = {
+        commit: sorted(value for value in values if value)
+        for commit, values in decorations.items()
+    }
+    return ordered_roots, ordered_decorations
+
+
+def validate_history_snapshot(snapshot: dict[str, Any]) -> list[str]:
+    """Validate the transient relationship between a snapshot and live HEAD."""
+    errors: list[str] = []
+    head = str(snapshot.get("head", ""))
+    if not GIT_SHA_PATTERN.fullmatch(head):
+        return ["history snapshot HEAD is not a 40-character Git SHA"]
+    if run_git(["cat-file", "-t", head], allow_failure=True).strip() != "commit":
+        return ["history snapshot HEAD does not exist as a commit"]
+
+    current_head = run_git(["rev-parse", "HEAD"], allow_failure=True).strip()
+    if not GIT_SHA_PATTERN.fullmatch(current_head):
+        return ["current HEAD does not resolve to a commit"]
+    merge_base = run_git(["merge-base", head, current_head], allow_failure=True).strip()
+    if merge_base != head:
+        return ["history snapshot HEAD is not an ancestor of current HEAD"]
+
+    for ref in snapshot.get("refs", []):
+        if not isinstance(ref, dict):
+            errors.append("history snapshot contains a non-object Git ref record")
+            continue
+        object_name = str(ref.get("object", ""))
+        object_type = str(ref.get("object_type", ""))
+        if not GIT_SHA_PATTERN.fullmatch(object_name):
+            errors.append("history snapshot contains an invalid Git ref object SHA")
+            continue
+        actual_type = run_git(["cat-file", "-t", object_name], allow_failure=True).strip()
+        if not actual_type:
+            errors.append("history snapshot references a missing Git object")
+        elif actual_type != object_type:
+            errors.append("history snapshot Git ref object type no longer matches")
+    if errors:
+        return errors
+
+    source_changing_commits = 0
+    post_snapshot_commits = run_git(["rev-list", "--reverse", f"{head}..{current_head}"])
+    for commit in post_snapshot_commits.splitlines():
+        changed_paths = run_git([
+            "diff-tree",
+            "--root",
+            "-m",
+            "--no-commit-id",
+            "--name-only",
+            "-r",
+            commit,
+        ])
+        if any(
+            (path := normalized_path(raw_path))
+            and path != GRAPH_PREFIX.rstrip("/")
+            and not path.startswith(GRAPH_PREFIX)
+            for raw_path in changed_paths.splitlines()
+        ):
+            source_changing_commits += 1
+    if source_changing_commits > 1:
+        errors.append(
+            "history snapshot is older than one source-changing commit; rebuild the graph"
+        )
+    return errors
+
+
+def collect_path_history(history_roots: Sequence[str]) -> list[dict[str, Any]]:
     output = run_git([
         "log",
-        "--all",
         "--no-renames",
         "--format=@@%x09%H%x09%ct",
         "--numstat",
+        *history_roots,
     ])
     state: dict[str, dict[str, Any]] = {}
     current_commit: str | None = None
@@ -1773,7 +1938,11 @@ def load_and_normalize_semantic(
     return expected, all_records, errors
 
 
-def build_artifacts() -> tuple[dict[Path, bytes], dict[str, Any]]:
+def build_artifacts(
+    history_snapshot: dict[str, Any] | None = None,
+) -> tuple[dict[Path, bytes], dict[str, Any]]:
+    if history_snapshot is None:
+        history_snapshot = capture_history_snapshot()
     paths, explicit_exclusions = discover_repository_paths()
     file_records, text_by_path, lines_by_path, content_exclusions = build_file_records(paths)
     python_symbols, python_edges, tests, python_errors, _ = index_python(text_by_path)
@@ -1781,9 +1950,11 @@ def build_artifacts() -> tuple[dict[Path, bytes], dict[str, Any]]:
     symbols, symbol_conflicts = deduplicate_records([*python_symbols, *text_symbols])
     edges, edge_conflicts = deduplicate_records([*python_edges, *text_edges])
     tests, test_conflicts = deduplicate_records(tests)
-    commits = collect_git_commits()
-    refs, excluded_git_ref_count = collect_git_refs()
-    path_history = collect_path_history()
+    history_roots, decorations_by_commit = history_roots_and_decorations(history_snapshot)
+    commits = collect_git_commits(history_roots, decorations_by_commit)
+    refs = list(history_snapshot["refs"])
+    excluded_git_ref_count = int(history_snapshot["excluded_git_ref_count"])
+    path_history = collect_path_history(history_roots)
 
     semantic_artifacts, semantic_records, semantic_errors = load_and_normalize_semantic(file_records, lines_by_path)
     parse_findings = sorted([*python_errors, *text_errors], key=lambda item: (item["path"], item["stage"]))
@@ -1842,8 +2013,8 @@ def build_artifacts() -> tuple[dict[Path, bytes], dict[str, Any]]:
         source_tree_hash.update(b"\n")
     source_tree_digest = source_tree_hash.hexdigest()
 
-    branch = run_git(["branch", "--show-current"]).strip() or None
-    head = run_git(["rev-parse", "HEAD"]).strip()
+    branch = history_snapshot["branch"]
+    history_snapshot_head = str(history_snapshot["head"])
     semantic_hashes = {
         path.name: sha256_bytes(data)
         for path, data in sorted(semantic_artifacts.items(), key=lambda item: item[0].name)
@@ -1860,7 +2031,8 @@ def build_artifacts() -> tuple[dict[Path, bytes], dict[str, Any]]:
     }
     integrity_payload = {
         "branch": branch,
-        "head": head,
+        "graph_format_version": GRAPH_FORMAT_VERSION,
+        "history_snapshot_head": history_snapshot_head,
         "index_hashes": index_hashes,
         "semantic_hashes": semantic_hashes,
         "source_tree_digest": source_tree_digest,
@@ -1881,9 +2053,10 @@ def build_artifacts() -> tuple[dict[Path, bytes], dict[str, Any]]:
             "opaque_identifiers_and_literal_payloads",
         ],
         "excluded_git_ref_count": excluded_git_ref_count,
+        "graph_format_version": GRAPH_FORMAT_VERSION,
         "graph_digest": graph_digest,
         "graph_schema_version": SCHEMA_VERSION,
-        "head": head,
+        "history_snapshot_head": history_snapshot_head,
         "index_hashes": index_hashes,
         "indexed_file_count": len(file_records),
         "metadata_only_file_count": sum(not record["content_indexed"] for record in file_records),
@@ -1995,7 +2168,19 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     try:
-        artifacts, validation = build_artifacts()
+        history_snapshot = load_history_snapshot() if args.check else capture_history_snapshot()
+        history_snapshot_errors = validate_history_snapshot(history_snapshot)
+        if history_snapshot_errors:
+            result = {
+                "history_snapshot_error_count": len(history_snapshot_errors),
+                "mode": "check" if args.check else "write",
+                "status": "history_snapshot_invalid",
+            }
+            print(compact_json(result))
+            for error in history_snapshot_errors:
+                print(error, file=sys.stderr)
+            return 1
+        artifacts, validation = build_artifacts(history_snapshot)
     except Exception as exc:
         print(compact_json({"error": f"{type(exc).__name__}: {exc}", "status": "build_error"}), file=sys.stderr)
         return 2
@@ -2003,6 +2188,7 @@ def main() -> int:
     result = {
         "counts": validation["counts"],
         "fatal_error_count": len(validation["fatal_errors"]),
+        "history_snapshot_error_count": 0,
         "mismatches": mismatches,
         "mode": "check" if args.check else "write",
         "parse_finding_count": len(validation["parse_findings"]),
