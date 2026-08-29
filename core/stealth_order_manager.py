@@ -3376,6 +3376,11 @@ class StealthOrderManager:
 
         from core.exceptions import OrderCreationError
 
+        normalized_reveal_pricing_policy = self._normalize_reveal_pricing_policy(
+            reveal_pricing_policy=reveal_pricing_policy,
+            reveal_condition=reveal_condition,
+        )
+
         price_check = normalize_price_for_product(
             limit_price,
             product_id=product_id,
@@ -3435,7 +3440,7 @@ class StealthOrderManager:
                 order_size=float(total_size),
                 target_movement=float(target_movement),
                 target_movement_type=target_movement_type,
-                reveal_pricing_policy=reveal_pricing_policy,
+                reveal_pricing_policy=normalized_reveal_pricing_policy,
             )
             if infeasible_reason is not None:
                 raise OrderCreationError(
@@ -3460,7 +3465,7 @@ class StealthOrderManager:
             "visibility_score": 0.0,
             "reveal_condition_type": reveal_condition.get("type", "time_delay"),
             "reveal_condition_json": reveal_condition,
-            "reveal_pricing_policy": reveal_pricing_policy or "configured_limit",
+            "reveal_pricing_policy": normalized_reveal_pricing_policy,
             "follow_up_reveal_direction": follow_up_reveal_direction or FollowUpRevealDirection.OPPOSITE.value,
             "sizing_strategy_json": sizing_strategy or {"type": "fixed"},
             "parent_order_id": parent_order_id,
@@ -5531,11 +5536,12 @@ class StealthOrderManager:
             rows_affected = self.db_client.execute_update(
                 """INSERT INTO stealth_orders 
                    (stealth_order_id, product_id, side, total_size, remaining_size, 
-                    limit_price, status, reveal_condition_type, reveal_condition_json, 
+                    limit_price, status, reveal_condition_type, reveal_condition_json,
+                          reveal_pricing_policy,
                           sizing_strategy_json, reason, notes, parent_order_id,
                           anchor_repricing_policy_json, anchor_repricing_state_json,
                           failure_reason)
-                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                 (order['stealth_order_id'],
                  order['product_id'],
                  order['side'],
@@ -5545,6 +5551,10 @@ class StealthOrderManager:
                  order['status'],
                  order.get('reveal_condition_type', 'time_delay'),
                  json.dumps(order.get('reveal_condition_json', {})),
+                 self._normalize_reveal_pricing_policy(
+                     reveal_pricing_policy=order.get('reveal_pricing_policy'),
+                     reveal_condition=order.get('reveal_condition_json'),
+                 ),
                  json.dumps(order.get('sizing_strategy_json', {})),
                  order.get('reason', ''),
                  order.get('notes', ''),
@@ -5615,6 +5625,15 @@ class StealthOrderManager:
 
             condition_first_met_at = _iso_or_none(order.get('condition_first_met_at'))
             condition_confirmed_at = _iso_or_none(order.get('condition_confirmed_at'))
+            write_reveal_pricing_policy = 'reveal_pricing_policy' in order
+            normalized_reveal_pricing_policy = (
+                self._normalize_reveal_pricing_policy(
+                    reveal_pricing_policy=order.get('reveal_pricing_policy'),
+                    reveal_condition=order.get('reveal_condition_json'),
+                )
+                if write_reveal_pricing_policy
+                else None
+            )
             write_failure_reason = 'failure_reason' in order
             
             rows_affected = self.db_client.execute_update(
@@ -5623,6 +5642,7 @@ class StealthOrderManager:
                        executed_size = %s, revealed_orders = %s, last_placement_at = %s,
                        limit_price = CASE WHEN %s THEN %s ELSE limit_price END,
                        reveal_condition_json = %s,
+                       reveal_pricing_policy = CASE WHEN %s THEN %s ELSE reveal_pricing_policy END,
                        anchor_repricing_policy_json = %s, anchor_repricing_state_json = %s,
                        condition_first_met_at = %s, condition_confirmed_at = %s,
                        failure_reason = CASE WHEN %s THEN %s ELSE failure_reason END,
@@ -5637,6 +5657,8 @@ class StealthOrderManager:
                  write_limit_price,
                  order.get('limit_price'),
                  json.dumps(order.get('reveal_condition_json', {})),
+                 write_reveal_pricing_policy,
+                 normalized_reveal_pricing_policy,
                  json.dumps(order.get('anchor_repricing_policy_json', {})),
                  anchor_repricing_state_json,
                  condition_first_met_at,
@@ -5666,7 +5688,15 @@ class StealthOrderManager:
             )
             if results:
                 row = results[0]
-                
+                reveal_condition_json = _parse_json_container(
+                    row.get('reveal_condition_json'),
+                    {},
+                )
+                reveal_pricing_policy = self._normalize_reveal_pricing_policy(
+                    reveal_pricing_policy=row.get('reveal_pricing_policy'),
+                    reveal_condition=reveal_condition_json,
+                )
+
                 order_data = {
                     'stealth_order_id': row['stealth_order_id'],
                     'product_id': row['product_id'],
@@ -5678,7 +5708,8 @@ class StealthOrderManager:
                     'limit_price': float(row['limit_price']),
                     'status': row['status'],
                     'reveal_condition_type': row.get('reveal_condition_type', 'time_delay'),
-                    'reveal_condition_json': _parse_json_container(row.get('reveal_condition_json'), {}),
+                    'reveal_condition_json': reveal_condition_json,
+                    'reveal_pricing_policy': reveal_pricing_policy,
                     'sizing_strategy_json': _parse_json_container(row.get('sizing_strategy_json'), {}),
                     'reason': row.get('reason', ''),
                     'notes': row.get('notes', ''),
@@ -5747,6 +5778,14 @@ class StealthOrderManager:
                     condition_type = row.get('reveal_condition_type', 'time_delay')
                     condition_first_met = row.get('condition_first_met_at')
                     condition_confirmed = row.get('condition_confirmed_at')
+                    reveal_condition_json = _parse_json_container(
+                        row.get('reveal_condition_json'),
+                        {},
+                    )
+                    reveal_pricing_policy = self._normalize_reveal_pricing_policy(
+                        reveal_pricing_policy=row.get('reveal_pricing_policy'),
+                        reveal_condition=reveal_condition_json,
+                    )
                     
                     preserved_statuses = {
                         StealthOrderStatus.REVEALED.value,
@@ -5774,7 +5813,8 @@ class StealthOrderManager:
                             else StealthOrderStatus.HIDDEN.value
                         ),
                         'reveal_condition_type': condition_type,
-                        'reveal_condition_json': _parse_json_container(row.get('reveal_condition_json'), {}),
+                        'reveal_condition_json': reveal_condition_json,
+                        'reveal_pricing_policy': reveal_pricing_policy,
                         'sizing_strategy_json': _parse_json_container(row.get('sizing_strategy_json'), {}),
                         'reason': row.get('reason', ''),
                         'notes': row.get('notes', ''),

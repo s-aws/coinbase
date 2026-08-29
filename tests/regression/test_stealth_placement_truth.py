@@ -8,10 +8,16 @@ to consume reveal size or create accepted-placement state.
 from __future__ import annotations
 
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 
-from core.enums import OrderStatus, StealthLifecycleEvent, StealthOrderStatus
+from core.enums import (
+    OrderStatus,
+    RevealPricingPolicy,
+    StealthLifecycleEvent,
+    StealthOrderStatus,
+)
 from core.exceptions import OrderCreationError, StealthOrderPersistenceError
 from core.stealth_order_manager import StealthOrderManager
 
@@ -920,6 +926,115 @@ def _stored_row(
         "anchor_repricing_policy_json": {},
         "anchor_repricing_state_json": {},
     }
+
+
+@pytest.mark.regression
+def test_reveal_pricing_policy_schema_migration_is_additive(monkeypatch):
+    from database import order as order_db
+
+    cursor = MagicMock()
+    db_client = MagicMock()
+    db_client.get_cursor.return_value.__enter__.return_value = cursor
+    monkeypatch.setattr(order_db, "DB_CLIENT", db_client)
+
+    order_db.create_stealth_orders_table()
+
+    statements = [call.args[0] for call in cursor.execute.call_args_list]
+    assert any(
+        "reveal_pricing_policy VARCHAR(32) NOT NULL DEFAULT 'configured_limit'"
+        in statement
+        for statement in statements
+    )
+    assert any(
+        "ALTER TABLE stealth_orders ADD COLUMN IF NOT EXISTS reveal_pricing_policy"
+        in statement
+        for statement in statements
+    )
+
+
+@pytest.mark.regression
+def test_reveal_pricing_policy_write_paths_normalize_and_preserve_absence(
+    five_tick_product,
+):
+    db = _ReadOnlyDB([])
+    manager = StealthOrderManager(db_client=None)
+    manager.db_client = db
+    _, order = _triggered_order(five_tick_product)
+    order["reveal_pricing_policy"] = " TOP_OF_BOOK "
+
+    assert manager._save_stealth_order_to_db(order) is True
+    insert_query, insert_params = db.updates[-1]
+    assert "reveal_pricing_policy" in insert_query
+    assert RevealPricingPolicy.TOP_OF_BOOK.value in insert_params
+
+    assert manager._update_stealth_order(order) is True
+    update_query, update_params = db.updates[-1]
+    assert (
+        "reveal_pricing_policy = CASE WHEN %s THEN %s "
+        "ELSE reveal_pricing_policy END"
+        in update_query
+    )
+    assert update_params[9] is True
+    assert update_params[10] == RevealPricingPolicy.TOP_OF_BOOK.value
+
+    order_without_policy = dict(order)
+    order_without_policy.pop("reveal_pricing_policy")
+    assert manager._update_stealth_order(order_without_policy) is True
+    _, absent_params = db.updates[-1]
+    assert absent_params[9] is False
+    assert absent_params[10] is None
+
+
+@pytest.mark.regression
+@pytest.mark.parametrize("load_mode", ("startup", "lazy"))
+def test_hydration_restores_reveal_pricing_policy_and_post_only(
+    five_tick_product,
+    load_mode,
+):
+    row = _stored_row(five_tick_product, price=77115.0)
+    row["reveal_pricing_policy"] = RevealPricingPolicy.TOP_OF_BOOK.value
+    db = _ReadOnlyDB([row])
+    manager = StealthOrderManager(db_client=None)
+    manager.db_client = db
+    manager._get_current_market_data = lambda _product_id: {
+        "price": 77110.0,
+        "bid": 77110.0,
+        "ask": 77115.0,
+        "source": "ticker",
+    }
+    manager._resolve_target_movement_for_plan = lambda *_args, **_kwargs: (
+        None,
+        None,
+        "test",
+    )
+
+    if load_mode == "startup":
+        assert manager.load_all_active_orders_from_db() == 1
+    else:
+        assert manager._get_stealth_order("stored-sid") is not None
+
+    hydrated = manager.in_memory_orders["stored-sid"]
+    plan = manager.build_reveal_execution_plan("stored-sid")
+    assert hydrated["reveal_pricing_policy"] == RevealPricingPolicy.TOP_OF_BOOK.value
+    assert plan is not None
+    assert plan.reveal_pricing_policy == RevealPricingPolicy.TOP_OF_BOOK.value
+    assert plan.post_only is True
+
+
+@pytest.mark.regression
+def test_hydration_missing_reveal_pricing_policy_fails_safe(
+    five_tick_product,
+):
+    row = _stored_row(five_tick_product, price=77115.0)
+    db = _ReadOnlyDB([row])
+    manager = StealthOrderManager(db_client=None)
+    manager.db_client = db
+
+    assert manager.load_all_active_orders_from_db() == 1
+    assert (
+        manager.in_memory_orders["stored-sid"]["reveal_pricing_policy"]
+        == RevealPricingPolicy.CONFIGURED_LIMIT.value
+    )
 
 
 @pytest.mark.regression

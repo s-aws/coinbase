@@ -203,3 +203,50 @@
 
 This file is branch-scoped context, not a substitute for current code and test
 evidence. Confirm branch, HEAD, and worktree at session entry.
+
+## Minimal pricing-persistence and cancellation-cap correction (2026-08-29)
+
+- The approved scope corrected two pre-existing defects only. It did not alter
+  dashboard/UI payloads, websocket topology, scheduler cadence, fee behavior,
+  follow-up direction persistence, generic parent terminal projection, or the
+  initial placement counter model.
+- `stealth_orders.reveal_pricing_policy` is now a first-class non-null column
+  with the fail-safe default `configured_limit`. The existing creation path
+  normalizes the value once, insert/update persistence uses that same
+  normalization boundary, and both startup and lazy hydration restore it.
+  `top_of_book` therefore survives a manager/process restart and rebuilds a
+  post-only reveal plan. Existing rows are not inferred or backfilled; rows
+  without historical policy truth retain `configured_limit` by design.
+- Normal cancellation follow-ups now claim one slot through the existing
+  atomic root replacement-cap gate immediately before creation. Cancellation
+  truth is recorded before a cap-denied return. A denied claim creates no
+  child; a creator `None` result or exception releases the pending slot; and a
+  successful child registration consumes the claim against the same canonical
+  root. Pending-move, duplicate, non-stealth, filled, and partial-fill branches
+  were not changed.
+- Regression coverage proves additive schema creation/migration, normalized
+  insert and presence-guarded update behavior, startup and lazy hydration,
+  post-only plan reconstruction, legacy safe fallback, cap exhaustion, and
+  slot release for both `None` and exception outcomes.
+- Required automated gate passed on Windows Python 3.13.2: 1,551 passed,
+  11 deselected, 0 failed in 44.92 seconds using the complete non-external
+  suite. No focused selection was used.
+- Repository graph rebuild/check passed with 2,061 commits, 37,546 edges,
+  507 files, 183 semantic records, and zero fatal/history/parse findings;
+  deterministic check reported `mismatches=[]` before this context update.
+
+## Live validation boundary for this correction
+
+- The approved fresh-schema port-9876 exchange canary has not run. Preflight
+  found an existing Windows `-m main` engine owning dashboard port 8765,
+  connected to host PostgreSQL port 5432 and Coinbase. Launching a second
+  authenticated user websocket risks the repository's documented duplicate
+  private-subscription conflict; routing the canary through the existing
+  process would violate the approved database-isolation boundary.
+- No exchange mutation and no canary database/schema mutation was performed.
+  The safe next step is operator-coordinated shutdown of the existing engine,
+  followed by the already approved fresh-schema 9876 restart/hydration,
+  one-order post-only placement, exact-order cancellation, zero-follow-up,
+  zero-fill/fee/position-delta canary. A REST-confirmed/manual-event hybrid is
+  a materially weaker procedure and requires explicit approval because it
+  would deviate from the approved authenticated-websocket plan.

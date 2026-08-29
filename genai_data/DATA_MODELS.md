@@ -155,6 +155,7 @@ Key columns:
 - `parent_order_id` (stealth follow-up linkage)
 - size and status fields (`total_size`, `revealed_size`, `remaining_size`, `executed_size`, `status`)
 - condition fields (`reveal_condition_type`, `reveal_condition_json`, hold timestamps)
+- reveal execution policy (`reveal_pricing_policy`; defaults to `configured_limit`)
 - policy/state JSONB (`anchor_repricing_policy_json`, `anchor_repricing_state_json`, `sizing_strategy_json`, `cancel_reentry_policy_json`, `cancel_reentry_state_json`, `post_fill_retreat_policy_json`)
 - lifecycle fields (`last_lifecycle_event`, `failure_reason`)
 
@@ -193,11 +194,10 @@ Key columns:
 
 Same-side post-fill retreat state is stored in `anchor_repricing_state_json`, not a separate active-placement pointer. The cumulative `post_fill_retreat_offset` is added to future anchor target bands so anchor repricing does not undo the retreat.
 
-> Note: `reveal_pricing_policy` and `follow_up_reveal_direction` are
-> **in-memory dict keys only** on the stealth order — they are NOT
-> columns on `stealth_orders`. Do not write SQL referencing them.
-> Verify against `database/order.py::create_stealth_orders_table`
-> before assuming any field is persisted.
+> Note: `reveal_pricing_policy` is a first-class `stealth_orders` column and
+> is restored during both startup and lazy hydration.
+> `follow_up_reveal_direction` remains an **in-memory dict key only** and is
+> not a column on `stealth_orders`.
 
 ### `stealth_order_snapshots`
 Lifecycle/event snapshots with market context.

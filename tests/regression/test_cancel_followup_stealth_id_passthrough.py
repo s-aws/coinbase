@@ -56,6 +56,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from core.enums import StealthOrderStatus
 from tests.unit.test_partial_fill_followups import (
     _build_engine_for_partial_fill_tests,
 )
@@ -109,6 +110,8 @@ def _wire_cancel_path(
     placement_uuid: str,
     stealth_root_id: str,
     parent_db_row: dict,
+    max_replacements: int = 2,
+    current_replacements: int = 1,
 ):
     """Stub the collaborators of ``handle_cancelled_order`` enough to
     exercise the stealth follow-up branch end-to-end."""
@@ -119,9 +122,8 @@ def _wire_cancel_path(
         "allow_partial_fills": False,
         "orders": [placement_uuid],
         "target_movement": {"movement": 0.001, "type": "P"},
-        "max_order_replacement": 1,
-        # Cap already consumed by the original placement â€” exact prod scenario.
-        "current_order_replacement": 1,
+        "max_order_replacement": max_replacements,
+        "current_order_replacement": current_replacements,
         "externally_created": False,
     }
     engine.orderbook.should_replace = {"FILLED": True, "CANCELLED": True}
@@ -266,3 +268,120 @@ def test_cancel_followup_none_return_does_not_register_phantom_child():
         "cancelled", placement_uuid
     )
     engine.complete_follow_up_processing.assert_not_called()
+    assert engine._pending_replacement_claims.get(stealth_root_id, 0) == 0
+    assert (
+        engine.orderbook.parent_order_ids[stealth_root_id][
+            "current_order_replacement"
+        ]
+        == 1
+    )
+
+
+@pytest.mark.regression
+def test_cancel_followup_exception_releases_replacement_slot():
+    engine = _build_engine_for_partial_fill_tests()
+    placement_uuid = "88f22189-eb33-4768-91c7-6da14cd3116b"
+    stealth_root_id = "c853db8e-b3bc-43c4-8901-d0a80e0f7179"
+
+    stealth_bridge, _ = _wire_cancel_path(
+        engine,
+        placement_uuid=placement_uuid,
+        stealth_root_id=stealth_root_id,
+        parent_db_row={
+            "target_movement": 0.001,
+            "target_movement_type": "P",
+        },
+    )
+    stealth_bridge.create_follow_up_stealth_order.side_effect = RuntimeError(
+        "creation failed"
+    )
+    engine.complete_follow_up_processing = Mock(
+        wraps=engine.complete_follow_up_processing
+    )
+
+    with patch("database.order.has_pending_move", return_value=False), patch(
+        "database.order.get_parent_order",
+        return_value={
+            "target_movement": 0.001,
+            "target_movement_type": "P",
+        },
+    ):
+        engine.handle_cancelled_order({
+            "client_order_id": placement_uuid,
+            "product_id": "BIP-20DEC30-CDE",
+            "side": "SELL",
+            "status": StealthOrderStatus.CANCELLED.value,
+            "price": 80355.0,
+        })
+
+    engine.register_child_order.assert_not_called()
+    engine.complete_follow_up_processing.assert_called_once_with(
+        "cancelled", placement_uuid
+    )
+    assert engine._pending_replacement_claims.get(stealth_root_id, 0) == 0
+    assert (
+        engine.orderbook.parent_order_ids[stealth_root_id][
+            "current_order_replacement"
+        ]
+        == 1
+    )
+
+
+@pytest.mark.regression
+def test_cancel_followup_respects_exhausted_replacement_cap():
+    """A confirmed cancellation records terminal stealth truth but cannot
+    create another child after the root replacement budget is exhausted."""
+    engine = _build_engine_for_partial_fill_tests()
+    placement_uuid = "98f22189-eb33-4768-91c7-6da14cd3116b"
+    stealth_root_id = "b853db8e-b3bc-43c4-8901-d0a80e0f7179"
+
+    stealth_bridge, _ = _wire_cancel_path(
+        engine,
+        placement_uuid=placement_uuid,
+        stealth_root_id=stealth_root_id,
+        parent_db_row={
+            "target_movement": 0.001,
+            "target_movement_type": "P",
+        },
+        max_replacements=1,
+        current_replacements=1,
+    )
+    stealth_bridge.create_follow_up_stealth_order = Mock(
+        return_value="must-not-be-created"
+    )
+    engine.complete_follow_up_processing = Mock(
+        wraps=engine.complete_follow_up_processing
+    )
+
+    with patch("database.order.has_pending_move", return_value=False), patch(
+        "database.order.get_parent_order",
+        return_value={
+            "target_movement": 0.001,
+            "target_movement_type": "P",
+        },
+    ):
+        engine.handle_cancelled_order({
+            "client_order_id": placement_uuid,
+            "product_id": "BIP-20DEC30-CDE",
+            "side": "SELL",
+            "status": StealthOrderStatus.CANCELLED.value,
+            "price": 80355.0,
+        })
+
+    stealth_bridge.update_execution.assert_called_once_with(
+        stealth_order_id=stealth_root_id,
+        executed_size=0.0,
+        order_status=StealthOrderStatus.CANCELLED.value,
+    )
+    stealth_bridge.create_follow_up_stealth_order.assert_not_called()
+    engine.register_child_order.assert_not_called()
+    engine.complete_follow_up_processing.assert_called_once_with(
+        "cancelled", placement_uuid
+    )
+    assert (
+        engine.orderbook.parent_order_ids[stealth_root_id][
+            "current_order_replacement"
+        ]
+        == 1
+    )
+    assert engine._pending_replacement_claims.get(stealth_root_id, 0) == 0

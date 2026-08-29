@@ -4786,29 +4786,9 @@ class OrderEngine:
                 return
 
             # All orders are stealth orders - create stealth follow-up on cancel
+            replacement_slot_claimed = False
+            root_parent_client_order_id = None
             try:
-                # Update the original stealth order status to CANCELLED
-                if original_stealth_order:
-                    self.stealth_order_bridge.update_execution(
-                        stealth_order_id=original_stealth_order["stealth_order_id"],
-                        executed_size=0.0,
-                        order_status=StealthOrderStatus.CANCELLED.value
-                    )
-                
-                follow_up_price = float(order_template["start_price"])
-                
-                # Build reveal condition for the follow-up (use same as filled orders)
-                reveal_condition = {
-                    "type": "time_delay",
-                    "delay_seconds": 0  # Immediate reveal on cancel follow-up
-                }
-                
-                # Get target_movement from parent order (source of truth)
-                from database.order import get_parent_order
-                parent_order_data = get_parent_order(parent_client_order_id)
-                parent_target_movement = parent_order_data.get("target_movement") if parent_order_data else None
-                parent_target_movement_type = parent_order_data.get("target_movement_type", TargetMovementType.PERCENTAGE.value) if parent_order_data else TargetMovementType.PERCENTAGE.value
-                
                 # Pure-cancel of a non-stealth-tracked placement should not
                 # land here under current flow (all orders are stealth).
                 # Fail closed rather than feed `None` into the lookup, which
@@ -4826,6 +4806,54 @@ class OrderEngine:
                     )
                     self.complete_follow_up_processing("cancelled", client_order_id)
                     return
+
+                # Update the original stealth order status to CANCELLED
+                self.stealth_order_bridge.update_execution(
+                    stealth_order_id=original_stealth_order["stealth_order_id"],
+                    executed_size=0.0,
+                    order_status=StealthOrderStatus.CANCELLED.value
+                )
+                
+                follow_up_price = float(order_template["start_price"])
+                
+                # Build reveal condition for the follow-up (use same as filled orders)
+                reveal_condition = {
+                    "type": "time_delay",
+                    "delay_seconds": 0  # Immediate reveal on cancel follow-up
+                }
+                
+                # Get target_movement from parent order (source of truth)
+                from database.order import get_parent_order
+                parent_order_data = get_parent_order(parent_client_order_id)
+                parent_target_movement = parent_order_data.get("target_movement") if parent_order_data else None
+                parent_target_movement_type = parent_order_data.get("target_movement_type", TargetMovementType.PERCENTAGE.value) if parent_order_data else TargetMovementType.PERCENTAGE.value
+                
+                # Cancellation follow-ups consume the root's replacement
+                # budget. Claim through the existing atomic gate immediately
+                # before creation so concurrent terminal events cannot exceed
+                # max_order_replacement.
+                root_parent_client_order_id = resolve_stealth_chain_root(
+                    original_stealth_order
+                )
+                if self.claim_replacement_slots(root_parent_client_order_id, 1) != 1:
+                    replacement_state = self.resolve_parent_replacement_state(
+                        root_parent_client_order_id
+                    )
+                    self.log_message(
+                        "order",
+                        self.build_follow_up_log_payload(
+                            "cancel_follow_up_replacement_cap_exhausted",
+                            source_order=order,
+                            parent_client_order_id=root_parent_client_order_id,
+                            details={
+                                **replacement_state,
+                                "reason": "cancelled_order_replacement_cap_exhausted",
+                            },
+                        ),
+                    )
+                    self.complete_follow_up_processing("cancelled", client_order_id)
+                    return
+                replacement_slot_claimed = True
 
                 stealth_follow_up_id = self.stealth_order_bridge.create_follow_up_stealth_order(
                     original_stealth_order_id=original_stealth_order["stealth_order_id"],
@@ -4846,6 +4874,8 @@ class OrderEngine:
                 # strand exposure). Release the processing flag so a
                 # later retry path stays open.
                 if stealth_follow_up_id is None:
+                    self.release_replacement_slots(root_parent_client_order_id, 1)
+                    replacement_slot_claimed = False
                     self.log_message(
                         "error",
                         {
@@ -4858,10 +4888,10 @@ class OrderEngine:
                     self.release_follow_up_processing("cancelled", client_order_id)
                     return
 
-                # Register stealth follow-up as child of the chain ROOT.
-                # Single canonical resolver â€” see resolve_stealth_chain_root.
-                root_parent_client_order_id = resolve_stealth_chain_root(original_stealth_order)
+                # Register stealth follow-up against the same root used for
+                # the atomic claim. Registration consumes the pending slot.
                 self.register_child_order(stealth_follow_up_id, root_parent_client_order_id)
+                replacement_slot_claimed = False
 
                 self.log_message(
                     "order",
@@ -4877,6 +4907,8 @@ class OrderEngine:
                 self.complete_follow_up_processing("cancelled", client_order_id)
                 return
             except Exception as e:
+                if replacement_slot_claimed and root_parent_client_order_id:
+                    self.release_replacement_slots(root_parent_client_order_id, 1)
                 self.log_message(
                     "error",
                     {
