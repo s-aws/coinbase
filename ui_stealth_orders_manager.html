@@ -75,6 +75,39 @@
             font-weight: bold;
             color: #4ade80;
         }
+
+        .engine-control-stat {
+            min-width: 130px;
+        }
+
+        .engine-state-value {
+            font-size: 14px;
+            line-height: 22px;
+        }
+
+        .resume-engine-button {
+            margin-top: 6px;
+            padding: 6px 10px;
+            border: 1px solid #4ade80;
+            border-radius: 4px;
+            background: rgba(74, 222, 128, 0.15);
+            color: #bbf7d0;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .resume-engine-button:hover:not(:disabled) {
+            background: rgba(74, 222, 128, 0.3);
+        }
+
+        .resume-engine-button:disabled {
+            border-color: #555;
+            background: rgba(100, 100, 100, 0.15);
+            color: #777;
+            cursor: not-allowed;
+        }
+
         .content {
             display: flex;
             flex-direction: column;
@@ -805,6 +838,17 @@
                 <div class="stat">
                     <span class="stat-label">Connection</span>
                     <span class="stat-value" id="connection-status" style="color: #ff6b6b;">●</span>
+                </div>
+                <div class="stat engine-control-stat">
+                    <span class="stat-label">Engine</span>
+                    <span class="stat-value engine-state-value" id="engine-state">UNKNOWN</span>
+                    <button
+                        type="button"
+                        id="resume-engine-button"
+                        class="resume-engine-button"
+                        onclick="resumeEngine()"
+                        disabled
+                    >Resume Engine</button>
                 </div>
                 <!-- Phase 3: Repricing statistics -->
                 <div class="stat" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; border-radius: 4px;">
@@ -1805,6 +1849,7 @@
         let refreshCountdown = 5;
         let accordionState = {};  // Track which parents are expanded: { parent_id: true/false }
         let engineStatusData = {};
+        let resumeRequestPending = false;
         let liveTickers = {};  // product_id -> { price, bid, ask, mid, ts } from ticker + spread_snapshot
 
         function initWebSocket() {
@@ -1817,6 +1862,9 @@
                     // Request initial data
                     ws.send(JSON.stringify({
                         type: "request_stealth_orders"
+                    }));
+                    ws.send(JSON.stringify({
+                        type: "admin_status"
                     }));
                 };
 
@@ -1836,6 +1884,7 @@
                         if (data.data && data.data.engine_status) {
                             engineStatusData = data.data.engine_status || {};
                             updateRegimeMetrics(engineStatusData);
+                            updateEngineControls(engineStatusData.engine_state);
                         }
                         if (data.data && data.data.stealth_orders) {
                             ordersData = data.data.stealth_orders || {};
@@ -1847,6 +1896,30 @@
                             }
                             updateOrdersTable();
                             updateStats();
+                        }
+                    } else if (data.type === "admin_status_response") {
+                        resumeRequestPending = false;
+                        engineStatusData = {
+                            ...engineStatusData,
+                            engine_state: data.engine_state,
+                            is_admitting: data.is_admitting,
+                            is_stopping: data.is_stopping,
+                        };
+                        updateEngineControls(data.engine_state);
+                    } else if (data.type === "admin_resume_response") {
+                        resumeRequestPending = false;
+                        engineStatusData = {
+                            ...engineStatusData,
+                            engine_state: data.engine_state,
+                        };
+                        updateEngineControls(data.engine_state);
+                        if (data.changed && data.engine_state === "RUNNING") {
+                            showMessage('Engine resumed; new order placement is enabled.', 'success');
+                        } else {
+                            showMessage(
+                                `Engine was not resumed (state: ${data.engine_state || 'UNKNOWN'}).`,
+                                'info'
+                            );
                         }
                     } else if (data.type === "stealth_orders_snapshot") {
                         ordersData = data.orders || {};
@@ -2045,6 +2118,8 @@
                 ws.onclose = () => {
                     console.log("Disconnected from dashboard server");
                     updateConnectionStatus(false);
+                    resumeRequestPending = false;
+                    updateEngineControls("DISCONNECTED");
                     // Attempt reconnect after 3 seconds
                     setTimeout(initWebSocket, 3000);
                 };
@@ -2052,6 +2127,8 @@
                 ws.onerror = (error) => {
                     console.error("WebSocket error:", error);
                     updateConnectionStatus(false);
+                    resumeRequestPending = false;
+                    updateEngineControls("DISCONNECTED");
                 };
             } catch (error) {
                 console.error("Failed to connect:", error);
@@ -2083,6 +2160,57 @@
             } else {
                 status.textContent = '●';
                 status.style.color = '#ff6b6b';
+            }
+        }
+
+        function updateEngineControls(engineState) {
+            const stateElement = document.getElementById('engine-state');
+            const resumeButton = document.getElementById('resume-engine-button');
+            const normalizedState = String(engineState || 'UNKNOWN').toUpperCase();
+            const connected = ws && ws.readyState === WebSocket.OPEN;
+            const canResume = connected && normalizedState === 'PAUSED' && !resumeRequestPending;
+
+            engineStatusData.engine_state = normalizedState;
+            stateElement.textContent = normalizedState;
+            stateElement.style.color = normalizedState === 'RUNNING'
+                ? '#4ade80'
+                : normalizedState === 'PAUSED'
+                    ? '#ffd43b'
+                    : '#ff6b6b';
+
+            resumeButton.disabled = !canResume;
+            resumeButton.textContent = resumeRequestPending
+                ? 'Resuming…'
+                : normalizedState === 'RUNNING'
+                    ? 'Running'
+                    : 'Resume Engine';
+            resumeButton.title = canResume
+                ? 'Resume the engine and enable new order placement'
+                : `Resume is available only while connected and PAUSED (current: ${normalizedState})`;
+        }
+
+        function resumeEngine() {
+            const engineState = String(engineStatusData.engine_state || 'UNKNOWN').toUpperCase();
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                showMessage('Cannot resume: dashboard websocket is disconnected.', 'error');
+                return;
+            }
+            if (engineState !== 'PAUSED') {
+                showMessage(`Cannot resume while engine state is ${engineState}.`, 'info');
+                return;
+            }
+            if (!confirm('Resume the engine and enable new order placement?')) {
+                return;
+            }
+
+            resumeRequestPending = true;
+            updateEngineControls(engineState);
+            try {
+                ws.send(JSON.stringify({ type: 'admin_resume' }));
+            } catch (error) {
+                resumeRequestPending = false;
+                updateEngineControls(engineState);
+                showMessage(`Failed to send resume request: ${error.message}`, 'error');
             }
         }
 

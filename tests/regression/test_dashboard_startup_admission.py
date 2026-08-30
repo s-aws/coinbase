@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -324,3 +325,31 @@ def test_admin_shutdown_rejects_invalid_timeout_without_closing_runtime(
     }]
     assert controller.state is EngineState.STARTING
     thread_factory.assert_not_called()
+
+
+def test_stealth_manager_resume_control_is_fail_closed() -> None:
+    html = (
+        Path(__file__).resolve().parents[2] / "ui_stealth_orders_manager.html"
+    ).read_text(encoding="utf-8")
+
+    button = html[
+        html.index('id="resume-engine-button"'):
+        html.index('>Resume Engine</button>')
+    ]
+    controls = html[
+        html.index("function updateEngineControls(engineState)"):
+        html.index("function formatPercent(")
+    ]
+    websocket_handler = html[
+        html.index("ws.onopen = () => {"):
+        html.index("ws.onclose = () => {")
+    ]
+
+    assert "disabled" in button
+    assert "normalizedState === 'PAUSED'" in controls
+    assert "resumeButton.disabled = !canResume;" in controls
+    assert "Resume the engine and enable new order placement?" in controls
+    assert "ws.send(JSON.stringify({ type: 'admin_resume' }));" in controls
+    assert 'type: "admin_status"' in websocket_handler
+    assert 'data.type === "admin_status_response"' in websocket_handler
+    assert 'data.type === "admin_resume_response"' in websocket_handler

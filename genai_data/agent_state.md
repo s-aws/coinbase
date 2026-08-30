@@ -250,3 +250,23 @@ evidence. Confirm branch, HEAD, and worktree at session entry.
   zero-fill/fee/position-delta canary. A REST-confirmed/manual-event hybrid is
   a materially weaker procedure and requires explicit approval because it
   would deviate from the approved authenticated-websocket plan.
+
+## Stealth-manager resume control (2026-08-29)
+
+- `create_stealth_order` is originating work, so the dashboard admission gate
+  rejects it before the stealth handler, manager, or database whenever runtime
+  state is not RUNNING. This explains the observed UI submission that never
+  reached the engine while startup-default pause was active.
+- `ui_stealth_orders_manager.html` now displays the authoritative engine state
+  and uses the existing `admin_status` / `admin_resume` websocket protocol.
+  Resume is enabled only while the socket is open and the exact state is
+  PAUSED; STARTING, RUNNING, DRAINING, STOPPED, unknown, and disconnected
+  states remain fail-closed. The operator must confirm that resuming enables
+  new order placement, and an in-flight request disables duplicate clicks.
+- No backend lifecycle, startup-default, stealth creation, persistence,
+  scheduling, or placement behavior changed. The page's pre-existing lack of
+  a dedicated `admission_rejected` toast remains out of this minimal change.
+- Complete non-external suite passed after the UI change: 1,552 passed,
+  11 deselected, 0 failed in 45.62 seconds. One static UI contract verifies
+  exact-PAUSED gating and canonical admin message wiring; no focused pytest
+  command was run.
