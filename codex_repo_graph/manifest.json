@@ -11,20 +11,20 @@
     "opaque_identifiers_and_literal_payloads"
   ],
   "excluded_git_ref_count": 4,
-  "graph_digest": "2f4044aa9484b1949724a707257ac2d4401ad202c38d73826632586be0bd2922",
+  "graph_digest": "dfec2413f6879beb6dc51626067f9c20ec4cd6e00ed4756206c692bcee967ca8",
   "graph_format_version": "2.0.0",
   "graph_schema_version": "1.1.0",
-  "history_snapshot_head": "c3866ecc21ae88b106a735cf1bd541d984d47be6",
+  "history_snapshot_head": "e264793f70eaf1dcf4eaaf5567f047864443a1ad",
   "index_hashes": {
-    "edges.jsonl": "09d805498f8f31b8f0ceff7ce0b14e68d006f66581fea48ce5bef88495daed3d",
-    "files.jsonl": "f5b2b51ab9f0c9115f69549261141528ff3d12d916facb20be681db0c5b51bed",
-    "git_commits.jsonl": "b8d5ac964d6ef920dff416ee3cb53243e95daf8c42cc07c454ab6ea607134ade",
-    "git_refs.jsonl": "5e667b9a3df49e62f9a7fe8cbe61f312e89941db90d07607e54b99f8bf769e1b",
-    "path_history.jsonl": "f2b29c3e269a846202cd686dcdc698d152f5f01676a3f4355ba75e1380ede757",
-    "symbols.jsonl": "4a4e392bf1980b0a97fc739679b62976b28a26d412288d9df00a91f7cf2c6e9e",
+    "edges.jsonl": "856d023c1e1b81d45142deb5bf110d97171682066fcec783cd7328383bedaaee",
+    "files.jsonl": "0b9c97dc487bbf8fe8293ab7acb01741340e3964b573c2e9a435b32b01742da4",
+    "git_commits.jsonl": "45250d076be55bacb590715686f5edbd7949a937eab99aef6694ed86a4392b75",
+    "git_refs.jsonl": "cc712de4e8666e72b2fa30b0d39a92455031b18881a0cd20f28ed7c8ebbc774f",
+    "path_history.jsonl": "87deb60ac09b1805a3eba176622f18003d0bcf5c6c376f3780fe67738de42a9d",
+    "symbols.jsonl": "1abcc248998868dcc1442a125102026f65decf07f5b2894ace5e87883d28ee27",
     "tests.jsonl": "9a9d7c55767076f58b39653f2c09ab0aacc43094ab383eac6e03c5a2e63a55fd"
   },
-  "indexed_file_count": 507,
+  "indexed_file_count": 509,
   "metadata_only_file_count": 2,
   "semantic_hashes": {
     "claims.jsonl": "cae9d1e53bacd7279165856bcd1d31beb669881f1cd863bfd10e7994c6fddf9f",
@@ -37,7 +37,7 @@
     "runtime_flows.jsonl": "9a934ba97e489939b2899fb0fdc30c80fe02a37eeeb8c66a2e877f2f2cfb3ea3",
     "task_routes.jsonl": "2bff66ed113f9e9dda39977528e04e8ca9fae488d0dee48eac5f760d862c3249"
   },
-  "source_tree_digest": "9b39a54084327618bdafc7022a4d2487cc60dec82950d5f0d18b27c8d63184a6",
+  "source_tree_digest": "7a56692a83d6f046b315fe00b9805dc459b6e1af49cb63ccb159536c5a6b82c4",
   "tool_hashes": {
     "ENTRYPOINT.md": "5fa321f88af471ef32a25df932bd7378003f830bfc599674a538ca692b622ba6",
     "build_graph.py": "216faeddd15940f5f9c33a626e19d5b3b9b84d8833269bf26d28591d206602bc",
