@@ -222,6 +222,131 @@ def test_post_bootstrap_update_and_patch_use_the_canonical_order_path(live_type)
     engine._hydrate_orderbook_from_ws_snapshot.assert_called_once_with([])
 
 
+@pytest.mark.parametrize("event_type", ("patch", "update"))
+@pytest.mark.parametrize(
+    ("hold_case", "hold_value"),
+    (
+        ("missing", None),
+        ("null", None),
+        ("empty", ""),
+        ("whitespace", " "),
+        ("nonnumeric", "not-available"),
+        ("positive", "2.51"),
+        ("zero", "0"),
+    ),
+)
+def test_private_ingress_treats_outstanding_hold_as_optional_metadata(
+    event_type,
+    hold_case,
+    hold_value,
+):
+    engine, generation, reconnect_event = _private_ingress_engine()
+
+    engine.on_user_message(
+        _wire_user_message(1, [{"type": "snapshot", "orders": []}]),
+        generation=generation,
+    )
+    engine.process_private_envelope(
+        engine.event_queue[ChannelType.USER.value].get_nowait()
+    )
+
+    order = _order(1, status="FILLED")
+    if hold_case == "missing":
+        order.pop("outstanding_hold_amount")
+    else:
+        order["outstanding_hold_amount"] = hold_value
+
+    engine.on_user_message(
+        _wire_user_message(
+            2,
+            [{"type": event_type, "orders": [order]}],
+        ),
+        generation=generation,
+    )
+    engine.process_private_envelope(
+        engine.event_queue[ChannelType.USER.value].get_nowait()
+    )
+
+    engine.process_user_order.assert_called_once_with(order)
+    assert engine._user_feed_phase is UserFeedPhase.LIVE
+    assert reconnect_event.is_set() is False
+
+
+def test_incident_terminal_rows_are_not_suppressed_by_noncanonical_hold():
+    engine, generation, reconnect_event = _private_ingress_engine()
+
+    engine.on_user_message(
+        _wire_user_message(1, [{"type": "snapshot", "orders": []}]),
+        generation=generation,
+    )
+    engine.process_private_envelope(
+        engine.event_queue[ChannelType.USER.value].get_nowait()
+    )
+
+    sizes = (5, 5, 70, 60, 60)
+    first_cumulative = (5, 5, 56, 58, 29)
+    first_statuses = ("FILLED", "FILLED", "OPEN", "OPEN", "OPEN")
+    first_holds = ("2.51", "5.02", "40.17", "70.30", "100.43")
+    first_rows = []
+    terminal_rows = []
+    for index, (size, cumulative, status, hold) in enumerate(
+        zip(sizes, first_cumulative, first_statuses, first_holds),
+        start=1,
+    ):
+        first = _order(index, status=status)
+        first.update(
+            {
+                "avg_price": "77180",
+                "cumulative_quantity": str(cumulative),
+                "leaves_quantity": str(size - cumulative),
+                "filled_value": str(cumulative * 77180),
+                "number_of_fills": "1",
+                "completion_percentage": str(cumulative / size * 100),
+                "outstanding_hold_amount": hold,
+            }
+        )
+        first_rows.append(first)
+
+        terminal = {**first}
+        terminal.update(
+            {
+                "status": "FILLED",
+                "cumulative_quantity": str(size),
+                "leaves_quantity": "0",
+                "filled_value": str(size * 77180),
+                "number_of_fills": "1" if cumulative == size else "2",
+                "completion_percentage": "100",
+                "outstanding_hold_amount": "0",
+            }
+        )
+        terminal_rows.append(terminal)
+
+    # The production log proves that a later row for the 70-unit order carried
+    # the key but failed numeric validation; it did not retain the raw value.
+    # None represents that noncanonical optional metadata here. It must not
+    # reject the four valid sibling rows or tear down the user generation.
+    terminal_rows[2]["outstanding_hold_amount"] = None
+
+    for sequence_num, rows in ((2, first_rows), (3, terminal_rows)):
+        engine.on_user_message(
+            _wire_user_message(
+                sequence_num,
+                [{"type": "patch", "orders": rows}],
+            ),
+            generation=generation,
+        )
+        engine.process_private_envelope(
+            engine.event_queue[ChannelType.USER.value].get_nowait()
+        )
+
+    assert engine.process_user_order.call_args_list == [
+        *(call(order) for order in first_rows),
+        *(call(order) for order in terminal_rows),
+    ]
+    assert engine._user_feed_phase is UserFeedPhase.LIVE
+    assert reconnect_event.is_set() is False
+
+
 def test_patch_envelope_does_not_rewrite_expired_lifecycle_status():
     engine = _bare_user_engine()
     engine.process_user_event({"type": "snapshot", "orders": []})

@@ -2,6 +2,8 @@
 
 from unittest.mock import Mock, patch
 
+import pytest
+
 from configuration import OrderBook
 from core.enums import OrderStatus
 from core.order_engine import OrderEngine
@@ -102,29 +104,45 @@ def _configure_common_followup_mocks(engine: OrderEngine) -> None:
     engine.register_child_order = Mock()
 
 
-def test_filled_follow_up_size_reduced_by_partial_progress():
+@pytest.mark.parametrize(
+    "fill_fields",
+    (
+        pytest.param({"cumulative_quantity": "200.0"}, id="ws-cumulative"),
+        pytest.param({"filled_size": "200.0"}, id="legacy-filled-size"),
+    ),
+)
+def test_filled_follow_up_size_reduced_by_partial_progress(fill_fields):
     engine = _build_engine()
     stealth_bridge = _attach_stealth_bridge(engine)
     _configure_common_followup_mocks(engine)
+
+    filled_order = _filled_order()
+    filled_order.pop("filled_size")
+    filled_order["size"] = "200.0"
+    filled_order.update(fill_fields)
+    engine.compute_order_template.return_value["order_base_size"] = "200.0"
 
     with patch(
         "database.order.get_partial_fill_progress",
         return_value={
             "client_order_id": "placed-1",
-            "original_order_size": 40.0,
+            "original_order_size": 200.0,
             "min_order_size": 1.0,
-            "partial_follow_ups_created": 21,
+            "partial_follow_ups_created": 140,
         },
     ), patch(
         "database.order.get_parent_order",
         return_value={"target_movement": 0.001, "target_movement_type": "P"},
     ):
-        engine.handle_filled_order(_filled_order())
+        engine.handle_filled_order(filled_order)
 
     stealth_bridge.create_follow_up_stealth_order.assert_called_once()
     assert stealth_bridge.create_follow_up_stealth_order.call_args.kwargs[
         "total_size"
-    ] == 19.0
+    ] == 60.0
+    assert stealth_bridge.update_execution.call_args.kwargs[
+        "executed_size"
+    ] == 200.0
 
 
 def test_filled_follow_up_skipped_when_partial_progress_already_covers_size():

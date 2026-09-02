@@ -151,7 +151,6 @@ _LIVE_USER_ORDER_REQUIRED_FIELDS = frozenset({
     "total_fees",
     "number_of_fills",
     "completion_percentage",
-    "outstanding_hold_amount",
 })
 
 
@@ -3179,7 +3178,6 @@ class OrderEngine:
             "total_fees",
             "number_of_fills",
             "completion_percentage",
-            "outstanding_hold_amount",
         ):
             value = order.get(field)
             if isinstance(value, bool):
@@ -5340,7 +5338,12 @@ class OrderEngine:
                             return
                     
                     # Update the original stealth order status to EXECUTED
-                    filled_size = float(order.get("filled_size", order_template["order_base_size"]))
+                    filled_size = resolve_cumulative_filled(order)
+                    if filled_size <= 0.0:
+                        filled_size = safe_float(
+                            order.get("filled_size"),
+                            default=0.0,
+                        )
                     self.stealth_order_bridge.update_execution(
                         stealth_order_id=original_stealth_order["stealth_order_id"],
                         executed_size=filled_size,
