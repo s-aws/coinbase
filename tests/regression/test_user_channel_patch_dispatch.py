@@ -585,6 +585,181 @@ def test_private_ingress_queues_the_complete_sequence_owned_envelope():
     assert engine._user_feed_phase is UserFeedPhase.AWAITING_SNAPSHOT
 
 
+def test_private_ingress_audits_minimum_wire_order_evidence():
+    engine, generation, _ = _private_ingress_engine()
+    timestamp = "2026-09-08T15:03:43.429886Z"
+    filled_order = _order(1, status="FILLED")
+    filled_order.update({
+        "cumulative_quantity": "25",
+        "leaves_quantity": "0",
+        "number_of_fills": "2",
+        "not_required_for_diagnosis": "must-not-be-logged",
+    })
+
+    engine.on_user_message(
+        _wire_user_message(
+            42,
+            [{"type": "patch", "orders": [filled_order]}],
+            timestamp=timestamp,
+        ),
+        generation=generation,
+    )
+
+    audit_payloads = [
+        args.args[1]
+        for args in engine.log_message.call_args_list
+        if len(args.args) >= 2
+        and isinstance(args.args[1], dict)
+        and args.args[1].get("event") == "user_envelope_ingress"
+    ]
+    assert audit_payloads == [{
+        "event": "user_envelope_ingress",
+        "generation": generation,
+        "channel": ChannelType.USER.value,
+        "sequence_num": 42,
+        "exchange_timestamp": timestamp,
+        "wire_events": [{
+            "type": "patch",
+            "order_count": 1,
+            "orders": [{
+                "client_order_id": filled_order["client_order_id"],
+                "exchange_order_id": filled_order["order_id"],
+                "status": "FILLED",
+                "cumulative_quantity": "25",
+                "leaves_quantity": "0",
+                "number_of_fills": "2",
+            }],
+        }],
+    }]
+
+
+def test_private_ingress_audit_failure_does_not_change_admission():
+    engine, generation, _ = _private_ingress_engine()
+
+    def fail_only_ingress_audit(_log_type, payload):
+        if payload.get("event") == "user_envelope_ingress":
+            raise RuntimeError("diagnostic sink unavailable")
+
+    engine.log_message.side_effect = fail_only_ingress_audit
+    engine.on_user_message(
+        _wire_user_message(
+            42,
+            [{"type": "snapshot", "orders": [_order(1)]}],
+        ),
+        generation=generation,
+    )
+
+    queued = engine.event_queue[ChannelType.USER.value].get_nowait()
+    assert queued.sequence_num == 42
+    assert engine._user_last_sequence_num == 42
+    assert engine._user_feed_phase is UserFeedPhase.AWAITING_SNAPSHOT
+
+
+def test_user_envelope_reduction_audits_live_lifecycle_dispatch():
+    engine, generation, _ = _private_ingress_engine()
+    engine.process_user_event(
+        {"type": "snapshot", "orders": []},
+        generation=generation,
+    )
+    engine.log_message.reset_mock()
+    filled_order = _order(1, status="FILLED")
+
+    engine.process_user_envelope(UserStreamEnvelope(
+        generation=generation,
+        sequence_num=43,
+        timestamp="2026-09-08T15:03:43.429886Z",
+        events=({"type": "patch", "orders": [filled_order]},),
+    ))
+
+    engine.process_user_order.assert_called_once_with(filled_order)
+    reduced_payloads = [
+        args.args[1]
+        for args in engine.log_message.call_args_list
+        if len(args.args) >= 2
+        and isinstance(args.args[1], dict)
+        and args.args[1].get("event") == "user_envelope_reduced"
+    ]
+    assert reduced_payloads == [{
+        "event": "user_envelope_reduced",
+        "generation": generation,
+        "sequence_num": 43,
+        "wire_event_types": ["patch"],
+        "phase_before": UserFeedPhase.LIVE.value,
+        "phase_after": UserFeedPhase.LIVE.value,
+        "lifecycle_order_count": 1,
+        "lifecycle_orders": [{
+            "client_order_id": filled_order["client_order_id"],
+            "exchange_order_id": filled_order["order_id"],
+            "status": "FILLED",
+        }],
+        "dispatch_attempted": True,
+        "dispatch_accepted": True,
+    }]
+
+
+def test_user_envelope_reduction_audits_bootstrap_staging():
+    engine, generation, _ = _private_ingress_engine()
+    engine.process_user_event(
+        {"type": "snapshot", "orders": [_order(i) for i in range(50)]},
+        generation=generation,
+    )
+    assert engine._user_feed_phase is UserFeedPhase.BOOTSTRAPPING
+    engine.log_message.reset_mock()
+    engine.process_user_order.reset_mock()
+    filled_order = _order(50, status="FILLED")
+
+    engine.process_user_envelope(UserStreamEnvelope(
+        generation=generation,
+        sequence_num=44,
+        timestamp="2026-09-08T15:03:43.429886Z",
+        events=({"type": "patch", "orders": [filled_order]},),
+    ))
+
+    engine.process_user_order.assert_not_called()
+    reduced_payloads = [
+        args.args[1]
+        for args in engine.log_message.call_args_list
+        if len(args.args) >= 2
+        and isinstance(args.args[1], dict)
+        and args.args[1].get("event") == "user_envelope_reduced"
+    ]
+    assert reduced_payloads == [{
+        "event": "user_envelope_reduced",
+        "generation": generation,
+        "sequence_num": 44,
+        "wire_event_types": ["patch"],
+        "phase_before": UserFeedPhase.BOOTSTRAPPING.value,
+        "phase_after": UserFeedPhase.LIVE.value,
+        "lifecycle_order_count": 0,
+        "lifecycle_orders": [],
+        "dispatch_attempted": False,
+        "dispatch_accepted": None,
+    }]
+
+
+def test_user_envelope_reduction_audit_failure_is_nonfatal():
+    engine, generation, _ = _private_ingress_engine()
+    engine.process_user_event(
+        {"type": "snapshot", "orders": []},
+        generation=generation,
+    )
+    filled_order = _order(1, status="FILLED")
+
+    def fail_only_reduction_audit(_log_type, payload):
+        if payload.get("event") == "user_envelope_reduced":
+            raise RuntimeError("diagnostic sink unavailable")
+
+    engine.log_message.side_effect = fail_only_reduction_audit
+    engine.process_user_envelope(UserStreamEnvelope(
+        generation=generation,
+        sequence_num=45,
+        timestamp="2026-09-08T15:03:43.429886Z",
+        events=({"type": "patch", "orders": [filled_order]},),
+    ))
+
+    engine.process_user_order.assert_called_once_with(filled_order)
+
+
 def test_private_ingress_ignores_an_exact_sequence_duplicate():
     engine, generation, reconnect_event = _private_ingress_engine()
     message = _wire_user_message(
@@ -890,6 +1065,20 @@ def test_dispatched_order_from_old_generation_is_dropped_after_reconnect():
     engine._process_dispatched_user_order(first_generation, stale_order)
 
     engine.process_user_order.assert_not_called()
+    assert any(
+        args.args[1] == {
+            "event": "user_order_dispatch_fenced",
+            "reason": "stale_generation",
+            "queued_generation": first_generation,
+            "active_generation": second_generation,
+            "active_phase": UserFeedPhase.AWAITING_SNAPSHOT.value,
+            "client_order_id": stale_order["client_order_id"],
+            "exchange_order_id": stale_order["order_id"],
+            "status": stale_order["status"],
+        }
+        for args in engine.log_message.call_args_list
+        if len(args.args) >= 2 and isinstance(args.args[1], dict)
+    )
 
 
 def test_new_generation_waits_for_running_old_generation_lifecycle():

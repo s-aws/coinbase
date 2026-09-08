@@ -1957,6 +1957,34 @@ Policy fields:
 - `reveal_pricing_policy`
 - `follow_up_reveal_direction`
 
+`anchor_repricing_policy` is optional. Omitting it or sending
+`{"enabled": false}` preserves normal order behavior. When enabled, the current
+stealth-manager and span-builder UIs emit:
+
+- `enabled`
+- `reference_price_source`: `last_trade`, `midpoint`, or `top_of_book`
+- `distance_type`: `A` absolute or `P` percent
+- `target_distance`
+- `max_distance`
+- `update_mode`: `adaptive` or `fixed`
+- `fixed_interval_seconds`
+- `min_price_change`
+- `hysteresis_bps`
+- `min_reprice_interval_seconds`
+- `max_reprices_per_hour`
+- `post_only_required`
+- `slide_mode`
+- `max_step_per_reprice`
+- `follow_up_retreat_distance`
+- `follow_up_retreat_jitter`
+
+The span builder sends a separate policy for every emitted order. For zero-based
+span index `i`, it adds the same nonnegative offset to `target_distance` and
+`max_distance`: `i * price_step` for `A`, or
+`i * (price_step / start_price)` for `P`. The backend remains responsible for
+applying BUY/SELL direction. Percentage spacing therefore scales with the live
+reference price; use `A` for fixed quote-unit spacing.
+
 `cancel_reentry_policy` shape:
 - `enabled`
 - `reference_price_source`: `last_trade`, `midpoint`, or `top_of_book`

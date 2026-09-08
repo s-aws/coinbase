@@ -2955,6 +2955,64 @@ class OrderEngine:
                 )
                 return
 
+            # Retain the minimum wire evidence needed to distinguish a venue
+            # delivery omission from a local reducer/dispatch omission.  Do
+            # not log the full authenticated payload: order identity, terminal
+            # progress, envelope sequence, and wire event type are sufficient
+            # to reconstruct how this envelope should have been reduced.
+            if channel == ChannelType.USER.value:
+                try:
+                    wire_events = []
+                    for wire_event in events:
+                        raw_orders = wire_event.get("orders")
+                        order_rows = []
+                        if isinstance(raw_orders, list):
+                            for order_row in raw_orders:
+                                if not isinstance(order_row, dict):
+                                    continue
+                                order_rows.append({
+                                    "client_order_id": order_row.get(
+                                        "client_order_id"
+                                    ),
+                                    "exchange_order_id": order_row.get(
+                                        "order_id"
+                                    ),
+                                    "status": order_row.get("status"),
+                                    "cumulative_quantity": order_row.get(
+                                        "cumulative_quantity"
+                                    ),
+                                    "leaves_quantity": order_row.get(
+                                        "leaves_quantity"
+                                    ),
+                                    "number_of_fills": order_row.get(
+                                        "number_of_fills"
+                                    ),
+                                })
+                        wire_events.append({
+                            "type": wire_event.get("type"),
+                            "order_count": (
+                                len(raw_orders)
+                                if isinstance(raw_orders, list)
+                                else None
+                            ),
+                            "orders": order_rows,
+                        })
+                    self.log_message(
+                        "event",
+                        self.build_event_log_payload(
+                            "user_envelope_ingress",
+                            generation=generation,
+                            channel=channel,
+                            sequence_num=sequence_num,
+                            exchange_timestamp=json_msg.get("timestamp"),
+                            wire_events=wire_events,
+                        ),
+                    )
+                except Exception:
+                    # Diagnostic logging must never alter private-feed
+                    # admission, sequencing, or lifecycle behavior.
+                    pass
+
             with self._user_feed_lock:
                 if generation != self._user_stream_generation:
                     return
@@ -3057,6 +3115,7 @@ class OrderEngine:
                     or self._user_feed_phase == UserFeedPhase.DESYNCHRONIZED
                 ):
                     return
+                phase_before = self._user_feed_phase
 
             try:
                 pending_live_orders = []
@@ -3074,11 +3133,46 @@ class OrderEngine:
                             == UserFeedPhase.DESYNCHRONIZED
                         ):
                             return
-                self._dispatch_validated_user_orders(
+                # Snapshot the reducer decision before async dispatch can run
+                # hooks that mutate an order row or desynchronize the feed.
+                with self._user_feed_lock:
+                    phase_after = self._user_feed_phase
+                lifecycle_orders = [{
+                    "client_order_id": order.get("client_order_id"),
+                    "exchange_order_id": order.get("order_id"),
+                    "status": order.get("status"),
+                } for order in pending_live_orders]
+                dispatch_attempted = bool(pending_live_orders)
+                dispatch_result = self._dispatch_validated_user_orders(
                     pending_live_orders,
                     dispatch_async=True,
                     generation=envelope.generation,
                 )
+                dispatch_accepted = (
+                    dispatch_result if dispatch_attempted else None
+                )
+                try:
+                    self.log_message(
+                        "event",
+                        self.build_event_log_payload(
+                            "user_envelope_reduced",
+                            generation=envelope.generation,
+                            sequence_num=envelope.sequence_num,
+                            wire_event_types=[
+                                event.get("type")
+                                for event in envelope.events
+                            ],
+                            phase_before=phase_before.value,
+                            phase_after=phase_after.value,
+                            lifecycle_order_count=len(pending_live_orders),
+                            lifecycle_orders=lifecycle_orders,
+                            dispatch_attempted=dispatch_attempted,
+                            dispatch_accepted=dispatch_accepted,
+                        ),
+                    )
+                except Exception:
+                    # Evidence capture cannot affect lifecycle dispatch.
+                    pass
             except Exception as exc:
                 self._mark_user_stream_desynchronized(
                     generation=envelope.generation,
@@ -3225,15 +3319,37 @@ class OrderEngine:
         generation: int,
         order: dict,
     ) -> None:
+        fence_reason = None
         with self._user_generation_condition:
-            if (
-                generation != self._user_stream_generation
-                or self._user_feed_phase == UserFeedPhase.DESYNCHRONIZED
-            ):
-                return
-            self._user_generation_inflight[generation] = (
-                self._user_generation_inflight.get(generation, 0) + 1
-            )
+            active_generation = self._user_stream_generation
+            active_phase = self._user_feed_phase
+            if generation != active_generation:
+                fence_reason = "stale_generation"
+            elif active_phase == UserFeedPhase.DESYNCHRONIZED:
+                fence_reason = "desynchronized"
+            else:
+                self._user_generation_inflight[generation] = (
+                    self._user_generation_inflight.get(generation, 0) + 1
+                )
+        if fence_reason is not None:
+            try:
+                self.log_message(
+                    "event",
+                    self.build_event_log_payload(
+                        "user_order_dispatch_fenced",
+                        reason=fence_reason,
+                        queued_generation=generation,
+                        active_generation=active_generation,
+                        active_phase=active_phase.value,
+                        client_order_id=order.get("client_order_id"),
+                        exchange_order_id=order.get("order_id"),
+                        status=order.get("status"),
+                    ),
+                )
+            except Exception:
+                # A diagnostic sink failure cannot bypass the fence.
+                pass
+            return
         try:
             self.process_user_order(order)
         except Exception as exc:

@@ -195,6 +195,18 @@
             margin-top: 4px;
         }
 
+        .policy-panel {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 12px;
+            border-radius: 4px;
+            margin-top: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .policy-panel.hidden {
+            display: none;
+        }
+
         .info-box {
             background: rgba(77, 171, 247, 0.1);
             border: 1px solid rgba(77, 171, 247, 0.3);
@@ -540,11 +552,12 @@
                                 <th>Size</th>
                                 <th>Cumulative Size</th>
                                 <th>Total Value</th>
+                                <th>Repricing Target / Max</th>
                             </tr>
                         </thead>
                         <tbody id="preview-tbody">
                             <tr>
-                                <td colspan="5" style="text-align: center; color: #666; padding: 20px;">
+                                <td colspan="6" style="text-align: center; color: #666; padding: 20px;">
                                     Configure your span to see preview
                                 </td>
                             </tr>
@@ -671,6 +684,133 @@
                                     <option value="midpoint">Midpoint</option>
                                 </select>
                                 <div class="help-text">How the reveal order price is chosen when each order becomes visible.</div>
+                            </div>
+
+                            <div class="form-group">
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                    <input type="checkbox" id="enable_anchor_repricing" style="cursor: pointer; width: 14px; height: 14px;">
+                                    <span>Enable Market-Reference Repricing</span>
+                                </label>
+                                <div class="help-text">
+                                    Optional and off by default. When enabled, every order in the span gets its own repricing policy.
+                                </div>
+                            </div>
+
+                            <div id="anchor-repricing-fields" class="policy-panel hidden">
+                                <div class="info-box" style="margin-top: 0; margin-bottom: 10px;">
+                                    The first order uses the base target and max distances. Each later order adds one Price Step per span position:
+                                    absolute steps in Absolute mode, or Price Step ÷ Start Price in Percentage mode. Percentage spacing scales with the
+                                    live reference; use Absolute mode for fixed quote-unit spacing. Max Reprices / Hour applies separately to every order.
+                                </div>
+
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Reference Price Source</label>
+                                        <select id="reference_price_source">
+                                            <option value="midpoint" selected>Midpoint</option>
+                                            <option value="last_trade">Last Trade</option>
+                                            <option value="top_of_book">Top of Book</option>
+                                        </select>
+                                        <div class="help-text">Ticker-derived anchor used for every order.</div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Distance Type</label>
+                                        <select id="anchor_distance_type">
+                                            <option value="P" selected>Percentage (%)</option>
+                                            <option value="A">Absolute Amount</option>
+                                        </select>
+                                        <div class="help-text">Percentage values are fractions (0.01 = 1%).</div>
+                                    </div>
+                                </div>
+
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Target Distance</label>
+                                        <input type="number" id="anchor_target_distance" value="0.01" step="any" min="0">
+                                        <div class="help-text">Ideal resting distance from the reference.</div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Max Distance</label>
+                                        <input type="number" id="anchor_max_distance" value="0.05" step="any" min="0">
+                                        <div class="help-text">Forced-reprice boundary; must be at least the target.</div>
+                                    </div>
+                                </div>
+
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Update Mode</label>
+                                        <select id="anchor_update_mode">
+                                            <option value="adaptive" selected>Adaptive</option>
+                                            <option value="fixed">Fixed</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Fixed Interval Seconds</label>
+                                        <select id="anchor_fixed_interval_seconds" disabled>
+                                            <option value="60" selected>60</option>
+                                            <option value="120">120</option>
+                                            <option value="300">300</option>
+                                        </select>
+                                        <div class="help-text">Used only in Fixed mode.</div>
+                                    </div>
+                                </div>
+
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Min Price Change</label>
+                                        <input type="number" id="anchor_min_price_change" value="0.01" step="any" min="0">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Hysteresis (bps)</label>
+                                        <input type="number" id="anchor_hysteresis_bps" value="5" step="any" min="0">
+                                    </div>
+                                </div>
+
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Min Reprice Interval (sec)</label>
+                                        <input type="number" id="anchor_min_reprice_interval_seconds" value="30" step="1" min="0">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Max Reprices / Hour</label>
+                                        <input type="number" id="anchor_max_reprices_per_hour" value="20" step="1" min="1">
+                                        <div class="help-text">This cap is per order, not per span.</div>
+                                    </div>
+                                </div>
+
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                            <input type="checkbox" id="anchor_slide_mode" style="cursor: pointer; width: 14px; height: 14px;">
+                                            <span>Slide Mode</span>
+                                        </label>
+                                        <div class="help-text">Move toward the desired price by a capped amount each reprice.</div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Max Step Per Reprice</label>
+                                        <input type="number" id="anchor_max_step_per_reprice" value="5" step="any" min="0" disabled>
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                        <input type="checkbox" id="anchor_post_only_required" checked style="cursor: pointer; width: 14px; height: 14px;">
+                                        <span>Require Post Only On Reprice</span>
+                                    </label>
+                                </div>
+
+                                <div class="form-row" style="border-top: 1px dashed #333; padding-top: 8px; margin-top: 8px;">
+                                    <div class="form-group">
+                                        <label>Follow-Up Retreat Distance</label>
+                                        <input type="number" id="anchor_follow_up_retreat_distance" value="0.0005" step="any" min="0">
+                                        <div class="help-text">Always percent-based; 0 disables the retreat.</div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Follow-Up Retreat Jitter</label>
+                                        <input type="number" id="anchor_follow_up_retreat_jitter" value="0.5" step="any" min="0" max="1">
+                                        <div class="help-text">Deterministic randomization fraction from 0 to 1.</div>
+                                    </div>
+                                </div>
                             </div>
 
                             <!-- Time Delay Fields -->
@@ -1030,9 +1170,44 @@
                 document.getElementById(id).addEventListener('input', updatePreview);
             });
 
+            [
+                'reference_price_source',
+                'anchor_distance_type',
+                'anchor_target_distance',
+                'anchor_max_distance',
+                'anchor_fixed_interval_seconds',
+                'anchor_min_price_change',
+                'anchor_hysteresis_bps',
+                'anchor_min_reprice_interval_seconds',
+                'anchor_max_reprices_per_hour',
+                'anchor_max_step_per_reprice',
+                'anchor_post_only_required',
+                'anchor_follow_up_retreat_distance',
+                'anchor_follow_up_retreat_jitter'
+            ].forEach(id => {
+                document.getElementById(id).addEventListener('change', updatePreview);
+                document.getElementById(id).addEventListener('input', updatePreview);
+            });
+
+            document.getElementById('enable_anchor_repricing').addEventListener('change', () => {
+                toggleAnchorRepricingFields();
+                updatePreview();
+            });
+            document.getElementById('anchor_update_mode').addEventListener('change', () => {
+                toggleAnchorFixedInterval();
+                updatePreview();
+            });
+            document.getElementById('anchor_slide_mode').addEventListener('change', () => {
+                toggleSlideMode();
+                updatePreview();
+            });
+
             document.getElementById('reveal_type').addEventListener('change', updateRevealFields);
             document.getElementById('reveal_type').value = 'price';
             updateRevealFields();
+            toggleAnchorRepricingFields();
+            toggleAnchorFixedInterval();
+            toggleSlideMode();
         }
 
         function updateRevealFields() {
@@ -1048,6 +1223,168 @@
             }
         }
 
+        function toggleAnchorRepricingFields() {
+            const enabled = document.getElementById('enable_anchor_repricing').checked;
+            document.getElementById('anchor-repricing-fields').classList.toggle('hidden', !enabled);
+        }
+
+        function toggleAnchorFixedInterval() {
+            const updateMode = document.getElementById('anchor_update_mode').value;
+            document.getElementById('anchor_fixed_interval_seconds').disabled = updateMode !== 'fixed';
+        }
+
+        function toggleSlideMode() {
+            const slideOn = document.getElementById('anchor_slide_mode').checked;
+            document.getElementById('anchor_max_step_per_reprice').disabled = !slideOn;
+
+            const minChange = document.getElementById('anchor_min_price_change');
+            const hysteresis = document.getElementById('anchor_hysteresis_bps');
+            if (slideOn) {
+                minChange.dataset.preSlide = minChange.value;
+                hysteresis.dataset.preSlide = hysteresis.value;
+                minChange.value = '0';
+                hysteresis.value = '0';
+                minChange.disabled = true;
+                hysteresis.disabled = true;
+            } else {
+                minChange.disabled = false;
+                hysteresis.disabled = false;
+                if (minChange.dataset.preSlide !== undefined) {
+                    minChange.value = minChange.dataset.preSlide;
+                }
+                if (hysteresis.dataset.preSlide !== undefined) {
+                    hysteresis.value = hysteresis.dataset.preSlide;
+                }
+            }
+        }
+
+        function buildAnchorRepricingPolicy() {
+            const enabled = document.getElementById('enable_anchor_repricing').checked;
+            if (!enabled) {
+                return { enabled: false };
+            }
+
+            return {
+                enabled: true,
+                reference_price_source: document.getElementById('reference_price_source').value,
+                distance_type: document.getElementById('anchor_distance_type').value,
+                target_distance: parseFloat(document.getElementById('anchor_target_distance').value),
+                max_distance: parseFloat(document.getElementById('anchor_max_distance').value),
+                update_mode: document.getElementById('anchor_update_mode').value,
+                fixed_interval_seconds: parseFloat(document.getElementById('anchor_fixed_interval_seconds').value),
+                min_price_change: parseFloat(document.getElementById('anchor_min_price_change').value),
+                hysteresis_bps: parseFloat(document.getElementById('anchor_hysteresis_bps').value),
+                min_reprice_interval_seconds: parseFloat(document.getElementById('anchor_min_reprice_interval_seconds').value),
+                max_reprices_per_hour: parseFloat(document.getElementById('anchor_max_reprices_per_hour').value),
+                post_only_required: document.getElementById('anchor_post_only_required').checked,
+                slide_mode: document.getElementById('anchor_slide_mode').checked,
+                max_step_per_reprice: parseFloat(document.getElementById('anchor_max_step_per_reprice').value),
+                follow_up_retreat_distance: parseFloat(document.getElementById('anchor_follow_up_retreat_distance').value),
+                follow_up_retreat_jitter: parseFloat(document.getElementById('anchor_follow_up_retreat_jitter').value)
+            };
+        }
+
+        function buildIndexedAnchorRepricingPolicy(basePolicy, spanIndex, priceStep, startPrice) {
+            if (!basePolicy.enabled) {
+                return { enabled: false };
+            }
+
+            const absoluteOffset = Math.abs(priceStep) * spanIndex;
+            const distanceOffset = basePolicy.distance_type === 'A'
+                ? absoluteOffset
+                : absoluteOffset / startPrice;
+
+            return {
+                ...basePolicy,
+                target_distance: basePolicy.target_distance + distanceOffset,
+                max_distance: basePolicy.max_distance + distanceOffset
+            };
+        }
+
+        function getAnchorRepricingValidationError(basePolicy, formData) {
+            if (!basePolicy.enabled) {
+                return null;
+            }
+
+            const numericValues = [
+                basePolicy.target_distance,
+                basePolicy.max_distance,
+                basePolicy.fixed_interval_seconds,
+                basePolicy.min_price_change,
+                basePolicy.hysteresis_bps,
+                basePolicy.min_reprice_interval_seconds,
+                basePolicy.max_reprices_per_hour,
+                basePolicy.max_step_per_reprice,
+                basePolicy.follow_up_retreat_distance,
+                basePolicy.follow_up_retreat_jitter
+            ];
+            if (!numericValues.every(Number.isFinite)) {
+                return 'All market-reference repricing values must be valid numbers';
+            }
+            if (!Number.isFinite(formData.start_price) || formData.start_price <= 0) {
+                return 'Start Price must be greater than zero when market-reference repricing is enabled';
+            }
+            if (!Number.isFinite(formData.price_step) || formData.price_step < 0) {
+                return 'Price Step must be zero or greater when market-reference repricing is enabled';
+            }
+            if (basePolicy.target_distance <= 0) {
+                return 'Repricing Target Distance must be greater than zero';
+            }
+            if (basePolicy.max_distance < basePolicy.target_distance) {
+                return 'Repricing Max Distance must be greater than or equal to Target Distance';
+            }
+            if (!Number.isInteger(basePolicy.fixed_interval_seconds) || basePolicy.fixed_interval_seconds <= 0) {
+                return 'Fixed Interval Seconds must be a positive whole number';
+            }
+            if (basePolicy.min_price_change < 0 || basePolicy.hysteresis_bps < 0) {
+                return 'Min Price Change and Hysteresis must be zero or greater';
+            }
+            if (!Number.isInteger(basePolicy.min_reprice_interval_seconds) || basePolicy.min_reprice_interval_seconds < 0) {
+                return 'Min Reprice Interval must be a non-negative whole number of seconds';
+            }
+            if (!Number.isInteger(basePolicy.max_reprices_per_hour) || basePolicy.max_reprices_per_hour < 1) {
+                return 'Max Reprices / Hour must be a positive whole number';
+            }
+            if (basePolicy.max_step_per_reprice < 0) {
+                return 'Max Step Per Reprice must be zero or greater';
+            }
+            if (basePolicy.slide_mode && basePolicy.max_step_per_reprice <= 0) {
+                return 'Max Step Per Reprice must be greater than zero when Slide Mode is enabled';
+            }
+            if (basePolicy.follow_up_retreat_distance < 0) {
+                return 'Follow-Up Retreat Distance must be zero or greater';
+            }
+            if (basePolicy.follow_up_retreat_jitter < 0 || basePolicy.follow_up_retreat_jitter > 1) {
+                return 'Follow-Up Retreat Jitter must be between zero and one';
+            }
+
+            const finalPolicy = buildIndexedAnchorRepricingPolicy(
+                basePolicy,
+                formData.order_count - 1,
+                formData.price_step,
+                formData.start_price
+            );
+            if (basePolicy.distance_type === 'P' && formData.side === 'BUY' && finalPolicy.max_distance >= 1) {
+                return 'The final BUY order\'s percentage Max Distance must stay below 1 (100%)';
+            }
+
+            return null;
+        }
+
+        function formatAnchorRepricingPreview(policy) {
+            if (!policy.enabled) {
+                return 'Off';
+            }
+            if (!Number.isFinite(policy.target_distance) || !Number.isFinite(policy.max_distance)) {
+                return 'Invalid';
+            }
+
+            if (policy.distance_type === 'P') {
+                return `${(policy.target_distance * 100).toFixed(4)}% / ${(policy.max_distance * 100).toFixed(4)}%`;
+            }
+            return `${policy.target_distance.toFixed(8)} / ${policy.max_distance.toFixed(8)} absolute`;
+        }
+
         function updatePreview() {
             const count = parseInt(document.getElementById('order_count').value) || 0;
             const startPrice = parseFloat(document.getElementById('start_price').value) || 0;
@@ -1055,6 +1392,7 @@
             const totalSize = parseFloat(document.getElementById('total_size').value) || 0;
             const distribution = document.getElementById('size_distribution').value;
             const side = document.getElementById('side').value;
+            const baseAnchorPolicy = buildAnchorRepricingPolicy();
 
             // Determine price direction based on side
             const priceDirection = side === 'BUY' ? -1 : 1;
@@ -1085,14 +1423,14 @@
             document.getElementById('calc-value').textContent = estValue.toFixed(2);
 
             // Generate preview table
-            generatePreview(count, startPrice, priceStep, totalSize, distribution);
+            generatePreview(count, startPrice, priceStep, totalSize, distribution, baseAnchorPolicy);
         }
 
-        function generatePreview(count, startPrice, priceStep, totalSize, distribution) {
+        function generatePreview(count, startPrice, priceStep, totalSize, distribution, baseAnchorPolicy) {
             const tbody = document.getElementById('preview-tbody');
             
             if (count === 0 || totalSize === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #666; padding: 20px;">Enter values to see preview</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #666; padding: 20px;">Enter values to see preview</td></tr>';
                 return;
             }
 
@@ -1109,6 +1447,7 @@
                 const size = sizes[i];
                 cumulativeSize += size;
                 const value = price * size;
+                const anchorPolicy = buildIndexedAnchorRepricingPolicy(baseAnchorPolicy, i, priceStep, startPrice);
 
                 html += `
                     <tr>
@@ -1117,6 +1456,7 @@
                         <td>${size.toFixed(8)}</td>
                         <td>${cumulativeSize.toFixed(8)}</td>
                         <td>${value.toFixed(2)}</td>
+                        <td>${formatAnchorRepricingPreview(anchorPolicy)}</td>
                     </tr>
                 `;
             }
@@ -1170,12 +1510,22 @@
                 target_movement: parseFloat(document.getElementById('target_movement').value),
                 max_followups: parseInt(document.getElementById('max_followups').value),
                 notes: document.getElementById('notes').value,
-                enable_hotpoint_replication: document.getElementById('enable_hotpoint_replication').checked
+                enable_hotpoint_replication: document.getElementById('enable_hotpoint_replication').checked,
+                anchor_repricing_policy: buildAnchorRepricingPolicy()
             };
 
             // Validate
             if (!formData.product_id || !formData.side || formData.total_size <= 0 || formData.order_count < 1) {
                 showMessage('Please fill in all required fields', 'error');
+                return;
+            }
+
+            const anchorPolicyError = getAnchorRepricingValidationError(
+                formData.anchor_repricing_policy,
+                formData
+            );
+            if (anchorPolicyError) {
+                showMessage(anchorPolicyError, 'error');
                 return;
             }
 
@@ -1241,7 +1591,13 @@
                     target_movement: formData.target_movement,
                     target_movement_type: 'P',
                     notes: formData.notes ? `[SPAN #${i + 1}] ${formData.notes}` : `[SPAN #${i + 1}/${formData.order_count}]`,
-                    enable_hotpoint_replication: formData.enable_hotpoint_replication
+                    enable_hotpoint_replication: formData.enable_hotpoint_replication,
+                    anchor_repricing_policy: buildIndexedAnchorRepricingPolicy(
+                        formData.anchor_repricing_policy,
+                        i,
+                        formData.price_step,
+                        formData.start_price
+                    )
                 };
 
                 // Send order creation request with a slight delay to ensure order
@@ -1293,7 +1649,13 @@
                     notes: i === 0 
                         ? `[SPAN] ${formData.notes} (Order 1/${formData.order_count})` 
                         : `[SPAN] Child of span (Order ${i + 1}/${formData.order_count})`,
-                    enable_hotpoint_replication: formData.enable_hotpoint_replication
+                    enable_hotpoint_replication: formData.enable_hotpoint_replication,
+                    anchor_repricing_policy: buildIndexedAnchorRepricingPolicy(
+                        formData.anchor_repricing_policy,
+                        i,
+                        formData.price_step,
+                        formData.start_price
+                    )
                 };
 
                 // First order becomes parent, others reference it
@@ -1428,6 +1790,28 @@
             document.getElementById('notes').value = '';
             document.getElementById('reveal_type').value = 'price';
             document.getElementById('price_hold_duration_seconds').value = '0';
+            document.getElementById('enable_anchor_repricing').checked = false;
+            document.getElementById('reference_price_source').value = 'midpoint';
+            document.getElementById('anchor_distance_type').value = 'P';
+            document.getElementById('anchor_target_distance').value = '0.01';
+            document.getElementById('anchor_max_distance').value = '0.05';
+            document.getElementById('anchor_update_mode').value = 'adaptive';
+            document.getElementById('anchor_fixed_interval_seconds').value = '60';
+            document.getElementById('anchor_min_price_change').value = '0.01';
+            document.getElementById('anchor_hysteresis_bps').value = '5';
+            document.getElementById('anchor_min_reprice_interval_seconds').value = '30';
+            document.getElementById('anchor_max_reprices_per_hour').value = '20';
+            document.getElementById('anchor_slide_mode').checked = false;
+            document.getElementById('anchor_max_step_per_reprice').value = '5';
+            document.getElementById('anchor_post_only_required').checked = true;
+            document.getElementById('anchor_follow_up_retreat_distance').value = '0.0005';
+            document.getElementById('anchor_follow_up_retreat_jitter').value = '0.5';
+
+            delete document.getElementById('anchor_min_price_change').dataset.preSlide;
+            delete document.getElementById('anchor_hysteresis_bps').dataset.preSlide;
+            toggleAnchorRepricingFields();
+            toggleAnchorFixedInterval();
+            toggleSlideMode();
             
             // Trigger product change to set price_step to price_increment
             if (products.length > 0) {
