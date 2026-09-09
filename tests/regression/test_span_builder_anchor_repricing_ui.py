@@ -25,6 +25,16 @@ def _input_tag(source: str, element_id: str) -> str:
     return match.group(0)
 
 
+def _select_tag(source: str, element_id: str) -> str:
+    match = re.search(
+        rf'<select\b[^>]*\bid="{re.escape(element_id)}"[^>]*>.*?</select>',
+        source,
+        flags=re.DOTALL,
+    )
+    assert match is not None, f"Missing select #{element_id}"
+    return match.group(0)
+
+
 @pytest.mark.regression
 def test_span_repricing_is_optional_and_uses_canonical_defaults():
     html = SPAN_BUILDER.read_text(encoding="utf-8")
@@ -193,3 +203,94 @@ def test_disabled_repricing_bypasses_validation_and_reset_restores_opt_in_state(
     assert "document.getElementById('anchor_target_distance').value = '0.01';" in reset
     assert "document.getElementById('anchor_max_distance').value = '0.05';" in reset
     assert "toggleAnchorRepricingFields();" in reset
+
+
+@pytest.mark.regression
+def test_span_profit_target_type_is_selected_and_forwarded_independently():
+    html = SPAN_BUILDER.read_text(encoding="utf-8")
+
+    target_controls = _slice_between(
+        html,
+        "<label>Target Movement (Profit)</label>",
+        "<label>Max Follow-ups</label>",
+    )
+    target_type_select = _select_tag(html, "target_movement_type")
+    assert 'id="target_movement"' in target_controls
+    assert 'id="target_movement_type"' in target_controls
+    assert "0.002 = 0.2%" in target_controls
+    assert "300 = $300" in target_controls
+    assert "anchor_distance_type" not in target_controls
+    assert '<option value="P" selected>Percentage (%)</option>' in target_type_select
+    assert '<option value="A">Absolute Amount</option>' in target_type_select
+    assert _select_tag(html, "anchor_distance_type") != target_type_select
+
+    create_span = _slice_between(
+        html,
+        "function createOrderSpan()",
+        "function createIndependentParents(",
+    )
+    assert (
+        "target_movement_type: document.getElementById('target_movement_type').value"
+        in create_span
+    )
+
+    independent = _slice_between(
+        html,
+        "function createIndependentParents(",
+        "function createParentWithChildren(",
+    )
+    parent_children = _slice_between(
+        html,
+        "function createParentWithChildren(",
+        "function customizeRevealConditionForPrice(",
+    )
+    assert html.count(
+        "target_movement_type: formData.target_movement_type"
+    ) == 2
+    for creation_path in (independent, parent_children):
+        assert "target_movement: formData.target_movement" in creation_path
+        target_type_position = creation_path.index(
+            "target_movement_type: formData.target_movement_type"
+        )
+        send_position = creation_path.index("setTimeout(() =>")
+        assert target_type_position < send_position
+        assert "target_movement_type: 'P'" not in creation_path
+
+
+@pytest.mark.regression
+def test_span_profit_target_validation_and_reset_are_type_aware():
+    html = SPAN_BUILDER.read_text(encoding="utf-8")
+    validation = _slice_between(
+        html,
+        "function getTargetMovementValidationError(",
+        "function createOrderSpan()",
+    )
+
+    assert "!Number.isFinite(movement) || movement < 0" in validation
+    assert "movementType !== 'P' && movementType !== 'A'" in validation
+    assert "for (let i = 0; i < formData.order_count; i++)" in validation
+    assert "movementType === 'P'" in validation
+    assert "formData.side === 'SELL'" in validation
+    assert "!Number.isFinite(followUpPrice) || followUpPrice <= 0" in validation
+
+    create_span = _slice_between(
+        html,
+        "function createOrderSpan()",
+        "function createIndependentParents(",
+    )
+    target_validation = create_span.index(
+        "getTargetMovementValidationError(formData)"
+    )
+    anchor_validation = create_span.index(
+        "getAnchorRepricingValidationError("
+    )
+    send_dispatch = create_span.index("createIndependentParents(formData")
+    assert target_validation < anchor_validation < send_dispatch
+
+    reset = _slice_between(
+        html,
+        "function resetForm()",
+        "function updateOrdersTable()",
+    )
+    assert "document.getElementById('target_movement').value = '0.002';" in reset
+    assert "document.getElementById('target_movement_type').value = 'P';" in reset

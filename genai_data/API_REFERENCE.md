@@ -1950,6 +1950,12 @@ Core fields:
 - `target_movement`
 - `target_movement_type`
 
+`target_movement_type` is independent of every policy-level `distance_type`.
+`P` interprets `target_movement` as a decimal fraction (`0.003` = `0.3%`);
+`A` interprets it as an absolute quote-unit price movement (`300` = `$300` for
+USD-quoted products). The stealth-manager and span-builder UIs expose this as a
+separate Profit Target Type selector.
+
 Policy fields:
 - `anchor_repricing_policy`
 - `cancel_reentry_policy`
