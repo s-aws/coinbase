@@ -20,8 +20,14 @@ Usage:
     >>> wallets = client.get_account_wallets()
 """
 
+import time
+import uuid
 from typing import Dict, List, Optional, Any
+
 from coinbase.rest import RESTClient
+from requests.exceptions import ConnectionError as RequestsConnectionError
+from requests.exceptions import Timeout as RequestsTimeout
+
 from core.models import Product, Wallet, Position, Order
 from core.enums import (
     ContractExpiryType,
@@ -29,6 +35,16 @@ from core.enums import (
     ProductType,
     ProductVenue,
     TimeInForce,
+)
+from logging_service import get_logger
+
+
+logger = get_logger("CoinbaseRestClient")
+
+_LIMIT_ORDER_TRANSPORT_RETRY_DELAYS_SECONDS = (0.25, 1.0)
+_LIMIT_ORDER_TRANSPORT_EXCEPTIONS = (
+    RequestsConnectionError,
+    RequestsTimeout,
 )
 
 
@@ -587,11 +603,17 @@ class CoinbaseRestClient:
         Returns:
             Raw SDK response object (call .to_dict() to get dict)
         
+        Transport failures are retried with the exact same request and
+        ``client_order_id``. Coinbase treats ``client_order_id`` as the
+        idempotency boundary for create-order calls, so a lost response can be
+        recovered without creating a second order. Explicit exchange
+        rejections and non-transport exceptions are never retried here.
+
         Raises:
-            Exception: If API call fails or required parameters missing
+            Exception: If API call fails after bounded transport retries or
+                required parameters are missing.
         """
         if not client_order_id:
-            import uuid
             client_order_id = str(uuid.uuid4())
         
         if not base_size and not quote_size:
@@ -600,16 +622,45 @@ class CoinbaseRestClient:
         if not limit_price:
             raise ValueError("limit_price is required")
         
-        # SDK requires positional args: client_order_id, product_id, side, base_size, limit_price
-        return self._client.limit_order_gtc(
-            client_order_id=client_order_id,
-            product_id=product_id,
-            side=side,
-            base_size=base_size or quote_size,
-            limit_price=limit_price,
-            post_only=post_only,
-            **kwargs
-        )
+        # Resolve the request once so every transport retry reuses the exact
+        # same idempotency key and payload. Never generate a replacement ID at
+        # this boundary; explicit POST_ONLY rejection retries remain owned by
+        # StealthOrderManager's separate price ladder.
+        request_kwargs = {
+            **kwargs,
+            "client_order_id": client_order_id,
+            "product_id": product_id,
+            "side": side,
+            "base_size": base_size or quote_size,
+            "limit_price": limit_price,
+            "post_only": post_only,
+        }
+        max_attempts = len(_LIMIT_ORDER_TRANSPORT_RETRY_DELAYS_SECONDS) + 1
+
+        for attempt_number in range(1, max_attempts + 1):
+            try:
+                return self._client.limit_order_gtc(**request_kwargs)
+            except _LIMIT_ORDER_TRANSPORT_EXCEPTIONS as transport_error:
+                if attempt_number >= max_attempts:
+                    raise
+
+                retry_delay = _LIMIT_ORDER_TRANSPORT_RETRY_DELAYS_SECONDS[
+                    attempt_number - 1
+                ]
+                logger.warning(
+                    "Retrying GTC limit order after transport failure "
+                    "(client_order_id=%s product_id=%s failed_attempt=%d "
+                    "next_attempt=%d max_attempts=%d "
+                    "retry_delay_seconds=%s exception_type=%s)",
+                    client_order_id,
+                    product_id,
+                    attempt_number,
+                    attempt_number + 1,
+                    max_attempts,
+                    retry_delay,
+                    type(transport_error).__name__,
+                )
+                time.sleep(retry_delay)
     
     def create_order(
         self,
