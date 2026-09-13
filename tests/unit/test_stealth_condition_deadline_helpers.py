@@ -129,6 +129,74 @@ def test_non_jitter_time_deadline_uses_injected_now_at_exact_boundary() -> None:
     assert exact.truth is True
 
 
+def test_time_deadline_prefers_persisted_rearm_timestamp() -> None:
+    evaluator = TimeDelayEvaluator()
+    created_at = datetime(2026, 8, 27, 14, 0, 0)
+    armed_at = datetime(2026, 8, 28, 9, 30, 0, tzinfo=UTC)
+    condition = {"delay_seconds": 15, "jitter_seconds": 0}
+    order = {
+        "created_at": created_at,
+        "anchor_repricing_state_json": {
+            "reveal_armed_at": "2026-08-28T09:30:00Z",
+        },
+    }
+
+    deadline = evaluator.resolve_stable_deadline(condition, order)
+    before = evaluator.evaluate_truth(
+        {},
+        condition,
+        order,
+        now_utc=armed_at + timedelta(seconds=14, microseconds=999999),
+    )
+    exact = evaluator.evaluate_truth(
+        {}, condition, order, now_utc=armed_at + timedelta(seconds=15)
+    )
+
+    assert deadline.available is True
+    assert deadline.deadline_utc == armed_at + timedelta(seconds=15)
+    assert "reveal_armed_at" in deadline.reason
+    assert before.truth is False
+    assert exact.truth is True
+
+
+def test_time_deadline_falls_back_to_created_at_without_rearm_timestamp() -> None:
+    evaluator = TimeDelayEvaluator()
+    created_at = datetime(2026, 8, 27, 14, 0, 0, tzinfo=UTC)
+
+    deadline = evaluator.resolve_stable_deadline(
+        {"delay_seconds": 15, "jitter_seconds": 0},
+        {
+            "created_at": created_at,
+            "anchor_repricing_state_json": {"reprice_history": []},
+        },
+    )
+
+    assert deadline.available is True
+    assert deadline.deadline_utc == created_at + timedelta(seconds=15)
+    assert "created_at" in deadline.reason
+
+
+def test_malformed_rearm_timestamp_does_not_fall_back_to_created_at() -> None:
+    evaluator = TimeDelayEvaluator()
+    order = {
+        "created_at": datetime(2020, 1, 1),
+        "anchor_repricing_state_json": {"reveal_armed_at": "not-a-timestamp"},
+    }
+
+    deadline = evaluator.resolve_stable_deadline(
+        {"delay_seconds": 15, "jitter_seconds": 0}, order
+    )
+    met, reason = evaluator.evaluate(
+        {}, {"delay_seconds": 15, "jitter_seconds": 2}, order
+    )
+
+    assert deadline.valid is False
+    assert deadline.available is False
+    assert "reveal_armed_at" in deadline.reason
+    assert met is False
+    assert "reveal_armed_at" in reason
+
+
 def test_time_truth_aligns_aware_now_with_naive_utc_timestamp() -> None:
     evaluator = TimeDelayEvaluator()
     created_at = datetime(2026, 8, 27, 15, 0, 0)
@@ -177,6 +245,27 @@ def test_jittered_time_delay_evaluates_numeric_strings_consistently() -> None:
     )
 
     assert met is True
+
+
+def test_jittered_time_delay_uses_aware_rearm_timestamp() -> None:
+    evaluator = TimeDelayEvaluator()
+    order = {
+        "created_at": datetime.utcnow() - timedelta(days=1),
+        "anchor_repricing_state_json": {
+            "reveal_armed_at": (
+                datetime.now(UTC) + timedelta(days=1)
+            ).isoformat(),
+        },
+    }
+
+    met, reason = evaluator.evaluate(
+        {},
+        {"delay_seconds": "1", "jitter_seconds": "2"},
+        order,
+    )
+
+    assert met is False
+    assert reason.startswith("Waiting ")
 
 
 @pytest.mark.parametrize(

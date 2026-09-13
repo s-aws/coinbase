@@ -24,6 +24,17 @@ QUERY_PROTOCOL:
 - `query_graph.py neighbors 's:core/order_engine.py::OrderEngine.process_user_order'`
 - `query_graph.py search normalize_price_for_product`
 
+EVIDENCE_MAINTENANCE:
+- Python evidence uses `symbol_id=s:<path>::<qualified.name>` when one exact definition contains the excerpt. Repeated definitions (including repeated enclosing scopes) are ambiguous; occurrence suffixes such as `#2` are not durable identities.
+- `reviewed_scope_sha256` fingerprints the full definition from `scope_line_start` (including decorators) through `line_end`. `excerpt_sha256` fingerprints the cited excerpt. Both are authored review baselines, never refreshed by a normal build.
+- Without `symbol_id`, the reviewed scope is the exact excerpt and both hashes must match. This fallback supports module/multiple-definition excerpts and non-Python files; it does not review surrounding content.
+- Fingerprint formula: decode with the builder's `decode_text`, split with its `source_lines`, then SHA-256 of `"\n".join(lines[start - 1:end]).encode("utf-8")`. Ranges are inclusive and one-based. CRLF/CR/LF and the terminal newline are normalized; Unicode separators inside source literals remain content, not line breaks.
+- A successful build derives evidence line positions by finding one exact unchanged excerpt within its unchanged symbol scope (or the same file for text fallback). The stored range supplies excerpt length. Only locations and current `file_sha256` are refreshed; `file_sha256` is file freshness, not review approval.
+- Changed/missing scopes or excerpts, missing fingerprints, renames, and ambiguous matches require review. Failed validation publishes no artifacts, including no replacement report; a previous `validation/report.json` is not evidence that the failed attempt passed. Use the command's exit status and diagnostics.
+- After an intentional source change, inspect the affected claim and source, revise its summary/state/evidence as needed, and explicitly update only the reviewed fingerprints justified by that review. Do not bulk-refresh hashes to silence errors. A state downgrade alone does not bypass evidence validation.
+- Author `start_here` with exact symbol IDs or file-only paths. Query output retains these references and adds `resolved_start_here` with current indexed line positions. Legacy numeric references remain accepted but have no relocation guarantee. Rebuild/check after source edits before trusting query output.
+- Fingerprints detect textual changes, not semantic equivalence or transitive behavior. Changes in callees, configuration, enclosing class context, or code outside a cited scope still require normal source review and tests; an unchanged hash does not re-prove a claim.
+
 RECORD_ID_PREFIXES:
 - `f:` repository file
 - `s:` source symbol

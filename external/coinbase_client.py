@@ -446,6 +446,11 @@ class CoinbaseRestClient:
             kwargs["cursor"] = cursor
         return self._client.list_orders(**kwargs)
 
+    def get_order(self, order_id: str) -> Dict[str, Any]:
+        """Get one order by its exchange-assigned ID."""
+
+        return self._client.get_order(order_id=order_id)
+
     def list_fills(
         self,
         *,

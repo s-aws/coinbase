@@ -56,7 +56,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from core.enums import StealthOrderStatus
+from core.enums import FollowUpKind, StealthOrderStatus
 from tests.unit.test_partial_fill_followups import (
     _build_engine_for_partial_fill_tests,
 )
@@ -278,6 +278,50 @@ def test_cancel_followup_none_return_does_not_register_phantom_child():
 
 
 @pytest.mark.regression
+def test_cancel_followup_waits_for_terminal_execution_persistence():
+    engine = _build_engine_for_partial_fill_tests()
+    placement_uuid = "placement-persistence-failure"
+    stealth_root_id = "root-persistence-failure"
+
+    stealth_bridge, _ = _wire_cancel_path(
+        engine,
+        placement_uuid=placement_uuid,
+        stealth_root_id=stealth_root_id,
+        parent_db_row={
+            "target_movement": 0.001,
+            "target_movement_type": "P",
+        },
+    )
+    stealth_bridge.update_execution.return_value = False
+    engine.release_follow_up_processing = Mock(
+        wraps=engine.release_follow_up_processing
+    )
+    engine.complete_follow_up_processing = Mock(
+        wraps=engine.complete_follow_up_processing
+    )
+
+    with patch("database.order.has_pending_move", return_value=False):
+        engine.handle_cancelled_order(
+            {
+                "client_order_id": placement_uuid,
+                "product_id": "BIP-20DEC30-CDE",
+                "side": "SELL",
+                "status": StealthOrderStatus.CANCELLED.value,
+                "price": 80355.0,
+            }
+        )
+
+    engine.release_follow_up_processing.assert_called_once_with(
+        FollowUpKind.CANCELLED,
+        placement_uuid,
+    )
+    engine.complete_follow_up_processing.assert_not_called()
+    stealth_bridge.create_follow_up_stealth_order.assert_not_called()
+    engine.register_child_order.assert_not_called()
+    assert engine._pending_replacement_claims.get(stealth_root_id, 0) == 0
+
+
+@pytest.mark.regression
 def test_cancel_followup_exception_releases_replacement_slot():
     engine = _build_engine_for_partial_fill_tests()
     placement_uuid = "88f22189-eb33-4768-91c7-6da14cd3116b"
@@ -372,6 +416,7 @@ def test_cancel_followup_respects_exhausted_replacement_cap():
         stealth_order_id=stealth_root_id,
         executed_size=0.0,
         order_status=StealthOrderStatus.CANCELLED.value,
+        placement_client_order_id=placement_uuid,
     )
     stealth_bridge.create_follow_up_stealth_order.assert_not_called()
     engine.register_child_order.assert_not_called()

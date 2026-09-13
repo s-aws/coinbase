@@ -3,7 +3,7 @@
 from unittest.mock import Mock
 
 from configuration import OrderBook
-from core.enums import OrderStatus
+from core.enums import FollowUpKind, OrderStatus, StealthOrderStatus
 from core.order_engine import OrderEngine
 
 
@@ -66,6 +66,67 @@ def test_handle_filled_order_uses_client_order_id_for_stealth_lookup():
     stealth_manager.find_stealth_order_by_placed_order_id.assert_called_once_with(
         filled_order["client_order_id"]
     )
+
+
+def test_filled_stealth_updates_execution_before_follow_up_policy_returns():
+    engine, _ = _build_engine()
+    stealth_order = {"stealth_order_id": "stealth-root"}
+    stealth_manager = Mock()
+    stealth_manager.find_stealth_order_by_placed_order_id.return_value = stealth_order
+    engine.stealth_order_bridge = Mock(stealth_manager=stealth_manager)
+    engine.claim_follow_up_processing = Mock(return_value=True)
+    engine._register_stealth_placement_under_root = Mock()
+    engine.orderbook.should_replace = {"FILLED": False, "CANCELLED": False}
+
+    engine.handle_filled_order(
+        {
+            "client_order_id": "placement-1",
+            "order_id": "exchange-1",
+            "product_id": "BTC-USDC",
+            "side": "BUY",
+            "status": OrderStatus.FILLED.value,
+            "cumulative_quantity": "1.25",
+        }
+    )
+
+    engine.stealth_order_bridge.update_execution.assert_called_once_with(
+        stealth_order_id="stealth-root",
+        executed_size=1.25,
+        order_status=StealthOrderStatus.EXECUTED.value,
+        placement_client_order_id="placement-1",
+    )
+
+
+def test_filled_stealth_releases_claim_when_execution_persistence_fails():
+    engine, _ = _build_engine()
+    stealth_order = {"stealth_order_id": "stealth-root"}
+    stealth_manager = Mock()
+    stealth_manager.find_stealth_order_by_placed_order_id.return_value = (
+        stealth_order
+    )
+    engine.stealth_order_bridge = Mock(stealth_manager=stealth_manager)
+    engine.stealth_order_bridge.update_execution.return_value = False
+    engine.claim_follow_up_processing = Mock(return_value=True)
+    engine.release_follow_up_processing = Mock()
+    engine._register_stealth_placement_under_root = Mock()
+    engine.compute_order_template = Mock()
+
+    engine.handle_filled_order(
+        {
+            "client_order_id": "placement-1",
+            "order_id": "exchange-1",
+            "product_id": "BTC-USDC",
+            "side": "BUY",
+            "status": OrderStatus.FILLED.value,
+            "cumulative_quantity": "1.25",
+        }
+    )
+
+    engine.release_follow_up_processing.assert_called_once_with(
+        FollowUpKind.FILLED,
+        "placement-1",
+    )
+    engine.compute_order_template.assert_not_called()
 
 
 def test_process_user_order_syncs_exchange_order_id_before_fill_handling():

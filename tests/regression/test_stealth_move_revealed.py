@@ -186,9 +186,9 @@ class TestStealthMutationClaims:
 
         While a MOVE is in flight on ``sid_1``, no concurrent REPRICE on
         the same sid may proceed (and vice versa). Without this guarantee
-        the ticker reprice loop could cancel-and-replace the same exchange
-        order that the manual move is cancelling, double-billing the
-        order and leaving phantom placements behind.
+        the ticker reprice loop could request a rearm cancellation for the same
+        exchange order that the manual move is cancelling, leaving ambiguous
+        ownership of the terminal event.
         """
         from core.enums import StealthMutationKind
 
@@ -586,7 +586,9 @@ class TestExecuteStealthMoveResetsState:
 # explicit allowlist update which surfaces in code review.
 
 _SANCTIONED_CANCEL_CALLERS = (
-    "_apply_revealed_anchor_reprice",
+    # Automatic repricing persists one rearm intent, then funnels initial and
+    # recovery retries through this single exchange-cancel boundary.
+    "_request_pending_anchor_rearm_cancel",
     "execute_stealth_move",
     # User-/dashboard-initiated cancel of a stealth order whose live
     # exchange placement must also be pulled. Best-effort, no

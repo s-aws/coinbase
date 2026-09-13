@@ -63,6 +63,7 @@ Example: evaluate and reveal from scheduler loop
 import uuid
 import json
 import time
+from copy import deepcopy
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -97,7 +98,7 @@ from core.exceptions import (
     StealthOrderPersistenceError,
 )
 from business.stealth_condition_evaluator import get_evaluator
-from core.models import MarketData, RepricingPolicy, RepricingState
+from core.models import MarketData, PendingRearmState, RepricingPolicy, RepricingState
 from core.runtime_controller import INFLIGHT_REST_PLACE, get_runtime_controller
 from database.order import (
     get_parent_order,
@@ -1332,19 +1333,14 @@ class StealthOrderManager:
             # from product_id via its injected orderbook (single source of truth).
             product_id = order.get("product_id", "")
 
-            if order.get("status") == StealthOrderStatus.REVEALED.value:
-                # An already-visible order is cancelled and replaced directly,
-                # so consume the same anchor-policy field as that REST call.
-                policy = RepricingPolicy.coerce(repricing_policy)
-                will_be_post_only = bool(policy.post_only_required)
-            else:
-                # Hidden/PENDING/TRIGGERED anchor processing only changes the
-                # local limit. Its eventual REST placement is still governed
-                # by the reveal policy, including its maker/taker assumption.
-                will_be_post_only = self._resolve_post_only_from_policy(
-                    reveal_pricing_policy=order.get("reveal_pricing_policy"),
-                    reveal_condition=order.get("reveal_condition_json"),
-                )
+            # Anchor repricing updates a logical hidden target. Revealed orders
+            # first rearm to HIDDEN and later return through the same canonical
+            # reveal path, so its pricing policy owns the eventual fee tier for
+            # every status.
+            will_be_post_only = self._resolve_post_only_from_policy(
+                reveal_pricing_policy=order.get("reveal_pricing_policy"),
+                reveal_condition=order.get("reveal_condition_json"),
+            )
 
             validation = self.profit_validator.validate_order_profitability(
                 parent_filled_price=entry_price,
@@ -1379,20 +1375,409 @@ class StealthOrderManager:
             return str(uuid.uuid4())
         return order["stealth_order_id"]
 
+    @staticmethod
+    def _find_reveal_event_for_placement(
+        order: Dict[str, Any],
+        placed_order_id: Optional[str],
+    ) -> Optional[Dict[str, Any]]:
+        """Return the accepted reveal event owned by ``placed_order_id``."""
+
+        if not placed_order_id:
+            return None
+        for reveal_event in reversed(order.get("revealed_orders") or []):
+            if not isinstance(reveal_event, dict):
+                continue
+            if reveal_event.get("placed_order_id") == placed_order_id:
+                return reveal_event
+        return None
+
+    def is_anchor_rearm_placement_tombstoned(
+        self,
+        placement_client_order_id: str,
+        *,
+        exchange_order_id: Optional[str] = None,
+    ) -> bool:
+        """Return whether authenticated cancellation retired one placement.
+
+        ``rearm_cancel_consumed`` is written only after terminal exchange truth
+        has been consumed.  ``cancelled_for_reprice`` is intentionally not
+        sufficient: the legacy move path can set that audit field before a
+        terminal acknowledgement has been authenticated.
+
+        The placement client order ID remains the ownership key.  When both
+        sides also provide an exchange ID, a mismatch is a corrupt replay: stop
+        originating work and still treat the retired client order ID as
+        tombstoned so the conflicting row cannot resurrect it.
+        """
+
+        order = self.find_stealth_order_by_placed_order_id(
+            placement_client_order_id
+        )
+        if order is None:
+            return False
+        reveal_event = self._find_reveal_event_for_placement(
+            order,
+            placement_client_order_id,
+        )
+        if (
+            reveal_event is None
+            or reveal_event.get("rearm_cancel_consumed") is not True
+        ):
+            return False
+
+        expected_exchange_order_id = reveal_event.get("exchange_order_id")
+        if (
+            exchange_order_id
+            and expected_exchange_order_id
+            and str(exchange_order_id) != str(expected_exchange_order_id)
+        ):
+            get_runtime_controller().request_pause()
+            self.log_callback(
+                "error",
+                {
+                    "event": "stealth_anchor_rearm_tombstone_exchange_mismatch",
+                    "stealth_order_id": order.get("stealth_order_id"),
+                    "placement_client_order_id": placement_client_order_id,
+                    "reported_exchange_order_id": exchange_order_id,
+                    "expected_exchange_order_id": expected_exchange_order_id,
+                    "note": "Conflicting nonterminal replay suppressed.",
+                },
+            )
+        return True
+
+    def _prepare_active_terminal_cancel_intent(
+        self,
+        order: Dict[str, Any],
+        state: Dict[str, Any],
+        *,
+        reprice_reason: str,
+        requested_at: datetime,
+        identity_invalid_event: str,
+        filled_placement_client_order_id: Optional[str],
+    ) -> bool:
+        """Prepare one fail-closed cancel intent for the active placement.
+
+        The caller owns the event-specific terminal transition and persistence.
+        This helper only proves the active client/exchange identity against the
+        reveal ledger and any existing intent, then replaces that intent with
+        the shared ``return_to_hidden=False`` cancellation shape.
+        """
+
+        active_placement_id = state.get(
+            "active_placement_client_order_id"
+        )
+        active_reveal_event = self._find_reveal_event_for_placement(
+            order,
+            str(active_placement_id) if active_placement_id else None,
+        )
+        active_exchange_order_id = state.get("active_exchange_order_id")
+        reveal_exchange_order_id = (
+            active_reveal_event.get("exchange_order_id")
+            if active_reveal_event is not None
+            else None
+        )
+        existing_pending = state.get("pending_rearm")
+        pending_matches_active = (
+            not isinstance(existing_pending, Mapping)
+            or (
+                str(
+                    existing_pending.get("placement_client_order_id") or ""
+                )
+                == str(active_placement_id or "")
+                and (
+                    not existing_pending.get("exchange_order_id")
+                    or str(existing_pending.get("exchange_order_id"))
+                    == str(active_exchange_order_id or "")
+                )
+            )
+        )
+        active_identity_is_safe = bool(
+            active_reveal_event is not None
+            and active_exchange_order_id
+            and pending_matches_active
+            and (
+                not reveal_exchange_order_id
+                or str(reveal_exchange_order_id)
+                == str(active_exchange_order_id)
+            )
+        )
+        if not active_identity_is_safe:
+            self.log_callback(
+                "error",
+                {
+                    "event": identity_invalid_event,
+                    "stealth_order_id": order.get("stealth_order_id"),
+                    "filled_placement_client_order_id": (
+                        filled_placement_client_order_id
+                    ),
+                    "active_placement_client_order_id": active_placement_id,
+                    "active_exchange_order_id": active_exchange_order_id,
+                    "reveal_exchange_order_id": reveal_exchange_order_id,
+                },
+            )
+            return False
+
+        terminal_cancel_intent: PendingRearmState = (
+            dict(existing_pending)
+            if isinstance(existing_pending, Mapping)
+            else {}
+        )
+        terminal_cancel_intent.update(
+            {
+                "placement_client_order_id": str(active_placement_id),
+                "exchange_order_id": str(active_exchange_order_id),
+                "placement_size": safe_float(
+                    active_reveal_event.get("revealed_size"),
+                    default=0.0,
+                ),
+                "desired_limit_price": safe_float(
+                    state.get("active_exchange_price"),
+                    default=safe_float(
+                        order.get("limit_price"),
+                        default=0.0,
+                    ),
+                ),
+                "reprice_reason": reprice_reason,
+                "requested_at": requested_at.isoformat(),
+                "return_to_hidden": False,
+            }
+        )
+        state["pending_rearm"] = terminal_cancel_intent
+        return True
+
     def _mark_reveal_event_cancelled_for_reprice(
         self,
         order: Dict[str, Any],
         placed_order_id: Optional[str],
         reprice_reason: str,
-    ) -> None:
-        for reveal_event in reversed(order.get("revealed_orders") or []):
-            if not isinstance(reveal_event, dict):
-                continue
-            if reveal_event.get("placed_order_id") != placed_order_id:
-                continue
+    ) -> Optional[Dict[str, Any]]:
+        reveal_event = self._find_reveal_event_for_placement(
+            order,
+            placed_order_id,
+        )
+        if reveal_event is not None:
             reveal_event["cancelled_for_reprice"] = True
             reveal_event["reprice_reason"] = reprice_reason
-            break
+        return reveal_event
+
+    @staticmethod
+    def _cancel_request_was_explicitly_rejected(
+        cancel_result: Any,
+        exchange_order_id: str,
+    ) -> bool:
+        """Return true only when Coinbase explicitly rejected this cancel.
+
+        Empty, malformed, or transport-ambiguous responses remain pending. An
+        authenticated terminal event or reconciliation must establish exchange
+        truth before local state can become hidden.
+        """
+
+        payload = cancel_result
+        if hasattr(payload, "to_dict"):
+            try:
+                payload = payload.to_dict()
+            except Exception:
+                return False
+
+        if isinstance(payload, Mapping):
+            results = payload.get("results")
+            if results is None and "success" in payload:
+                results = [payload]
+        elif isinstance(payload, (list, tuple)):
+            results = payload
+        else:
+            return False
+
+        if not isinstance(results, (list, tuple)):
+            return False
+        for raw_result in results:
+            result = raw_result
+            if hasattr(result, "to_dict"):
+                try:
+                    result = result.to_dict()
+                except Exception:
+                    continue
+            if not isinstance(result, Mapping):
+                continue
+            result_order_id = result.get("order_id")
+            if (
+                result_order_id
+                and str(result_order_id) != str(exchange_order_id)
+            ):
+                continue
+            if result.get("success") is False:
+                return True
+        return False
+
+    def _request_pending_anchor_rearm_cancel(
+        self,
+        order: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> Optional[bool]:
+        """Request cancellation for the single persisted rearm intent.
+
+        ``None`` is transport-indeterminate, ``False`` is an explicit venue
+        rejection, and ``True`` means the request was not rejected. Every
+        non-terminal outcome retains the intent; exact authenticated status,
+        not the cancel response, decides the lifecycle transition.
+        """
+
+        pending_rearm = state.get("pending_rearm")
+        if not isinstance(pending_rearm, Mapping):
+            return False
+        placement_client_order_id = pending_rearm.get(
+            "placement_client_order_id"
+        )
+        active_placement_client_order_id = state.get(
+            "active_placement_client_order_id"
+        )
+        if (
+            not placement_client_order_id
+            or str(placement_client_order_id)
+            != str(active_placement_client_order_id or "")
+        ):
+            get_runtime_controller().request_pause()
+            self.log_callback(
+                "error",
+                {
+                    "event": "stealth_anchor_rearm_placement_state_mismatch",
+                    "stealth_order_id": order.get("stealth_order_id"),
+                    "pending_placement_client_order_id": (
+                        placement_client_order_id
+                    ),
+                    "active_placement_client_order_id": (
+                        active_placement_client_order_id
+                    ),
+                },
+            )
+            return False
+        pending_exchange_order_id = pending_rearm.get("exchange_order_id")
+        active_exchange_order_id = state.get("active_exchange_order_id")
+        if (
+            pending_exchange_order_id
+            and active_exchange_order_id
+            and str(pending_exchange_order_id)
+            != str(active_exchange_order_id)
+        ):
+            get_runtime_controller().request_pause()
+            self.log_callback(
+                "error",
+                {
+                    "event": "stealth_anchor_rearm_exchange_state_mismatch",
+                    "stealth_order_id": order.get("stealth_order_id"),
+                    "pending_exchange_order_id": pending_exchange_order_id,
+                    "active_exchange_order_id": active_exchange_order_id,
+                },
+            )
+            return False
+        exchange_order_id = (
+            pending_exchange_order_id or active_exchange_order_id
+        )
+        if not exchange_order_id:
+            return False
+        reveal_event = self._find_reveal_event_for_placement(
+            order,
+            str(placement_client_order_id),
+        )
+        reveal_exchange_order_id = (
+            reveal_event.get("exchange_order_id")
+            if reveal_event is not None
+            else None
+        )
+        if (
+            reveal_exchange_order_id
+            and str(reveal_exchange_order_id) != str(exchange_order_id)
+        ):
+            get_runtime_controller().request_pause()
+            self.log_callback(
+                "error",
+                {
+                    "event": "stealth_anchor_rearm_reveal_exchange_mismatch",
+                    "stealth_order_id": order.get("stealth_order_id"),
+                    "placement_client_order_id": placement_client_order_id,
+                    "reveal_exchange_order_id": reveal_exchange_order_id,
+                    "active_exchange_order_id": active_exchange_order_id,
+                    "pending_exchange_order_id": pending_exchange_order_id,
+                },
+            )
+            return False
+
+        from configuration import REST_CLIENT
+
+        try:
+            with get_runtime_controller().track_inflight(INFLIGHT_REST_PLACE):
+                cancel_result = REST_CLIENT.cancel_orders(
+                    order_ids=[exchange_order_id]
+                )
+        except Exception as cancel_exception:
+            self.log_callback(
+                "warning",
+                {
+                    "event": "stealth_anchor_rearm_cancel_indeterminate",
+                    "stealth_order_id": order["stealth_order_id"],
+                    "placement_client_order_id": placement_client_order_id,
+                    "exchange_order_id": exchange_order_id,
+                    "error": str(cancel_exception),
+                    "note": (
+                        "Pending intent retained until authenticated exchange "
+                        "truth or reconciliation resolves the cancel."
+                    ),
+                },
+            )
+            return None
+
+        if not self._cancel_request_was_explicitly_rejected(
+            cancel_result,
+            str(exchange_order_id),
+        ):
+            return True
+
+        self.log_callback(
+            "warning",
+            {
+                "event": "stealth_anchor_rearm_cancel_rejected",
+                "stealth_order_id": order["stealth_order_id"],
+                "placement_client_order_id": placement_client_order_id,
+                "exchange_order_id": exchange_order_id,
+                "pending_retained": True,
+                "note": (
+                    "Pending intent retained for exact status reconciliation."
+                ),
+            },
+        )
+        return False
+
+    def retry_pending_anchor_rearm_cancel(
+        self,
+        stealth_order_id: str,
+    ) -> bool:
+        """Safely reissue cancellation after exact reconciliation finds OPEN."""
+
+        order = self._get_stealth_order(stealth_order_id)
+        if order is None:
+            return False
+        state = self._normalize_anchor_repricing_state(
+            order.get("anchor_repricing_state_json")
+        )
+        if not isinstance(state.get("pending_rearm"), Mapping):
+            return False
+        outcome = self._request_pending_anchor_rearm_cancel(
+            order,
+            state,
+        )
+        if outcome is True:
+            self.log_callback(
+                "debug",
+                {
+                    "event": "stealth_anchor_rearm_cancel_reissued",
+                    "stealth_order_id": stealth_order_id,
+                    "placement_client_order_id": state["pending_rearm"].get(
+                        "placement_client_order_id"
+                    ),
+                    "exchange_order_id": state.get("active_exchange_order_id"),
+                },
+            )
+        return outcome is not False
 
     def _apply_revealed_anchor_reprice(
         self,
@@ -1405,41 +1790,76 @@ class StealthOrderManager:
         max_boundary_price: float,
         reprice_reason: str,
     ) -> bool:
-        # Guard: nothing left to reprice. The reprice tick fires on a timer
-        # against the stealth dict, so a placement that filled between ticks
-        # leaves the canonical fields (`remaining_size`, `revealed_size`)
-        # consistent while `state.active_exchange_order_id` may still hold the
-        # now-filled exchange order id.  Without this guard we would
-        # `cancel_orders` an already-filled order, then place a 0-size
-        # replacement and write a phantom `order_parent` row (size=0).  See
-        # 2026-04-27 audit for the production incident.
-        remaining_size = safe_float(order.get("remaining_size"), default=0.0)
-        if remaining_size <= 0:
-            state["active_exchange_order_id"] = None
-            state["active_placement_client_order_id"] = None
+        """Persist and request a revealed-placement rearm.
+
+        Repricing a revealed order does not place a replacement here. The
+        matching authenticated ``CANCELLED`` event completes the transition
+        back to ``HIDDEN``; the existing reveal path then owns every future
+        placement.
+        """
+
+        if isinstance(state.get("pending_rearm"), Mapping):
+            return False
+        if safe_float(order.get("executed_size"), default=0.0) > 0:
             return False
 
+        placement_client_order_id = state.get(
+            "active_placement_client_order_id"
+        )
         exchange_order_id = state.get("active_exchange_order_id")
-        current_price = safe_float(state.get("active_exchange_price"), default=order.get("limit_price"))
-        if not exchange_order_id or current_price is None:
+        current_price = safe_float(
+            state.get("active_exchange_price"),
+            default=order.get("limit_price"),
+        )
+        reveal_event = self._find_reveal_event_for_placement(
+            order,
+            placement_client_order_id,
+        )
+        reveal_exchange_order_id = (
+            reveal_event.get("exchange_order_id")
+            if reveal_event is not None
+            else None
+        )
+        placement_size = safe_float(
+            reveal_event.get("revealed_size") if reveal_event else None,
+            default=0.0,
+        )
+        current_revealed_size = safe_float(
+            order.get("revealed_size"),
+            default=0.0,
+        )
+        if (
+            not placement_client_order_id
+            or not exchange_order_id
+            or (
+                reveal_exchange_order_id
+                and str(reveal_exchange_order_id) != str(exchange_order_id)
+            )
+            or current_price is None
+            or placement_size <= 0
+            or Decimal(str(current_revealed_size))
+            != Decimal(str(placement_size))
+        ):
+            self.log_callback(
+                "warning",
+                {
+                    "event": "stealth_anchor_rearm_missing_active_truth",
+                    "stealth_order_id": order.get("stealth_order_id"),
+                    "placement_client_order_id": placement_client_order_id,
+                    "exchange_order_id": exchange_order_id,
+                    "reveal_exchange_order_id": reveal_exchange_order_id,
+                    "placement_size": placement_size,
+                    "revealed_size": current_revealed_size,
+                    "note": "Existing exchange order was left unchanged.",
+                },
+            )
             return False
 
         force_due = reprice_reason == "outside_max_boundary"
         if self._should_skip_anchor_reprice(state, policy, desired_price, current_price, force_due, market_data):
             return False
 
-        from configuration import REST_CLIENT
-
-        bid = safe_float(market_data.get("bid"), default=None)
-        ask = safe_float(market_data.get("ask"), default=None)
-        normalized_side = str(order.get("side") or "").upper()
         policy = RepricingPolicy.coerce(policy)
-        if policy.post_only_required:
-            if normalized_side == "BUY" and ask and desired_price >= ask:
-                return False
-            if normalized_side == "SELL" and bid and desired_price <= bid:
-                return False
-
         try:
             desired_price = self._quantize_reprice_price(
                 order["product_id"],
@@ -1461,246 +1881,919 @@ class StealthOrderManager:
             )
             return False
 
-        REST_CLIENT.cancel_orders(order_ids=[exchange_order_id])
-
-        self._mark_reveal_event_cancelled_for_reprice(
-            order,
-            state.get("active_placement_client_order_id"),
-            reprice_reason,
-        )
-
-        placement_client_order_id = str(uuid.uuid4())
-
-        # Pre-insert the chain link before REST so a fast websocket acceptance
-        # cannot create this placement as an unrelated root.
-        root_parent_for_placement = resolve_stealth_chain_root(order)
-        placement_parent_inserted = False
-        placement_parent_error: Optional[Exception] = None
+        # Do not cancel a live placement if persisted condition-offset state
+        # cannot be applied after the acknowledgement. Validate the exact
+        # mutation on copies while the order is still safely REVEALED.
         try:
-            inherited_tm, inherited_tm_type, _src = \
-                self._resolve_target_movement_for_plan(order["stealth_order_id"], order)
-            placement_parent_id = insert_order_parent(
-                client_order_id=placement_client_order_id,
-                product_id=order["product_id"],
-                side=order["side"],
-                size=safe_float(order.get("remaining_size"), default=0.0),
-                price=desired_price,
-                target_movement=inherited_tm if inherited_tm is not None else 0.0,
-                target_movement_type=inherited_tm_type or "P",
-                max_order_replacement=int(order.get("max_order_replacements") or 0),
-                current_order_replacement=0,
-                status=OrderStatus.PENDING.value,
-                parent_order_id=root_parent_for_placement,
-                allow_partial_fills=bool(order.get("allow_partial_fills", False)),
+            self._apply_reveal_condition_price_tracking(
+                deepcopy(order),
+                deepcopy(state),
+                desired_price,
             )
-            placement_parent_inserted = placement_parent_id is not None
-            if not placement_parent_inserted:
-                placement_parent_error = RuntimeError(
-                    "order_parent insert returned no row id"
-                )
-        except Exception as parent_insert_error:
-            placement_parent_error = parent_insert_error
-            self.log_callback(
-                "warning",
-                {
-                    "event": "anchor_reprice_order_parent_insert_failed",
-                    "stealth_order_id": order["stealth_order_id"],
-                    "placement_client_order_id": placement_client_order_id,
-                    "error": str(parent_insert_error),
-                },
-            )
-
-        order_result = None
-        try:
-            # Track the cancel+replace as a single in-flight critical section
-            # so a concurrent drain waits for replacement placement to settle.
-            with get_runtime_controller().track_inflight(INFLIGHT_REST_PLACE):
-                order_result = REST_CLIENT.place_limit_order(
-                    product_id=order["product_id"],
-                    side=order["side"],
-                    limit_price=str(desired_price),
-                    base_size=str(order["remaining_size"]),
-                    client_order_id=placement_client_order_id,
-                    post_only=policy.post_only_required,
-                )
-            classification = classify_placement_response(
-                order_result,
-                expected_client_order_id=placement_client_order_id,
-            )
-        except Exception as placement_exception:
-            classification = classify_placement_response(
-                expected_client_order_id=placement_client_order_id,
-                exception=placement_exception,
-            )
-
-        if not classification.accepted:
-            failure_reason = (
-                classification.failure_reason
-                or f"placement outcome {classification.outcome.value}"
-            )
-            self._record_terminal_placement_failure(
-                order,
-                placement_client_order_id=placement_client_order_id,
-                exchange_order_id=classification.exchange_order_id,
-                submitted_price=desired_price,
-                failure_reason=failure_reason,
-                outcome=classification.outcome,
-                attempted_size=remaining_size,
-                market_data=market_data,
-                audit_fields={
-                    "cancelled_for_reprice": False,
-                    "reference_price_source": state.get("last_reference_source"),
-                    "reference_price": state.get("last_reference_price"),
-                    "reference_bid": state.get("last_reference_bid"),
-                    "reference_ask": state.get("last_reference_ask"),
-                    "anchor_target_price": target_price,
-                    "anchor_max_price": max_boundary_price,
-                    "reprice_reason": reprice_reason,
-                },
-                clear_active_placement=True,
-            )
+        except (TypeError, ValueError, OverflowError) as condition_error:
             self.log_callback(
                 "error",
                 {
-                    "event": "stealth_anchor_reprice_placement_failed",
-                    "stealth_order_id": order["stealth_order_id"],
-                    "placement_client_order_id": placement_client_order_id,
-                    "placement_outcome": classification.outcome.value,
-                    "failure_reason": failure_reason,
-                    "old_exchange_order_id": exchange_order_id,
-                    "parent_row_pre_inserted": placement_parent_inserted,
+                    "event": "stealth_anchor_rearm_condition_state_invalid",
+                    "stealth_order_id": order.get("stealth_order_id"),
+                    "error": str(condition_error),
+                    "note": "Existing exchange order was left unchanged.",
                 },
             )
             return False
 
-        new_exchange_order_id = classification.exchange_order_id
-        index_succeeded = self._index_accepted_placement(
-            order,
-            placement_client_order_id,
-            source="anchor_reprice_acceptance",
-        )
-
-        reveal_event = {
-            "reveal_number": len(order.get("revealed_orders", [])) + 1,
-            "revealed_size": order.get("remaining_size", 0.0),
-            "placement_price": desired_price,
-            "placed_order_id": placement_client_order_id,
-            "placement_client_order_id": placement_client_order_id,
-            "exchange_order_id": new_exchange_order_id,
-            "placement_success": True,
-            "placement_status": "repriced",
-            "placement_error": None,
-            "cancelled_for_reprice": False,
-            "reveal_time": datetime.utcnow(),
-            "market_price": market_data.get("price"),
-            "market_bid": bid,
-            "market_ask": ask,
-            "market_spread": (ask - bid) if bid is not None and ask is not None else None,
-            "market_volume_1m": market_data.get("volume_1m"),
-            "market_source": market_data.get("source"),
-            "reference_price_source": state.get("last_reference_source"),
-            "reference_price": state.get("last_reference_price"),
-            "reference_bid": state.get("last_reference_bid"),
-            "reference_ask": state.get("last_reference_ask"),
-            "anchor_target_price": target_price,
-            "anchor_max_price": max_boundary_price,
-            "reprice_reason": reprice_reason,
-        }
-        order.setdefault("revealed_orders", []).append(reveal_event)
-        if not index_succeeded:
-            self._record_accepted_local_finalization_error(
-                order,
-                placement_client_order_id=placement_client_order_id,
-                exchange_order_id=new_exchange_order_id,
-                stage="anchor_reprice.index_accepted_placement",
-                error=RuntimeError(
-                    order.get("placement_index_error")
-                    or "accepted placement could not be indexed"
-                ),
-                reveal_event=reveal_event,
-            )
-
-        if placement_parent_error is not None:
-            self._record_accepted_local_finalization_error(
-                order,
-                placement_client_order_id=placement_client_order_id,
-                exchange_order_id=new_exchange_order_id,
-                stage="anchor_reprice.preinsert_parent",
-                error=placement_parent_error,
-                reveal_event=reveal_event,
-            )
-
         now = datetime.utcnow()
-        state["active_placement_client_order_id"] = placement_client_order_id
-        state["active_exchange_order_id"] = new_exchange_order_id
-        state["active_exchange_price"] = desired_price
-        state["current_logical_limit_price"] = desired_price
-        state["last_reprice_at"] = now
-        state["reprice_reason"] = reprice_reason
-        state.setdefault("reprice_history", []).append(now.isoformat())
-        state["next_reprice_at"] = (now + timedelta(seconds=self._next_anchor_reprice_seconds(policy, desired_price, target_price, max_boundary_price, market_data))).isoformat()
-
-        # Track reveal_condition price thresholds in lock-step with the new limit.
-        # Must run BEFORE we mutate order["limit_price"] so the helper can read
-        # the pre-reprice limit as the offset baseline on first invocation.
-        self._apply_reveal_condition_price_tracking(order, state, desired_price)
-
+        had_next_reprice_at = "next_reprice_at" in state
+        previous_next_reprice_at = state.get("next_reprice_at")
+        state["next_reprice_at"] = (
+            now
+            + timedelta(
+                seconds=self._next_anchor_reprice_seconds(
+                    policy,
+                    desired_price,
+                    target_price,
+                    max_boundary_price,
+                    market_data,
+                )
+            )
+        ).isoformat()
+        pending_rearm: PendingRearmState = {
+            "placement_client_order_id": str(placement_client_order_id),
+            "exchange_order_id": str(exchange_order_id),
+            "placement_size": placement_size,
+            "desired_limit_price": float(desired_price),
+            "reprice_reason": reprice_reason,
+            "requested_at": now.isoformat(),
+        }
+        state["pending_rearm"] = pending_rearm
         order["anchor_repricing_state_json"] = state
-        order["limit_price"] = desired_price
-        order["updated_at"] = now
-        self._run_accepted_local_finalization_step(
-            order,
-            placement_client_order_id=placement_client_order_id,
-            exchange_order_id=new_exchange_order_id,
-            stage="anchor_reprice.persist_stealth_order",
-            operation=lambda: self._update_stealth_order(order),
-            incomplete_message="stealth order database update did not complete",
-            reveal_event=reveal_event,
-        )
+        try:
+            intent_persisted = self._update_stealth_order(order)
+        except Exception:
+            intent_persisted = False
+        if not intent_persisted:
+            state.pop("pending_rearm", None)
+            if had_next_reprice_at:
+                state["next_reprice_at"] = previous_next_reprice_at
+            else:
+                state.pop("next_reprice_at", None)
+            get_runtime_controller().request_pause()
+            self.log_callback(
+                "error",
+                {
+                    "event": "stealth_anchor_rearm_intent_persistence_failed",
+                    "stealth_order_id": order.get("stealth_order_id"),
+                    "placement_client_order_id": placement_client_order_id,
+                    "note": "Cancel was not requested; runtime paused.",
+                },
+            )
+            return False
+        self._notify_schedule_invalidated(order["stealth_order_id"])
 
-        # Persist reprice to history table for audit (mirrors reveal_order_slice).
-        self._run_accepted_local_finalization_step(
+        cancel_outcome = self._request_pending_anchor_rearm_cancel(
             order,
-            placement_client_order_id=placement_client_order_id,
-            exchange_order_id=new_exchange_order_id,
-            stage="anchor_reprice.persist_reveal_event",
-            operation=lambda: self._record_reveal_event(order, reveal_event),
-            incomplete_message="reveal history database update did not complete",
-            reveal_event=reveal_event,
+            state,
         )
+        if cancel_outcome is None:
+            return True
+        if cancel_outcome is False:
+            return False
 
         self.log_callback(
             "debug",
             {
-                "event": "stealth_anchor_reprice_revealed_applied",
+                "event": "stealth_anchor_rearm_cancel_requested",
                 "stealth_order_id": order["stealth_order_id"],
                 "product_id": order["product_id"],
                 "side": order["side"],
-                "previous_exchange_order_id": exchange_order_id,
+                "placement_client_order_id": placement_client_order_id,
+                "exchange_order_id": exchange_order_id,
                 "previous_price": current_price,
-                "new_placement_client_order_id": placement_client_order_id,
-                "new_exchange_order_id": new_exchange_order_id,
-                "new_price": desired_price,
+                "desired_price": desired_price,
                 "anchor_target_price": target_price,
                 "anchor_max_price": max_boundary_price,
                 "reprice_reason": reprice_reason,
                 "reference_price_source": state.get("last_reference_source"),
                 "reference_price": state.get("last_reference_price"),
-                "market_bid": bid,
-                "market_ask": ask,
+                "market_bid": market_data.get("bid"),
+                "market_ask": market_data.get("ask"),
             },
         )
         return True
+
+    def consume_anchor_rearm_cancellation(
+        self,
+        placement_client_order_id: str,
+        *,
+        exchange_order_id: Optional[str] = None,
+        cumulative_filled_size: float = 0.0,
+        number_of_fills: int = 0,
+    ) -> Optional[StealthOrderStatus]:
+        """Consume one authenticated cancel for a pending revealed rearm.
+
+        ``None`` means the placement is unrelated to anchor rearming, or that
+        an operator-superseded cancellation should continue through ordinary
+        cancellation-follow-up handling. Any returned status means this path
+        fully consumed the cancellation and generic handling must stop.
+        """
+
+        order = self.find_stealth_order_by_placed_order_id(
+            placement_client_order_id
+        )
+        if order is None:
+            return None
+
+        state = self._normalize_anchor_repricing_state(
+            order.get("anchor_repricing_state_json")
+        )
+        reveal_event = self._find_reveal_event_for_placement(
+            order,
+            placement_client_order_id,
+        )
+        pending = state.get("pending_rearm")
+        pending_placement_id = (
+            pending.get("placement_client_order_id")
+            if isinstance(pending, Mapping)
+            else None
+        )
+        reported_filled_size = safe_float(
+            cumulative_filled_size,
+            default=0.0,
+        )
+        observed_filled_size = max(
+            reported_filled_size,
+            safe_float(order.get("executed_size"), default=0.0),
+        )
+        observed_number_of_fills = max(int(number_of_fills or 0), 0)
+
+        if pending_placement_id != placement_client_order_id:
+            is_consumed_rearm = bool(
+                reveal_event
+                and reveal_event.get("rearm_cancel_consumed") is True
+            )
+            if not is_consumed_rearm:
+                return None
+
+            try:
+                current_status = StealthOrderStatus(order.get("status"))
+            except (TypeError, ValueError):
+                current_status = StealthOrderStatus.HIDDEN
+
+            reveal_exchange_order_id = reveal_event.get("exchange_order_id")
+            if (
+                exchange_order_id
+                and reveal_exchange_order_id
+                and str(exchange_order_id)
+                != str(reveal_exchange_order_id)
+            ):
+                get_runtime_controller().request_pause()
+                self.log_callback(
+                    "error",
+                    {
+                        "event": "stealth_anchor_rearm_consumed_exchange_mismatch",
+                        "stealth_order_id": order.get("stealth_order_id"),
+                        "placement_client_order_id": placement_client_order_id,
+                        "cancelled_exchange_order_id": exchange_order_id,
+                        "reveal_exchange_order_id": reveal_exchange_order_id,
+                        "note": "Cancellation consumed; runtime paused for reconciliation.",
+                    },
+                )
+                return current_status
+
+            has_late_fill_evidence = (
+                reported_filled_size > 0 or observed_number_of_fills > 0
+            )
+            if (
+                has_late_fill_evidence
+                and reveal_event.get("rearm_aborted_for_fill") is True
+            ):
+                # This placement never returned to hidden inventory: its fill
+                # already won the original cancel race. A corrected cumulative
+                # quantity may advance monotonically, but must not reclassify
+                # the already-terminal outcome as a newly discovered late fill.
+                persisted_executed_size = safe_float(
+                    order.get("executed_size"),
+                    default=0.0,
+                )
+                if reported_filled_size > persisted_executed_size:
+                    previous_order = deepcopy(order)
+                    order["executed_size"] = reported_filled_size
+                    order["updated_at"] = datetime.utcnow()
+                    try:
+                        persisted = self._update_stealth_order(order)
+                    except Exception:
+                        persisted = False
+                    if not persisted:
+                        order.clear()
+                        order.update(previous_order)
+                        get_runtime_controller().request_pause()
+                return current_status
+
+            late_fill_requires_containment = (
+                has_late_fill_evidence
+                and (
+                    reveal_event.get("late_fill_contained") is not True
+                    or reported_filled_size
+                    > safe_float(order.get("executed_size"), default=0.0)
+                )
+            )
+            if (
+                late_fill_requires_containment
+            ):
+                # A corrected terminal replay arrived after this placement's
+                # cancellation was already consumed. Persist a fail-closed
+                # terminal state before doing anything to a newer placement.
+                previous_order = deepcopy(order)
+                now = datetime.utcnow()
+                active_placement_id = state.get(
+                    "active_placement_client_order_id"
+                )
+                newer_placement_is_live = bool(
+                    active_placement_id
+                    and str(active_placement_id)
+                    != str(placement_client_order_id)
+                )
+                containment_cancel_ready = False
+
+                if newer_placement_is_live:
+                    containment_cancel_ready = (
+                        self._prepare_active_terminal_cancel_intent(
+                            order,
+                            state,
+                            reprice_reason="late_rearm_fill_containment",
+                            requested_at=now,
+                            identity_invalid_event=(
+                                "stealth_anchor_rearm_late_fill_"
+                                "containment_identity_invalid"
+                            ),
+                            filled_placement_client_order_id=(
+                                placement_client_order_id
+                            ),
+                        )
+                    )
+                    terminal_status = StealthOrderStatus.ERROR
+                else:
+                    terminal_status = StealthOrderStatus.CANCELLED
+                    if active_placement_id == placement_client_order_id:
+                        state["active_placement_client_order_id"] = None
+                        state["active_exchange_order_id"] = None
+                        state["active_exchange_price"] = None
+                    order["revealed_size"] = 0.0
+                    order["remaining_size"] = 0.0
+                    order["visibility_score"] = 0.0
+
+                order["executed_size"] = max(
+                    safe_float(order.get("executed_size"), default=0.0),
+                    reported_filled_size,
+                )
+                order["status"] = terminal_status.value
+                order["failure_reason"] = (
+                    "Late fill evidence arrived after a revealed placement "
+                    "cancellation was already consumed"
+                )
+                order["anchor_repricing_state_json"] = state
+                order["updated_at"] = now
+                reveal_event["late_fill_contained"] = True
+                reveal_event["late_fill_size"] = reported_filled_size
+                reveal_event["late_fill_number_of_fills"] = (
+                    observed_number_of_fills
+                )
+
+                if not self._persist_anchor_rearm_parent_statuses(
+                    order,
+                    placement_client_order_id,
+                    root_status=OrderStatus.CANCELLED,
+                ):
+                    order.clear()
+                    order.update(previous_order)
+                    return current_status
+                try:
+                    persisted = self._update_stealth_order(order)
+                except Exception:
+                    persisted = False
+                if not persisted:
+                    order.clear()
+                    order.update(previous_order)
+                    get_runtime_controller().request_pause()
+                    return current_status
+
+                get_runtime_controller().request_pause()
+                self.log_callback(
+                    "error",
+                    {
+                        "event": "stealth_anchor_rearm_late_fill_evidence",
+                        "stealth_order_id": order.get("stealth_order_id"),
+                        "placement_client_order_id": placement_client_order_id,
+                        "cumulative_filled_size": reported_filled_size,
+                        "number_of_fills": observed_number_of_fills,
+                        "newer_active_placement_client_order_id": (
+                            active_placement_id
+                            if newer_placement_is_live
+                            else None
+                        ),
+                        "containment_cancel_persisted": (
+                            containment_cancel_ready
+                        ),
+                        "note": "Runtime paused after durable fail-closed transition.",
+                    },
+                )
+                self._notify_schedule_invalidated(order["stealth_order_id"])
+                if not newer_placement_is_live:
+                    self._dispatch_lifecycle_event(
+                        stealth_order_id=order["stealth_order_id"],
+                        event=StealthLifecycleEvent.CANCELLED,
+                        order_data=order,
+                        extra={
+                            "size": reported_filled_size,
+                            "placed_order_id": placement_client_order_id,
+                            "reason": order["failure_reason"],
+                        },
+                    )
+                if containment_cancel_ready:
+                    self._request_pending_anchor_rearm_cancel(order, state)
+                return terminal_status
+
+            if has_late_fill_evidence:
+                return current_status
+            if reveal_event.get("operator_cancel_consumed") is True:
+                # The first operator cancellation intentionally re-enters the
+                # ordinary CANCELLED path. Let duplicate authenticated replays
+                # repair/idempotently complete that same projection too.
+                return None
+            return current_status
+
+        previous_order = deepcopy(order)
+        raw_return_to_hidden = pending.get("return_to_hidden", True)
+        if not isinstance(raw_return_to_hidden, bool):
+            get_runtime_controller().request_pause()
+            self.log_callback(
+                "error",
+                {
+                    "event": "stealth_anchor_rearm_invalid_return_mode",
+                    "stealth_order_id": order.get("stealth_order_id"),
+                    "placement_client_order_id": placement_client_order_id,
+                    "return_to_hidden": raw_return_to_hidden,
+                    "note": "Cancellation consumed; intent retained.",
+                },
+            )
+            try:
+                return StealthOrderStatus(order.get("status"))
+            except (TypeError, ValueError):
+                return StealthOrderStatus.REVEALED
+        return_to_hidden = raw_return_to_hidden
+        try:
+            current_status = StealthOrderStatus(order.get("status"))
+        except (TypeError, ValueError):
+            get_runtime_controller().request_pause()
+            self.log_callback(
+                "error",
+                {
+                    "event": "stealth_anchor_rearm_invalid_local_status",
+                    "stealth_order_id": order.get("stealth_order_id"),
+                    "status": order.get("status"),
+                    "note": "Cancellation consumed; runtime paused.",
+                },
+            )
+            return StealthOrderStatus.REVEALED
+        if (
+            current_status is not StealthOrderStatus.REVEALED
+            and return_to_hidden
+        ):
+            # Terminal/local truth always wins over a stale persisted intent;
+            # never resurrect it into HIDDEN on a later cancel replay.
+            if reveal_event is None:
+                get_runtime_controller().request_pause()
+                return current_status
+            state.pop("pending_rearm", None)
+            order["anchor_repricing_state_json"] = state
+            reveal_event["rearm_cancel_consumed"] = True
+            reveal_event["rearm_aborted_for_terminal_state"] = True
+            try:
+                persisted = self._update_stealth_order(order)
+            except Exception:
+                persisted = False
+            if not persisted:
+                order.clear()
+                order.update(previous_order)
+                get_runtime_controller().request_pause()
+            return current_status
+
+        active_placement_id = state.get("active_placement_client_order_id")
+        if active_placement_id != placement_client_order_id:
+            get_runtime_controller().request_pause()
+            self.log_callback(
+                "error",
+                {
+                    "event": "stealth_anchor_rearm_active_placement_mismatch",
+                    "stealth_order_id": order.get("stealth_order_id"),
+                    "pending_placement_client_order_id": placement_client_order_id,
+                    "active_placement_client_order_id": active_placement_id,
+                    "note": "Cancellation consumed; runtime paused for reconciliation.",
+                },
+            )
+            try:
+                return StealthOrderStatus(order.get("status"))
+            except ValueError:
+                return StealthOrderStatus.REVEALED
+
+        active_exchange_order_id = state.get("active_exchange_order_id")
+        pending_exchange_order_id = pending.get("exchange_order_id")
+        reveal_exchange_order_id = (
+            reveal_event.get("exchange_order_id")
+            if reveal_event is not None
+            else None
+        )
+        expected_exchange_order_id = (
+            pending_exchange_order_id or active_exchange_order_id
+        )
+        if (
+            (
+                pending_exchange_order_id
+                and active_exchange_order_id
+                and str(pending_exchange_order_id)
+                != str(active_exchange_order_id)
+            )
+            or (
+                reveal_exchange_order_id
+                and expected_exchange_order_id
+                and str(reveal_exchange_order_id)
+                != str(expected_exchange_order_id)
+            )
+            or (
+                exchange_order_id
+                and expected_exchange_order_id
+                and str(exchange_order_id)
+                != str(expected_exchange_order_id)
+            )
+        ):
+            get_runtime_controller().request_pause()
+            self.log_callback(
+                "error",
+                {
+                    "event": "stealth_anchor_rearm_exchange_order_mismatch",
+                    "stealth_order_id": order.get("stealth_order_id"),
+                    "placement_client_order_id": placement_client_order_id,
+                    "cancelled_exchange_order_id": exchange_order_id,
+                    "pending_exchange_order_id": pending_exchange_order_id,
+                    "active_exchange_order_id": active_exchange_order_id,
+                    "reveal_exchange_order_id": reveal_exchange_order_id,
+                    "note": "Cancellation consumed; runtime paused for reconciliation.",
+                },
+            )
+            try:
+                return StealthOrderStatus(order.get("status"))
+            except ValueError:
+                return StealthOrderStatus.REVEALED
+
+        now = datetime.utcnow()
+
+        is_operator_cancel = (
+            not return_to_hidden
+            and current_status is StealthOrderStatus.CANCELLED
+        )
+        apply_cancel_fill_guard = return_to_hidden or is_operator_cancel
+        cancel_fill_size = (
+            reported_filled_size
+            if is_operator_cancel
+            else observed_filled_size
+        )
+        if (
+            apply_cancel_fill_guard
+            and observed_number_of_fills > 0
+            and cancel_fill_size <= 0
+        ):
+            get_runtime_controller().request_pause()
+            self.log_callback(
+                "error",
+                {
+                    "event": "stealth_anchor_rearm_fill_size_unavailable",
+                    "stealth_order_id": order.get("stealth_order_id"),
+                    "placement_client_order_id": placement_client_order_id,
+                    "number_of_fills": observed_number_of_fills,
+                    "note": "Rearm retained for exact fill reconciliation.",
+                },
+            )
+            return current_status
+
+        if apply_cancel_fill_guard and cancel_fill_size > 0:
+            state.pop("pending_rearm", None)
+            state["active_placement_client_order_id"] = None
+            state["active_exchange_order_id"] = None
+            state["active_exchange_price"] = None
+            order["anchor_repricing_state_json"] = state
+            order["executed_size"] = max(
+                safe_float(order.get("executed_size"), default=0.0),
+                cancel_fill_size,
+            )
+            order["revealed_size"] = 0.0
+            order["remaining_size"] = 0.0
+            order["visibility_score"] = 0.0
+            order["status"] = StealthOrderStatus.CANCELLED.value
+            order["failure_reason"] = (
+                "Anchor rearm aborted because the placement filled while "
+                "cancellation was pending"
+            )
+            order["updated_at"] = now
+            if reveal_event is not None:
+                reveal_event["cancelled_for_reprice"] = True
+                reveal_event["rearm_cancel_consumed"] = True
+                reveal_event["rearm_aborted_for_fill"] = True
+                reveal_event["reprice_reason"] = pending.get("reprice_reason")
+                if is_operator_cancel:
+                    reveal_event["operator_cancel_supersession"] = True
+                    reveal_event["operator_cancel_consumed"] = True
+            parent_statuses_persisted = self._persist_anchor_rearm_parent_statuses(
+                order,
+                placement_client_order_id,
+                root_status=OrderStatus.CANCELLED,
+            )
+            if not parent_statuses_persisted:
+                order.clear()
+                order.update(previous_order)
+                return current_status
+            try:
+                persisted = self._update_stealth_order(order)
+            except Exception as persistence_error:
+                persisted = False
+                self.log_callback(
+                    "error",
+                    {
+                        "event": "stealth_anchor_rearm_fill_persistence_error",
+                        "stealth_order_id": order.get("stealth_order_id"),
+                        "placement_client_order_id": placement_client_order_id,
+                        "error": str(persistence_error),
+                    },
+                )
+            if not persisted:
+                order.clear()
+                order.update(previous_order)
+                get_runtime_controller().request_pause()
+                return current_status
+            get_runtime_controller().request_pause()
+            if reveal_event is not None:
+                self._record_reveal_event(order, reveal_event)
+            self._dispatch_lifecycle_event(
+                stealth_order_id=order["stealth_order_id"],
+                event=StealthLifecycleEvent.CANCELLED,
+                order_data=order,
+                extra={
+                    "size": cancel_fill_size,
+                    "placed_order_id": placement_client_order_id,
+                    "reason": order["failure_reason"],
+                },
+            )
+            self._notify_schedule_invalidated(order["stealth_order_id"])
+            return StealthOrderStatus.CANCELLED
+
+        if not return_to_hidden:
+            if current_status not in {
+                StealthOrderStatus.CANCELLED,
+                StealthOrderStatus.EXECUTED,
+                StealthOrderStatus.ERROR,
+            }:
+                get_runtime_controller().request_pause()
+                self.log_callback(
+                    "error",
+                    {
+                        "event": "stealth_terminal_cancel_invalid_status",
+                        "stealth_order_id": order.get("stealth_order_id"),
+                        "placement_client_order_id": placement_client_order_id,
+                        "status": current_status.value,
+                    },
+                )
+                return current_status
+
+            root_status = (
+                OrderStatus.FILLED
+                if current_status is StealthOrderStatus.EXECUTED
+                else OrderStatus.CANCELLED
+            )
+            terminal_cancel_has_fill_evidence = (
+                reported_filled_size > 0 or observed_number_of_fills > 0
+            )
+            if not self._persist_anchor_rearm_parent_statuses(
+                order,
+                placement_client_order_id,
+                root_status=root_status,
+            ):
+                return current_status
+
+            state.pop("pending_rearm", None)
+            state["active_placement_client_order_id"] = None
+            state["active_exchange_order_id"] = None
+            state["active_exchange_price"] = None
+            order["anchor_repricing_state_json"] = state
+            order["revealed_size"] = 0.0
+            order["remaining_size"] = 0.0
+            order["visibility_score"] = 0.0
+            order["updated_at"] = now
+            if reveal_event is not None:
+                reveal_event["rearm_cancel_consumed"] = True
+                reveal_event["rearm_aborted_for_terminal_state"] = True
+                if is_operator_cancel:
+                    reveal_event["operator_cancel_supersession"] = True
+                    reveal_event["operator_cancel_consumed"] = True
+                if terminal_cancel_has_fill_evidence:
+                    # The placement-scoped fill ledger was ingested before
+                    # this cancellation was consumed. Preserve that source
+                    # fact here without guessing how two placements should be
+                    # combined into the logical stealth-order aggregate.
+                    reveal_event[
+                        "terminal_cancel_cumulative_filled_size"
+                    ] = reported_filled_size
+                    reveal_event["terminal_cancel_number_of_fills"] = (
+                        observed_number_of_fills
+                    )
+            try:
+                persisted = self._update_stealth_order(order)
+            except Exception:
+                persisted = False
+            if not persisted:
+                order.clear()
+                order.update(previous_order)
+                get_runtime_controller().request_pause()
+                return current_status
+
+            if terminal_cancel_has_fill_evidence:
+                get_runtime_controller().request_pause()
+                self.log_callback(
+                    "error",
+                    {
+                        "event": "stealth_terminal_cancel_fill_evidence",
+                        "stealth_order_id": order.get("stealth_order_id"),
+                        "placement_client_order_id": (
+                            placement_client_order_id
+                        ),
+                        "cumulative_filled_size": reported_filled_size,
+                        "number_of_fills": observed_number_of_fills,
+                        "terminal_status": current_status.value,
+                        "note": (
+                            "Placement-scoped fill evidence preserved; "
+                            "aggregate execution was not recomputed."
+                        ),
+                    },
+                )
+            self._notify_schedule_invalidated(order["stealth_order_id"])
+            # Operator cancellation keeps the pre-existing generic CANCELLED
+            # follow-up policy. Safety cancellation is fully consumed here so
+            # it cannot create a second order beside the fill follow-up.
+            return None if is_operator_cancel else current_status
+
+        placement_size = safe_float(
+            pending.get("placement_size"),
+            default=safe_float(
+                reveal_event.get("revealed_size") if reveal_event else None,
+                default=0.0,
+            ),
+        )
+        desired_price = safe_float(
+            pending.get("desired_limit_price"),
+            default=0.0,
+        )
+        reveal_event_size = safe_float(
+            reveal_event.get("revealed_size") if reveal_event else None,
+            default=0.0,
+        )
+        current_revealed_size = safe_float(
+            order.get("revealed_size"),
+            default=0.0,
+        )
+        placement_size_decimal = Decimal(str(placement_size))
+        reveal_event_size_decimal = Decimal(str(reveal_event_size))
+        current_revealed_size_decimal = Decimal(str(current_revealed_size))
+        desired_price_decimal = Decimal(str(desired_price))
+        inventory_is_single_live_placement = (
+            placement_size_decimal.is_finite()
+            and reveal_event_size_decimal.is_finite()
+            and current_revealed_size_decimal.is_finite()
+            and placement_size_decimal > 0
+            and placement_size_decimal == reveal_event_size_decimal
+            and placement_size_decimal == current_revealed_size_decimal
+        )
+        desired_price_is_valid = (
+            desired_price_decimal.is_finite() and desired_price_decimal > 0
+        )
+        if not inventory_is_single_live_placement or not desired_price_is_valid:
+            get_runtime_controller().request_pause()
+            self.log_callback(
+                "error",
+                {
+                    "event": "stealth_anchor_rearm_invalid_persisted_intent",
+                    "stealth_order_id": order.get("stealth_order_id"),
+                    "placement_client_order_id": placement_client_order_id,
+                    "placement_size": placement_size,
+                    "reveal_event_size": reveal_event_size,
+                    "current_revealed_size": current_revealed_size,
+                    "desired_price": desired_price,
+                },
+            )
+            return StealthOrderStatus.REVEALED
+
+        # Preserve the original condition/limit baseline until the authenticated
+        # cancel makes the new hidden intent authoritative.
+        try:
+            self._apply_reveal_condition_price_tracking(
+                order,
+                state,
+                desired_price,
+            )
+        except (TypeError, ValueError, OverflowError) as condition_error:
+            order.clear()
+            order.update(previous_order)
+            get_runtime_controller().request_pause()
+            self.log_callback(
+                "error",
+                {
+                    "event": "stealth_anchor_rearm_condition_apply_failed",
+                    "stealth_order_id": order.get("stealth_order_id"),
+                    "placement_client_order_id": placement_client_order_id,
+                    "error": str(condition_error),
+                },
+            )
+            return StealthOrderStatus.REVEALED
+        reveal_event = self._mark_reveal_event_cancelled_for_reprice(
+            order,
+            placement_client_order_id,
+            str(pending.get("reprice_reason") or "anchor_rearm"),
+        )
+        if reveal_event is not None:
+            reveal_event["rearm_cancel_consumed"] = True
+            reveal_event["reference_price_source"] = state.get(
+                "last_reference_source"
+            )
+            reveal_event["reference_price"] = state.get("last_reference_price")
+            reveal_event["reference_bid"] = state.get("last_reference_bid")
+            reveal_event["reference_ask"] = state.get("last_reference_ask")
+
+        total_size = safe_float(order.get("total_size"), default=0.0)
+        revealed_size = max(
+            0.0,
+            safe_float(order.get("revealed_size"), default=0.0)
+            - placement_size,
+        )
+        order["revealed_size"] = revealed_size
+        order["remaining_size"] = max(0.0, total_size - revealed_size)
+        order["visibility_score"] = (
+            revealed_size / total_size if total_size > 0 else 0.0
+        )
+        order["limit_price"] = desired_price
+        order["condition_first_met_at"] = None
+        order["condition_confirmed_at"] = None
+        order["status"] = StealthOrderStatus.HIDDEN.value
+        order["failure_reason"] = None
+        order["updated_at"] = now
+
+        state.pop("pending_rearm", None)
+        state["active_placement_client_order_id"] = None
+        state["active_exchange_order_id"] = None
+        state["active_exchange_price"] = None
+        state["current_logical_limit_price"] = desired_price
+        state["last_reprice_at"] = now.isoformat()
+        state["reprice_reason"] = pending.get("reprice_reason")
+        state["reveal_armed_at"] = now.isoformat()
+        state.pop("last_profitability_block_reason", None)
+        history = state.get("reprice_history")
+        if not isinstance(history, list):
+            history = []
+            state["reprice_history"] = history
+        history.append(now.isoformat())
+        order["anchor_repricing_state_json"] = state
+
+        parent_statuses_persisted = self._persist_anchor_rearm_parent_statuses(
+            order,
+            placement_client_order_id,
+            root_status=OrderStatus.PENDING,
+        )
+        if not parent_statuses_persisted:
+            order.clear()
+            order.update(previous_order)
+            return StealthOrderStatus.REVEALED
+
+        try:
+            persisted = self._update_stealth_order(order)
+        except Exception as persistence_error:
+            persisted = False
+            self.log_callback(
+                "error",
+                {
+                    "event": "stealth_anchor_rearm_completion_persistence_error",
+                    "stealth_order_id": order.get("stealth_order_id"),
+                    "placement_client_order_id": placement_client_order_id,
+                    "error": str(persistence_error),
+                },
+            )
+        if not persisted:
+            order.clear()
+            order.update(previous_order)
+            get_runtime_controller().request_pause()
+            self.log_callback(
+                "error",
+                {
+                    "event": "stealth_anchor_rearm_completion_persistence_failed",
+                    "stealth_order_id": order.get("stealth_order_id"),
+                    "placement_client_order_id": placement_client_order_id,
+                    "note": "Runtime paused; persisted pending intent retained.",
+                },
+            )
+            return StealthOrderStatus.REVEALED
+
+        if reveal_event is not None:
+            self._record_reveal_event(order, reveal_event)
+        self._dispatch_lifecycle_event(
+            stealth_order_id=order["stealth_order_id"],
+            event=StealthLifecycleEvent.CONDITION_RESET,
+            order_data=order,
+            extra={
+                "reason": "Anchor reprice returned revealed placement to hidden",
+                "placed_order_id": placement_client_order_id,
+                "new_limit_price": desired_price,
+            },
+        )
+        self.log_callback(
+            "info",
+            {
+                "event": "stealth_anchor_rearm_completed",
+                "stealth_order_id": order["stealth_order_id"],
+                "placement_client_order_id": placement_client_order_id,
+                "hidden_size": order["remaining_size"],
+                "new_limit_price": desired_price,
+            },
+        )
+        self._notify_schedule_invalidated(order["stealth_order_id"])
+        return StealthOrderStatus.HIDDEN
+
+    def _persist_anchor_rearm_parent_statuses(
+        self,
+        order: Dict[str, Any],
+        placement_client_order_id: str,
+        *,
+        root_status: OrderStatus,
+        placement_status: OrderStatus = OrderStatus.CANCELLED,
+    ) -> bool:
+        """Persist placement and root truth before consuming recovery state."""
+
+        if not getattr(self, "db_client", None):
+            return True
+        root_client_order_id = None
+        try:
+            root_client_order_id = resolve_stealth_chain_root(order)
+            if placement_client_order_id == root_client_order_id:
+                # Legacy/root-backed placements share one row with logical
+                # state; the reveal event retains the cancellation audit.
+                root_updated = update_order_parent_status(
+                    root_client_order_id,
+                    root_status.value,
+                )
+                placement_updated = root_updated
+            else:
+                placement_updated = update_order_parent_status(
+                    placement_client_order_id,
+                    placement_status.value,
+                )
+                root_updated = update_order_parent_status(
+                    root_client_order_id,
+                    root_status.value,
+                )
+        except Exception as error:
+            placement_updated = 0
+            root_updated = 0
+            self.log_callback(
+                "error",
+                {
+                    "event": "stealth_anchor_rearm_parent_status_failed",
+                    "stealth_order_id": order.get("stealth_order_id"),
+                    "placement_client_order_id": placement_client_order_id,
+                    "root_client_order_id": root_client_order_id,
+                    "error": str(error),
+                },
+            )
+        if placement_updated > 0 and root_updated > 0:
+            return True
+
+        get_runtime_controller().request_pause()
+        self.log_callback(
+            "error",
+            {
+                "event": "stealth_anchor_rearm_parent_status_incomplete",
+                "stealth_order_id": order.get("stealth_order_id"),
+                "placement_client_order_id": placement_client_order_id,
+                "root_client_order_id": root_client_order_id,
+                "placement_rows_updated": placement_updated,
+                "root_rows_updated": root_updated,
+                "note": "Runtime paused before reveal scheduling.",
+            },
+        )
+        return False
 
     # ------------------------------------------------------------------
     # Move REVEALED stealth order (cancel-and-replace at new price)
     # ------------------------------------------------------------------
     #
-    # Coinbase exposes no order-edit endpoint, so a "move" is implemented
-    # the same way the ticker-driven anchor reprice does it: cancel the
-    # existing exchange order, place a fresh one at the new price, and
-    # reset per-order reveal/repricing state so the new placement starts
-    # with a clean slate (post-reveal repricing policy still applies).
+    # Coinbase exposes no order-edit endpoint, so an operator "move" remains
+    # a direct cancel-and-replace: cancel the existing exchange order, place a
+    # fresh one at the new price, and reset per-order reveal/repricing state.
+    # Automatic anchor repricing is deliberately different: it cancels back
+    # to HIDDEN and lets the existing reveal policy own any later placement.
     #
     # Concurrency: both ``build_stealth_move_plan`` and
     # ``execute_stealth_move`` are designed to be invoked from the
@@ -1804,6 +2897,13 @@ class StealthOrderManager:
         state = self._normalize_anchor_repricing_state(
             order.get("anchor_repricing_state_json")
         )
+        if isinstance(state.get("pending_rearm"), Mapping):
+            raise StealthMoveError(
+                f"cannot move stealth order {stealth_order_id!r}: "
+                "an anchor rearm cancellation is pending",
+                stealth_order_id=stealth_order_id,
+                stage="validate",
+            )
         old_exchange_order_id = state.get("active_exchange_order_id")
         if not old_exchange_order_id:
             raise StealthMoveError(
@@ -1907,6 +3007,17 @@ class StealthOrderManager:
             if order is None:
                 raise StealthMoveError(
                     f"stealth order {sid!r} disappeared between plan-build and execute",
+                    stealth_order_id=sid,
+                    stage="validate",
+                )
+
+            current_state = self._normalize_anchor_repricing_state(
+                order.get("anchor_repricing_state_json")
+            )
+            if isinstance(current_state.get("pending_rearm"), Mapping):
+                raise StealthMoveError(
+                    f"cannot move stealth order {sid!r}: "
+                    "an anchor rearm cancellation is pending",
                     stealth_order_id=sid,
                     stage="validate",
                 )
@@ -2324,6 +3435,8 @@ class StealthOrderManager:
 
             try:
                 state = self._normalize_anchor_repricing_state(order.get("anchor_repricing_state_json"))
+                if isinstance(state.get("pending_rearm"), Mapping):
+                    continue
                 next_reprice_at = self._parse_runtime_datetime(state.get("next_reprice_at"))
                 if next_reprice_at and next_reprice_at > datetime.utcnow():
                     continue
@@ -4741,7 +5854,13 @@ class StealthOrderManager:
         
         return placed_order_id
     
-    def update_execution(self, stealth_order_id: str, executed_size: float, order_status: str = StealthOrderStatus.EXECUTED.value):
+    def update_execution(
+        self,
+        stealth_order_id: str,
+        executed_size: float,
+        order_status: str = StealthOrderStatus.EXECUTED.value,
+        placement_client_order_id: Optional[str] = None,
+    ) -> bool:
         """
         Update stealth order with execution information.
         
@@ -4749,57 +5868,180 @@ class StealthOrderManager:
             stealth_order_id: ID of stealth order
             executed_size: Amount filled
             order_status: New status (EXECUTED, PARTIALLY_FILLED, etc.)
+            placement_client_order_id: Placement that produced this terminal
+                event. Omit only for legacy callers that have no source ID.
         """
         order = self._get_stealth_order(stealth_order_id)
         
         if not order:
-            return
-        
-        placed_order_id = None
-        exchange_order_id = None
-        revealed_orders = order.get("revealed_orders") or []
-        if revealed_orders and isinstance(revealed_orders[-1], dict):
-            placed_order_id = revealed_orders[-1].get("placed_order_id")
-            exchange_order_id = revealed_orders[-1].get("exchange_order_id")
+            return False
 
-        order["executed_size"] = float(executed_size)
+        previous_order = deepcopy(order)
+        
+        revealed_orders = order.get("revealed_orders") or []
+        reveal_event = None
+        if placement_client_order_id is not None:
+            reveal_event = self._find_reveal_event_for_placement(
+                order,
+                placement_client_order_id,
+            )
+            if reveal_event is None:
+                get_runtime_controller().request_pause()
+                self.log_callback(
+                    "error",
+                    {
+                        "event": "stealth_execution_source_not_found",
+                        "stealth_order_id": stealth_order_id,
+                        "placement_client_order_id": placement_client_order_id,
+                    },
+                )
+                return False
+        elif revealed_orders and isinstance(revealed_orders[-1], dict):
+            reveal_event = revealed_orders[-1]
+
+        placed_order_id = (
+            reveal_event.get("placed_order_id")
+            if reveal_event is not None
+            else placement_client_order_id
+        )
+        exchange_order_id = (
+            reveal_event.get("exchange_order_id")
+            if reveal_event is not None
+            else None
+        )
+        incoming_executed_size = safe_float(executed_size, default=0.0)
+        order["executed_size"] = max(
+            safe_float(order.get("executed_size"), default=0.0),
+            incoming_executed_size,
+        )
         order["updated_at"] = datetime.utcnow()
         anchor_state = self._normalize_anchor_repricing_state(order.get("anchor_repricing_state_json"))
+        active_placement_id = anchor_state.get(
+            "active_placement_client_order_id"
+        )
+        stale_filled_placement = (
+            order_status == StealthOrderStatus.EXECUTED.value
+            and placement_client_order_id is not None
+            and active_placement_id
+            and active_placement_id != placed_order_id
+        )
+        containment_cancel_ready = False
+        containment_identity_invalid = False
+        if stale_filled_placement:
+            containment_cancel_ready = (
+                self._prepare_active_terminal_cancel_intent(
+                    order,
+                    anchor_state,
+                    reprice_reason="stale_fill_containment",
+                    requested_at=datetime.utcnow(),
+                    identity_invalid_event=(
+                        "stealth_stale_fill_containment_identity_invalid"
+                    ),
+                    filled_placement_client_order_id=placed_order_id,
+                )
+            )
+            containment_identity_invalid = not containment_cancel_ready
+            order["failure_reason"] = (
+                "A stale placement fill arrived after a newer placement became "
+                "live; the newer placement requires cancellation"
+            )
+
+        pending_rearm = anchor_state.get("pending_rearm")
+        if (
+            order_status == StealthOrderStatus.EXECUTED.value
+            and isinstance(pending_rearm, Mapping)
+            and placed_order_id
+            and pending_rearm.get("placement_client_order_id") == placed_order_id
+        ):
+            if not self._persist_anchor_rearm_parent_statuses(
+                order,
+                str(placed_order_id),
+                root_status=OrderStatus.FILLED,
+                placement_status=OrderStatus.FILLED,
+            ):
+                order.clear()
+                order.update(previous_order)
+                return False
+            anchor_state.pop("pending_rearm", None)
+            if reveal_event is not None:
+                reveal_event["rearm_cancel_consumed"] = True
+                reveal_event["rearm_aborted_for_fill"] = True
+        order["anchor_repricing_state_json"] = anchor_state
         if order_status in {StealthOrderStatus.EXECUTED.value, StealthOrderStatus.CANCELLED.value}:
-            if anchor_state.get("active_placement_client_order_id") == placed_order_id:
+            if (
+                not stale_filled_placement
+                and anchor_state.get("active_placement_client_order_id")
+                == placed_order_id
+            ):
                 anchor_state["active_placement_client_order_id"] = None
                 anchor_state["active_exchange_order_id"] = None
                 anchor_state["active_exchange_price"] = None
                 order["anchor_repricing_state_json"] = anchor_state
 
+        order["status"] = (
+            StealthOrderStatus.ERROR.value
+            if containment_identity_invalid
+            else order_status
+        )
+
+        # 📊 LOT-TRACKING: Log execution
+        self.log_callback(
+            "info",
+            (
+                f"[LOT-TRACK] Stealth order executed: {stealth_order_id} "
+                f"({order['side']} {incoming_executed_size} of "
+                f"{order['total_size']} {order['product_id']}, "
+                f"status={order_status})"
+            ),
+        )
+
+        try:
+            persisted = self._update_stealth_order(order)
+        except Exception:
+            persisted = False
+        if persisted is False:
+            order.clear()
+            order.update(previous_order)
+            get_runtime_controller().request_pause()
+            self.log_callback(
+                "error",
+                {
+                    "event": "stealth_execution_persistence_failed",
+                    "stealth_order_id": stealth_order_id,
+                    "placement_client_order_id": placed_order_id,
+                    "status": order_status,
+                },
+            )
+            return False
+
+        if containment_identity_invalid:
+            get_runtime_controller().request_pause()
+            self._notify_schedule_invalidated(stealth_order_id)
+            return False
+
         if order_status == StealthOrderStatus.EXECUTED.value:
-            self._update_stealth_order(order)
+            fill_received_order = dict(order)
+            fill_received_order["status"] = previous_order.get(
+                "status",
+                StealthOrderStatus.REVEALED.value,
+            )
             self._dispatch_lifecycle_event(
                 stealth_order_id=stealth_order_id,
                 event=StealthLifecycleEvent.FILL_RECEIVED,
-                order_data=order,
+                order_data=fill_received_order,
                 extra={
-                    "size": float(executed_size),
+                    "size": incoming_executed_size,
                     "placed_order_id": placed_order_id,
                     "exchange_order_id": exchange_order_id,
                     "status": StealthOrderStatus.REVEALED.value,
                 },
             )
-
-        order["status"] = order_status
-        
-        # 📊 LOT-TRACKING: Log execution
-        self.log_callback("info", f"[LOT-TRACK] Stealth order executed: {stealth_order_id} ({order['side']} {executed_size} of {order['total_size']} {order['product_id']}, status={order_status})")
-        
-        self._update_stealth_order(order)
-
-        if order_status == StealthOrderStatus.EXECUTED.value:
             self._dispatch_lifecycle_event(
                 stealth_order_id=stealth_order_id,
                 event=StealthLifecycleEvent.EXECUTED,
                 order_data=order,
                 extra={
-                    "size": float(executed_size),
+                    "size": incoming_executed_size,
                     "placed_order_id": placed_order_id,
                     "exchange_order_id": exchange_order_id,
                 },
@@ -4810,12 +6052,27 @@ class StealthOrderManager:
                 event=StealthLifecycleEvent.CANCELLED,
                 order_data=order,
                 extra={
-                    "size": float(executed_size),
+                    "size": incoming_executed_size,
                     "placed_order_id": placed_order_id,
                     "exchange_order_id": exchange_order_id,
                 },
             )
         self._notify_schedule_invalidated(stealth_order_id)
+        if stale_filled_placement:
+            get_runtime_controller().request_pause()
+            self.log_callback(
+                "error",
+                {
+                    "event": "stealth_stale_placement_fill_after_rereveal",
+                    "stealth_order_id": stealth_order_id,
+                    "filled_placement_client_order_id": placed_order_id,
+                    "active_placement_client_order_id": active_placement_id,
+                    "containment_cancel_persisted": containment_cancel_ready,
+                },
+            )
+            if containment_cancel_ready:
+                self._request_pending_anchor_rearm_cancel(order, anchor_state)
+        return True
     
     def cancel_stealth_order(
         self,
@@ -4854,6 +6111,49 @@ class StealthOrderManager:
         if order["status"] == StealthOrderStatus.CANCELLED.value:
             return False
 
+        # An explicit operator cancel supersedes an automatic rearm request.
+        # Persist that decision before the exchange side effect; otherwise a
+        # crash after REST cancel could reload the old intent and incorrectly
+        # return the operator-cancelled order to HIDDEN.
+        anchor_state = self._normalize_anchor_repricing_state(
+            order.get("anchor_repricing_state_json")
+        )
+        pending_rearm = anchor_state.get("pending_rearm")
+        if isinstance(pending_rearm, Mapping):
+            previous_order = deepcopy(order)
+            terminal_cancel_intent = dict(pending_rearm)
+            terminal_cancel_intent["return_to_hidden"] = False
+            anchor_state["pending_rearm"] = terminal_cancel_intent
+            order["anchor_repricing_state_json"] = anchor_state
+            order["status"] = StealthOrderStatus.CANCELLED.value
+            order["updated_at"] = datetime.utcnow()
+            order["notes"] = f"{order['notes']}\nCancelled: {reason}"
+            try:
+                supersession_persisted = self._update_stealth_order(order)
+            except Exception:
+                supersession_persisted = False
+            if not supersession_persisted:
+                order.clear()
+                order.update(previous_order)
+                get_runtime_controller().request_pause()
+                self.log_callback(
+                    "error",
+                    {
+                        "event": "stealth_cancel_rearm_supersession_failed",
+                        "stealth_order_id": stealth_order_id,
+                        "note": "Exchange cancel was not requested; runtime paused.",
+                    },
+                )
+                return False
+
+            self._notify_schedule_invalidated(stealth_order_id)
+            if cancel_exchange:
+                self._request_pending_anchor_rearm_cancel(
+                    order,
+                    anchor_state,
+                )
+            return True
+
         if cancel_exchange:
             self._best_effort_cancel_active_exchange_order(order, reason)
 
@@ -4861,8 +6161,22 @@ class StealthOrderManager:
         order["updated_at"] = datetime.utcnow()
         order["notes"] = f"{order['notes']}\nCancelled: {reason}"
 
-        self._update_stealth_order(order)
+        try:
+            cancellation_persisted = self._update_stealth_order(order)
+        except Exception:
+            cancellation_persisted = False
         self._notify_schedule_invalidated(stealth_order_id)
+        if not cancellation_persisted:
+            get_runtime_controller().request_pause()
+            self.log_callback(
+                "error",
+                {
+                    "event": "stealth_cancel_persistence_failed",
+                    "stealth_order_id": stealth_order_id,
+                    "note": "Runtime paused after best-effort exchange cancel.",
+                },
+            )
+            return False
         return True
 
     def _best_effort_cancel_active_exchange_order(
@@ -5142,6 +6456,18 @@ class StealthOrderManager:
 
         order = self._get_stealth_order(stealth_order_id)
         if not order:
+            return False
+        anchor_state = self._normalize_anchor_repricing_state(
+            order.get("anchor_repricing_state_json")
+        )
+        if isinstance(anchor_state.get("pending_rearm"), Mapping):
+            self.log_callback(
+                "warning",
+                {
+                    "event": "stealth_condition_update_blocked_pending_cancel",
+                    "stealth_order_id": stealth_order_id,
+                },
+            )
             return False
         if order.get("reveal_condition_type") != (
             RevealConditionType.PRICE_THRESHOLD.value
@@ -5639,7 +6965,8 @@ class StealthOrderManager:
             rows_affected = self.db_client.execute_update(
                 """UPDATE stealth_orders 
                    SET status = %s, revealed_size = %s, remaining_size = %s, 
-                       executed_size = %s, revealed_orders = %s, last_placement_at = %s,
+                       executed_size = %s, visibility_score = %s,
+                       revealed_orders = %s, last_placement_at = %s,
                        limit_price = CASE WHEN %s THEN %s ELSE limit_price END,
                        reveal_condition_json = %s,
                        reveal_pricing_policy = CASE WHEN %s THEN %s ELSE reveal_pricing_policy END,
@@ -5652,6 +6979,7 @@ class StealthOrderManager:
                  order.get('revealed_size', 0),
                  order.get('remaining_size', 0),
                  order.get('executed_size', 0),
+                 order.get('visibility_score', 0),
                  revealed_orders_json,
                  last_placement,
                  write_limit_price,
@@ -5705,6 +7033,7 @@ class StealthOrderManager:
                     'revealed_size': float(row.get('revealed_size', 0)),
                     'remaining_size': float(row.get('remaining_size', 0)),
                     'executed_size': float(row.get('executed_size', 0)),
+                    'visibility_score': float(row.get('visibility_score', 0.0)),
                     'limit_price': float(row['limit_price']),
                     'status': row['status'],
                     'reveal_condition_type': row.get('reveal_condition_type', 'time_delay'),

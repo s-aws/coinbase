@@ -1,7 +1,11 @@
 """Test the resolve_order_size and resolve_order_side helper functions."""
 
 import pytest
-from calculation.resolver import resolve_order_size, resolve_order_side
+from calculation.resolver import (
+    resolve_order_side,
+    resolve_order_size,
+    resolve_remaining_size,
+)
 
 
 class TestResolveOrderSize:
@@ -104,6 +108,21 @@ class TestResolveOrderSide:
         """Return None for invalid side value."""
         order = {"side": "INVALID"}
         assert resolve_order_side(order) is None
+
+
+class TestResolveRemainingSize:
+    """Test remaining-size authority and fallback semantics."""
+
+    def test_explicit_zero_leaves_is_authoritative(self):
+        order = {"leaves_quantity": "0", "base_size": "2.0"}
+
+        assert resolve_remaining_size(order) == 0.0
+
+    @pytest.mark.parametrize("leaves_value", (None, ""))
+    def test_absent_leaves_falls_back_to_base_size(self, leaves_value):
+        order = {"leaves_quantity": leaves_value, "base_size": "2.0"}
+
+        assert resolve_remaining_size(order) == 2.0
 
 
 class TestHelperIntegration:

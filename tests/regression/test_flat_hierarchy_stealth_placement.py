@@ -78,13 +78,13 @@ def test_stealth_order_manager_routes_through_canonical_resolver() -> None:
 
     src = inspect.getsource(StealthOrderManager)
 
-    # The manager must call the resolver at least 3 times: the two placement
-    # insert sites (anchor reprice + reveal slice) and create_follow_up_stealth_order.
+    # The manager must route reveal placement, follow-up creation, and rearm
+    # parent-status projection through the same root resolver.
     call_count = src.count("resolve_stealth_chain_root(")
     assert call_count >= 3, (
         f"StealthOrderManager source contains only {call_count} call(s) to "
-        "resolve_stealth_chain_root. Expected at least 3 (anchor reprice, "
-        "reveal slice, create_follow_up_stealth_order). Did a site revert to "
+        "resolve_stealth_chain_root. Expected at least 3 lifecycle call sites. "
+        "Did a site revert to "
         "open-coding `order.get('parent_order_id') or order['stealth_order_id']`?"
     )
 

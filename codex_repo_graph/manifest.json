@@ -11,37 +11,37 @@
     "opaque_identifiers_and_literal_payloads"
   ],
   "excluded_git_ref_count": 4,
-  "graph_digest": "dfec2413f6879beb6dc51626067f9c20ec4cd6e00ed4756206c692bcee967ca8",
+  "graph_digest": "f17f2c227d4618243c18485ddcb177600ef1c5d10a15521b2f5698edd4a6c6b6",
   "graph_format_version": "2.0.0",
-  "graph_schema_version": "1.1.0",
-  "history_snapshot_head": "e264793f70eaf1dcf4eaaf5567f047864443a1ad",
+  "graph_schema_version": "1.2.0",
+  "history_snapshot_head": "5514cd0196ce45fe657c586332485c718b4edefb",
   "index_hashes": {
-    "edges.jsonl": "856d023c1e1b81d45142deb5bf110d97171682066fcec783cd7328383bedaaee",
-    "files.jsonl": "0b9c97dc487bbf8fe8293ab7acb01741340e3964b573c2e9a435b32b01742da4",
-    "git_commits.jsonl": "45250d076be55bacb590715686f5edbd7949a937eab99aef6694ed86a4392b75",
-    "git_refs.jsonl": "cc712de4e8666e72b2fa30b0d39a92455031b18881a0cd20f28ed7c8ebbc774f",
-    "path_history.jsonl": "87deb60ac09b1805a3eba176622f18003d0bcf5c6c376f3780fe67738de42a9d",
-    "symbols.jsonl": "1abcc248998868dcc1442a125102026f65decf07f5b2894ace5e87883d28ee27",
-    "tests.jsonl": "9a9d7c55767076f58b39653f2c09ab0aacc43094ab383eac6e03c5a2e63a55fd"
+    "edges.jsonl": "0311529691a5bc1ce28209bfeae4fb12096177d4e237b3f5a3871e0183515458",
+    "files.jsonl": "316d02ed4d877fe6eaad412b31e7972ce88947f0900cf5dec9e72db34e62295c",
+    "git_commits.jsonl": "62a181a8844412ba5d63e7eafaa0f2a3354e87a883ba085c59ccffd43f888597",
+    "git_refs.jsonl": "9276fec2a4773e4d837064b913c1f62ffb5518a867e75680c14e0350926c5dad",
+    "path_history.jsonl": "3669536b5b1434ae27a79a62e63ab23f053b4a1e7567180ddecf1b246621b2a5",
+    "symbols.jsonl": "d8cdf26089be785358d7a80d07ddcb2b87fc2ca3a53627948d36c3eb354dc3cd",
+    "tests.jsonl": "1cc76a24035c73c01ea615973be71f1cdb192a56a8c32dd15c7c85c9aa7a481a"
   },
-  "indexed_file_count": 509,
+  "indexed_file_count": 512,
   "metadata_only_file_count": 2,
   "semantic_hashes": {
-    "claims.jsonl": "cae9d1e53bacd7279165856bcd1d31beb669881f1cd863bfd10e7994c6fddf9f",
-    "components.jsonl": "2c0eba9e921c6b5c48adaae2448331779a70d410f39ea9c6c7adf02ce898216a",
-    "concurrency.jsonl": "675ed4b3fbe268a0c47ecdc1f55b2bb75885780890342f0da43a688db8e6f3f0",
-    "hazards.jsonl": "fb74963453958eeb64a6c723c13e54434437affdcd12aeecec5faf06a7f7f79f",
-    "interfaces.jsonl": "62fe4ff61e8bf0469c803cf73ea82dda3da195d5b66bd2924937bbf93e1570da",
-    "invariants.jsonl": "5df3bd8fed362b299fcd74e0f973076c05831c66c1d883f08b96205569c6784a",
-    "persistence.jsonl": "934f8ee7deb5b90710c3f00d14b1c9c0bc6c466bb47230e44885ed60aaa5ff11",
-    "runtime_flows.jsonl": "9a934ba97e489939b2899fb0fdc30c80fe02a37eeeb8c66a2e877f2f2cfb3ea3",
-    "task_routes.jsonl": "2bff66ed113f9e9dda39977528e04e8ca9fae488d0dee48eac5f760d862c3249"
+    "claims.jsonl": "727c6bd41eb634dd9ca3e690639ad1e50a771c6f4e53df5afaddc85fcd399f70",
+    "components.jsonl": "3f0c74100c34faf6dbcb40a9f606b5f676895ed459e3441fbc04e2ba689147ac",
+    "concurrency.jsonl": "816349c96175c5b1595c1554c0ffde72bded3d938a2f2d7eba8181b405e0fa89",
+    "hazards.jsonl": "c2b1ad6dc60fba76222eed63a6ba7fed65f69439dffb3a46589c402566f8dd23",
+    "interfaces.jsonl": "62f45babf829053ba1eda1497d9026081be24b5914d141b307f1b5697b704a55",
+    "invariants.jsonl": "5f29c26d8c8ce5427ed3443eadc52d012074a2fb753f312b8ef7d79addb84553",
+    "persistence.jsonl": "5a4b915e55425e1b27546a8e5a2a8cb93969594ed734aacf096f22a100e427fb",
+    "runtime_flows.jsonl": "68f001ba58b9a832bef11c54c879d8120242bf688f2aca9aea9642fb01e5f7d3",
+    "task_routes.jsonl": "e9c936a9efe88121c51939625d869ec9b2b1a301fa145a115313ba0fdcc3764d"
   },
-  "source_tree_digest": "7a56692a83d6f046b315fe00b9805dc459b6e1af49cb63ccb159536c5a6b82c4",
+  "source_tree_digest": "fc9bf3d405997b5504263602b669ce4505d505a338132d96e0d23d89dbcb3867",
   "tool_hashes": {
-    "ENTRYPOINT.md": "5fa321f88af471ef32a25df932bd7378003f830bfc599674a538ca692b622ba6",
-    "build_graph.py": "216faeddd15940f5f9c33a626e19d5b3b9b84d8833269bf26d28591d206602bc",
-    "query_graph.py": "3115b987b4c18d8fece23b6fbedb950a270cd290c41340b337c41f9240bc923f",
-    "schema.json": "f51e34485f34f56b8377b3eaccd07bae9e0fc5248fac9724279dc0f3e9c73416"
+    "ENTRYPOINT.md": "e13ec3a741804fb879c63b27393226e12798c31f99d54235c8655cf6db8d6aff",
+    "build_graph.py": "e7fe36ef005c2dd68f0cdcb7877a55d37064c5f0a6ba65c5b248736f3e84d2b4",
+    "query_graph.py": "06c5c4d0c44af913d227f29221ded907e4ce8a0992ae9bc4d5dd77ec16a4f6b4",
+    "schema.json": "8e57805789ffd66499349b010f274dea549fc113f73eb4a965a2d0edf1b72222"
   }
 }

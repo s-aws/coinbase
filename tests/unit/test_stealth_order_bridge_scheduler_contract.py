@@ -27,6 +27,7 @@ from bridges.stealth_event_deadline_scheduler import (
 from core.enums import (
     EngineState,
     MarketEventMode,
+    OrderStatus,
     RevealConditionType,
     StealthOrderStatus,
     StealthWakePurpose,
@@ -3236,7 +3237,7 @@ def test_revealed_anchor_without_reprice_permission_has_no_anchor_wake() -> None
     scheduler.stop()
 
 
-def test_fully_revealed_order_with_permission_keeps_anchor_wake() -> None:
+def test_pending_rearm_removes_fully_revealed_anchor_wake() -> None:
     anchored = _time_delay_order(
         "sid-anchor",
         "CONTRACT-A",
@@ -3254,6 +3255,263 @@ def test_fully_revealed_order_with_permission_keeps_anchor_wake() -> None:
     bridge._schedule_order("sid-anchor")
 
     assert scheduler.active_deadline_count == 1
+    anchored["anchor_repricing_state_json"]["pending_rearm"] = {
+        "placement_client_order_id": "placement-1"
+    }
+    bridge._schedule_order("sid-anchor")
+
+    assert scheduler.active_deadline_count == 0
+    scheduler.stop()
+
+
+def _pending_rearm_order() -> Dict[str, Any]:
+    order = _time_delay_order(
+        "sid-rearm",
+        "CONTRACT-A",
+        status=StealthOrderStatus.REVEALED,
+    )
+    order["anchor_repricing_state_json"] = {
+        "active_placement_client_order_id": "placement-1",
+        "active_exchange_order_id": "exchange-1",
+        "pending_rearm": {
+            "placement_client_order_id": "placement-1",
+            "exchange_order_id": "exchange-1",
+            "placement_size": 1.0,
+            "desired_limit_price": 101.0,
+            "requested_at": datetime.utcnow().isoformat(),
+        },
+    }
+    return order
+
+
+def test_passive_reconciliation_does_not_recover_pending_rearms(
+    monkeypatch,
+) -> None:
+    manager = FakeStealthManager((_pending_rearm_order(),))
+    manager.retry_pending_anchor_rearm_cancel = Mock(return_value=True)
+    engine = Mock()
+    scheduler = StealthEventDeadlineScheduler()
+    bridge = bridge_module.StealthOrderBridge(
+        manager,
+        order_engine=engine,
+        scheduler=scheduler,
+    )
+    bridge._decisions_ready.clear()
+    rest_client = Mock()
+    monkeypatch.setattr("configuration.REST_CLIENT", rest_client)
+
+    assert bridge._reconcile_stealth_orders() is False
+
+    rest_client.get_order.assert_not_called()
+    manager.retry_pending_anchor_rearm_cancel.assert_not_called()
+    engine.process_recovered_terminal_order.assert_not_called()
+    scheduler.stop()
+
+
+@pytest.mark.parametrize(
+    ("venue_status", "filled_size", "number_of_fills", "expected_leaves"),
+    (
+        (OrderStatus.CANCELLED.value.lower(), "0.25", "1", "0.75"),
+        (OrderStatus.FILLED.value, "1", "1", "0"),
+    ),
+)
+def test_pending_rearm_reconciliation_routes_exact_terminal_order(
+    monkeypatch,
+    venue_status,
+    filled_size,
+    number_of_fills,
+    expected_leaves,
+) -> None:
+    manager = FakeStealthManager((_pending_rearm_order(),))
+    engine = Mock()
+    scheduler = StealthEventDeadlineScheduler()
+    bridge = bridge_module.StealthOrderBridge(
+        manager,
+        order_engine=engine,
+        scheduler=scheduler,
+    )
+    rest_client = Mock()
+    venue_order = {
+        "client_order_id": "placement-1",
+        "order_id": "exchange-1",
+        "status": venue_status,
+        "filled_size": filled_size,
+        "number_of_fills": number_of_fills,
+        "average_filled_price": "100.5",
+        "order_configuration": {
+            "limit_limit_gtc": {
+                "base_size": "1",
+                "limit_price": "101",
+                "post_only": True,
+            }
+        },
+    }
+    rest_client.get_order.return_value = {"order": venue_order}
+    monkeypatch.setattr("configuration.REST_CLIENT", rest_client)
+
+    assert bridge._reconcile_pending_anchor_rearms() is True
+
+    rest_client.get_order.assert_called_once_with("exchange-1")
+    engine.process_recovered_terminal_order.assert_called_once_with(
+        {
+            **venue_order,
+            "status": venue_status.upper(),
+            "cumulative_quantity": venue_order["filled_size"],
+            "avg_price": "100.5",
+            "base_size": "1",
+            "limit_price": "101",
+            "leaves_quantity": expected_leaves,
+        }
+    )
+    scheduler.stop()
+
+
+def test_exact_rearm_order_adapter_preserves_top_level_values() -> None:
+    venue_order = {
+        "client_order_id": "placement-1",
+        "order_id": "exchange-1",
+        "status": OrderStatus.CANCELLED.value,
+        "filled_size": "1",
+        "cumulative_quantity": "0.75",
+        "average_filled_price": "100.5",
+        "avg_price": "98.5",
+        "base_size": "2",
+        "limit_price": "99",
+        "order_configuration": {
+            "limit_limit_gtc": {
+                "base_size": "1",
+                "limit_price": "101",
+            }
+        },
+    }
+
+    normalized = (
+        bridge_module.StealthOrderBridge._normalize_exact_rearm_order(
+            venue_order
+        )
+    )
+
+    assert normalized["cumulative_quantity"] == "0.75"
+    assert normalized["avg_price"] == "98.5"
+    assert normalized["base_size"] == "2"
+    assert normalized["limit_price"] == "99"
+    assert normalized["leaves_quantity"] == "1.25"
+    assert normalized is not venue_order
+
+
+@pytest.mark.parametrize(
+    "runtime_state",
+    (EngineState.STARTING, EngineState.PAUSED),
+)
+def test_pending_rearm_reconciliation_routes_fill_while_not_admitting(
+    monkeypatch,
+    runtime_state,
+) -> None:
+    controller = RuntimeController()
+    if runtime_state is EngineState.PAUSED:
+        assert controller.request_pause() is True
+        assert controller.complete_startup() is True
+    monkeypatch.setattr(
+        bridge_module,
+        "get_runtime_controller",
+        lambda: controller,
+    )
+    manager = FakeStealthManager((_pending_rearm_order(),))
+    engine = Mock()
+    scheduler = StealthEventDeadlineScheduler()
+    bridge = bridge_module.StealthOrderBridge(
+        manager,
+        order_engine=engine,
+        scheduler=scheduler,
+    )
+    rest_client = Mock()
+    rest_client.get_order.return_value = {
+        "order": {
+            "client_order_id": "placement-1",
+            "order_id": "exchange-1",
+            "status": OrderStatus.FILLED.value,
+            "filled_size": "1",
+            "number_of_fills": "1",
+            "order_configuration": {
+                "limit_limit_gtc": {
+                    "base_size": "1",
+                    "limit_price": "101",
+                }
+            },
+        }
+    }
+    monkeypatch.setattr("configuration.REST_CLIENT", rest_client)
+
+    assert bridge._reconcile_pending_anchor_rearms() is True
+
+    engine.process_recovered_terminal_order.assert_called_once()
+    scheduler.stop()
+
+
+def test_pending_rearm_reconciliation_retains_malformed_terminal(
+    monkeypatch,
+    _completed_runtime_by_default,
+) -> None:
+    manager = FakeStealthManager((_pending_rearm_order(),))
+    engine = Mock()
+    scheduler = StealthEventDeadlineScheduler()
+    bridge = bridge_module.StealthOrderBridge(
+        manager,
+        order_engine=engine,
+        scheduler=scheduler,
+    )
+    rest_client = Mock()
+    rest_client.get_order.return_value = {
+        "order": {
+            "client_order_id": "placement-1",
+            "order_id": "exchange-1",
+            "status": OrderStatus.CANCELLED.value,
+            "filled_size": "nan",
+            "number_of_fills": "1",
+            "order_configuration": {
+                "limit_limit_gtc": {
+                    "base_size": "1",
+                    "limit_price": "101",
+                }
+            },
+        }
+    }
+    monkeypatch.setattr("configuration.REST_CLIENT", rest_client)
+
+    assert bridge._reconcile_pending_anchor_rearms() is False
+
+    engine.process_recovered_terminal_order.assert_not_called()
+    assert _completed_runtime_by_default.state is EngineState.PAUSED
+    assert isinstance(
+        manager.in_memory_orders["sid-rearm"][
+            "anchor_repricing_state_json"
+        ].get("pending_rearm"),
+        Mapping,
+    )
+    scheduler.stop()
+
+
+def test_pending_rearm_reconciliation_reissues_same_cancel_when_open(
+    monkeypatch,
+) -> None:
+    manager = FakeStealthManager((_pending_rearm_order(),))
+    manager.retry_pending_anchor_rearm_cancel = Mock(return_value=True)
+    bridge, scheduler = _new_bridge(manager)
+    rest_client = Mock()
+    rest_client.get_order.return_value = {
+        "order": {
+            "client_order_id": "placement-1",
+            "order_id": "exchange-1",
+            "status": OrderStatus.OPEN.value,
+        }
+    }
+    monkeypatch.setattr("configuration.REST_CLIENT", rest_client)
+
+    assert bridge._reconcile_pending_anchor_rearms() is False
+
+    manager.retry_pending_anchor_rearm_cancel.assert_called_once_with(
+        "sid-rearm"
+    )
     scheduler.stop()
 
 

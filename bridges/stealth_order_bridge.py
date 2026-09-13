@@ -14,7 +14,8 @@ import threading
 import time
 import uuid
 from datetime import datetime
-from typing import Dict, Any, Optional, Tuple
+from decimal import Decimal, InvalidOperation
+from typing import Dict, Any, Mapping, Optional, Tuple
 
 from bridges.stealth_event_deadline_scheduler import (
     DeadlineWake,
@@ -27,6 +28,7 @@ from bridges.stealth_event_deadline_scheduler import (
 from business.stealth_condition_evaluator import get_evaluator
 from core.enums import (
     MarketEventMode,
+    OrderStatus,
     RevealConditionType,
     StealthOrderStatus,
     StealthWakePurpose,
@@ -256,6 +258,11 @@ class StealthOrderBridge:
             raise RuntimeError("Stealth order bridge must be started before activation")
         if self._decisions_ready.is_set():
             return
+
+        # Resolve cancel-to-hidden intents hydrated after a restart before
+        # publishing schedules. Exact venue status is required; absence from
+        # an open-order snapshot is not cancellation proof.
+        self._reconcile_pending_anchor_rearms()
 
         # Build disposable scheduling state from the manager's authoritative
         # hydrated snapshot before allowing the worker to consume anything.
@@ -707,15 +714,16 @@ class StealthOrderBridge:
             policy = RepricingPolicy.from_dict(
                 order.get("anchor_repricing_policy_json")
             )
+            state = order.get("anchor_repricing_state_json") or {}
             anchor_eligible = (
                 policy.enabled
+                and not isinstance(state.get("pending_rearm"), dict)
                 and (
                     order.get("status") != StealthOrderStatus.REVEALED.value
                     or policy.allow_revealed_reprice
                 )
             )
             if anchor_eligible:
-                state = order.get("anchor_repricing_state_json") or {}
                 next_reprice_at = StealthOrderManager._parse_runtime_datetime(
                     state.get("next_reprice_at")
                 )
@@ -1385,6 +1393,8 @@ class StealthOrderBridge:
             # Load all active orders from database
             loaded_count = 0
             changed = False
+            if self._decisions_ready.is_set():
+                changed = self._reconcile_pending_anchor_rearms()
             
             # Get current in-memory order IDs
             with self.stealth_manager._get_orders_cache_lock():
@@ -1432,13 +1442,252 @@ class StealthOrderBridge:
                     
                 except Exception as e:
                     logger.error(f"Database query failed during reconciliation: {e}")
-                    return False
+                    return changed
             
-            return False
+            return changed
             
         except Exception as e:
             logger.error(f"Reconciliation error: {e}")
             return False
+
+    @staticmethod
+    def _normalize_exact_rearm_order(
+        venue_order: Mapping[str, Any],
+    ) -> Dict[str, Any]:
+        """Adapt one exact REST order to the engine's quantity fields.
+
+        Exact ``get_order`` rows expose cumulative execution as
+        ``filled_size`` and keep the original size/price inside
+        ``order_configuration``.  The canonical lifecycle path consumes
+        ``cumulative_quantity``/``leaves_quantity`` instead, so derive those
+        values here without changing the shared websocket resolvers.
+        """
+
+        normalized_order = dict(venue_order)
+        if (
+            "cumulative_quantity" not in normalized_order
+            and venue_order.get("filled_size") is not None
+        ):
+            normalized_order["cumulative_quantity"] = venue_order["filled_size"]
+        if (
+            "avg_price" not in normalized_order
+            and venue_order.get("average_filled_price") is not None
+        ):
+            normalized_order["avg_price"] = venue_order[
+                "average_filled_price"
+            ]
+
+        order_configuration = venue_order.get("order_configuration")
+        if isinstance(order_configuration, Mapping):
+            for configuration in order_configuration.values():
+                if not isinstance(configuration, Mapping):
+                    continue
+                for field in ("base_size", "limit_price"):
+                    if (
+                        field not in normalized_order
+                        and configuration.get(field) is not None
+                    ):
+                        normalized_order[field] = configuration[field]
+
+        cumulative_raw = normalized_order.get("cumulative_quantity")
+        try:
+            cumulative = Decimal(str(cumulative_raw))
+        except (InvalidOperation, TypeError, ValueError) as exc:
+            raise ValueError(
+                "exact order is missing a valid cumulative fill quantity"
+            ) from exc
+        if not cumulative.is_finite() or cumulative < 0:
+            raise ValueError(
+                "exact order cumulative fill quantity must be finite and nonnegative"
+            )
+
+        base_size_raw = normalized_order.get("base_size")
+        if base_size_raw is not None:
+            try:
+                base_size = Decimal(str(base_size_raw))
+            except (InvalidOperation, TypeError, ValueError) as exc:
+                raise ValueError("exact order has an invalid base size") from exc
+            if not base_size.is_finite() or base_size < 0:
+                raise ValueError(
+                    "exact order base size must be finite and nonnegative"
+                )
+            if cumulative > base_size:
+                raise ValueError("exact order filled size exceeds its base size")
+            if "leaves_quantity" not in normalized_order:
+                normalized_order["leaves_quantity"] = str(
+                    base_size - cumulative
+                )
+
+        return normalized_order
+
+    def _reconcile_pending_anchor_rearms(self) -> bool:
+        """Recover persisted rearm intents from exact authenticated truth."""
+
+        with self.stealth_manager._get_orders_cache_lock():
+            pending_order_ids = [
+                str(stealth_order_id)
+                for stealth_order_id, order in (
+                    self.stealth_manager.in_memory_orders.items()
+                )
+                if isinstance(
+                    (order.get("anchor_repricing_state_json") or {}).get(
+                        "pending_rearm"
+                    ),
+                    Mapping,
+                )
+            ]
+
+        changed = False
+        for stealth_order_id in pending_order_ids:
+            terminal_order = None
+            with self._get_order_action_lock(stealth_order_id):
+                order = self.stealth_manager._get_stealth_order(
+                    stealth_order_id
+                )
+                if order is None:
+                    continue
+                state = self.stealth_manager._normalize_anchor_repricing_state(
+                    order.get("anchor_repricing_state_json")
+                )
+                pending = state.get("pending_rearm")
+                if not isinstance(pending, Mapping):
+                    continue
+
+                placement_client_order_id = pending.get(
+                    "placement_client_order_id"
+                )
+                pending_exchange_order_id = pending.get("exchange_order_id")
+                active_exchange_order_id = state.get(
+                    "active_exchange_order_id"
+                )
+                if (
+                    pending_exchange_order_id
+                    and active_exchange_order_id
+                    and str(pending_exchange_order_id)
+                    != str(active_exchange_order_id)
+                ):
+                    get_runtime_controller().request_pause()
+                    logger.error(
+                        "Pending/active exchange identity mismatch for rearm %s",
+                        stealth_order_id,
+                    )
+                    continue
+                exchange_order_id = (
+                    pending_exchange_order_id or active_exchange_order_id
+                )
+                if not placement_client_order_id or not exchange_order_id:
+                    get_runtime_controller().request_pause()
+                    logger.error(
+                        "Pending anchor rearm is missing placement identity: %s",
+                        stealth_order_id,
+                    )
+                    continue
+
+                from configuration import REST_CLIENT
+
+                try:
+                    # Keep shutdown from publishing STOPPED while this exact
+                    # completion check is still resolving. The pending intent
+                    # remains durable if the lookup fails or drain times out.
+                    with get_runtime_controller().track_inflight(
+                        INFLIGHT_REST_PLACE
+                    ):
+                        response = REST_CLIENT.get_order(
+                            str(exchange_order_id)
+                        )
+                    payload = (
+                        response.to_dict()
+                        if hasattr(response, "to_dict")
+                        else response
+                    )
+                    venue_order = (
+                        payload.get("order")
+                        if isinstance(payload, Mapping)
+                        else None
+                    )
+                except Exception:
+                    logger.warning(
+                        "Exact status lookup failed for pending anchor rearm %s",
+                        stealth_order_id,
+                        exc_info=True,
+                    )
+                    continue
+
+                if not isinstance(venue_order, Mapping):
+                    get_runtime_controller().request_pause()
+                    logger.error(
+                        "Malformed exact status response for pending anchor rearm %s",
+                        stealth_order_id,
+                    )
+                    continue
+                if (
+                    str(venue_order.get("order_id") or "")
+                    != str(exchange_order_id)
+                    or str(venue_order.get("client_order_id") or "")
+                    != str(placement_client_order_id)
+                ):
+                    get_runtime_controller().request_pause()
+                    logger.error(
+                        "Exact status identity mismatch for pending anchor rearm %s",
+                        stealth_order_id,
+                    )
+                    continue
+
+                venue_status = str(venue_order.get("status") or "").upper()
+                if venue_status in {
+                    OrderStatus.CANCELLED.value,
+                    OrderStatus.FILLED.value,
+                }:
+                    try:
+                        terminal_order = self._normalize_exact_rearm_order(
+                            venue_order
+                        )
+                        terminal_order["status"] = venue_status
+                    except ValueError as error:
+                        get_runtime_controller().request_pause()
+                        logger.error(
+                            "Invalid exact terminal order for pending anchor "
+                            "rearm %s: %s",
+                            stealth_order_id,
+                            error,
+                        )
+                        continue
+                elif venue_status == OrderStatus.OPEN.value:
+                    # The earlier cancel may have been lost before reaching
+                    # Coinbase. Reissuing this same exchange-order cancellation
+                    # leaves the durable intent unchanged and cannot duplicate
+                    # a placement.
+                    self.stealth_manager.retry_pending_anchor_rearm_cancel(
+                        stealth_order_id
+                    )
+                elif venue_status not in {
+                    OrderStatus.PENDING.value,
+                    OrderStatus.QUEUED.value,
+                    OrderStatus.CANCEL_QUEUED.value,
+                    OrderStatus.EDIT_QUEUED.value,
+                }:
+                    get_runtime_controller().request_pause()
+                    logger.error(
+                        "Unexpected exact status %r for pending anchor rearm %s",
+                        venue_status,
+                        stealth_order_id,
+                    )
+
+            if terminal_order is None:
+                continue
+            try:
+                self.order_engine.process_recovered_terminal_order(
+                    terminal_order
+                )
+                changed = True
+            except Exception:
+                get_runtime_controller().request_pause()
+                logger.exception(
+                    "Failed routing recovered anchor rearm terminal event for %s",
+                    stealth_order_id,
+                )
+
+        return changed
     
     @staticmethod
     def _build_ticker_market_snapshot(
@@ -1745,10 +1994,10 @@ class StealthOrderBridge:
         if not math.isfinite(receipt_monotonic):
             raise ValueError("received_monotonic must be a finite number")
 
-        # A due anchor is originating cancel-and-replace work.  Keep its handoff
+        # A due anchor can originate a cancel-to-hidden rearm. Keep its handoff
         # marker intact while paused/draining so the first live ticker after
-        # resume can process it; do not cancel a resting order while placement
-        # admission is closed.
+        # resume can process it; do not cancel a resting order while exchange
+        # action admission is closed.
         controller = get_runtime_controller()
         if not controller.is_admitting():
             return 0
@@ -2133,16 +2382,106 @@ class StealthOrderBridge:
         stealth_order_id: str,
         executed_size: float,
         order_status: str = StealthOrderStatus.EXECUTED.value,
-    ) -> None:
+        placement_client_order_id: Optional[str] = None,
+    ) -> bool:
         """Serialize websocket terminal execution state with SID decisions."""
 
         with self._get_order_action_lock(stealth_order_id):
-            self.stealth_manager.update_execution(
+            execution_kwargs = dict(
                 stealth_order_id=stealth_order_id,
                 executed_size=executed_size,
                 order_status=order_status,
             )
-    
+            if placement_client_order_id is not None:
+                execution_kwargs["placement_client_order_id"] = (
+                    placement_client_order_id
+                )
+            return self.stealth_manager.update_execution(**execution_kwargs)
+
+    def consume_anchor_rearm_cancellation(
+        self,
+        placement_client_order_id: str,
+        *,
+        exchange_order_id: Optional[str] = None,
+        cumulative_filled_size: float = 0.0,
+        number_of_fills: int = 0,
+    ) -> Optional[StealthOrderStatus]:
+        """Serialize an expected rearm cancellation with SID decisions."""
+
+        order = self.stealth_manager.find_stealth_order_by_placed_order_id(
+            placement_client_order_id
+        )
+        if not order:
+            return None
+        stealth_order_id = order.get("stealth_order_id")
+        if not stealth_order_id:
+            return None
+
+        with self._get_order_action_lock(str(stealth_order_id)):
+            current_order = (
+                self.stealth_manager.find_stealth_order_by_placed_order_id(
+                    placement_client_order_id
+                )
+            )
+            if (
+                not current_order
+                or current_order.get("stealth_order_id") != stealth_order_id
+            ):
+                return None
+            try:
+                return self.stealth_manager.consume_anchor_rearm_cancellation(
+                    placement_client_order_id,
+                    exchange_order_id=exchange_order_id,
+                    cumulative_filled_size=cumulative_filled_size,
+                    number_of_fills=number_of_fills,
+                )
+            except Exception:
+                # Once a mapped cancellation may belong to a persisted rearm,
+                # ordinary cancel/follow-up handling is unsafe. Pause and keep
+                # the conservative current state for reconciliation.
+                get_runtime_controller().request_pause()
+                logger.exception(
+                    "Failed consuming anchor rearm cancellation for %s",
+                    placement_client_order_id,
+                )
+                try:
+                    return StealthOrderStatus(current_order.get("status"))
+                except ValueError:
+                    return StealthOrderStatus.REVEALED
+
+    def is_anchor_rearm_placement_tombstoned(
+        self,
+        placement_client_order_id: str,
+        *,
+        exchange_order_id: Optional[str] = None,
+    ) -> bool:
+        """Read one authenticated placement tombstone under its SID lock."""
+
+        order = self.stealth_manager.find_stealth_order_by_placed_order_id(
+            placement_client_order_id
+        )
+        if not order:
+            return False
+        stealth_order_id = order.get("stealth_order_id")
+        if not stealth_order_id:
+            return False
+
+        with self._get_order_action_lock(str(stealth_order_id)):
+            current_order = (
+                self.stealth_manager.find_stealth_order_by_placed_order_id(
+                    placement_client_order_id
+                )
+            )
+            if (
+                not current_order
+                or current_order.get("stealth_order_id") != stealth_order_id
+            ):
+                return False
+            return self.stealth_manager.is_anchor_rearm_placement_tombstoned(
+                placement_client_order_id,
+                exchange_order_id=exchange_order_id,
+            )
+
     def cancel_stealth_order(
         self,
         stealth_order_id: str,

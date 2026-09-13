@@ -45,7 +45,7 @@ from unittest.mock import Mock
 import pytest
 
 from configuration import OrderBook
-from core.enums import OrderStatus
+from core.enums import FollowUpKind, OrderStatus, StealthOrderStatus
 from core.order_engine import OrderEngine
 
 
@@ -228,4 +228,204 @@ def test_status_update_propagates_from_child_placement_to_chain_root():
         f"chain root {root} did not receive the status update â€” this is the "
         "observable symptom of the 2026-04-29 stealth-status-stuck-at-PENDING "
         f"bug. update_order_parent_status calls: {update_calls}"
+    )
+
+
+@pytest.mark.regression
+def test_consumed_rearm_cancel_bypasses_generic_status_and_follow_up():
+    """The manager owns both DB rows while its SID lock is held."""
+    engine = _build_engine()
+    root = "stealth-root-coid"
+    placement = "placement-coid"
+
+    def fake_get_parent_order(coid):
+        if coid == placement:
+            return _child_row(placement, root)
+        if coid == root:
+            return _root_row(root)
+        return None
+
+    engine.db_module.get_parent_order = Mock(side_effect=fake_get_parent_order)
+    engine.stealth_order_bridge = Mock()
+    engine.stealth_order_bridge.consume_anchor_rearm_cancellation.return_value = (
+        StealthOrderStatus.HIDDEN
+    )
+    engine.handle_cancelled_order = Mock()
+    engine.complete_follow_up_processing = Mock()
+    engine._update_dashboard_order_status = Mock()
+
+    engine.process_user_order(
+        {
+            "client_order_id": placement,
+            "order_id": "exchange-uuid",
+            "product_id": "BIP-20DEC30-CDE",
+            "order_side": "SELL",
+            "side": "SELL",
+            "status": OrderStatus.CANCELLED.value,
+            "limit_price": "76330.00",
+            "outstanding_hold_amount": "0",
+            "cumulative_quantity": "0",
+            "number_of_fills": "0",
+        }
+    )
+
+    engine.stealth_order_bridge.consume_anchor_rearm_cancellation.assert_called_once_with(
+        placement,
+        exchange_order_id="exchange-uuid",
+        cumulative_filled_size=0.0,
+        number_of_fills=0,
+    )
+    # The bridge consumer completed placement/root persistence before returning.
+    engine.db_module.update_order_parent_status.assert_not_called()
+    engine.handle_cancelled_order.assert_not_called()
+    engine._update_dashboard_order_status.assert_called_once()
+    dashboard_args = engine._update_dashboard_order_status.call_args.args
+    assert dashboard_args[0] == placement
+    assert dashboard_args[2] == OrderStatus.CANCELLED
+    engine.complete_follow_up_processing.assert_called_once_with(
+        FollowUpKind.CANCELLED,
+        placement,
+    )
+
+
+@pytest.mark.regression
+def test_operator_cancel_tombstone_skips_raw_projection_but_retries_follow_up():
+    engine = _build_engine()
+    root = "stealth-root-coid"
+    placement = "placement-coid"
+    engine.orderbook.parent_order_ids[root] = {
+        "orders": [placement],
+        "current_order_replacement": 1,
+        "max_order_replacement": 0,
+    }
+    engine.orderbook.child_order_ids[placement] = root
+    root_status = {root: OrderStatus.OPEN.value}
+
+    def update_parent_status(*, client_order_id, status):
+        root_status[client_order_id] = status
+        return True
+
+    engine.db_module.update_order_parent_status = Mock(
+        side_effect=update_parent_status
+    )
+    engine.stealth_order_bridge = Mock()
+    engine.stealth_order_bridge.consume_anchor_rearm_cancellation.return_value = (
+        None
+    )
+    engine.stealth_order_bridge.is_anchor_rearm_placement_tombstoned.return_value = (
+        True
+    )
+    engine.handle_cancelled_order = Mock()
+    engine._update_dashboard_order_status = Mock()
+    cancelled_order = {
+        "client_order_id": placement,
+        "order_id": "exchange-uuid",
+        "product_id": "BIP-20DEC30-CDE",
+        "order_side": "SELL",
+        "side": "SELL",
+        "status": OrderStatus.CANCELLED.value,
+        "limit_price": "76330.00",
+        "outstanding_hold_amount": "0",
+        "cumulative_quantity": "0",
+        "number_of_fills": "0",
+    }
+
+    # First post-consumption dispatch and a later duplicate both retain the
+    # newer logical-root OPEN projection, while generic follow-up processing
+    # remains available to finish or retry idempotently.
+    engine.process_user_order(dict(cancelled_order))
+    engine.process_user_order(dict(cancelled_order))
+
+    assert root_status[root] == OrderStatus.OPEN.value
+    engine.db_module.update_order_parent_status.assert_not_called()
+    assert engine.handle_cancelled_order.call_count == 2
+    assert (
+        engine.stealth_order_bridge
+        .is_anchor_rearm_placement_tombstoned.call_count
+        == 2
+    )
+
+
+@pytest.mark.regression
+def test_root_backed_rearm_cancel_does_not_project_raw_cancel_to_dashboard():
+    """The logical root may already be HIDDEN or re-revealed on return."""
+    engine = _build_engine()
+    root = "stealth-root-coid"
+    engine.db_module.get_parent_order = Mock(return_value=_root_row(root))
+    engine.stealth_order_bridge = Mock()
+    engine.stealth_order_bridge.consume_anchor_rearm_cancellation.return_value = (
+        StealthOrderStatus.HIDDEN
+    )
+    engine.handle_cancelled_order = Mock()
+    engine.complete_follow_up_processing = Mock()
+    engine._update_dashboard_order_status = Mock()
+
+    engine.process_user_order(
+        {
+            "client_order_id": root,
+            "order_id": "exchange-uuid",
+            "product_id": "BIP-20DEC30-CDE",
+            "side": "SELL",
+            "status": OrderStatus.CANCELLED.value,
+            "limit_price": "76330.00",
+            "outstanding_hold_amount": "0",
+            "cumulative_quantity": "0",
+            "number_of_fills": "0",
+        }
+    )
+
+    engine.db_module.update_order_parent_status.assert_not_called()
+    engine.handle_cancelled_order.assert_not_called()
+    engine._update_dashboard_order_status.assert_not_called()
+
+
+@pytest.mark.regression
+def test_rearm_cancel_uses_pre_ingest_monotonic_fill_watermark():
+    engine = _build_engine()
+    root = "stealth-root-coid"
+    placement = "placement-coid"
+
+    def fake_get_parent_order(coid):
+        if coid == placement:
+            return _child_row(placement, root)
+        if coid == root:
+            return _root_row(root)
+        return None
+
+    engine.db_module.get_parent_order = Mock(side_effect=fake_get_parent_order)
+    engine.order_progress_tracker.ingest(
+        {
+            "client_order_id": placement,
+            "product_id": "BIP-20DEC30-CDE",
+            "side": "SELL",
+            "status": OrderStatus.OPEN.value,
+            "cumulative_quantity": "2",
+            "number_of_fills": "1",
+        }
+    )
+    engine.stealth_order_bridge = Mock()
+    engine.stealth_order_bridge.consume_anchor_rearm_cancellation.return_value = (
+        StealthOrderStatus.CANCELLED
+    )
+    engine.handle_cancelled_order = Mock()
+
+    engine.process_user_order(
+        {
+            "client_order_id": placement,
+            "order_id": "exchange-uuid",
+            "product_id": "BIP-20DEC30-CDE",
+            "side": "SELL",
+            "status": OrderStatus.CANCELLED.value,
+            "limit_price": "76330.00",
+            "outstanding_hold_amount": "0",
+            "cumulative_quantity": "0",
+            "number_of_fills": "0",
+        }
+    )
+
+    engine.stealth_order_bridge.consume_anchor_rearm_cancellation.assert_called_once_with(
+        placement,
+        exchange_order_id="exchange-uuid",
+        cumulative_filled_size=2.0,
+        number_of_fills=1,
     )

@@ -733,6 +733,9 @@ class TestTerminalStatusEvictsOrderbookEntry:
             call_post_order_status=lambda *a, **k: None,
         )
         engine.stealth_order_bridge = None
+        engine.order_progress_tracker = SimpleNamespace(
+            get_record=lambda _client_order_id: None
+        )
         engine.db_module = SimpleNamespace(
             update_order_parent_status=lambda **kw: None,
             get_parent_order=lambda *_a, **_k: None,
@@ -814,3 +817,25 @@ class TestTerminalStatusEvictsOrderbookEntry:
         }
         engine.process_user_order(order)
         assert "abc" in engine.orderbook.order
+
+    @pytest.mark.regression
+    @pytest.mark.parametrize("status", ["QUEUED", "EDIT_QUEUED"])
+    def test_queued_statuses_are_deliberate_noops(self, monkeypatch, status):
+        engine = self._engine_with_stubbed_handlers(monkeypatch)
+        log_message = MagicMock()
+        monkeypatch.setattr(engine, "log_message", log_message)
+
+        engine.process_user_order(
+            {
+                "client_order_id": "abc",
+                "status": status,
+                "product_id": "BTC-USDC",
+                "outstanding_hold_amount": "0",
+            }
+        )
+
+        assert engine.orderbook.order["abc"]["status"] == status
+        assert all(
+            call_args.args[1].get("event") != "unrecognized_order_status"
+            for call_args in log_message.call_args_list
+        )

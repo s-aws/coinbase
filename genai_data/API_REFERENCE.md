@@ -1686,6 +1686,7 @@ building the currency-to-wallet map. Do not replace it with a single
 - `place_limit_order(product_id, side, limit_price, base_size|quote_size, client_order_id, post_only, time_in_force)`
 - `create_order(...)` (pass-through/flexible order configuration)
 - `list_orders(order_status=None, *, cursor=None, limit=None)`
+- `get_order(order_id)`
 - `cancel_order(client_order_id)`
 - `cancel_orders(order_ids)`
 - `limit_order_gtc(...)`
@@ -1704,6 +1705,9 @@ building the currency-to-wallet map. Do not replace it with a single
 - `list_orders` exposes the SDK continuation `cursor` and page `limit`; callers
   that require a complete exchange snapshot must walk every page and honor the
   response's `has_next`/`cursor` contract.
+- `get_order(order_id)` performs an exact lookup by Coinbase's
+  exchange-assigned `order_id`; internal correlation continues to use
+  `client_order_id`.
 - `cancel_order(client_order_id)` calls the Coinbase cancel wrapper with the
   project `client_order_id` and treats only explicit `success: true` cancel
   evidence as success. Non-empty failure payloads such as `success: false` are

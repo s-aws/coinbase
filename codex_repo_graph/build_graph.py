@@ -21,7 +21,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Iterable, Iterator, Sequence
 
 
-SCHEMA_VERSION = "1.1.0"
+SCHEMA_VERSION = "1.2.0"
 GRAPH_FORMAT_VERSION = "2.0.0"
 ROOT = Path(__file__).resolve().parents[1]
 GRAPH_DIR = Path(__file__).resolve().parent
@@ -362,6 +362,18 @@ def decode_text(data: bytes) -> tuple[str | None, str | None]:
     return None, None
 
 
+def normalize_source_newlines(text: str) -> str:
+    return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
+def source_lines(text: str) -> list[str]:
+    """Physical lines matching AST locations, not Unicode string separators."""
+    if not text:
+        return []
+    lines = normalize_source_newlines(text).split("\n")
+    return lines[:-1] if lines[-1] == "" else lines
+
+
 def file_line_count(data: bytes) -> int:
     if not data:
         return 0
@@ -391,8 +403,9 @@ def build_file_records(paths: Sequence[str]) -> tuple[list[dict[str, Any]], dict
                 content_indexed = False
                 exclusion_reason = "undecodable_text"
         if content_indexed and text is not None:
+            text = normalize_source_newlines(text)
             text_by_path[path] = text
-            lines_by_path[path] = text.splitlines()
+            lines_by_path[path] = source_lines(text)
         elif exclusion_reason:
             content_exclusions.append({"path": path, "reason": exclusion_reason})
         record: dict[str, Any] = {
@@ -403,7 +416,7 @@ def build_file_records(paths: Sequence[str]) -> tuple[list[dict[str, Any]], dict
             "id": f"f:{path}",
             "kind": "file",
             "language": language,
-            "lines": file_line_count(data),
+            "lines": len(lines_by_path[path]) if path in lines_by_path else file_line_count(data),
             "path": path,
             "role_tags": role_tags_for(path, language),
             "sha256": sha256_bytes(data),
@@ -579,6 +592,12 @@ class PythonCollector(ast.NodeVisitor):
             "signature": signature,
             "symbol_kind": symbol_kind,
         }
+        if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            # Navigation starts at def/class; reviewed source also includes
+            # decorators, whose changes can alter behavior without body edits.
+            record["scope_line_start"] = min(
+                [line_start, *(item.lineno for item in node.decorator_list)]
+            )
         if value_kind:
             record["value_kind"] = value_kind
         self.symbols.append(record)
@@ -1233,7 +1252,7 @@ def index_textual_relations(
 
         if language == "markdown":
             occurrence: Counter[str] = Counter()
-            for line_number, line_text in enumerate(text.splitlines(), 1):
+            for line_number, line_text in enumerate(source_lines(text), 1):
                 heading_match = re.match(r"^(#{1,6})\s+(.+?)\s*$", line_text)
                 if heading_match:
                     heading = redact_opaque_identifiers(heading_match.group(2).strip())
@@ -1316,7 +1335,7 @@ def index_textual_relations(
 
         if language in {"yaml", "toml", "ini", "dotenv"}:
             occurrence: Counter[str] = Counter()
-            for line_number, line_text in enumerate(text.splitlines(), 1):
+            for line_number, line_text in enumerate(source_lines(text), 1):
                 match = re.match(r"^([A-Za-z_][A-Za-z0-9_.-]*)\s*(?:=|:)\s*", line_text)
                 if not match:
                     continue
@@ -1467,10 +1486,12 @@ def validate_records_against_schema(
 def validate_semantic_references(
     semantic_records: Sequence[dict[str, Any]],
     file_records: Sequence[dict[str, Any]],
+    symbols: Sequence[dict[str, Any]] = (),
 ) -> list[str]:
     errors: list[str] = []
     semantic_ids = {str(record["id"]) for record in semantic_records}
     files_by_path = {str(record["path"]): record for record in file_records}
+    resolver = SymbolResolver(symbols)
     for record in semantic_records:
         record_id = str(record["id"])
         for target_id in record.get("semantic_ids", []):
@@ -1478,6 +1499,12 @@ def validate_semantic_references(
                 errors.append(f"{record_id}: unresolved semantic id: {target_id}")
         for reference in record.get("start_here", []):
             raw_reference = str(reference)
+            if raw_reference.startswith("s:"):
+                try:
+                    resolver.resolve(raw_reference)
+                except ValueError as exc:
+                    errors.append(f"{record_id}: {exc}")
+                continue
             path = raw_reference
             line: int | None = None
             if ":" in raw_reference:
@@ -1866,15 +1893,108 @@ def collect_path_history(history_roots: Sequence[str]) -> list[dict[str, Any]]:
     return list(state.values())
 
 
+class SymbolResolver:
+    """One exact definition resolver for evidence and navigation.
+
+    Occurrence suffixes do not make repeated definitions durable identities.
+    Reject duplicate names, including duplicate enclosing scopes, instead of
+    silently following whichever definition now owns a traversal-order ID.
+    """
+
+    def __init__(self, symbols: Sequence[dict[str, Any]]) -> None:
+        self.by_id = {symbol["id"]: symbol for symbol in symbols}
+        self.id_counts = Counter(symbol["id"] for symbol in symbols)
+        self.families = Counter(
+            (symbol["path"], symbol["qualname"])
+            for symbol in symbols
+            if str(symbol["id"]).startswith("s:")
+        )
+
+    def resolve(self, symbol_id: str) -> dict[str, Any]:
+        symbol = self.by_id.get(symbol_id)
+        if symbol is None:
+            raise ValueError(f"review required: symbol missing: {symbol_id}")
+        if (
+            symbol.get("confidence") != "exact"
+            or not str(symbol["path"]).endswith(".py")
+            or symbol.get("symbol_kind") not in {"class", "function", "method"}
+        ):
+            raise ValueError(f"review required: unsupported definition: {symbol_id}")
+        parts = str(symbol["qualname"]).split(".")
+        if self.id_counts[symbol_id] != 1 or any(
+            self.families[(symbol["path"], ".".join(parts[:length]))] > 1
+            for length in range(1, len(parts) + 1)
+        ):
+            raise ValueError(f"review required: ambiguous definition: {symbol_id}")
+        return symbol
+
+
+def resolve_evidence(
+    evidence: dict[str, Any],
+    lines: list[str],
+    resolver: SymbolResolver,
+) -> tuple[int, int]:
+    """Locate unchanged reviewed evidence; never establish a new baseline.
+
+    Lines come from source_lines, so hashes normalize physical line endings
+    without splitting Unicode separators in literals. Source is not emitted.
+    The stored range supplies excerpt length, not an authoritative position.
+    """
+    for key in ("reviewed_scope_sha256", "excerpt_sha256"):
+        if not re.fullmatch(r"[0-9a-f]{64}", str(evidence.get(key, ""))):
+            raise ValueError(f"review required: missing or invalid {key}")
+    old_start = evidence.get("line_start")
+    old_end = evidence.get("line_end")
+    if (
+        type(old_start) is not int or type(old_end) is not int
+        or old_start < 1 or old_end < old_start
+    ):
+        raise ValueError("review required: invalid evidence range")
+    width = old_end - old_start + 1
+    scope_start, scope_end = 1, len(lines)
+    if "symbol_id" in evidence:
+        symbol_id = evidence["symbol_id"]
+        if not isinstance(symbol_id, str):
+            raise ValueError("review required: invalid symbol_id")
+        symbol = resolver.resolve(symbol_id)
+        if symbol["path"] != evidence["path"]:
+            raise ValueError(f"review required: symbol path mismatch: {symbol_id}")
+        scope_start = int(symbol.get("scope_line_start", symbol["line_start"]))
+        scope_end = int(symbol["line_end"])
+        if not 1 <= scope_start <= scope_end <= len(lines):
+            raise ValueError(f"review required: invalid symbol scope: {symbol_id}")
+        current_hash = sha256_bytes("\n".join(lines[scope_start - 1:scope_end]).encode("utf-8"))
+        if current_hash != evidence["reviewed_scope_sha256"]:
+            raise ValueError(f"review required: reviewed scope changed: {symbol_id}")
+    elif evidence["reviewed_scope_sha256"] != evidence["excerpt_sha256"]:
+        raise ValueError("review required: text scope and excerpt fingerprints differ")
+
+    anchor = evidence.get("anchor")
+    if not isinstance(anchor, str) or not anchor:
+        raise ValueError("review required: missing evidence anchor")
+    matches = []
+    for index in range(scope_start - 1, scope_end - width + 1):
+        excerpt = "\n".join(lines[index:index + width])
+        if anchor in excerpt and sha256_bytes(excerpt.encode("utf-8")) == evidence["excerpt_sha256"]:
+            matches.append(index + 1)
+            if len(matches) > 1:
+                raise ValueError("review required: ambiguous reviewed excerpt")
+    if not matches:
+        raise ValueError("review required: reviewed excerpt changed or missing")
+    return matches[0], matches[0] + width - 1
+
+
 def load_and_normalize_semantic(
     file_records: Sequence[dict[str, Any]],
     lines_by_path: dict[str, list[str]],
+    symbols: Sequence[dict[str, Any]] = (),
 ) -> tuple[dict[Path, bytes], list[dict[str, Any]], list[str]]:
     files_by_path = {record["path"]: record for record in file_records}
     expected: dict[Path, bytes] = {}
     all_records: list[dict[str, Any]] = []
     errors: list[str] = []
     seen_ids: set[str] = set()
+    resolver = SymbolResolver(symbols)
     for filename in SEMANTIC_FILES:
         path = SEMANTIC_DIR / filename
         records: list[dict[str, Any]] = []
@@ -1908,29 +2028,24 @@ def load_and_normalize_semantic(
                 record["evidence"] = evidence_items
             for evidence in evidence_items:
                 evidence_path = normalized_path(str(evidence.get("path", "")))
-                evidence["path"] = evidence_path
                 file_record = files_by_path.get(evidence_path)
                 if not file_record:
                     errors.append(f"{record_id}: evidence path not indexed: {evidence_path}")
-                    continue
-                try:
-                    line_start = int(evidence["line_start"])
-                    line_end = int(evidence["line_end"])
-                except (KeyError, TypeError, ValueError):
-                    errors.append(f"{record_id}: invalid evidence range for {evidence_path}")
                     continue
                 lines = lines_by_path.get(evidence_path)
                 if lines is None:
                     errors.append(f"{record_id}: evidence content excluded: {evidence_path}")
                     continue
-                if line_start < 1 or line_end < line_start or line_end > max(1, len(lines)):
-                    errors.append(f"{record_id}: evidence range out of bounds: {evidence_path}:{line_start}-{line_end}")
+                try:
+                    line_start, line_end = resolve_evidence(
+                        {**evidence, "path": evidence_path}, lines, resolver,
+                    )
+                except ValueError as exc:
+                    errors.append(f"{record_id}: {evidence_path}: {exc}")
                     continue
-                anchor = str(evidence.get("anchor", ""))
-                cited = "\n".join(lines[line_start - 1:line_end])
-                if not anchor or anchor not in cited:
-                    errors.append(f"{record_id}: evidence anchor missing: {evidence_path}:{line_start}-{line_end}: {anchor!r}")
-                    continue
+                evidence["path"] = evidence_path
+                evidence["line_start"] = line_start
+                evidence["line_end"] = line_end
                 evidence["file_sha256"] = file_record["sha256"]
             records.append(record)
             all_records.append(record)
@@ -1956,7 +2071,7 @@ def build_artifacts(
     excluded_git_ref_count = int(history_snapshot["excluded_git_ref_count"])
     path_history = collect_path_history(history_roots)
 
-    semantic_artifacts, semantic_records, semantic_errors = load_and_normalize_semantic(file_records, lines_by_path)
+    semantic_artifacts, semantic_records, semantic_errors = load_and_normalize_semantic(file_records, lines_by_path, symbols)
     parse_findings = sorted([*python_errors, *text_errors], key=lambda item: (item["path"], item["stage"]))
 
     all_node_ids = {record["id"] for record in file_records}
@@ -1992,7 +2107,7 @@ def build_artifacts(
         ("path_history", path_history),
         ("semantic", semantic_records),
     ))
-    semantic_reference_errors = validate_semantic_references(semantic_records, file_records)
+    semantic_reference_errors = validate_semantic_references(semantic_records, file_records, symbols)
     index_invariant_errors = validate_index_invariants(file_records, symbols, edges, tests, lines_by_path)
     redaction_errors = validate_symbol_redaction(symbols)
     safety_scan_artifacts = {
@@ -2184,7 +2299,9 @@ def main() -> int:
     except Exception as exc:
         print(compact_json({"error": f"{type(exc).__name__}: {exc}", "status": "build_error"}), file=sys.stderr)
         return 2
-    mismatches = apply_or_check(artifacts, check=args.check)
+    # Failed validation must not publish partly relocated records or replace
+    # reviewed baselines. Still report would-be differences without writing.
+    mismatches = apply_or_check(artifacts, check=args.check or bool(validation["fatal_errors"]))
     result = {
         "counts": validation["counts"],
         "fatal_error_count": len(validation["fatal_errors"]),

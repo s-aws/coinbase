@@ -49,6 +49,23 @@ class MarketData(TypedDict, total=False):
     source: str
 
 
+class PendingRearmState(TypedDict, total=False):
+    """Persisted intent to cancel one revealed placement safely.
+
+    The placement ``client_order_id`` is the idempotency/ownership key. The
+    exchange ID is snapshotted beside it for exact status recovery and remains
+    API-only identity rather than internal lifecycle identity.
+    """
+
+    placement_client_order_id: str
+    exchange_order_id: str
+    placement_size: float
+    desired_limit_price: float
+    reprice_reason: str
+    requested_at: str
+    return_to_hidden: bool
+
+
 class RepricingState(TypedDict, total=False):
     """Per-stealth-order anchor-repricing runtime state.
 
@@ -92,6 +109,16 @@ class RepricingState(TypedDict, total=False):
             reveal-condition price thresholds can be moved in lock-step
             with the limit price. See
             ``_apply_reveal_condition_price_tracking``.
+        pending_rearm:
+            Durable intent written before cancelling a revealed placement.
+            Cleared only after matching authenticated terminal truth is
+            consumed. An explicit cancel-request rejection retains the intent
+            for exact reconciliation. ``return_to_hidden`` defaults to true
+            when absent for legacy intents; false keeps terminal local state
+            instead of starting another hidden cycle.
+        reveal_armed_at:
+            Start of the current hidden time-delay cycle. Absent for legacy
+            and never-rearmed orders, which continue to use ``created_at``.
     """
     active_placement_client_order_id: Optional[str]
     active_exchange_order_id: Optional[str]
@@ -103,6 +130,8 @@ class RepricingState(TypedDict, total=False):
     reprice_history: List[str]
     last_profitability_block_reason: str
     reveal_condition_price_offsets: Dict[str, float]
+    pending_rearm: PendingRearmState
+    reveal_armed_at: str
 
 
 def _required_str(data: Dict[str, Any], key: str, owner: str) -> str:

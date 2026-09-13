@@ -974,15 +974,15 @@ def test_reveal_pricing_policy_write_paths_normalize_and_preserve_absence(
         "ELSE reveal_pricing_policy END"
         in update_query
     )
-    assert update_params[9] is True
-    assert update_params[10] == RevealPricingPolicy.TOP_OF_BOOK.value
+    assert update_params[10] is True
+    assert update_params[11] == RevealPricingPolicy.TOP_OF_BOOK.value
 
     order_without_policy = dict(order)
     order_without_policy.pop("reveal_pricing_policy")
     assert manager._update_stealth_order(order_without_policy) is True
     _, absent_params = db.updates[-1]
-    assert absent_params[9] is False
-    assert absent_params[10] is None
+    assert absent_params[10] is False
+    assert absent_params[11] is None
 
 
 @pytest.mark.regression
@@ -1254,6 +1254,6 @@ def test_non_price_lifecycle_update_does_not_rewrite_price_when_metadata_drops(
 
     query, params = db.updates[-1]
     assert "limit_price = CASE WHEN %s THEN %s ELSE limit_price END" in query
-    assert params[6] is False
-    assert params[7] == 77115.0
+    assert params[7] is False
+    assert params[8] == 77115.0
     assert order["limit_price"] == 77115.0

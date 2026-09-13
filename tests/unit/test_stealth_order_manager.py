@@ -297,7 +297,7 @@ class TestAnchorRepricing:
         assert manager.in_memory_orders[stealth_order_id]["limit_price"] == 101.0
         assert persisted_prices[-1] == 101.0
 
-    def test_revealed_order_reprices_with_fresh_placement_client_order_id(self, monkeypatch):
+    def test_revealed_order_reprice_waits_for_cancel_before_rearming(self, monkeypatch):
         manager = StealthOrderManager(db_client=None)
         stealth_order_id = "b91e8400-e29b-41d4-a716-446655440000"
         manager.in_memory_orders[stealth_order_id] = {
@@ -306,14 +306,20 @@ class TestAnchorRepricing:
             "side": "SELL",
             "total_size": 1.0,
             "revealed_size": 1.0,
-            "remaining_size": 1.0,
+            "remaining_size": 0.0,
             "executed_size": 0.0,
             "limit_price": 110.0,
             "status": StealthOrderStatus.REVEALED.value,
             "reveal_condition_type": "time_delay",
             "reveal_condition_json": {"type": "time_delay", "delay_seconds": 0},
             "sizing_strategy_json": {"type": "fixed"},
-            "revealed_orders": [{"placed_order_id": "placement-old", "exchange_order_id": "exchange-old"}],
+            "revealed_orders": [{
+                "placed_order_id": "placement-old",
+                "placement_client_order_id": "placement-old",
+                "exchange_order_id": "exchange-old",
+                "placement_success": True,
+                "revealed_size": 1.0,
+            }],
             "anchor_repricing_policy_json": {
                 "enabled": True,
                 "reference_price_source": "last_trade",
@@ -352,26 +358,25 @@ class TestAnchorRepricing:
             "configuration.REST_CLIENT",
             SimpleNamespace(
                 cancel_orders=lambda order_ids: cancelled.append(list(order_ids)) or [],
-                place_limit_order=lambda **kwargs: {
-                    "success": True,
-                    "success_response": {
-                        "client_order_id": kwargs["client_order_id"],
-                        "order_id": "exchange-new",
-                    }
-                },
+                place_limit_order=lambda **_kwargs: pytest.fail(
+                    "reprice must return to the canonical reveal path"
+                ),
             ),
         )
 
-        manager._update_stealth_order = lambda order: None
+        manager._update_stealth_order = lambda order: True
 
         processed = manager.process_anchor_repricing_for_product("BTC-USDC")
 
         assert processed == 1
         assert cancelled == [["exchange-old"]]
+        order = manager.in_memory_orders[stealth_order_id]
         state = manager.in_memory_orders[stealth_order_id]["anchor_repricing_state_json"]
-        assert state["active_exchange_order_id"] == "exchange-new"
-        assert state["active_placement_client_order_id"] != "placement-old"
-        assert manager.in_memory_orders[stealth_order_id]["revealed_orders"][-1]["exchange_order_id"] == "exchange-new"
+        assert order["status"] == StealthOrderStatus.REVEALED.value
+        assert order["remaining_size"] == 0.0
+        assert state["active_exchange_order_id"] == "exchange-old"
+        assert state["active_placement_client_order_id"] == "placement-old"
+        assert state["pending_rearm"]["placement_client_order_id"] == "placement-old"
 
     def test_reprice_tracks_reveal_condition_price_threshold_with_offset(self):
         """Reveal condition price_threshold tracks limit_price reprices, preserving original offset."""
@@ -559,7 +564,7 @@ class TestExecutionLifecycleAuditing:
             order_status=StealthOrderStatus.EXECUTED.value,
         )
 
-        assert persisted_statuses == [StealthOrderStatus.REVEALED.value, StealthOrderStatus.EXECUTED.value]
+        assert persisted_statuses == [StealthOrderStatus.EXECUTED.value]
         assert [event for event, _ in dispatched_events] == [
             StealthLifecycleEvent.FILL_RECEIVED,
             StealthLifecycleEvent.EXECUTED,

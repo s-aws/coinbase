@@ -218,9 +218,12 @@ def resolve_remaining_size(order: Dict[str, Any]) -> float:
         >>> resolve_remaining_size({})
         0.0
     """
-    leaves = safe_float(order.get("leaves_quantity"), default=0.0)
-    if leaves > 0.0:
-        return leaves
+    leaves_raw = order.get("leaves_quantity")
+    if leaves_raw not in (None, ""):
+        # A terminal order legitimately reports zero leaves.  Treating that
+        # value as absent and falling back to ``base_size`` makes a fully
+        # filled order appear completely unfilled.
+        return safe_float(leaves_raw, default=0.0)
 
     return safe_float(order.get("base_size") or order.get("size"), default=0.0)
 

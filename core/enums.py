@@ -23,7 +23,8 @@ class OrderSide(str, Enum):
 class OrderStatus(str, Enum):
     """Status of an order throughout its lifecycle.
     
-    From Coinbase API: PENDING, OPEN, FILLED, CANCELLED, EXPIRED, FAILED
+    From Coinbase API: PENDING/QUEUED, OPEN, FILLED, CANCELLED, EXPIRED,
+    FAILED, and queued cancel/edit transitions.
 
     ``UPDATE`` and ``SNAPSHOT`` are legacy synthetic compatibility statuses.
     Current authenticated WebSocket envelope kinds live in
@@ -35,7 +36,9 @@ class OrderStatus(str, Enum):
     CANCELLED = "CANCELLED"
     EXPIRED = "EXPIRED"
     FAILED = "FAILED"
+    QUEUED = "QUEUED"
     CANCEL_QUEUED = "CANCEL_QUEUED"
+    EDIT_QUEUED = "EDIT_QUEUED"
     UPDATE = "UPDATE"
     SNAPSHOT = "SNAPSHOT"
 
@@ -587,7 +590,7 @@ class StealthLifecycleEvent(str, Enum):
     """
     CREATED            = "CREATED"             # create_stealth_order() persisted
     CONDITION_WATCHING = "CONDITION_WATCHING"  # condition first partially met â†’ PENDING
-    CONDITION_RESET    = "CONDITION_RESET"     # continuous hold broke â†’ HIDDEN
+    CONDITION_RESET    = "CONDITION_RESET"     # condition cycle reset / returned to HIDDEN
     CONDITION_MET      = "CONDITION_MET"       # condition confirmed â†’ TRIGGERED
     REVEAL_ATTEMPTED   = "REVEAL_ATTEMPTED"    # slice placement about to be sent
     PLACEMENT_BLOCKED  = "PLACEMENT_BLOCKED"   # retriable pre-REST policy/hook block

@@ -36,9 +36,8 @@ Two contract guarantees pinned here:
 
 1. ``place_limit_order`` returns the **raw SDK response dict**, not an
    ``Order`` object. Callers in
-   ``StealthOrderManager.reveal_order_slice``,
-   ``StealthOrderManager._apply_revealed_anchor_reprice``, and
-   ``StealthOrderManager.execute_stealth_move`` all index into
+   ``StealthOrderManager.reveal_order_slice`` and
+   ``StealthOrderManager.execute_stealth_move`` both index into
    ``result["success_response"]["order_id"]``; switching to ``Order``
    would silently break them again.
 

@@ -12,10 +12,10 @@ Root cause: the policy → ``post_only`` derivation rule was open-coded.
 Fix: extract ``StealthOrderManager._resolve_post_only_from_policy`` and
 route reveal-policy sites through it.
 
-Anchor behavior is state-specific: HIDDEN/PENDING/TRIGGERED processing changes
-only the local price and therefore retains eventual reveal-policy semantics;
-an already-REVEALED order is replaced directly using
-``RepricingPolicy.post_only_required``. This file guards both rules.
+Anchor repricing always ends in the canonical reveal path. Hidden orders only
+change their logical price, while revealed orders cancel back to hidden before
+they can reveal again. The reveal pricing policy therefore owns the eventual
+``post_only`` behavior in every state.
 """
 from __future__ import annotations
 
@@ -55,8 +55,8 @@ def test_canonical_post_only_helper_exists():
     )
 
 
-def test_anchor_reprice_validator_uses_status_specific_post_only_source():
-    """Anchor validation must match the operation the current state performs."""
+def test_anchor_reprice_validator_uses_eventual_reveal_policy():
+    """Anchor validation must match the canonical placement path."""
     fn_match = re.search(
         r"def _validate_anchor_reprice_profitability\(.*?(?=\n    def )",
         _STEALTH_SRC,
@@ -64,15 +64,10 @@ def test_anchor_reprice_validator_uses_status_specific_post_only_source():
     )
     assert fn_match is not None, "_validate_anchor_reprice_profitability not found"
     body = fn_match.group(0)
-    assert "StealthOrderStatus.REVEALED.value" in body, (
-        "Anchor validation must distinguish direct replacements from local reprices."
-    )
-    assert "RepricingPolicy.coerce(repricing_policy)" in body, (
-        "Revealed anchor replacements must consume the replacement policy."
-    )
     assert "_resolve_post_only_from_policy(" in body, (
-        "Hidden anchor reprices must retain eventual reveal-policy semantics."
+        "Anchor reprices must retain eventual reveal-policy semantics."
     )
+    assert "post_only_required" not in body
     assert "post_only=" in body, (
         "Anchor-reprice path must pass post_only= to validate_order_profitability"
     )
@@ -89,8 +84,8 @@ def test_anchor_reprice_validator_uses_status_specific_post_only_source():
         (StealthOrderStatus.HIDDEN.value, "top_of_book", False, True),
         (StealthOrderStatus.PENDING.value, "top_of_book", False, True),
         (StealthOrderStatus.TRIGGERED.value, "configured_limit", True, False),
-        (StealthOrderStatus.REVEALED.value, "top_of_book", False, False),
-        (StealthOrderStatus.REVEALED.value, "configured_limit", True, True),
+        (StealthOrderStatus.REVEALED.value, "top_of_book", False, True),
+        (StealthOrderStatus.REVEALED.value, "configured_limit", True, False),
     ],
 )
 def test_anchor_reprice_validator_matches_actual_state_transition(
@@ -99,7 +94,7 @@ def test_anchor_reprice_validator_matches_actual_state_transition(
     post_only_required,
     expected_post_only,
 ):
-    """Local reprices use reveal policy; direct replacements use anchor policy."""
+    """Every anchor transition uses the eventual reveal policy."""
     captured = []
     validator = SimpleNamespace(
         derive_follow_up_price_from_target=lambda **_kwargs: 101.0,

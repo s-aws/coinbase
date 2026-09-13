@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://local.invalid/codex-repo-graph-record.schema.json",
   "title": "Codex repository graph JSONL record",
-  "x-schema-version": "1.1.0",
+  "x-schema-version": "1.2.0",
   "type": "object",
   "oneOf": [
     {"$ref": "#/$defs/file"},
@@ -21,13 +21,16 @@
     },
     "evidence": {
       "type": "object",
-      "required": ["path", "line_start", "line_end", "anchor", "file_sha256"],
+      "required": ["path", "line_start", "line_end", "anchor", "file_sha256", "reviewed_scope_sha256", "excerpt_sha256"],
       "properties": {
         "path": {"type": "string", "minLength": 1},
         "line_start": {"type": "integer", "minimum": 1},
         "line_end": {"type": "integer", "minimum": 1},
         "anchor": {"type": "string", "minLength": 1},
-        "file_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        "file_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "symbol_id": {"type": "string", "pattern": "^s:"},
+        "reviewed_scope_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "excerpt_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
       },
       "additionalProperties": false
     },

@@ -163,6 +163,56 @@ def _now_matching(reference: datetime, now_utc: Optional[datetime]) -> datetime:
     return current
 
 
+def _parse_iso_datetime(value: Any) -> Optional[datetime]:
+    """Return a datetime for a persisted ISO value without raising.
+
+    JSON-backed runtime state stores timestamps as strings, while newly
+    mutated in-memory state may still contain a ``datetime``.  Preserve either
+    representation and accept the common trailing-``Z`` UTC spelling.
+    """
+
+    if isinstance(value, datetime):
+        return value
+    if not isinstance(value, str) or not value.strip():
+        return None
+
+    timestamp = value.strip()
+    if timestamp.endswith(("Z", "z")):
+        timestamp = f"{timestamp[:-1]}+00:00"
+    try:
+        return datetime.fromisoformat(timestamp)
+    except (OverflowError, ValueError):
+        return None
+
+
+def _time_delay_anchor(
+    order_data: Dict[str, Any],
+) -> Tuple[Optional[datetime], str]:
+    """Resolve the current time-delay arm point, with legacy fallback.
+
+    A confirmed revealed-order rearm records ``reveal_armed_at`` in the
+    existing anchor-repricing state.  Older and never-rearmed orders do not
+    have that field and continue to use ``created_at`` unchanged.  A present
+    but malformed rearm timestamp intentionally does not fall through to an
+    older creation time, which could reveal the order immediately.
+    """
+
+    repricing_state = order_data.get("anchor_repricing_state_json")
+    if isinstance(repricing_state, dict):
+        reveal_armed_at = repricing_state.get("reveal_armed_at")
+        if reveal_armed_at is not None:
+            return (
+                _parse_iso_datetime(reveal_armed_at),
+                "anchor_repricing_state_json.reveal_armed_at",
+            )
+
+    created_at = order_data.get("created_at")
+    return (
+        created_at if isinstance(created_at, datetime) else None,
+        "created_at",
+    )
+
+
 class ConditionEvaluator(ABC):
     """Base class for all reveal condition evaluators."""
 
@@ -455,13 +505,18 @@ class TimeDelayEvaluator(ConditionEvaluator):
         condition_config: Dict[str, Any],
         order_data: Dict[str, Any],
     ) -> StableDeadlineResult:
-        created_at = order_data.get("created_at")
-        if not isinstance(created_at, datetime):
+        armed_at, timestamp_field = _time_delay_anchor(order_data)
+        if armed_at is None:
+            reason = (
+                "Time-delay order requires datetime created_at"
+                if timestamp_field == "created_at"
+                else f"Time-delay order requires valid datetime {timestamp_field}"
+            )
             return StableDeadlineResult(
                 deadline_utc=None,
                 supported=True,
                 stable=False,
-                reason="Time-delay order requires datetime created_at",
+                reason=reason,
                 valid=False,
             )
         try:
@@ -495,11 +550,11 @@ class TimeDelayEvaluator(ConditionEvaluator):
                 ),
             )
 
-        return _deadline_from_order_timestamp(
-            order_data,
-            condition_config,
-            timestamp_field="created_at",
-            seconds_field="delay_seconds",
+        return StableDeadlineResult(
+            deadline_utc=armed_at + timedelta(seconds=delay_seconds),
+            supported=True,
+            stable=True,
+            reason=f"Stable deadline from {timestamp_field} + delay_seconds",
         )
 
     def evaluate_truth(
@@ -545,18 +600,20 @@ class TimeDelayEvaluator(ConditionEvaluator):
         """
         import random
         
-        created_at = order_data.get("created_at")
+        armed_at, timestamp_field = _time_delay_anchor(order_data)
         # Keep runtime evaluation consistent with activation validation, which
         # deliberately accepts JSON numeric strings as finite numbers.
         delay = float(condition_config.get("delay_seconds", 0))
         jitter = float(condition_config.get("jitter_seconds", 0))
         
-        if not created_at:
-            return False, "Order creation time not set"
+        if armed_at is None:
+            if timestamp_field == "created_at":
+                return False, "Order creation time not set"
+            return False, f"Invalid time-delay timestamp {timestamp_field}"
         
         # Calculate random delay between (delay - jitter) and (delay + jitter)
         random_delay = delay + random.uniform(-jitter, jitter)
-        time_elapsed = (datetime.utcnow() - created_at).total_seconds()
+        time_elapsed = (_now_matching(armed_at, None) - armed_at).total_seconds()
         
         if time_elapsed >= random_delay:
             reason = f"Time delay {random_delay:.1f}s elapsed ({time_elapsed:.1f}s actual)"

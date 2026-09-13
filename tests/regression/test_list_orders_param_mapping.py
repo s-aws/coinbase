@@ -33,3 +33,14 @@ def test_list_orders_omits_unsupplied_cursor() -> None:
     client.list_orders(order_status=["OPEN"])
 
     client._client.list_orders.assert_called_once_with(order_status=["OPEN"])
+
+
+@pytest.mark.regression
+def test_get_order_uses_exchange_order_id() -> None:
+    client = _client()
+
+    client.get_order("exchange-order-id")
+
+    client._client.get_order.assert_called_once_with(
+        order_id="exchange-order-id"
+    )

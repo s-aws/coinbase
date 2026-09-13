@@ -89,6 +89,7 @@ from core.enums import (
     EngineState,
     EventSourceChannel,
     EventStreamType,
+    FollowUpKind,
     FollowUpRevealDirection,
     OrderSide,
     OrderStatus,
@@ -367,6 +368,18 @@ class OrderEngine:
     ``main.py`` owns reconciliation and readiness publication. A bare
     ``run_forever`` call intentionally leaves RuntimeController in STARTING.
     """
+
+    _TOMBSTONED_REARM_NONTERMINAL_STATUSES = frozenset(
+        {
+            OrderStatus.PENDING.value,
+            OrderStatus.QUEUED.value,
+            OrderStatus.OPEN.value,
+            OrderStatus.UPDATE.value,
+            OrderStatus.SNAPSHOT.value,
+            OrderStatus.CANCEL_QUEUED.value,
+            OrderStatus.EDIT_QUEUED.value,
+        }
+    )
 
     def __init__(
         self,
@@ -3375,6 +3388,37 @@ class OrderEngine:
                     self._user_generation_inflight.pop(generation, None)
                     self._user_generation_condition.notify_all()
 
+    def process_recovered_terminal_order(self, order: dict) -> None:
+        """Synchronously route exact terminal truth through the per-COID FIFO."""
+
+        if not isinstance(order, dict):
+            raise OrderProcessingError("recovered terminal order must be a dict")
+        client_order_id = order.get("client_order_id")
+        if not client_order_id:
+            raise OrderProcessingError(
+                "recovered terminal order is missing client_order_id"
+            )
+        status = str(order.get("status") or "").upper()
+        if status not in {
+            OrderStatus.CANCELLED.value,
+            OrderStatus.FILLED.value,
+        }:
+            raise OrderProcessingError(
+                f"recovered order has non-terminal status {status!r}"
+            )
+
+        dispatcher = getattr(self, "_user_order_dispatcher", None)
+        if dispatcher is None:
+            raise RuntimeError("user order dispatcher is unavailable")
+        recovered_order = dict(order)
+        recovered_order["status"] = status
+        future = dispatcher.submit(
+            str(client_order_id),
+            self.process_user_order,
+            recovered_order,
+        )
+        future.result()
+
     def _dispatch_live_user_orders(
         self,
         event: dict,
@@ -4135,10 +4179,44 @@ class OrderEngine:
         # Call extensible order normalizers (can modify fields, add computed values, etc.)
         self.websocket_hooks.call_order_normalizers(normalized_order)
         self._sync_stealth_exchange_order_id(normalized_order)
+
+        # Exact REST reconciliation can observe terminal cancellation before a
+        # buffered websocket OPEN/UPDATE/PENDING row reaches this FIFO.  Once
+        # authenticated cancellation has tombstoned that placement, suppress
+        # only nonterminal replays before they can resurrect orderbook,
+        # progress, child-parent, or dashboard state.  Corrected terminal
+        # FILLED/CANCELLED rows must continue through the canonical path.
+        normalized_status = str(normalized_order.get("status") or "").upper()
+        if (
+            normalized_status
+            in self._TOMBSTONED_REARM_NONTERMINAL_STATUSES
+            and self.stealth_order_bridge
+            and self.stealth_order_bridge.is_anchor_rearm_placement_tombstoned(
+                str(client_order_id),
+                exchange_order_id=normalized_order.get("order_id"),
+            )
+        ):
+            self.log_message(
+                "warning",
+                self.build_event_log_payload(
+                    "tombstoned_anchor_rearm_nonterminal_replay_ignored",
+                    client_order_id=client_order_id,
+                    exchange_order_id=normalized_order.get("order_id"),
+                    status=normalized_status,
+                ),
+            )
+            return
         
         outstanding_hold_amount = safe_float(
             normalized_order.get("outstanding_hold_amount"),
             default=0.0,
+        )
+        rearm_cumulative_filled = resolve_cumulative_filled(normalized_order)
+        rearm_number_of_fills = int(
+            safe_float(
+                normalized_order.get("number_of_fills"),
+                default=0.0,
+            )
         )
 
         # Step 3: Store normalized order in orderbook
@@ -4161,7 +4239,57 @@ class OrderEngine:
             # derived_trade_key); safe on every event regardless of status.
             # Must run before _finalize_partial_fill_progress wipes state on
             # terminal status.
+            progress_before_ingest = self.order_progress_tracker.get_record(
+                client_order_id
+            )
             self._process_ws_order_delta(normalized_order)
+            # Terminal payloads can repeat or regress counters. Preserve both
+            # sides of ingest because the historical tracker accepts terminal
+            # status regressions before it is finalized below.
+            progress_after_ingest = self.order_progress_tracker.get_record(
+                client_order_id
+            )
+            for progress_record in (
+                progress_before_ingest,
+                progress_after_ingest,
+            ):
+                if progress_record is None:
+                    continue
+                rearm_cumulative_filled = max(
+                    rearm_cumulative_filled,
+                    progress_record.last_cumulative_qty_processed,
+                )
+                rearm_number_of_fills = max(
+                    rearm_number_of_fills,
+                    progress_record.last_number_of_fills_seen,
+                )
+
+        # A revealed anchor reprice is a cancel-to-hidden rearm, not an
+        # ordinary terminal cancellation. Consume it after cumulative fill
+        # evidence is ingested but before the placement status can propagate
+        # CANCELLED to the logical root.
+        rearm_cancel_status = None
+        cancel_projection_consumed = False
+        if status == OrderStatus.CANCELLED and self.stealth_order_bridge:
+            candidate_rearm_status = (
+                self.stealth_order_bridge.consume_anchor_rearm_cancellation(
+                    client_order_id,
+                    exchange_order_id=normalized_order.get("order_id"),
+                    cumulative_filled_size=rearm_cumulative_filled,
+                    number_of_fills=rearm_number_of_fills,
+                )
+            )
+            if isinstance(candidate_rearm_status, StealthOrderStatus):
+                rearm_cancel_status = candidate_rearm_status
+            elif candidate_rearm_status is None:
+                cancel_projection_consumed = (
+                    self.stealth_order_bridge
+                    .is_anchor_rearm_placement_tombstoned(
+                        client_order_id,
+                        exchange_order_id=normalized_order.get("order_id"),
+                    )
+                    is True
+                )
 
         if status == OrderStatus.FILLED and outstanding_hold_amount > 0:
             self.log_message(
@@ -4183,25 +4311,30 @@ class OrderEngine:
             # When the COID is a child of a chain root (stealth-managed
             # placement) we also propagate the status to the root, since the
             # root row is what dashboards / reports read for the logical order.
-            if self.is_parent_order(client_order_id):
-                self.db_module.update_order_parent_status(
-                    client_order_id=client_order_id,
-                    status=status,
-                )
-            elif self.is_child_order(client_order_id):
-                # Update the placement row itself.
-                self.db_module.update_order_parent_status(
-                    client_order_id=client_order_id,
-                    status=status,
-                )
-                # Propagate to the chain root so the logical order's status
-                # (read by dashboards) reflects the placement's lifecycle.
-                root_client_order_id = self.get_parent_of_child(client_order_id)
-                if root_client_order_id and root_client_order_id != client_order_id:
+            # A consumed rearm already persisted both rows under its SID lock.
+            if (
+                rearm_cancel_status is None
+                and not cancel_projection_consumed
+            ):
+                if self.is_parent_order(client_order_id):
                     self.db_module.update_order_parent_status(
-                        client_order_id=root_client_order_id,
+                        client_order_id=client_order_id,
                         status=status,
                     )
+                elif self.is_child_order(client_order_id):
+                    # Update the placement row itself.
+                    self.db_module.update_order_parent_status(
+                        client_order_id=client_order_id,
+                        status=status,
+                    )
+                    # Propagate to the chain root so the logical order's status
+                    # (read by dashboards) reflects the placement's lifecycle.
+                    root_client_order_id = self.get_parent_of_child(client_order_id)
+                    if root_client_order_id and root_client_order_id != client_order_id:
+                        self.db_module.update_order_parent_status(
+                            client_order_id=root_client_order_id,
+                            status=status,
+                        )
         except Exception as e:
             self.log_message(
                 "error",
@@ -4218,6 +4351,10 @@ class OrderEngine:
         if status == OrderStatus.CANCEL_QUEUED:
             return
         if status == OrderStatus.PENDING:
+            return
+        if status == OrderStatus.QUEUED:
+            return
+        if status == OrderStatus.EDIT_QUEUED:
             return
         if status == OrderStatus.FAILED:
             self.log_message(
@@ -4266,8 +4403,29 @@ class OrderEngine:
             return
         if status == OrderStatus.CANCELLED:
             self._finalize_partial_fill_progress(client_order_id, "CANCELLED")
-            self.handle_cancelled_order(normalized_order)
-            self._update_dashboard_order_status(client_order_id, normalized_order, status)
+            if rearm_cancel_status is None:
+                self.handle_cancelled_order(normalized_order)
+            else:
+                self.complete_follow_up_processing(
+                    FollowUpKind.CANCELLED,
+                    client_order_id,
+                )
+            # The rearm consumer owns the logical root lifecycle. Keep a
+            # distinct child placement's dashboard row truthful, but never
+            # project raw CANCELLED onto a root-backed order after it has
+            # returned to HIDDEN (or already re-revealed).
+            if (
+                (
+                    rearm_cancel_status is None
+                    and not cancel_projection_consumed
+                )
+                or self.is_child_order(client_order_id)
+            ):
+                self._update_dashboard_order_status(
+                    client_order_id,
+                    normalized_order,
+                    status,
+                )
 
             # Evict the terminal entry from the in-memory orderbook so the
             # WS snapshot drift checker doesn't keep flagging it as
@@ -4922,12 +5080,21 @@ class OrderEngine:
                     return
 
                 # Update the original stealth order status to CANCELLED
-                self.stealth_order_bridge.update_execution(
+                execution_persisted = self.stealth_order_bridge.update_execution(
                     stealth_order_id=original_stealth_order["stealth_order_id"],
                     executed_size=0.0,
-                    order_status=StealthOrderStatus.CANCELLED.value
+                    order_status=StealthOrderStatus.CANCELLED.value,
+                    placement_client_order_id=client_order_id,
                 )
-                
+                if execution_persisted is False:
+                    # The exact cancellation can replay. Do not originate a
+                    # follow-up until its terminal stealth truth is durable.
+                    self.release_follow_up_processing(
+                        FollowUpKind.CANCELLED,
+                        client_order_id,
+                    )
+                    return
+
                 follow_up_price = float(order_template["start_price"])
                 
                 # Build reveal condition for the follow-up (use same as filled orders)
@@ -5208,6 +5375,27 @@ class OrderEngine:
         # placement uuid equals stealth_order_id (same logical order).
         if original_stealth_order:
             self._register_stealth_placement_under_root(client_order_id, original_stealth_order)
+            # Exchange truth is independent of whether a follow-up will be
+            # created. Record the fill before any replacement-policy, template,
+            # or profitability branch can return; this also makes a fill win
+            # over an in-flight anchor rearm.
+            filled_size = resolve_cumulative_filled(order)
+            if filled_size <= 0.0:
+                filled_size = safe_float(order.get("filled_size"), default=0.0)
+            execution_persisted = self.stealth_order_bridge.update_execution(
+                stealth_order_id=original_stealth_order["stealth_order_id"],
+                executed_size=filled_size,
+                order_status=StealthOrderStatus.EXECUTED.value,
+                placement_client_order_id=client_order_id,
+            )
+            if execution_persisted is False:
+                # The exact fill will replay. Keep its follow-up claim
+                # retryable until terminal stealth truth is durable.
+                self.release_follow_up_processing(
+                    FollowUpKind.FILLED,
+                    client_order_id,
+                )
+                return
 
         # Check if this is an external order (not created by our engine)
         # External orders are ones we didn't place, so we shouldn't create follow-ups
@@ -5452,19 +5640,6 @@ class OrderEngine:
                             )
                             self.complete_follow_up_processing("filled", client_order_id)
                             return
-                    
-                    # Update the original stealth order status to EXECUTED
-                    filled_size = resolve_cumulative_filled(order)
-                    if filled_size <= 0.0:
-                        filled_size = safe_float(
-                            order.get("filled_size"),
-                            default=0.0,
-                        )
-                    self.stealth_order_bridge.update_execution(
-                        stealth_order_id=original_stealth_order["stealth_order_id"],
-                        executed_size=filled_size,
-                        order_status=StealthOrderStatus.EXECUTED.value
-                    )
                     
                     # This is a stealth order fill - create a stealth follow-up instead of a regular order
                     follow_up_price = float(order_template["start_price"])

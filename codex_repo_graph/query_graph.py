@@ -9,6 +9,11 @@ import sys
 from pathlib import Path
 from typing import Any, Iterable
 
+if __package__:
+    from .build_graph import SymbolResolver
+else:
+    from build_graph import SymbolResolver
+
 
 GRAPH_DIR = Path(__file__).resolve().parent
 INDEX_DIR = GRAPH_DIR / "index"
@@ -37,9 +42,24 @@ def all_record_paths() -> list[Path]:
 
 def emit(records: Iterable[dict[str, Any]], limit: int) -> int:
     count = 0
+    resolver = None
     for record in records:
         if count >= limit:
             break
+        if "start_here" in record:
+            if resolver is None:
+                resolver = SymbolResolver(list(iter_jsonl([INDEX_DIR / "symbols.jsonl"])))
+            resolved = []
+            for reference in record["start_here"]:
+                if str(reference).startswith("s:"):
+                    try:
+                        symbol = resolver.resolve(reference)
+                    except ValueError as exc:
+                        raise SystemExit(str(exc)) from exc
+                    resolved.append(f"{symbol['path']}:{symbol['line_start']}")
+                else:
+                    resolved.append(reference)
+            record = {**record, "resolved_start_here": resolved}
         print(json.dumps(record, sort_keys=True, ensure_ascii=False, separators=(",", ":")))
         count += 1
     return count

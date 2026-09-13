@@ -1670,6 +1670,73 @@ def test_live_envelopes_are_fifo_per_coid_but_concurrent_across_coids():
         executor.shutdown(wait=True)
 
 
+def test_recovered_terminal_order_waits_in_same_coid_fifo():
+    engine = _bare_user_engine()
+    executor = ThreadPoolExecutor(max_workers=1)
+    dispatcher = order_engine_module._KeyedSerialDispatcher(
+        executor,
+        max_pending=4,
+    )
+    engine._user_order_dispatcher = dispatcher
+    first_started = threading.Event()
+    release_first = threading.Event()
+    recovered_started = threading.Event()
+    recovery_returned = threading.Event()
+    processed = []
+    failures = []
+
+    first = {**_order(1), "marker": "websocket-first"}
+    recovered = {
+        **_order(1, status="filled"),
+        "marker": "recovered-terminal",
+    }
+
+    def process_order(order):
+        if order["marker"] == "websocket-first":
+            first_started.set()
+            assert release_first.wait(timeout=1.0)
+        else:
+            recovered_started.set()
+        processed.append(order["marker"])
+
+    def route_recovered():
+        try:
+            engine.process_recovered_terminal_order(recovered)
+        except BaseException as exc:
+            failures.append(exc)
+        finally:
+            recovery_returned.set()
+
+    engine.process_user_order.side_effect = process_order
+    recovery_thread = threading.Thread(target=route_recovered)
+
+    try:
+        first_future = dispatcher.submit(
+            first["client_order_id"],
+            engine.process_user_order,
+            first,
+        )
+        assert first_started.wait(timeout=1.0)
+        recovery_thread.start()
+
+        assert recovered_started.wait(timeout=0.05) is False
+        assert recovery_returned.is_set() is False
+
+        release_first.set()
+        recovery_thread.join(timeout=1.0)
+
+        assert recovery_thread.is_alive() is False
+        first_future.result(timeout=1.0)
+        assert failures == []
+        assert processed == ["websocket-first", "recovered-terminal"]
+        assert engine.process_user_order.call_args.args[0]["status"] == "FILLED"
+    finally:
+        release_first.set()
+        recovery_thread.join(timeout=1.0)
+        dispatcher.close()
+        executor.shutdown(wait=True)
+
+
 def test_keyed_dispatcher_rejects_work_at_its_pending_limit():
     executor = ThreadPoolExecutor(max_workers=1)
     dispatcher = order_engine_module._KeyedSerialDispatcher(

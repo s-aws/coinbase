@@ -331,19 +331,22 @@ pause either wins first or the already-admitted action drains as existing work.
 8. Reveal events and lifecycle transitions persist to audit/history tables.
 9. Cancel/re-entry policy can cancel a no-fill revealed placement, return the stealth order to `HIDDEN`, and later re-enter through the existing reveal path when the market moves far enough away.
 10. Same-side post-fill retreat can move the nearest opted-in hidden order on the same product/side by configured price ticks after another order fills.
-11. Anchor repricing can mutate revealed orders under claim guards and applies any cumulative post-fill retreat offset before computing the next target. Current limitation: canonical full reveal sets `remaining_size` to zero while the revealed repricer also uses `remaining_size` as live venue exposure, so ordinary fully revealed resting placements skip automatic cancel-replace; correcting that exposure model is separate from scheduler timing.
-12. Move-revealed flow executes cancel-and-replace with audit row insertion.
+11. Anchor repricing of a revealed order uses the accepted reveal event as live-placement truth, persists a `pending_rearm` cancel intent, and requests cancellation without placing a replacement. The default `return_to_hidden=true` mode keeps the order `REVEALED` until the matching authenticated `CANCELLED` event returns that placement's size to hidden inventory. The same intent may be superseded with `return_to_hidden=false` when terminal local state must win (for example, an operator cancel during an in-flight rearm); this reuses the acknowledgement path rather than adding another cancel protocol. A fill aborts the rearm, and every non-terminal/ambiguous cancel outcome leaves the intent pending. The existing condition evaluator and reveal path own all later re-entry. Repricing fails closed when one tracked cancellation cannot account for all revealed exposure; multi-live sizing layouts are intentionally unsupported by this minimal path.
+12. The operator Move-revealed flow remains a distinct direct cancel-and-replace action with audit row insertion; it is not the automatic cancel-to-hidden rearm path.
 
 ### Stealth State and Exchange Truth
 
 Stealth status is operational state, not display-only metadata:
 - `HIDDEN`, `PENDING`, and `TRIGGERED` mean no live Coinbase placement should exist for that stealth order.
 - `REVEALED` means a placement was submitted and may still be resting on the exchange. The active placement is tracked in `anchor_repricing_state_json.active_placement_client_order_id` and `active_exchange_order_id` when known.
+- `anchor_repricing_state_json.pending_rearm` identifies one persisted cancellation awaiting authenticated exchange truth. It records both the internal placement `client_order_id` and source exchange `order_id`; `return_to_hidden` selects rearm (`true`, also the legacy default when absent) versus terminal cancellation (`false`). The matching placement `client_order_id` on an authenticated terminal event is the idempotency boundary.
 - `ERROR` means exchange placement was rejected or acceptance could not be
   proven. It is terminal, excluded from active evaluation, and is never
   automatically resubmitted.
 - A revealed order cannot become hidden again by local status mutation alone. The live exchange order must be cancelled, filled, moved/replaced, or reconciled closed before local state claims it is no longer revealed.
 - If an exchange cancel fails, keep the local state conservative and surface operator action. Do not clear the active exchange pointer and mark the order hidden as if the order were gone.
+- A confirmed rearm sets `reveal_armed_at` only on the `REVEALED` to `HIDDEN` transition. Hidden anchor-price maintenance does not restart time-delay reveal policy.
+- Hydrated or dropped-event rearm intents are recovered by the existing stealth reconciliation loop using an exact authenticated exchange-order lookup. `OPEN` reissues cancellation of that same exchange order; `CANCELLED` and `FILLED` return through the canonical order-event path. This completion path remains active when the broad startup/periodic drift auditor is disabled because it finishes a previously persisted exchange mutation rather than discovering unrelated drift.
 
 Cancel/re-entry is not general hide-again behavior. It is a narrower policy-cancel/re-entry mechanism:
 - It applies only to revealed stealth orders with no executed size.
