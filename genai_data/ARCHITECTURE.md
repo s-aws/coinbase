@@ -193,7 +193,7 @@ Concurrency safety mechanisms:
 - Dedup buckets via `EventBridge`.
 - Follow-up claim ledgers (filled/cancelled namespaces) to prevent duplicate child creation.
 - Replacement-slot claim accounting to enforce `max_order_replacement` under race.
-- Stealth mutation claims (`move`, `reprice`, `retreat`) to prevent conflicting concurrent mutation.
+- Stealth mutation claims (`move`, `reprice`, `rehide`) prevent conflicting concurrent mutation.
 - Cancel/re-entry policy evaluation runs before anchor repricing on ticker updates, so a policy-cancel decision wins over repricing the same revealed placement.
 
 ## Lifecycle State Machine
@@ -333,6 +333,7 @@ pause either wins first or the already-admitted action drains as existing work.
 10. Same-side post-fill retreat can move the nearest opted-in hidden order on the same product/side by configured price ticks after another order fills.
 11. Anchor repricing of a revealed order uses the accepted reveal event as live-placement truth, persists a `pending_rearm` cancel intent, and requests cancellation without placing a replacement. The default `return_to_hidden=true` mode keeps the order `REVEALED` until the matching authenticated `CANCELLED` event returns that placement's size to hidden inventory. The same intent may be superseded with `return_to_hidden=false` when terminal local state must win (for example, an operator cancel during an in-flight rearm); this reuses the acknowledgement path rather than adding another cancel protocol. A fill aborts the rearm, and every non-terminal/ambiguous cancel outcome leaves the intent pending. The existing condition evaluator and reveal path own all later re-entry. Repricing fails closed when one tracked cancellation cannot account for all revealed exposure; multi-live sizing layouts are intentionally unsupported by this minimal path.
 12. The operator Move-revealed flow remains a distinct direct cancel-and-replace action with audit row insertion; it is not the automatic cancel-to-hidden rearm path.
+13. Manual Rehide enters the same persisted rearm/confirmation path without requiring anchor repricing or a price change. It preserves the configured price, condition configuration, sizing, and flat linkage; only one fully accounted zero-fill placement is eligible. The bridge requires startup readiness and atomically admitted runtime work under its existing per-order action lock. A request acknowledgement means pending exchange confirmation, never an optimistic `HIDDEN` status. Confirmation restarts the existing reveal policy; a satisfied condition may reveal again subject to its normal hold/delay and admission rules. Manual rehide does not increment repricing history or reset anchor pacing.
 
 ### Stealth State and Exchange Truth
 
@@ -346,6 +347,7 @@ Stealth status is operational state, not display-only metadata:
 - A revealed order cannot become hidden again by local status mutation alone. The live exchange order must be cancelled, filled, moved/replaced, or reconciled closed before local state claims it is no longer revealed.
 - If an exchange cancel fails, keep the local state conservative and surface operator action. Do not clear the active exchange pointer and mark the order hidden as if the order were gone.
 - A confirmed rearm sets `reveal_armed_at` only on the `REVEALED` to `HIDDEN` transition. Hidden anchor-price maintenance does not restart time-delay reveal policy.
+- Once `reveal_armed_at` exists, each new reveal uses a fresh placement `client_order_id`, including orders with repricing disabled. The logical stealth ID and original root linkage stay unchanged; retired exchange client IDs are never reused after rehide.
 - Hydrated or dropped-event rearm intents are recovered by the existing stealth reconciliation loop using an exact authenticated exchange-order lookup. `OPEN` reissues cancellation of that same exchange order; `CANCELLED` and `FILLED` return through the canonical order-event path. This completion path remains active when the broad startup/periodic drift auditor is disabled because it finishes a previously persisted exchange mutation rather than discovering unrelated drift.
 
 Cancel/re-entry is not general hide-again behavior. It is a narrower policy-cancel/re-entry mechanism:

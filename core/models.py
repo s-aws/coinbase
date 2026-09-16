@@ -116,9 +116,14 @@ class RepricingState(TypedDict, total=False):
             for exact reconciliation. ``return_to_hidden`` defaults to true
             when absent for legacy intents; false keeps terminal local state
             instead of starting another hidden cycle.
+            ``reprice_reason=StealthMutationKind.REHIDE.value`` selects manual
+            rehide: preserve configured price/conditions and repricing metrics.
+            It uses the same cancellation/recovery/acknowledgement path.
         reveal_armed_at:
             Start of the current hidden time-delay cycle. Absent for legacy
             and never-rearmed orders, which continue to use ``created_at``.
+            Also requires fresh placement IDs on later reveals, even when
+            automatic repricing is disabled.
     """
     active_placement_client_order_id: Optional[str]
     active_exchange_order_id: Optional[str]

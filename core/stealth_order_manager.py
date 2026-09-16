@@ -88,6 +88,7 @@ from core.enums import (
     RevealPricingPolicy,
     RevealPriceSource,
     StealthLifecycleEvent,
+    StealthMutationKind,
     StealthOrderStatus,
 )
 from core.exceptions import (
@@ -445,8 +446,8 @@ class StealthOrderManager:
         than inside :class:`ClaimLedger`) so the ledger stays a generic
         per-(kind, key) primitive that the follow-up FILLED / CANCELLED
         case can keep using as independent namespaces. Stealth mutations
-        require **mutual exclusion** because both MOVE and REPRICE
-        cancel-and-replace the same exchange order; running both
+        require **mutual exclusion** because MOVE, REPRICE, and REHIDE
+        can withdraw the same exchange placement; running them
         concurrently would double-cancel, leak phantom placements, and
         violate the ``order_parent`` FK guard.
         """
@@ -1371,7 +1372,12 @@ class StealthOrderManager:
 
     def _placement_client_order_id_for_order(self, order: Dict[str, Any]) -> str:
         policy = RepricingPolicy.coerce(order.get("anchor_repricing_policy_json"))
-        if policy.should_reprice_revealed:
+        state = self._normalize_anchor_repricing_state(
+            order.get("anchor_repricing_state_json")
+        )
+        # A confirmed rehide retired the old placement ID even when automatic
+        # repricing is disabled. Future reveals still use the same stealth root.
+        if policy.should_reprice_revealed or state.get("reveal_armed_at"):
             return str(uuid.uuid4())
         return order["stealth_order_id"]
 
@@ -1556,7 +1562,9 @@ class StealthOrderManager:
             placed_order_id,
         )
         if reveal_event is not None:
-            reveal_event["cancelled_for_reprice"] = True
+            reveal_event["cancelled_for_reprice"] = (
+                reprice_reason != StealthMutationKind.REHIDE.value
+            )
             reveal_event["reprice_reason"] = reprice_reason
         return reveal_event
 
@@ -1779,6 +1787,35 @@ class StealthOrderManager:
             )
         return outcome is not False
 
+    def rehide_revealed_order(self, stealth_order_id: str) -> bool:
+        """Request same-order rehide, not a replacement or terminal cancel.
+
+        The bridge owns the per-SID action lock and runtime admission. True
+        acknowledges a durable intent, not exchange cancellation completion.
+        """
+        if not self.try_claim_mutation(StealthMutationKind.REHIDE, stealth_order_id):
+            raise ValueError("Another move, reprice, or rehide is in progress")
+        try:
+            order = self._get_stealth_order(stealth_order_id)
+            if not order or order.get("status") != StealthOrderStatus.REVEALED.value:
+                raise ValueError("Only an existing REVEALED order can be rehidden")
+            state = self._normalize_anchor_repricing_state(
+                order.get("anchor_repricing_state_json")
+            )
+            if isinstance(state.get("pending_rearm"), Mapping):
+                raise ValueError("A cancellation is already pending; await confirmation")
+            requested = self._request_revealed_rearm(
+                order,
+                state,
+                safe_float(order.get("limit_price"), default=0.0),
+                StealthMutationKind.REHIDE.value,
+            )
+            # Even an explicit REST rejection keeps the committed intent for
+            # exact status recovery. Do not invite a second independent request.
+            return requested or isinstance(state.get("pending_rearm"), Mapping)
+        finally:
+            self.release_mutation(StealthMutationKind.REHIDE, stealth_order_id)
+
     def _apply_revealed_anchor_reprice(
         self,
         order: Dict[str, Any],
@@ -1790,9 +1827,57 @@ class StealthOrderManager:
         max_boundary_price: float,
         reprice_reason: str,
     ) -> bool:
-        """Persist and request a revealed-placement rearm.
+        """Apply pricing guards, then use the shared revealed-to-hidden path."""
+        if isinstance(state.get("pending_rearm"), Mapping):
+            return False
+        current_price = safe_float(
+            state.get("active_exchange_price"), default=order.get("limit_price")
+        )
+        if current_price is None:
+            return False
+        force_due = reprice_reason == "outside_max_boundary"
+        if self._should_skip_anchor_reprice(
+            state, policy, desired_price, current_price, force_due, market_data
+        ):
+            return False
+        policy = RepricingPolicy.coerce(policy)
+        try:
+            desired_price = self._quantize_reprice_price(
+                order["product_id"], order["side"], desired_price,
+                boundary_enforced=force_due,
+            )
+        except ValueError as normalization_error:
+            self.log_callback("error", {
+                "event": "stealth_anchor_reprice_price_invalid",
+                "stealth_order_id": order["stealth_order_id"],
+                "product_id": order["product_id"],
+                "requested_price": desired_price,
+                "error": str(normalization_error),
+                "note": "Existing exchange order was left unchanged.",
+            })
+            return False
+        next_reprice_at = (
+            datetime.utcnow() + timedelta(seconds=self._next_anchor_reprice_seconds(
+                policy, desired_price, target_price, max_boundary_price, market_data,
+            ))
+        ).isoformat()
+        return self._request_revealed_rearm(
+            order, state, desired_price, reprice_reason,
+            next_reprice_at=next_reprice_at,
+        )
 
-        Repricing a revealed order does not place a replacement here. The
+    def _request_revealed_rearm(
+        self,
+        order: Dict[str, Any],
+        state: Dict[str, Any],
+        desired_price: float,
+        reprice_reason: str,
+        *,
+        next_reprice_at: Optional[str] = None,
+    ) -> bool:
+        """Persist and request one revealed-placement rearm.
+
+        Repricing and manual rehide do not place a replacement here. The
         matching authenticated ``CANCELLED`` event completes the transition
         back to ``HIDDEN``; the existing reveal path then owns every future
         placement.
@@ -1800,7 +1885,16 @@ class StealthOrderManager:
 
         if isinstance(state.get("pending_rearm"), Mapping):
             return False
-        if safe_float(order.get("executed_size"), default=0.0) > 0:
+        if order.get("status") != StealthOrderStatus.REVEALED.value:
+            return False
+        executed_size = safe_float(order.get("executed_size"), default=None)
+        if (
+            executed_size is None
+            or not Decimal(str(executed_size)).is_finite()
+            or executed_size != 0
+        ):
+            return False
+        if not Decimal(str(desired_price)).is_finite() or desired_price <= 0:
             return False
 
         placement_client_order_id = state.get(
@@ -1836,6 +1930,8 @@ class StealthOrderManager:
                 and str(reveal_exchange_order_id) != str(exchange_order_id)
             )
             or current_price is None
+            or not Decimal(str(placement_size)).is_finite()
+            or not Decimal(str(current_revealed_size)).is_finite()
             or placement_size <= 0
             or Decimal(str(current_revealed_size))
             != Decimal(str(placement_size))
@@ -1855,41 +1951,14 @@ class StealthOrderManager:
             )
             return False
 
-        force_due = reprice_reason == "outside_max_boundary"
-        if self._should_skip_anchor_reprice(state, policy, desired_price, current_price, force_due, market_data):
-            return False
-
-        policy = RepricingPolicy.coerce(policy)
-        try:
-            desired_price = self._quantize_reprice_price(
-                order["product_id"],
-                order["side"],
-                desired_price,
-                boundary_enforced=(reprice_reason == "outside_max_boundary"),
-            )
-        except ValueError as normalization_error:
-            self.log_callback(
-                "error",
-                {
-                    "event": "stealth_anchor_reprice_price_invalid",
-                    "stealth_order_id": order["stealth_order_id"],
-                    "product_id": order["product_id"],
-                    "requested_price": desired_price,
-                    "error": str(normalization_error),
-                    "note": "Existing exchange order was left unchanged.",
-                },
-            )
-            return False
-
         # Do not cancel a live placement if persisted condition-offset state
         # cannot be applied after the acknowledgement. Validate the exact
         # mutation on copies while the order is still safely REVEALED.
         try:
-            self._apply_reveal_condition_price_tracking(
-                deepcopy(order),
-                deepcopy(state),
-                desired_price,
-            )
+            if reprice_reason != StealthMutationKind.REHIDE.value:
+                self._apply_reveal_condition_price_tracking(
+                    deepcopy(order), deepcopy(state), desired_price,
+                )
         except (TypeError, ValueError, OverflowError) as condition_error:
             self.log_callback(
                 "error",
@@ -1905,18 +1974,8 @@ class StealthOrderManager:
         now = datetime.utcnow()
         had_next_reprice_at = "next_reprice_at" in state
         previous_next_reprice_at = state.get("next_reprice_at")
-        state["next_reprice_at"] = (
-            now
-            + timedelta(
-                seconds=self._next_anchor_reprice_seconds(
-                    policy,
-                    desired_price,
-                    target_price,
-                    max_boundary_price,
-                    market_data,
-                )
-            )
-        ).isoformat()
+        if next_reprice_at is not None:
+            state["next_reprice_at"] = next_reprice_at
         pending_rearm: PendingRearmState = {
             "placement_client_order_id": str(placement_client_order_id),
             "exchange_order_id": str(exchange_order_id),
@@ -1970,13 +2029,9 @@ class StealthOrderManager:
                 "exchange_order_id": exchange_order_id,
                 "previous_price": current_price,
                 "desired_price": desired_price,
-                "anchor_target_price": target_price,
-                "anchor_max_price": max_boundary_price,
                 "reprice_reason": reprice_reason,
                 "reference_price_source": state.get("last_reference_source"),
                 "reference_price": state.get("last_reference_price"),
-                "market_bid": market_data.get("bid"),
-                "market_ask": market_data.get("ask"),
             },
         )
         return True
@@ -2395,7 +2450,9 @@ class StealthOrderManager:
             )
             order["updated_at"] = now
             if reveal_event is not None:
-                reveal_event["cancelled_for_reprice"] = True
+                reveal_event["cancelled_for_reprice"] = (
+                    pending.get("reprice_reason") != StealthMutationKind.REHIDE.value
+                )
                 reveal_event["rearm_cancel_consumed"] = True
                 reveal_event["rearm_aborted_for_fill"] = True
                 reveal_event["reprice_reason"] = pending.get("reprice_reason")
@@ -2591,12 +2648,12 @@ class StealthOrderManager:
 
         # Preserve the original condition/limit baseline until the authenticated
         # cancel makes the new hidden intent authoritative.
+        is_manual_rehide = pending.get("reprice_reason") == StealthMutationKind.REHIDE.value
         try:
-            self._apply_reveal_condition_price_tracking(
-                order,
-                state,
-                desired_price,
-            )
+            if not is_manual_rehide:
+                self._apply_reveal_condition_price_tracking(
+                    order, state, desired_price,
+                )
         except (TypeError, ValueError, OverflowError) as condition_error:
             order.clear()
             order.update(previous_order)
@@ -2648,15 +2705,16 @@ class StealthOrderManager:
         state["active_exchange_order_id"] = None
         state["active_exchange_price"] = None
         state["current_logical_limit_price"] = desired_price
-        state["last_reprice_at"] = now.isoformat()
-        state["reprice_reason"] = pending.get("reprice_reason")
         state["reveal_armed_at"] = now.isoformat()
-        state.pop("last_profitability_block_reason", None)
-        history = state.get("reprice_history")
-        if not isinstance(history, list):
-            history = []
-            state["reprice_history"] = history
-        history.append(now.isoformat())
+        if not is_manual_rehide:
+            state["last_reprice_at"] = now.isoformat()
+            state["reprice_reason"] = pending.get("reprice_reason")
+            state.pop("last_profitability_block_reason", None)
+            history = state.get("reprice_history")
+            if not isinstance(history, list):
+                history = []
+                state["reprice_history"] = history
+            history.append(now.isoformat())
         order["anchor_repricing_state_json"] = state
 
         parent_statuses_persisted = self._persist_anchor_rearm_parent_statuses(
@@ -2704,7 +2762,11 @@ class StealthOrderManager:
             event=StealthLifecycleEvent.CONDITION_RESET,
             order_data=order,
             extra={
-                "reason": "Anchor reprice returned revealed placement to hidden",
+                "reason": (
+                    "Manual rehide returned revealed placement to hidden"
+                    if is_manual_rehide
+                    else "Anchor reprice returned revealed placement to hidden"
+                ),
                 "placed_order_id": placement_client_order_id,
                 "new_limit_price": desired_price,
             },
@@ -7191,6 +7253,8 @@ class StealthOrderManager:
         explicit threshold.
         """
         reprice_reason = reveal_event.get('reprice_reason')
+        if reprice_reason == StealthMutationKind.REHIDE.value:
+            return "Manual rehide of revealed placement"
         if reveal_event.get('placement_status') == 'repriced' and reprice_reason:
             return f"Anchor reprice: {reprice_reason}"
         condition = order.get('reveal_condition_json') or {}
@@ -7256,7 +7320,9 @@ class StealthOrderManager:
             reference_ask = reveal_event.get('reference_ask')
             market_source = reveal_event.get('market_source')
             # Classify event for downstream filtering.
-            if placement_status == 'repriced' or reprice_reason:
+            if reprice_reason == StealthMutationKind.REHIDE.value:
+                reveal_event_type = StealthMutationKind.REHIDE.value
+            elif placement_status == 'repriced' or reprice_reason:
                 reveal_event_type = 'reprice'
             elif placement_success is False:
                 reveal_event_type = 'reveal_blocked'

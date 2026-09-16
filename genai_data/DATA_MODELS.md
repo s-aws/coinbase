@@ -166,6 +166,7 @@ Key columns:
 - `current_logical_limit_price`
 - `pending_rearm` (desired hidden price, source placement `client_order_id`, source exchange `order_id`, source placement size, reason, request timing, and `return_to_hidden`; written before REST cancel and retained until exact terminal truth; absent `return_to_hidden` defaults to rearm for backward compatibility)
 - `reveal_armed_at` (start of the current hidden time-delay cycle; reset only after authenticated cancellation returns a revealed placement to hidden)
+- A manual Rehide uses the same `pending_rearm` with `reprice_reason="rehide"`, unchanged desired configured price, and default `return_to_hidden=true`. It does not advance repricing metrics. The reveal-history audit classifies it as `reveal_event_type="rehide"`, not `reprice`. Existing `reveal_armed_at` also selects fresh placement IDs on later reveals when anchor repricing is disabled.
 - cancel/re-entry audit hints such as `cancel_reentry_last_reference_price` and `cancel_reentry_last_distance`
 - post-fill retreat state such as `post_fill_retreat_offset`, `post_fill_retreat_count`, `post_fill_retreat_source_order_ids`, and `last_post_fill_retreat_*`
 

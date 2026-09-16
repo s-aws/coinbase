@@ -1715,6 +1715,19 @@ class StealthOrderBridge:
             "source": "ticker",
         }
 
+    def rehide_stealth_order(self, stealth_order_id: str) -> bool:
+        """Serialize manual rehide with fills, reveal, and other mutations."""
+        if not self._decisions_ready.is_set():
+            raise RuntimeError("Stealth decisions are not active; await startup reconciliation")
+        with self._get_order_action_lock(stealth_order_id):
+            # Acquiring the order lock may wait behind a fill or shutdown.
+            if not self._decisions_ready.is_set():
+                raise RuntimeError("Stealth decisions are not active")
+            with get_runtime_controller().track_admitted_inflight(INFLIGHT_REST_PLACE):
+                if not self._decisions_ready.is_set():
+                    raise RuntimeError("Stealth decisions are not active")
+                return self.stealth_manager.rehide_revealed_order(stealth_order_id)
+
     def reprice_stealth_order_now(self, stealth_order_id: str) -> int:
         """Run one operator-requested anchor reprice and rebuild its deadline."""
 

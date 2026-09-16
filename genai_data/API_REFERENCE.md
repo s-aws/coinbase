@@ -1822,6 +1822,7 @@ Stealth views/actions:
 - `request_stealth_orders`
 - `create_stealth_order`
 - `cancel_stealth_order`
+- `rehide_stealth_order`
 - `update_stealth_target_movement`
 - `update_stealth_price_threshold`
 - `reprice_now_stealth_order`
@@ -1897,6 +1898,7 @@ Stealth responses:
 - `stealth_orders_snapshot`
 - `stealth_order_created`
 - `stealth_order_cancelled`
+- `stealth_order_rehide_result`
 - `stealth_order_updated`
 - `stealth_order_moved`
 - `stealth_threshold_updated`
@@ -1940,7 +1942,36 @@ Common/global:
 - Cancel/re-entry is active as a policy carried by `create_stealth_order` and import/export payloads, not as a separate WebSocket request type.
 - Cancel/re-entry is not general hide-again behavior. It cancels a live no-fill placement, marks the stealth order hidden with `cancelled_by_policy` state, then re-enters through the normal reveal path when thresholds allow.
 - Same-side post-fill retreat is active as a policy carried by `create_stealth_order` and import/export payloads, not as a separate WebSocket request type. It only mutates opted-in hidden orders with no live exchange placement.
-- The old UI "Hide" action must not be described as re-hide either.
+- The stealth-manager table displays a parent group when the parent or any child is `HIDDEN`, `PENDING`, `TRIGGERED`, or `REVEALED`, matching its active-order statistics. Terminal parents remain visible as containers for active children; all children in a displayed group remain available through the existing expansion control. A terminal-only group is omitted.
+- `request_stealth_orders` and `stealth_orders_snapshot` already include revealed orders; the visibility rule is browser-side and does not change the WebSocket payload or backend lifecycle.
+- The UI `Rehide` action sends `rehide_stealth_order` for the existing stealth identity; it never creates a duplicate. It disables conflicting row actions while exchange withdrawal is pending and disables Rehide for known executed quantity.
+
+### `rehide_stealth_order`
+
+Request: `{"type": "rehide_stealth_order", "stealth_order_id": "<existing stealth id>"}`.
+
+This is a manual `REVEALED` to `HIDDEN` operation on the same zero-fill stealth
+order, not restoration of an already-cancelled order. It preserves the configured
+price, reveal/sizing/repricing policies, and parent linkage. Repricing need not be
+enabled. The existing revealed-order rearm lifecycle durably records the intent,
+withdraws the live placement, and waits for authoritative zero-fill cancellation
+confirmation before resetting the hidden cycle. The existing reveal policy then
+resumes; a satisfied condition may reveal the order again immediately, subject to
+its configured hold/delay. A fill discovered during cancellation prevents rehide.
+
+Response: `stealth_order_rehide_result` with `stealth_order_id`, `accepted`, and
+`message`; failures also include `error`. `accepted: true` acknowledges durable
+intent, **not** confirmed withdrawal or a `HIDDEN` state. Initial exchange rejection
+or timeout can leave this request pending reconciliation. The browser refreshes
+`request_stealth_orders` and renders authoritative state without marking the order
+hidden itself. Repeat pending requests must not create another order or placement.
+
+The command originates a new reveal cycle, so it requires `RUNNING` admission and
+bridge readiness. The dashboard's initial admission gate returns
+`admission_rejected` during startup/pause/drain; validation, readiness, persistence,
+or a later admission-race rejection returns `stealth_order_rehide_result` with
+`accepted: false`. Ordinary cancellation remains independently available under
+its existing contract.
 
 ### `create_stealth_order` high-impact fields
 

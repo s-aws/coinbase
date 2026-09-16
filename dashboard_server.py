@@ -58,6 +58,7 @@ _ORIGINATING_MSG_TYPES = frozenset({
     "create_stealth_order",
     "create_parent_order",
     "reprice_now_stealth_order",
+    "rehide_stealth_order",
     "move_revealed_stealth_order",
     "move_order",
     "premark_move",
@@ -1321,6 +1322,36 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 }
                 await websocket.send(json.dumps(response))
         
+        elif msg_type == "rehide_stealth_order":
+            stealth_order_id = data.get("stealth_order_id")
+            response = {
+                "type": "stealth_order_rehide_result",
+                "stealth_order_id": stealth_order_id,
+                "accepted": False,
+            }
+            try:
+                if not isinstance(stealth_order_id, str) or not stealth_order_id.strip():
+                    raise ValueError("Missing or invalid stealth_order_id")
+                if not stealth_order_bridge:
+                    raise RuntimeError("Stealth order system is not initialized")
+                # The bridge owns readiness, atomic admission, and same-order
+                # serialization. Acceptance is not confirmation of cancellation.
+                if not stealth_order_bridge.rehide_stealth_order(stealth_order_id):
+                    raise ValueError("Rehide request was not accepted; refresh the order and retry")
+            except Exception as exc:
+                response["error"] = str(exc)
+                response["message"] = f"Rehide not accepted: {exc}"
+                logger.warning("Rehide not accepted for %s: %s", stealth_order_id, exc)
+            else:
+                response["accepted"] = True
+                response["message"] = (
+                    "Rehide requested; exchange withdrawal confirmation is pending. "
+                    "The same order may reveal again when its condition is satisfied."
+                )
+                add_log_entry("INFO", f"Stealth order rehide requested: {stealth_order_id}")
+            # Never infer HIDDEN from an accepted request or overwrite the cache.
+            await websocket.send(json.dumps(response))
+
         elif msg_type == "update_stealth_target_movement":
             # Update target movement for a stealth order
             stealth_order_id = data.get("stealth_order_id")

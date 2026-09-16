@@ -1842,6 +1842,7 @@
         const WS_URL = `ws://${window.location.hostname || 'localhost'}:8765`;
         let ws = null;
         let ordersData = {};
+        const pendingRehideRequests = new Map();  // Local request guards, not order state.
         let orderedProducts = [];
         let allProducts = [];  // All available products from JSON
         let productMetadata = {};  // Product metadata (base_increment, etc.)
@@ -1923,6 +1924,16 @@
                         }
                     } else if (data.type === "stealth_orders_snapshot") {
                         ordersData = data.orders || {};
+                        // The dashboard cache can lag acceptance. Wait for evidence that
+                        // this placement's rehide reached the published lifecycle state.
+                        pendingRehideRequests.forEach((request, sid) => {
+                            const order = ordersData[sid];
+                            const progressed = !order || order.status !== 'REVEALED'
+                                || Number(order.executed_size) > 0
+                                || (order.anchor_repricing_state_json || {}).active_placement_client_order_id !== request.placementClientOrderId
+                                || Boolean(order.anchor_repricing_state_json && order.anchor_repricing_state_json.pending_rearm);
+                            if (request.accepted && progressed) pendingRehideRequests.delete(sid);
+                        });
                         console.log("Received stealth orders snapshot:", ordersData);
                         console.log("Number of orders:", Object.keys(ordersData).length);
                         if (Object.keys(ordersData).length > 0) {
@@ -2004,6 +2015,28 @@
                             showMessage(`Threshold updated to ${threshold}${holdMsg}`, 'success');
                             updateOrdersTable();
                         }
+                    } else if (data.type === "stealth_order_rehide_result") {
+                        if (data.accepted) {
+                            const request = pendingRehideRequests.get(data.stealth_order_id);
+                            if (request) request.accepted = true;
+                        } else {
+                            pendingRehideRequests.delete(data.stealth_order_id);
+                        }
+                        showMessage(
+                            data.message || (data.accepted ? 'Rehide requested; confirmation pending.' : `Rehide not accepted: ${data.error}`),
+                            data.accepted ? 'info' : 'error'
+                        );
+                        // Acceptance never means HIDDEN. Render only server snapshots.
+                        if (ws && ws.readyState === WebSocket.OPEN) {
+                            ws.send(JSON.stringify({ type: 'request_stealth_orders' }));
+                        }
+                        updateOrdersTable();
+                    } else if (data.type === "admission_rejected") {
+                        if (data.rejected_type === 'rehide_stealth_order') {
+                            pendingRehideRequests.clear();
+                            updateOrdersTable();
+                        }
+                        showMessage(data.message || 'Engine is not accepting this action.', 'error');
                     } else if (data.type === "reprice_now_result") {
                         const sid = data.stealth_order_id;
                         if (data.error) {
@@ -2117,6 +2150,7 @@
 
                 ws.onclose = () => {
                     console.log("Disconnected from dashboard server");
+                    pendingRehideRequests.clear();
                     updateConnectionStatus(false);
                     resumeRequestPending = false;
                     updateEngineControls("DISCONNECTED");
@@ -2368,6 +2402,10 @@
             }
         }
 
+        function isActiveStealthOrder(order) {
+            return ['HIDDEN', 'PENDING', 'TRIGGERED', 'REVEALED'].includes(order.status);
+        }
+
         function updateOrdersTable() {
             const tbody = document.getElementById('orders-tbody');
             let orders = Object.values(ordersData);
@@ -2428,17 +2466,6 @@
             // Update product dropdown with any new products
             updateProductDropdown();
 
-            if (orders.length === 0) {
-                tbody.innerHTML = `
-                    <tr>
-                        <td colspan="11" style="text-align: center; padding: 30px; color: #666;">
-                            No active stealth orders
-                        </td>
-                    </tr>
-                `;
-                return;
-            }
-
             // Group orders: parents with their children
             const parentOrders = orders.filter(o => !o.parent_order_id);
             const childOrdersByParent = {};
@@ -2451,19 +2478,31 @@
             });
 
             // Filter out parent orders that don't meet display criteria:
-            // Show a parent if: (parent is active: PENDING or HIDDEN) OR (parent has at least one active child)
+            // Show a parent if it or any child is active, including REVEALED placements.
             // When showing a parent, display all of its children regardless of their status
             const filteredParentOrders = parentOrders.filter(parentOrder => {
-                const isParentActive = parentOrder.status === 'PENDING' || parentOrder.status === 'HIDDEN';
+                const isParentActive = isActiveStealthOrder(parentOrder);
                 const children = childOrdersByParent[parentOrder.stealth_order_id] || [];
-                const hasActiveChild = children.some(child => child.status === 'PENDING' || child.status === 'HIDDEN');
+                const hasActiveChild = children.some(isActiveStealthOrder);
                 
                 // Show parent if parent is active OR if parent has at least one active child
                 return isParentActive || hasActiveChild;
             });
 
+            if (filteredParentOrders.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="12" style="text-align: center; padding: 30px; color: #666;">
+                            No active stealth orders
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
             // Render function for order row
             const renderOrderRow = (order, isChild = false, parentId = null) => {
+                const rearmPending = isStealthRearmPending(order);
                 const revealedPct = order.total_size > 0 
                     ? Math.round((order.revealed_size / order.total_size) * 100)
                     : 0;
@@ -2544,20 +2583,20 @@
                         <td>
                             <div class="action-buttons">
                                 ${isParent
-                                    ? `<button onclick="openEditParentTargetMovementModal('${order.stealth_order_id}', ${order.target_movement || 'null'}, '${order.target_movement_type || 'P'}', ${order.max_order_replacements || 0}, ${order.reveal_condition_json && order.reveal_condition_json.price_threshold !== undefined ? order.reveal_condition_json.price_threshold : 'null'}, '${order.reveal_condition_type || ''}', ${order.reveal_condition_json && order.reveal_condition_json.hold_duration_seconds !== undefined ? order.reveal_condition_json.hold_duration_seconds : 'null'})" class="edit-btn" title="Edit parent values">⚙️</button>`
+                                    ? `<button onclick="openEditParentTargetMovementModal('${order.stealth_order_id}', ${order.target_movement || 'null'}, '${order.target_movement_type || 'P'}', ${order.max_order_replacements || 0}, ${order.reveal_condition_json && order.reveal_condition_json.price_threshold !== undefined ? order.reveal_condition_json.price_threshold : 'null'}, '${order.reveal_condition_type || ''}', ${order.reveal_condition_json && order.reveal_condition_json.hold_duration_seconds !== undefined ? order.reveal_condition_json.hold_duration_seconds : 'null'})" class="edit-btn" title="Edit parent values" ${rearmPending ? 'disabled' : ''}>⚙️</button>`
                                     : ''}
                                 ${['HIDDEN', 'PENDING', 'TRIGGERED'].includes(order.status) 
-                                    ? `<button onclick="cancelOrder('${order.stealth_order_id}')" class="cancel-btn">Cancel</button>`
+                                    ? `<button onclick="cancelOrder('${order.stealth_order_id}')" class="cancel-btn" ${rearmPending ? 'disabled' : ''}>Cancel</button>`
                                     : order.status === 'REVEALED'
                                     ? `<div class="hover-action-wrapper">
-                                        <span class="action-text">Revealed</span>
-                                        <button onclick="openMoveRevealedModal('${order.stealth_order_id}', ${order.limit_price})" class="move-btn" title="Move to a new limit price (cancel + replace)">Move</button>
-                                        <button onclick="hideOrder('${order.stealth_order_id}')" class="hide-btn">Hide</button>
+                                        <span class="action-text">${rearmPending ? 'Withdrawal pending' : 'Revealed'}</span>
+                                        <button onclick="openMoveRevealedModal('${order.stealth_order_id}', ${order.limit_price})" class="move-btn" title="Move to a new limit price (cancel + replace)" ${rearmPending ? 'disabled' : ''}>Move</button>
+                                        <button onclick="rehideOrder('${order.stealth_order_id}')" class="hide-btn" title="Withdraw the live placement and restart this order's reveal condition; only zero-fill orders are eligible" ${rearmPending || Number(order.executed_size) > 0 ? 'disabled' : ''}>Rehide</button>
                                       </div>`
                                     : `<span style="color: #999; font-size: 12px;">${order.status === 'EXECUTED' ? 'Executed' : order.status}</span>`
                                 }
-                                ${(order.anchor_repricing_policy_json && order.anchor_repricing_policy_json.enabled && ['HIDDEN','PENDING','TRIGGERED','REVEALED'].includes(order.status))
-                                    ? `<button onclick="repriceNow('${order.stealth_order_id}')" class="reprice-btn" title="Force repricing now">⟳</button>`
+                                ${(order.anchor_repricing_policy_json && order.anchor_repricing_policy_json.enabled && isActiveStealthOrder(order))
+                                    ? `<button onclick="repriceNow('${order.stealth_order_id}')" class="reprice-btn" title="Force repricing now" ${rearmPending ? 'disabled' : ''}>⟳</button>`
                                     : ''}
                             </div>
                         </td>
@@ -2584,7 +2623,7 @@
 
         function updateStats() {
             const orders = Object.values(ordersData);
-            const active = orders.filter(o => ['HIDDEN', 'PENDING', 'TRIGGERED', 'REVEALED'].includes(o.status));
+            const active = orders.filter(isActiveStealthOrder);
             
             console.log("updateStats - Total orders:", orders.length, "Active orders:", active.length);
             
@@ -3537,41 +3576,41 @@
             }
         }
 
-        function hideOrder(orderID) {
+        function isStealthRearmPending(order) {
+            return pendingRehideRequests.has(order.stealth_order_id)
+                || Boolean(order.anchor_repricing_state_json && order.anchor_repricing_state_json.pending_rearm);
+        }
+
+        function rehideOrder(orderID) {
             const order = ordersData[orderID];
-            
-            if (!order) {
-                showMessage('Order not found', 'error');
+            if (!order || order.status !== 'REVEALED') {
+                showMessage('Only revealed orders can be rehidden', 'error');
                 return;
             }
-
-            console.log("Creating hidden duplicate of order:", orderID);
-            console.log("Order reveal condition type:", order.reveal_condition_type);
-            console.log("Order reveal condition JSON:", order.reveal_condition_json);
-
-            if (!confirm(`Create hidden duplicate of order ${orderID}?`)) {
+            if (isStealthRearmPending(order) || Number(order.executed_size) > 0) {
+                showMessage('Rehide is unavailable while withdrawal is pending or after a fill', 'error');
                 return;
             }
-
-            // Create a new stealth order with same parameters and reveal condition
-            const orderData = {
-                product_id: order.product_id,
-                side: order.side,
-                total_size: order.total_size,
-                limit_price: order.limit_price,
-                reveal_condition: order.reveal_condition_json,
-                follow_up_reveal_direction: order.follow_up_reveal_direction || 'opposite',
-                reveal_pricing_policy: order.reveal_pricing_policy || (order.reveal_condition_json && order.reveal_condition_json.reveal_pricing_policy) || 'top_of_book',
-                sizing_strategy: {strategy: "equal_slices"},
-                allow_partial_fills: order.allow_partial_fills !== undefined ? order.allow_partial_fills : true,
-                anchor_repricing_policy: order.anchor_repricing_policy_json || { enabled: false },
-                notes: `Follow-up hidden order from ${orderID}`
-            };
-            
-            console.log("Sending order data:", orderData);
-            
-            if (sendCreateStealthOrderMessage(orderData)) {
-                showMessage('Hidden duplicate order sent', 'info');
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                showMessage('Not connected to server', 'error');
+                return;
+            }
+            if (!confirm(`Rehide order ${orderID}? Its live exchange placement will be withdrawn. After confirmation, the same order restarts its existing reveal condition and may reveal again immediately if satisfied. No duplicate is created.`)) {
+                return;
+            }
+            try {
+                ws.send(JSON.stringify({
+                    type: "rehide_stealth_order",
+                    stealth_order_id: orderID
+                }));
+                pendingRehideRequests.set(orderID, {
+                    accepted: false,
+                    placementClientOrderId: (order.anchor_repricing_state_json || {}).active_placement_client_order_id
+                });
+                updateOrdersTable();
+                showMessage('Rehide request sent; awaiting acceptance and exchange confirmation.', 'info');
+            } catch (error) {
+                showMessage(`Rehide request failed: ${error.message}`, 'error');
             }
         }
 
