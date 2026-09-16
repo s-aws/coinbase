@@ -451,21 +451,15 @@ class StateManager:
             pass
 
     def _infer_product_type(self, product_id: str) -> str:
-        """Infer if product is SPOT or FUTURE from ID.
-        
-        Args:
-            product_id: The product ID
-        
-        Returns:
-            'SPOT' or 'FUTURE'
-        """
+        """Honor explicit lists, then resolve metadata and the shared ID fallback."""
+        from calculation.resolver import normalize_product_type
+        from core.enums import ProductType
+
         if product_id in SPOT_PRODUCT_IDS:
-            return 'SPOT'
+            return ProductType.SPOT.value
         if product_id in DERIVATIVES_PRODUCT_IDS:
-            return 'FUTURE'
-        
-        # Fallback: check for futures suffix patterns
-        if any(suffix in product_id for suffix in ['DEC', 'JAN', 'FEB', 'MAR', 'APR']):
-            return 'FUTURE'
-        
-        return 'SPOT'
+            return ProductType.FUTURE.value
+        with self._lock:
+            return normalize_product_type(
+                {"product_id": product_id}, products=self._product_config
+            )

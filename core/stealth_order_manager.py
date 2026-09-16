@@ -4339,7 +4339,7 @@ class StealthOrderManager:
         so that a misbehaving subscriber never disrupts the evaluation loop.
 
         Context keys populated:
-            product_id, side, product_type (inferred), size, total_size,
+            product_id, side, product_type (normalized), size, total_size,
             limit_price, reason, parent_order_id, timestamp, placed_order_id,
             failure_reason — all sourced from order_data or extra.
 
@@ -4352,6 +4352,7 @@ class StealthOrderManager:
             extra:            Optional overrides / additions (e.g. failure_reason, size).
         """
         try:
+            from calculation.resolver import normalize_product_type
             from integration.stealth_lifecycle_hooks import (
                 get_global_stealth_lifecycle_hook_registry,
             )
@@ -4368,10 +4369,7 @@ class StealthOrderManager:
             context: Dict[str, Any] = {
                 "product_id": order_data.get("product_id", ""),
                 "side": order_data.get("side", ""),
-                "product_type": "FUTURE" if any(
-                    s in order_data.get("product_id", "")
-                    for s in ("DEC", "JAN", "FEB", "MAR", "APR")
-                ) else "SPOT",
+                "product_type": normalize_product_type(order_data),
                 "size": float(order_data.get("revealed_size", 0.0)),
                 "total_size": float(order_data.get("total_size", 0.0)),
                 "limit_price": float(order_data.get("limit_price", 0.0)),

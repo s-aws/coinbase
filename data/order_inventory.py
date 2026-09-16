@@ -324,14 +324,14 @@ class StealthInventoryEntry:
 # ---------------------------------------------------------------------------
 
 def _infer_product_type(product_id: str) -> ProductType:
-    """Infer ProductType from product_id using the same logic as StateManager."""
+    """Honor explicit product lists, then use the shared product resolver."""
+    from calculation.resolver import normalize_product_type
+
     if product_id in SPOT_PRODUCT_IDS:
         return ProductType.SPOT
     if product_id in DERIVATIVES_PRODUCT_IDS:
         return ProductType.FUTURE
-    if any(s in product_id for s in ("DEC", "JAN", "FEB", "MAR", "APR")):
-        return ProductType.FUTURE
-    return ProductType.SPOT
+    return ProductType(normalize_product_type({"product_id": product_id}))
 
 
 def _parse_side(raw: Any) -> OrderSide:
