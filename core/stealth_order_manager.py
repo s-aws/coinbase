@@ -138,21 +138,25 @@ def _parse_json_container(value: Any, default: Any) -> Any:
 
 def _iter_reveal_condition_price_fields(
     condition: Any,
-) -> Iterator[Tuple[Dict[str, Any], str]]:
-    """Yield ``(parent_dict, key)`` for every absolute-price field in a condition tree.
+    path_prefix: str = "",
+) -> Iterator[Tuple[Dict[str, Any], str, str]]:
+    """Yield ``(parent_dict, key, path)`` for absolute prices in a condition tree.
 
     Recurses into ``COMPOSITE`` conditions via the ``conditions`` list. Order
     types with no absolute price field (TIME_DELAY, SPREAD, PRODUCT_RATIO)
-    yield nothing. Non-numeric values are skipped.
+    yield nothing. Non-numeric values are skipped. Paths distinguish fields
+    in composite children; root paths retain the legacy field-only keys.
     """
     if not isinstance(condition, dict):
         return
     cond_type = str(condition.get("type") or "").lower()
     for field in _REVEAL_CONDITION_PRICE_FIELDS_BY_TYPE.get(cond_type, ()):
         if isinstance(condition.get(field), (int, float)):
-            yield condition, field
-    for sub in condition.get("conditions") or ():
-        yield from _iter_reveal_condition_price_fields(sub)
+            yield condition, field, f"{path_prefix}{field}"
+    for index, sub in enumerate(condition.get("conditions") or ()):
+        yield from _iter_reveal_condition_price_fields(
+            sub, f"{path_prefix}conditions.{index}."
+        )
 
 
 def resolve_stealth_chain_root(stealth_order: Dict[str, Any]) -> str:
@@ -644,15 +648,12 @@ class StealthOrderManager:
     ) -> bool:
         """Update reveal_condition price thresholds in lock-step with a reprice.
 
-        Preserves the original offset between every absolute-price field in
-        ``reveal_condition_json`` and ``order["limit_price"]``. The offsets are
-        captured lazily on first invocation (using the order's pre-reprice
-        limit_price as baseline) and persisted in
-        ``state["reveal_condition_price_offsets"]`` for subsequent reprices.
-
-        Designed to be extensible: future "do-not-cross" / minimum guards can
-        clamp the resulting threshold against a profit floor without changing
-        callers (see ``agent.md`` integrated-by-design pattern).
+        Preserves each absolute-price field's offset from ``order["limit_price"]``.
+        Offsets are captured lazily using the pre-reprice limit and persisted
+        by condition path in ``state["reveal_condition_price_offsets"]``.
+        A manual threshold edit invalidates them so its new offset is captured
+        on the next reprice. Legacy composite field-only keys are ambiguous;
+        missing paths are initialized from the current configured thresholds.
 
         Args:
             order:           The stealth order dict (mutated in place).
@@ -673,20 +674,24 @@ class StealthOrderManager:
         if baseline_limit is None or new_limit is None:
             return False
 
-        # Lazy-init: snapshot offsets from baseline (pre-first-reprice values).
-        offsets = state.get("reveal_condition_price_offsets")
-        if not isinstance(offsets, dict):
-            offsets = {}
-            for parent, key in _iter_reveal_condition_price_fields(reveal_condition):
-                offsets[key] = float(parent[key]) - baseline_limit
-            state["reveal_condition_price_offsets"] = offsets
+        fields = list(_iter_reveal_condition_price_fields(reveal_condition))
+        previous_offsets = state.get("reveal_condition_price_offsets")
+        if not isinstance(previous_offsets, dict):
+            previous_offsets = {}
+        # Retain known paths, initialize new ones, and drop obsolete/ambiguous
+        # legacy keys. Root fields keep their existing field-only identity.
+        offsets = {
+            path: previous_offsets.get(path, float(parent[key]) - baseline_limit)
+            for parent, key, path in fields
+        }
+        state["reveal_condition_price_offsets"] = offsets
 
         if not offsets:
             return False
 
         updated = False
-        for parent, key in _iter_reveal_condition_price_fields(reveal_condition):
-            offset = offsets.get(key)
+        for parent, key, path in fields:
+            offset = offsets.get(path)
             if offset is None:
                 continue
             new_value = new_limit + float(offset)
@@ -6536,6 +6541,8 @@ class StealthOrderManager:
 
         previous_condition = dict(order.get("reveal_condition_json") or {})
         previous_updated_at = order.get("updated_at")
+        had_anchor_state = "anchor_repricing_state_json" in order
+        previous_anchor_state = order.get("anchor_repricing_state_json")
         reveal_condition = dict(previous_condition)
         reveal_condition["price_threshold"] = float(price_threshold)
         if hold_duration_seconds is not None:
@@ -6544,6 +6551,11 @@ class StealthOrderManager:
             )
         order["reveal_condition_json"] = reveal_condition
         order["updated_at"] = datetime.utcnow()
+        if reveal_condition["price_threshold"] != previous_condition.get("price_threshold"):
+            # Persist the edited threshold and cache invalidation together.
+            # A hold-duration-only edit must not change the saved price offset.
+            anchor_state.pop("reveal_condition_price_offsets", None)
+            order["anchor_repricing_state_json"] = anchor_state
 
         try:
             if self.reset_continuous_condition(
@@ -6561,6 +6573,10 @@ class StealthOrderManager:
         except Exception:
             order["reveal_condition_json"] = previous_condition
             order["updated_at"] = previous_updated_at
+            if had_anchor_state:
+                order["anchor_repricing_state_json"] = previous_anchor_state
+            else:
+                order.pop("anchor_repricing_state_json", None)
             get_runtime_controller().request_pause()
             raise
 

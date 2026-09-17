@@ -105,9 +105,10 @@ class RepricingState(TypedDict, total=False):
             Set when the reveal-time profitability gate blocks a reprice.
             Cleared on the next successful reprice.
         reveal_condition_price_offsets:
-            Offsets captured the first time we reprice an order, so the
-            reveal-condition price thresholds can be moved in lock-step
-            with the limit price. See
+            Absolute offsets keyed by condition field path (root
+            ``price_threshold`` or nested ``conditions.0.price_threshold``).
+            Captured lazily and invalidated on manual threshold edits so
+            each reveal threshold tracks the limit independently. See
             ``_apply_reveal_condition_price_tracking``.
         pending_rearm:
             Durable intent written before cancelling a revealed placement.
