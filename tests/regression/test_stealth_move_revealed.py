@@ -591,11 +591,6 @@ _SANCTIONED_CANCEL_CALLERS = (
     # recovery retries through this single exchange-cancel boundary.
     "_request_pending_anchor_rearm_cancel",
     "execute_stealth_move",
-    # User-/dashboard-initiated cancel of a stealth order whose live
-    # exchange placement must also be pulled. Best-effort, no
-    # cancel-and-replace, no claim ledger interaction. Single source for
-    # both single-order Cancel and bulk Clear All in dashboard_server.
-    "_best_effort_cancel_active_exchange_order",
 )
 
 

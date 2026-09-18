@@ -11,6 +11,8 @@ Usage:
 import asyncio
 import json
 import uuid
+from contextlib import nullcontext
+from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import Thread, Lock
@@ -516,6 +518,59 @@ def _build_investor_storyboard_snapshot(
                 pass
 
 
+def _stealth_exchange_cancel_pending(order: Dict[str, Any]) -> bool:
+    """Exposure remains unresolved even when local automation has stopped."""
+    state = order.get("anchor_repricing_state_json") or {}
+    return bool(
+        isinstance(state.get("pending_rearm"), dict)
+        or state.get("active_placement_client_order_id")
+        or state.get("active_exchange_order_id")
+        or safe_float(order.get("revealed_size"), default=0.0)
+        > safe_float(order.get("executed_size"), default=0.0)
+    )
+
+
+def _managed_stealth_id(client_order_id: str) -> Optional[str]:
+    if stealth_order_bridge is None:
+        return None
+    manager = stealth_order_bridge.stealth_manager
+    order = manager._get_stealth_order(client_order_id)
+    if order is None:
+        order = manager.find_stealth_order_by_placed_order_id(client_order_id)
+    return str(order["stealth_order_id"]) if order is not None else None
+
+
+def _cancel_managed_stealth_order(stealth_order_id: str, reason: str) -> Dict[str, Any]:
+    """Return committed local truth, never treating REST acceptance as final."""
+    if not isinstance(stealth_order_id, str) or not stealth_order_id.strip():
+        raise ValueError("A non-empty stealth_order_id is required")
+    if stealth_order_bridge is None:
+        raise RuntimeError("Stealth order system not initialized")
+    with stealth_order_bridge._get_order_action_lock(stealth_order_id):
+        accepted = stealth_order_bridge.cancel_stealth_order(stealth_order_id, reason)
+        current = stealth_order_bridge.stealth_manager._get_stealth_order(stealth_order_id)
+        order = deepcopy(current) if current is not None else None
+    pending = _stealth_exchange_cancel_pending(order) if order is not None else False
+    response = {
+        "stealth_order_id": stealth_order_id,
+        "accepted": bool(accepted),
+        "exchange_cancel_pending": pending,
+        "order": order,
+        "message": (
+            "Automation stopped; exchange cancellation pending confirmation."
+            if accepted and pending else
+            "Order cancelled; automation stopped." if accepted else
+            "Cancellation could not be completed; review the order's current state."
+        ),
+    }
+    if not accepted:
+        response["error"] = (order or {}).get("failure_reason") or response["message"]
+    if order is not None:
+        with state_lock:
+            engine_state["stealth_orders"][stealth_order_id] = deepcopy(order)
+    return response
+
+
 async def handle_client_message(websocket: WebSocketServerProtocol, message: str):
     """Handle incoming messages from client.
     
@@ -819,6 +874,25 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
             # This works for both revealed and unrevealed orders
             client_order_id = data.get("client_order_id")
             logger.info(f"Cancel requested for order: {client_order_id}")
+
+            try:
+                if not isinstance(client_order_id, str) or not client_order_id.strip():
+                    raise ValueError("A non-empty client_order_id is required")
+                managed_id = _managed_stealth_id(client_order_id)
+                if managed_id is not None:
+                    response = _cancel_managed_stealth_order(managed_id, "user_cancelled")
+                    response.update({
+                        "type": "cancel_response", "client_order_id": client_order_id,
+                        "status": "success" if response["accepted"] else "error",
+                    })
+                    await websocket.send(json.dumps(response, cls=CustomJSONEncoder))
+                    return
+            except Exception as exc:
+                await websocket.send(json.dumps({
+                    "type": "cancel_response", "status": "error",
+                    "accepted": False, "message": str(exc),
+                }))
+                return
             
             if not REST_CLIENT_AVAILABLE:
                 response = {
@@ -1285,42 +1359,16 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 await websocket.send(json.dumps(response))
         
         elif msg_type == "cancel_stealth_order":
-            # Cancel a stealth order
             stealth_order_id = data.get("stealth_order_id")
-            if not stealth_order_id or not stealth_order_bridge:
-                response = {
-                    "type": "error",
-                    "message": "Invalid order ID or system not initialized"
-                }
-                await websocket.send(json.dumps(response))
-                return
-            
             try:
-                stealth_order_bridge.cancel_stealth_order(stealth_order_id, "user_cancelled")
-                
-                # Update state
-                with state_lock:
-                    if stealth_order_id in engine_state["stealth_orders"]:
-                        engine_state["stealth_orders"][stealth_order_id]["status"] = "CANCELLED"
-                
+                response = _cancel_managed_stealth_order(stealth_order_id, "user_cancelled")
+            except Exception as exc:
                 response = {
-                    "type": "stealth_order_cancelled",
-                    "stealth_order_id": stealth_order_id
+                    "stealth_order_id": stealth_order_id, "accepted": False,
+                    "exchange_cancel_pending": False, "error": str(exc), "message": str(exc),
                 }
-                
-                add_log_entry("INFO", f"Stealth order cancelled: {stealth_order_id}")
-                logger.info(f"Stealth order cancelled: {stealth_order_id}")
-                
-                # Broadcast to all clients
-                await broadcast_stealth_order_update(response)
-                
-            except Exception as e:
-                logger.error(f"Failed to cancel stealth order: {e}")
-                response = {
-                    "type": "error",
-                    "message": f"Failed to cancel order: {str(e)}"
-                }
-                await websocket.send(json.dumps(response))
+            response["type"] = "stealth_order_cancel_result"
+            await websocket.send(json.dumps(response, cls=CustomJSONEncoder))
         
         elif msg_type == "rehide_stealth_order":
             stealth_order_id = data.get("stealth_order_id")
@@ -2079,40 +2127,58 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 }))
 
         elif msg_type == "clear_all_stealth_orders":
-            # Clear all stealth orders from BOTH the live engine (memory) and
-            # the database. Without the in-memory step the reveal evaluator
-            # in stealth_order_bridge keeps polling _get_active_stealth_orders()
-            # and continues firing reveals on the exchange even after the DB
-            # rows are gone. Route every order through the same cancel path
-            # used for single-order cancel so the lifecycle (status flip,
-            # DB sync, lifecycle event dispatch) stays single-sourced.
+            # Stop through the canonical path, but preserve recovery evidence
+            # until every cancellation is settled. The operator can retry Clear
+            # All afterwards; there is no deferred deletion job.
             try:
                 from database.order import clear_all_stealth_orders
 
                 cancelled_in_memory = 0
                 cancel_failures = 0
+                mgr = None
                 if stealth_order_bridge is not None:
                     mgr = stealth_order_bridge.stealth_manager
-                    # Snapshot ids first; cancel mutates in_memory_orders state.
-                    active_ids = list(mgr.in_memory_orders.keys())
-                    for sid in active_ids:
+                    orders = stealth_order_bridge.get_stealth_orders()
+                    for sid, order in orders.items():
+                        if (
+                            order.get("status") in _TERMINAL_STEALTH_STATUSES
+                            and not _stealth_exchange_cancel_pending(order)
+                        ):
+                            continue
                         try:
-                            if stealth_order_bridge.cancel_stealth_order(
-                                sid, reason="Clear All Orders (dashboard)"
-                            ):
+                            outcome = _cancel_managed_stealth_order(
+                                sid, "Clear All Orders (dashboard)"
+                            )
+                            if outcome["accepted"]:
                                 cancelled_in_memory += 1
+                            else:
+                                cancel_failures += 1
                         except Exception as cancel_exc:
                             cancel_failures += 1
                             logger.error(
                                 f"Clear All: failed to cancel stealth order {sid}: {cancel_exc}"
                             )
-                    # Defensive: drop any cached entries (including terminal-status
-                    # rows the cancel path skipped) so the engine can no longer
-                    # touch them after the DB wipe below.
-                    mgr.clear_in_memory_orders()
-                    mgr._placed_order_index.clear()
-
-                result = clear_all_stealth_orders()
+                # Do not acquire a SID action lock while holding the creation
+                # lock: creation takes them in the opposite order.
+                with mgr._creation_lock if mgr is not None else nullcontext():
+                    current = stealth_order_bridge.get_stealth_orders() if mgr is not None else {}
+                    pending = any(_stealth_exchange_cancel_pending(row) for row in current.values())
+                    active = any(row.get("status") not in _TERMINAL_STEALTH_STATUSES for row in current.values())
+                    blocked = bool(cancel_failures or pending or active)
+                    if not blocked:
+                        result = clear_all_stealth_orders()
+                        if result["success"] and mgr is not None:
+                            mgr.clear_in_memory_orders()
+                            mgr._placed_order_index.clear()
+                if blocked:
+                    await websocket.send(json.dumps({
+                        "type": "stealth_orders_clear_result", "cleared": False,
+                        "exchange_cancel_pending": pending,
+                        "in_memory_cancelled": cancelled_in_memory,
+                        "in_memory_cancel_failures": cancel_failures,
+                        "message": "No records deleted. Resolve outstanding cancellations, then retry Clear All.",
+                    }))
+                    return
 
                 if result["success"]:
                     # Clear dashboard's view-copy as well
@@ -2294,7 +2360,8 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 from database.order_dashboard_helpers import delete_parent_order
                 client_order_id = data.get('client_order_id')
                 
-                delete_parent_order(client_order_id)
+                if not delete_parent_order(client_order_id):
+                    raise ValueError("Order was not deleted: it is missing or required by unresolved stealth activity")
                 
                 response = {
                     "type": "parent_order_deleted",

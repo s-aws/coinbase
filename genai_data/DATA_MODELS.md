@@ -92,6 +92,7 @@ cooperative daemon work finishing afterward.
 - `ERROR`: an exchange placement was rejected or could not be proven accepted.
   It is terminal and is not automatically retried.
 - `EXECUTED` and `CANCELLED`: terminal local states, but reconciliation still matters if exchange evidence later contradicts local assumptions.
+- `OrderStatus.CANCELLED` describes an exchange placement, not a command to stop its logical stealth order. Confirmed zero-fill Rehide/reprice returns the same stealth order to `HIDDEN`; external cancellation retains the existing replacement policy. Intentional project cancellation stops triggers and new follow-ups immediately, with exchange withdrawal tracked separately until confirmed. A racing fill remains real execution and does not remove the intentional stop.
 
 Cancel/re-entry uses status plus runtime state:
 - `REVEALED` + policy enabled + no executed size: eligible for policy cancellation when the distance threshold is crossed.
@@ -166,6 +167,7 @@ Key columns:
 - `current_logical_limit_price`
 - `reveal_condition_price_offsets` maps each absolute reveal-price field path to its offset from the configured limit. Root keys retain their field names; composite keys include child indexes (for example, `conditions.0.price_threshold`). New paths, including legacy composites with ambiguous field-only keys, capture offsets from current stored thresholds before the next reprice. Manual threshold edits invalidate the map in the same persisted update; hold-duration-only edits preserve it.
 - `pending_rearm` (desired hidden price, source placement `client_order_id`, source exchange `order_id`, source placement size, reason, request timing, and `return_to_hidden`; written before REST cancel and retained until exact terminal truth; absent `return_to_hidden` defaults to rearm for backward compatibility)
+- `operator_cancel_requested_at` is the durable intentional-stop marker, persisted with local `CANCELLED` before REST. It survives acknowledgement/fills/restart, unlike `pending_rearm`, and suppresses new follow-ups/replication from that logical order without cancelling already-created children. Ordinary project withdrawal reuses `pending_rearm.return_to_hidden=false`; timeouts/rejections retain identifiers for exact reconciliation. Never infer stop intent solely from legacy `CANCELLED` status or notes.
 - `reveal_armed_at` (start of the current hidden time-delay cycle; reset only after authenticated cancellation returns a revealed placement to hidden)
 - A manual Rehide uses the same `pending_rearm` with `reprice_reason="rehide"`, unchanged desired configured price, and default `return_to_hidden=true`. It does not advance repricing metrics. The reveal-history audit classifies it as `reveal_event_type="rehide"`, not `reprice`. Existing `reveal_armed_at` also selects fresh placement IDs on later reveals when anchor repricing is disabled.
 - cancel/re-entry audit hints such as `cancel_reentry_last_reference_price` and `cancel_reentry_last_distance`

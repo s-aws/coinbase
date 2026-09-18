@@ -11,6 +11,8 @@ from database.order import (
     get_parent_order,
     insert_order_parent,
     update_order_parent_status,
+    STEALTH_UNRESOLVED_SQL,
+    STEALTH_TERMINAL_STATUSES,
 )
 from calculation.price_validation import normalize_price_for_product
 from core.enums import PriceRoundingPolicy
@@ -199,7 +201,7 @@ def update_parent_order(
 
 
 def delete_parent_order(client_order_id: str) -> bool:
-    """Delete a parent order.
+    """Delete a parent only when no unresolved stealth state depends on it.
     
     Args:
         client_order_id: The order to delete.
@@ -211,8 +213,29 @@ def delete_parent_order(client_order_id: str) -> bool:
         from database.database import PostgresDB
         db_client = PostgresDB()
         
-        query = "DELETE FROM order_parent WHERE client_order_id = %s"
-        result = db_client.execute_update(query, (client_order_id,))
+        query = f"""
+            DELETE FROM order_parent p
+            WHERE p.client_order_id = %s
+              AND NOT EXISTS (
+                SELECT 1 FROM stealth_orders s
+                WHERE {STEALTH_UNRESOLVED_SQL}
+                  AND (
+                    s.stealth_order_id::text = p.client_order_id::text
+                    OR s.parent_order_id::text = p.client_order_id::text
+                    OR s.anchor_repricing_state_json->>'active_placement_client_order_id' = p.client_order_id::text
+                    OR s.anchor_repricing_state_json->'pending_rearm'->>'placement_client_order_id' = p.client_order_id::text
+                    OR EXISTS (
+                        SELECT 1 FROM jsonb_array_elements(COALESCE(s.revealed_orders, '[]'::jsonb)) AS r
+                        WHERE r->>'placement_client_order_id' = p.client_order_id::text
+                           OR r->>'placed_order_id' = p.client_order_id::text
+                    )
+                  )
+              )
+        """
+        with db_client.get_cursor() as cursor:
+            cursor.execute("LOCK TABLE stealth_orders IN SHARE MODE")
+            cursor.execute(query, (client_order_id, *STEALTH_TERMINAL_STATUSES))
+            result = cursor.rowcount
         return result > 0
         
     except Exception as e:

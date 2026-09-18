@@ -573,6 +573,9 @@ def test_root_creation_stays_serialized_through_created_publication() -> None:
 
 def test_follow_up_creation_lock_covers_post_create_fields() -> None:
     manager = FakeStealthManager()
+    source = _time_delay_order("original-sid", "CONTRACT-A")
+    source["status"] = StealthOrderStatus.EXECUTED.value
+    manager.in_memory_orders["original-sid"] = source
     bridge, scheduler = _new_bridge(manager)
     cache_published = threading.Event()
     release_post_create = threading.Event()
@@ -701,15 +704,21 @@ def test_explicit_creation_id_is_normalized_before_lock_ownership(
 
     setattr(manager, manager_method, create_with_schedule_callback)
 
+    creation_kwargs = {id_keyword: explicit_id}
+    expected_lock_ids = {str(explicit_id)}
+    if bridge_method == "create_follow_up_stealth_order":
+        source_id = str(uuid.uuid4())
+        manager.in_memory_orders[source_id] = _time_delay_order(source_id, "CONTRACT-A")
+        creation_kwargs["original_stealth_order_id"] = source_id
+        expected_lock_ids.add(source_id)
+
     try:
-        result = getattr(bridge, bridge_method)(
-            **{id_keyword: explicit_id}
-        )
+        result = getattr(bridge, bridge_method)(**creation_kwargs)
 
         normalized_id = str(explicit_id)
         assert result == normalized_id
         assert received_ids == [normalized_id]
-        assert set(bridge._order_action_locks) == {normalized_id}
+        assert set(bridge._order_action_locks) == expected_lock_ids
     finally:
         scheduler.stop()
 

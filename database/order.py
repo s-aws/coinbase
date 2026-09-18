@@ -1759,9 +1759,26 @@ def adopt_orphaned_stealth_orders(
             "error": str(e)
         }
 
+# Both destructive dashboard paths use this same durable eligibility boundary.
+# The caller's query must name stealth_orders as ``s`` and bind the terminal
+# status tuple below. A terminal local status alone is not exchange truth.
+STEALTH_UNRESOLVED_SQL = """(
+    s.status NOT IN (%s, %s, %s)
+    OR jsonb_typeof(s.anchor_repricing_state_json->'pending_rearm') = 'object'
+    OR NULLIF(s.anchor_repricing_state_json->>'active_placement_client_order_id', '') IS NOT NULL
+    OR NULLIF(s.anchor_repricing_state_json->>'active_exchange_order_id', '') IS NOT NULL
+    OR COALESCE(s.revealed_size, 0) > COALESCE(s.executed_size, 0)
+)"""
+STEALTH_TERMINAL_STATUSES = (
+    StealthOrderStatus.CANCELLED.value,
+    StealthOrderStatus.EXECUTED.value,
+    StealthOrderStatus.ERROR.value,
+)
+
+
 def clear_all_stealth_orders() -> Dict[str, Any]:
     """
-    Clears all stealth orders from the database.
+    Clear settled stealth orders only when no unresolved order remains.
     
     Deletes all records from the stealth_orders table. Due to cascading delete
     constraints, related records in stealth_order_snapshots and 
@@ -1785,14 +1802,21 @@ def clear_all_stealth_orders() -> Dict[str, Any]:
         ...     print(f"Error: {result['error']}")
     """
     try:
-        # Get count before deletion for reporting
-        count_query = "SELECT COUNT(*) as count FROM stealth_orders"
-        count_result = DB_CLIENT.execute_query(count_query)
-        count_before = count_result[0]["count"] if count_result else 0
-        
-        # Execute DELETE query for all stealth orders
-        delete_query = "DELETE FROM stealth_orders"
-        rows_deleted = DB_CLIENT.execute_update(delete_query)
+        with DB_CLIENT.get_cursor() as cursor:
+            # Hold the check and delete in one transaction; new/updated live
+            # intent cannot slip between the safety check and history deletion.
+            cursor.execute("LOCK TABLE stealth_orders IN SHARE ROW EXCLUSIVE MODE")
+            cursor.execute(
+                f"SELECT COUNT(*) FROM stealth_orders s WHERE {STEALTH_UNRESOLVED_SQL}",
+                STEALTH_TERMINAL_STATUSES,
+            )
+            if cursor.fetchone()[0]:
+                return {
+                    "success": False, "rows_deleted": 0,
+                    "error": "Active orders or exchange cancellations remain unresolved; no records deleted.",
+                }
+            cursor.execute("DELETE FROM stealth_orders")
+            rows_deleted = cursor.rowcount
         
         result = {
             "success": True,
@@ -1801,7 +1825,7 @@ def clear_all_stealth_orders() -> Dict[str, Any]:
         }
         
         print(f"? {result['message']}")
-        if count_before > 0:
+        if rows_deleted > 0:
             print(f"   (Cascaded: snapshots and reveal history also deleted)")
         
         return result

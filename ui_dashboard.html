@@ -533,8 +533,8 @@
             } else if (message.type === 'cancel_response') {
                 // Handle order cancellation response
                 if (message.status === 'success') {
-                    console.log('Order cancelled successfully:', message.data);
-                    alert('✅ Order cancelled');
+                    console.log('Cancellation response:', message);
+                    alert(message.message || 'Cancellation request accepted');
                 } else {
                     console.error('Order cancellation failed:', message.message);
                     alert(`❌ Cancellation failed: ${message.message}`);

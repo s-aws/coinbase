@@ -1843,6 +1843,7 @@
         let ws = null;
         let ordersData = {};
         const pendingRehideRequests = new Map();  // Local request guards, not order state.
+        const pendingCancelRequests = new Set();
         let orderedProducts = [];
         let allProducts = [];  // All available products from JSON
         let productMetadata = {};  // Product metadata (base_increment, etc.)
@@ -2096,14 +2097,24 @@
                                 'error'
                             );
                         }
+                    } else if (data.type === "stealth_order_cancel_result") {
+                        pendingCancelRequests.delete(data.stealth_order_id);
+                        if (data.order) ordersData[data.stealth_order_id] = data.order;
+                        updateOrdersTable();
+                        updateStats();
+                        showMessage(data.message || data.error || 'Cancellation response received', data.accepted ? 'info' : 'error');
+                        if (ws && ws.readyState === WebSocket.OPEN) {
+                            ws.send(JSON.stringify({type: 'request_stealth_orders'}));
+                        }
                     } else if (data.type === "stealth_order_cancelled") {
-                        // Handle stealth order cancellation
-                        const stealth_order_id = data.stealth_order_id;
-                        if (ordersData[stealth_order_id]) {
-                            ordersData[stealth_order_id].status = "CANCELLED";
-                            updateOrdersTable();
-                            updateStats();
-                            showMessage(`Order cancelled: ${stealth_order_id.substring(0, 8)}...`, 'info');
+                        // Legacy notification is not authoritative exchange truth.
+                        if (ws && ws.readyState === WebSocket.OPEN) {
+                            ws.send(JSON.stringify({type: 'request_stealth_orders'}));
+                        }
+                    } else if (data.type === "stealth_orders_clear_result") {
+                        showMessage(data.message, 'error');
+                        if (ws && ws.readyState === WebSocket.OPEN) {
+                            ws.send(JSON.stringify({type: 'request_stealth_orders'}));
                         }
                     } else if (data.type === "stealth_orders_cleared") {
                         ordersData = {};
@@ -2151,6 +2162,7 @@
                 ws.onclose = () => {
                     console.log("Disconnected from dashboard server");
                     pendingRehideRequests.clear();
+                    pendingCancelRequests.clear();
                     updateConnectionStatus(false);
                     resumeRequestPending = false;
                     updateEngineControls("DISCONNECTED");
@@ -2403,7 +2415,26 @@
         }
 
         function isActiveStealthOrder(order) {
-            return ['HIDDEN', 'PENDING', 'TRIGGERED', 'REVEALED'].includes(order.status);
+            return ['HIDDEN', 'PENDING', 'TRIGGERED', 'REVEALED'].includes(order.status)
+                || isExchangeCancellationPending(order);
+        }
+
+        function isOperatorCancellationRequested(order) {
+            const state = order.anchor_repricing_state_json || {};
+            return pendingCancelRequests.has(order.stealth_order_id)
+                || Boolean(state.operator_cancel_requested_at
+                    || (state.pending_rearm && state.pending_rearm.return_to_hidden === false));
+        }
+
+        function isExchangeCancellationPending(order) {
+            const state = order.anchor_repricing_state_json || {};
+            const stopped = state.operator_cancel_requested_at
+                || (state.pending_rearm && state.pending_rearm.return_to_hidden === false)
+                || ['CANCELLED', 'EXECUTED', 'ERROR'].includes(order.status);
+            return Boolean(stopped && (
+                state.pending_rearm || state.active_placement_client_order_id || state.active_exchange_order_id
+                || Number(order.revealed_size || 0) > Number(order.executed_size || 0)
+            ));
         }
 
         function updateOrdersTable() {
@@ -2503,6 +2534,8 @@
             // Render function for order row
             const renderOrderRow = (order, isChild = false, parentId = null) => {
                 const rearmPending = isStealthRearmPending(order);
+                const cancellationRequested = isOperatorCancellationRequested(order);
+                const cancellationPending = isExchangeCancellationPending(order);
                 const revealedPct = order.total_size > 0 
                     ? Math.round((order.revealed_size / order.total_size) * 100)
                     : 0;
@@ -2568,7 +2601,7 @@
                         <td class="side-${order.side.toLowerCase()}">${order.side}</td>
                         <td>${sizeStr}</td>
                         <td>${parseFloat(order.limit_price).toFixed(2)}</td>
-                        <td><span class="status-badge status-${order.status.toLowerCase()}">${order.status}</span></td>
+                        <td><span class="status-badge status-${order.status.toLowerCase()}">${cancellationPending ? 'CANCEL PENDING' : order.status}</span>${cancellationPending ? '<div style="font-size:11px">Automation stopped; exchange confirmation pending</div>' : ''}</td>
                         <td>${createConditionTooltipHTML(order)}</td>
                         <td style="font-size: 12px; color: #aaa;">${createdDateTime}</td>
                         <td>
@@ -2585,9 +2618,10 @@
                                 ${isParent
                                     ? `<button onclick="openEditParentTargetMovementModal('${order.stealth_order_id}', ${order.target_movement || 'null'}, '${order.target_movement_type || 'P'}', ${order.max_order_replacements || 0}, ${order.reveal_condition_json && order.reveal_condition_json.price_threshold !== undefined ? order.reveal_condition_json.price_threshold : 'null'}, '${order.reveal_condition_type || ''}', ${order.reveal_condition_json && order.reveal_condition_json.hold_duration_seconds !== undefined ? order.reveal_condition_json.hold_duration_seconds : 'null'})" class="edit-btn" title="Edit parent values" ${rearmPending ? 'disabled' : ''}>⚙️</button>`
                                     : ''}
-                                ${['HIDDEN', 'PENDING', 'TRIGGERED'].includes(order.status) 
-                                    ? `<button onclick="cancelOrder('${order.stealth_order_id}')" class="cancel-btn" ${rearmPending ? 'disabled' : ''}>Cancel</button>`
-                                    : order.status === 'REVEALED'
+                                ${isActiveStealthOrder(order)
+                                    ? `<button onclick="cancelOrder('${order.stealth_order_id}')" class="cancel-btn" ${cancellationRequested ? 'disabled' : ''}>Cancel</button>`
+                                    : ''}
+                                ${order.status === 'REVEALED'
                                     ? `<div class="hover-action-wrapper">
                                         <span class="action-text">${rearmPending ? 'Withdrawal pending' : 'Revealed'}</span>
                                         <button onclick="openMoveRevealedModal('${order.stealth_order_id}', ${order.limit_price})" class="move-btn" title="Move to a new limit price (cancel + replace)" ${rearmPending ? 'disabled' : ''}>Move</button>
@@ -3542,7 +3576,9 @@
         });
 
         function cancelOrder(orderID) {
-            if (!confirm(`Cancel order ${orderID}?`)) {
+            const order = ordersData[orderID];
+            if (!order || isOperatorCancellationRequested(order)) return;
+            if (!confirm(`Stop automation and cancel order ${orderID}? No cancellation follow-up will be created. A live exchange placement remains pending until cancellation is confirmed.`)) {
                 return;
             }
 
@@ -3551,10 +3587,15 @@
                 return;
             }
 
-            ws.send(JSON.stringify({
-                type: "cancel_stealth_order",
-                stealth_order_id: orderID
-            }));
+            pendingCancelRequests.add(orderID);
+            updateOrdersTable();
+            try {
+                ws.send(JSON.stringify({type: "cancel_stealth_order", stealth_order_id: orderID}));
+            } catch (error) {
+                pendingCancelRequests.delete(orderID);
+                updateOrdersTable();
+                showMessage(`Cancellation request failed: ${error.message}`, 'error');
+            }
         }
 
         function sendCreateStealthOrderMessage(orderData) {
@@ -3578,6 +3619,7 @@
 
         function isStealthRearmPending(order) {
             return pendingRehideRequests.has(order.stealth_order_id)
+                || isOperatorCancellationRequested(order)
                 || Boolean(order.anchor_repricing_state_json && order.anchor_repricing_state_json.pending_rearm);
         }
 
@@ -3903,7 +3945,7 @@
         document.getElementById('clear-all-btn').addEventListener('click', clearAllStealthOrders);
 
         function clearAllStealthOrders() {
-            const confirmed = confirm('⚠️ This will permanently delete ALL stealth orders from the database.\n\nAre you sure?');
+            const confirmed = confirm('Stop all stealth automation and clear settled orders?\n\nUnresolved exchange cancellations are retained. Retry Clear All after confirmation to delete their records.');
             if (!confirmed) {
                 return;
             }

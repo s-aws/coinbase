@@ -120,6 +120,10 @@ class RepricingState(TypedDict, total=False):
             ``reprice_reason=StealthMutationKind.REHIDE.value`` selects manual
             rehide: preserve configured price/conditions and repricing metrics.
             It uses the same cancellation/recovery/acknowledgement path.
+        operator_cancel_requested_at:
+            Durable project/operator stop time. Unlike exchange CANCELLED,
+            this forbids new follow-ups and survives cancellation completion
+            or a racing fill. Stored before REST alongside terminal intent.
         reveal_armed_at:
             Start of the current hidden time-delay cycle. Absent for legacy
             and never-rearmed orders, which continue to use ``created_at``.
@@ -137,6 +141,7 @@ class RepricingState(TypedDict, total=False):
     last_profitability_block_reason: str
     reveal_condition_price_offsets: Dict[str, float]
     pending_rearm: PendingRearmState
+    operator_cancel_requested_at: str
     reveal_armed_at: str
 
 

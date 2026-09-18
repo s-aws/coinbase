@@ -640,6 +640,38 @@ class StealthOrderManager:
         state.setdefault("reprice_history", [])
         return state
 
+    @staticmethod
+    def is_operator_cancel_requested(order: Mapping[str, Any]) -> bool:
+        """Whether this logical order was intentionally stopped by the project.
+
+        Exchange CANCELLED alone is not stop intent: an external cancellation
+        can still generate a replacement. Preserve this decision across fills,
+        cancellation acknowledgements, and restart, after pending work is gone.
+        Older explicit cancellations have positive evidence in the reveal ledger
+        or a terminal pending intent; never infer intent from free-text notes.
+        """
+        if not isinstance(order, Mapping):
+            return False
+        state = order.get("anchor_repricing_state_json") or {}
+        if isinstance(state, Mapping):
+            if state.get("operator_cancel_requested_at"):
+                return True
+            pending = state.get("pending_rearm")
+            if (
+                order.get("status") == StealthOrderStatus.CANCELLED.value
+                and isinstance(pending, Mapping)
+                and pending.get("return_to_hidden") is False
+            ):
+                return True
+        return any(
+            isinstance(event, Mapping)
+            and (
+                event.get("operator_cancel_supersession") is True
+                or event.get("operator_cancel_consumed") is True
+            )
+            for event in order.get("revealed_orders") or ()
+        )
+
     def _apply_reveal_condition_price_tracking(
         self,
         order: Dict[str, Any],
@@ -2051,10 +2083,10 @@ class StealthOrderManager:
     ) -> Optional[StealthOrderStatus]:
         """Consume one authenticated cancel for a pending revealed rearm.
 
-        ``None`` means the placement is unrelated to anchor rearming, or that
-        an operator-superseded cancellation should continue through ordinary
-        cancellation-follow-up handling. Any returned status means this path
-        fully consumed the cancellation and generic handling must stop.
+        ``None`` means the placement is unrelated to the persisted cancellation
+        protocol. Any returned status means this path fully consumed the event:
+        HIDDEN rearms the same order; a terminal result never creates a cancel
+        replacement. Only unrequested exchange cancellations use generic handling.
         """
 
         order = self.find_stealth_order_by_placed_order_id(
@@ -2275,11 +2307,6 @@ class StealthOrderManager:
 
             if has_late_fill_evidence:
                 return current_status
-            if reveal_event.get("operator_cancel_consumed") is True:
-                # The first operator cancellation intentionally re-enters the
-                # ordinary CANCELLED path. Let duplicate authenticated replays
-                # repair/idempotently complete that same projection too.
-                return None
             return current_status
 
         previous_order = deepcopy(order)
@@ -2596,10 +2623,9 @@ class StealthOrderManager:
                     },
                 )
             self._notify_schedule_invalidated(order["stealth_order_id"])
-            # Operator cancellation keeps the pre-existing generic CANCELLED
-            # follow-up policy. Safety cancellation is fully consumed here so
-            # it cannot create a second order beside the fill follow-up.
-            return None if is_operator_cancel else current_status
+            # Intentional and safety cancellations are fully consumed. Neither
+            # may fall through to the external-cancellation replacement policy.
+            return current_status
 
         placement_size = safe_float(
             pending.get("placement_size"),
@@ -5981,6 +6007,10 @@ class StealthOrderManager:
         )
         order["updated_at"] = datetime.utcnow()
         anchor_state = self._normalize_anchor_repricing_state(order.get("anchor_repricing_state_json"))
+        if self.is_operator_cancel_requested(order):
+            # Promote legacy stop evidence before a fill clears pending_rearm
+            # and changes the local outcome to EXECUTED.
+            anchor_state.setdefault("operator_cancel_requested_at", datetime.utcnow().isoformat())
         active_placement_id = anchor_state.get(
             "active_placement_client_order_id"
         )
@@ -6145,152 +6175,124 @@ class StealthOrderManager:
         reason: str = "User cancelled",
         cancel_exchange: bool = True,
     ) -> bool:
-        """
-        Cancel a stealth order.
+        """Durably stop this logical order, then withdraw its live placement.
 
-        When ``cancel_exchange`` is True (default) and the order has a live
-        exchange placement tracked in ``anchor_repricing_state_json
-        .active_exchange_order_id``, that exchange order is best-effort
-        cancelled via REST before the stealth order is marked CANCELLED.
-        Failures to cancel on the exchange are logged but do not block the
-        local status flip — the local lifecycle must always reach a
-        terminal state so the reveal evaluator stops touching this order.
+        The bridge holds the SID action lock shared with follow-up admission.
+        Local CANCELLED disables triggers and new follow-ups; it is NOT proof
+        of exchange cancellation. The existing pending intent/reconciliation
+        path retains placement identity until authenticated terminal truth.
 
-        Args:
-            stealth_order_id: Internal stealth order id (client_order_id).
-            reason: Free-text reason recorded in notes / lifecycle event.
-            cancel_exchange: Best-effort REST cancel of the active exchange
-                order before flipping local status. Set False only when the
-                caller has already cancelled (or never placed) the exchange
-                order.
-
-        Returns:
-            True if the local status flipped to CANCELLED. The exchange
-            cancel result does not affect the return value.
+        True acknowledges the persisted stop, including an already pending stop,
+        not exchange closure. Rejection/timeout retains the intent. False means
+        missing/finished order, persistence failure, or unsafe placement identity
+        (the latter still persists the local stop and pauses for reconciliation).
+        ``cancel_exchange=False`` skips only the initial REST request, never
+        clears live evidence or bypasses terminal confirmation.
         """
         order = self._get_stealth_order(stealth_order_id)
-
         if not order:
             return False
-
-        if order["status"] == StealthOrderStatus.CANCELLED.value:
-            return False
-
-        # An explicit operator cancel supersedes an automatic rearm request.
-        # Persist that decision before the exchange side effect; otherwise a
-        # crash after REST cancel could reload the old intent and incorrectly
-        # return the operator-cancelled order to HIDDEN.
         anchor_state = self._normalize_anchor_repricing_state(
             order.get("anchor_repricing_state_json")
         )
         pending_rearm = anchor_state.get("pending_rearm")
-        if isinstance(pending_rearm, Mapping):
-            previous_order = deepcopy(order)
-            terminal_cancel_intent = dict(pending_rearm)
-            terminal_cancel_intent["return_to_hidden"] = False
-            anchor_state["pending_rearm"] = terminal_cancel_intent
-            order["anchor_repricing_state_json"] = anchor_state
-            order["status"] = StealthOrderStatus.CANCELLED.value
-            order["updated_at"] = datetime.utcnow()
-            order["notes"] = f"{order['notes']}\nCancelled: {reason}"
-            try:
-                supersession_persisted = self._update_stealth_order(order)
-            except Exception:
-                supersession_persisted = False
-            if not supersession_persisted:
-                order.clear()
-                order.update(previous_order)
-                get_runtime_controller().request_pause()
-                self.log_callback(
-                    "error",
-                    {
-                        "event": "stealth_cancel_rearm_supersession_failed",
-                        "stealth_order_id": stealth_order_id,
-                        "note": "Exchange cancel was not requested; runtime paused.",
-                    },
-                )
-                return False
-
-            self._notify_schedule_invalidated(stealth_order_id)
-            if cancel_exchange:
-                self._request_pending_anchor_rearm_cancel(
-                    order,
-                    anchor_state,
-                )
+        has_live_exposure = bool(
+            isinstance(pending_rearm, Mapping)
+            or anchor_state.get("active_placement_client_order_id")
+            or anchor_state.get("active_exchange_order_id")
+            or order.get("status") == StealthOrderStatus.REVEALED.value
+            or safe_float(order.get("revealed_size"), default=0.0)
+            > safe_float(order.get("executed_size"), default=0.0)
+        )
+        if order.get("status") == StealthOrderStatus.EXECUTED.value and not has_live_exposure:
+            return False
+        if (
+            anchor_state.get("operator_cancel_requested_at")
+            and order.get("status") == StealthOrderStatus.CANCELLED.value
+            and not has_live_exposure
+        ):
             return True
 
-        if cancel_exchange:
-            self._best_effort_cancel_active_exchange_order(order, reason)
-
-        order["status"] = StealthOrderStatus.CANCELLED.value
-        order["updated_at"] = datetime.utcnow()
-        order["notes"] = f"{order['notes']}\nCancelled: {reason}"
-
+        previous_order = deepcopy(order)
+        now = datetime.utcnow()
+        identity_is_safe = True
+        if has_live_exposure:
+            if not isinstance(pending_rearm, Mapping):
+                active_event = self._find_reveal_event_for_placement(
+                    order, anchor_state.get("active_placement_client_order_id")
+                ) or {}
+                revealed, executed, placement_size = (
+                    Decimal(str(safe_float(value, default=float("nan"))))
+                    for value in (
+                        order.get("revealed_size"), order.get("executed_size"),
+                        active_event.get("revealed_size"),
+                    )
+                )
+                # The aggregate executed quantity is not placement-scoped, so
+                # subtracting it could conceal older live exposure. This minimal
+                # path requires all revealed inventory to fit the tracked slice;
+                # other layouts stop locally and require reconciliation.
+                identity_is_safe = (
+                    all(
+                        value.is_finite() and value >= 0
+                        for value in (revealed, executed, placement_size)
+                    )
+                    and placement_size > 0
+                    and revealed <= placement_size
+                )
+            if identity_is_safe:
+                identity_is_safe = self._prepare_active_terminal_cancel_intent(
+                    order, anchor_state,
+                    reprice_reason="operator_cancel",
+                    requested_at=now,
+                    identity_invalid_event="stealth_operator_cancel_identity_invalid",
+                    filled_placement_client_order_id=None,
+                )
+            if not identity_is_safe and isinstance(pending_rearm, Mapping):
+                # Even an identity conflict must not resurrect an old rehide intent.
+                anchor_state["pending_rearm"] = dict(pending_rearm, return_to_hidden=False)
+        if (
+            identity_is_safe
+            and anchor_state.get("operator_cancel_requested_at")
+            and order.get("status") == StealthOrderStatus.CANCELLED.value
+            and isinstance(pending_rearm, Mapping)
+            and pending_rearm.get("return_to_hidden") is False
+        ):
+            # Revalidate identity, but don't emit another mutation for repeat UI
+            # requests. Exact reconciliation owns retries of committed intents.
+            return True
+        anchor_state.setdefault("operator_cancel_requested_at", now.isoformat())
+        order["anchor_repricing_state_json"] = anchor_state
+        if order.get("status") != StealthOrderStatus.EXECUTED.value:
+            order["status"] = StealthOrderStatus.CANCELLED.value
+        order["updated_at"] = now
+        order["notes"] = f"{order.get('notes') or ''}\nCancelled: {reason}"
+        if not identity_is_safe:
+            order["failure_reason"] = "Automation stopped; live cancellation identity requires reconciliation"
         try:
             cancellation_persisted = self._update_stealth_order(order)
         except Exception:
             cancellation_persisted = False
-        self._notify_schedule_invalidated(stealth_order_id)
         if not cancellation_persisted:
+            order.clear()
+            order.update(previous_order)
             get_runtime_controller().request_pause()
             self.log_callback(
                 "error",
                 {
                     "event": "stealth_cancel_persistence_failed",
                     "stealth_order_id": stealth_order_id,
-                    "note": "Runtime paused after best-effort exchange cancel.",
+                    "note": "Exchange cancel was not requested; runtime paused.",
                 },
             )
             return False
+        self._notify_schedule_invalidated(stealth_order_id)
+        if not identity_is_safe:
+            get_runtime_controller().request_pause()
+            return False
+        if has_live_exposure and cancel_exchange:
+            self._request_pending_anchor_rearm_cancel(order, anchor_state)
         return True
-
-    def _best_effort_cancel_active_exchange_order(
-        self, order: Dict[str, Any], reason: str
-    ) -> None:
-        """Cancel the live exchange order tracked by anchor repricing state.
-
-        Best-effort: any exception (REST failure, order already gone, etc.)
-        is logged and swallowed so the local CANCELLED transition is never
-        blocked. Also clears the in-memory ``active_exchange_order_id`` so
-        subsequent reprice checks do not retry the stale id.
-        """
-        state = order.get("anchor_repricing_state_json") or {}
-        exchange_order_id = state.get("active_exchange_order_id")
-        if not exchange_order_id:
-            return
-
-        from configuration import REST_CLIENT
-
-        try:
-            with get_runtime_controller().track_inflight(INFLIGHT_REST_PLACE):
-                REST_CLIENT.cancel_orders(order_ids=[exchange_order_id])
-            self.log_callback(
-                "info",
-                {
-                    "event": "stealth_cancel_exchange_ok",
-                    "stealth_order_id": order.get("stealth_order_id"),
-                    "exchange_order_id": exchange_order_id,
-                    "reason": reason,
-                },
-            )
-        except Exception as cancel_exc:
-            self.log_callback(
-                "warning",
-                {
-                    "event": "stealth_cancel_exchange_failed",
-                    "stealth_order_id": order.get("stealth_order_id"),
-                    "exchange_order_id": exchange_order_id,
-                    "reason": reason,
-                    "error": str(cancel_exc),
-                },
-            )
-
-        # Clear the pointer either way: on success the order is gone; on
-        # failure we still don't want subsequent reprice loops to try to
-        # cancel/replace it again under a now-CANCELLED stealth order.
-        state["active_exchange_order_id"] = None
-        state["active_placement_client_order_id"] = None
-        order["anchor_repricing_state_json"] = state
     
     # ===================== PRIVATE METHODS =====================
     
@@ -6704,7 +6706,7 @@ class StealthOrderManager:
             New stealth_order_id if created, None if original not found
         """
         original_order = self._get_stealth_order(original_stealth_order_id)
-        if not original_order:
+        if not original_order or self.is_operator_cancel_requested(original_order):
             return None
         
         # Use provided reveal condition or inherit from original

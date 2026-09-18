@@ -1813,10 +1813,13 @@ the generated `client_order_id` when available. Market and quote-sized shapes
 are not categorically rejected by this handler, although only supplied base
 size and limit-price fields pass through those two validators.
 
-`cancel_order` currently reads a top-level `client_order_id` and passes that
-value in `order_ids=[...]` to `REST_CLIENT.cancel_orders`. This documents the
-current compatibility handler; it is not evidence that an exchange-id API
-accepts every internal identifier.
+`cancel_order` resolves a managed logical or placement `client_order_id` to its
+stealth identity and uses the same bridge cancellation path as
+`cancel_stealth_order`. Its `cancel_response` includes `accepted`,
+`exchange_cancel_pending`, and the authoritative `order` for managed requests;
+success acknowledges a persisted automation stop, not exchange confirmation.
+Unmapped orders retain the legacy direct REST compatibility path, which passes
+the supplied client ID in `order_ids=[...]` to `REST_CLIENT.cancel_orders`.
 
 Stealth views/actions:
 - `request_stealth_orders`
@@ -1900,6 +1903,7 @@ Stealth responses:
 - `stealth_order_cancelled`
 - `stealth_order_rehide_result`
 - `stealth_order_updated`
+- `stealth_order_cancel_result`
 - `stealth_order_moved`
 - `stealth_threshold_updated`
 - `reprice_now_result`
@@ -1907,6 +1911,7 @@ Stealth responses:
 - `import_stealth_orders_response`
 - `stealth_orders_imported`
 - `stealth_orders_cleared`
+- `stealth_orders_clear_result`
 
 Move/product/analytics responses:
 - `move_history_list`
@@ -1942,9 +1947,29 @@ Common/global:
 - Cancel/re-entry is active as a policy carried by `create_stealth_order` and import/export payloads, not as a separate WebSocket request type.
 - Cancel/re-entry is not general hide-again behavior. It cancels a live no-fill placement, marks the stealth order hidden with `cancelled_by_policy` state, then re-enters through the normal reveal path when thresholds allow.
 - Same-side post-fill retreat is active as a policy carried by `create_stealth_order` and import/export payloads, not as a separate WebSocket request type. It only mutates opted-in hidden orders with no live exchange placement.
-- The stealth-manager table displays a parent group when the parent or any child is `HIDDEN`, `PENDING`, `TRIGGERED`, or `REVEALED`, matching its active-order statistics. Terminal parents remain visible as containers for active children; all children in a displayed group remain available through the existing expansion control. A terminal-only group is omitted.
+- The stealth-manager table displays a parent group when the parent or any child is `HIDDEN`, `PENDING`, `TRIGGERED`, `REVEALED`, or awaiting exchange confirmation of an operator cancellation. Terminal parents remain visible as containers for active children; all children in a displayed group remain available through the existing expansion control. A settled terminal-only group is omitted.
 - `request_stealth_orders` and `stealth_orders_snapshot` already include revealed orders; the visibility rule is browser-side and does not change the WebSocket payload or backend lifecycle.
-- The UI `Rehide` action sends `rehide_stealth_order` for the existing stealth identity; it never creates a duplicate. It disables conflicting row actions while exchange withdrawal is pending and disables Rehide for known executed quantity.
+- The UI `Rehide` action sends `rehide_stealth_order` for the existing stealth identity; it never creates a duplicate. It disables conflicting row actions while exchange withdrawal is pending and disables Rehide for known executed quantity. Terminal Cancel remains available to supersede a pending rehide.
+
+### Operator cancellation and guarded deletion
+
+`cancel_stealth_order` returns `stealth_order_cancel_result` with
+`stealth_order_id`, `accepted`, `exchange_cancel_pending`, authoritative `order`,
+and `message` (plus `error` on failure). Local automation stops durably before
+exchange cancellation is requested. An accepted request may still await exchange
+confirmation; even a failed request can expose a retained, stopped order needing
+reconciliation. The browser never infers exchange cancellation from acceptance.
+Cancellation is available while paused/draining and for REVEALED orders.
+
+Clear All first requests canonical cancellations. If any cancellation fails or
+remains unresolved, `stealth_orders_clear_result` reports `cleared=false` and
+retains all memory, database rows, and recovery history. The operator can retry
+after confirmation; there is no deferred-delete job. Database deletion is
+transactionally guarded against active status, pending intent, live placement
+identifiers, and unaccounted revealed exposure. Parent deletion similarly refuses
+to remove a logical root or placement row needed by unresolved stealth activity.
+Import remains creation-only and rejects an existing identity rather than
+overwriting pending cancellation evidence.
 
 ### `rehide_stealth_order`
 

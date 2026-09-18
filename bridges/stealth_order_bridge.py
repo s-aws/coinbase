@@ -13,9 +13,10 @@ import math
 import threading
 import time
 import uuid
+from contextlib import contextmanager
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
-from typing import Dict, Any, Mapping, Optional, Tuple
+from typing import Dict, Any, Iterator, Mapping, Optional, Tuple
 
 from bridges.stealth_event_deadline_scheduler import (
     DeadlineWake,
@@ -2340,23 +2341,42 @@ class StealthOrderBridge:
                 **kwargs,
             )
 
+    @contextmanager
+    def guard_follow_up_creation(self, original_stealth_order_id: str) -> Iterator[bool]:
+        """Linearize new automation against cancellation of its source SID.
+
+        A child already created when cancellation wins is not cancelled here.
+        The source lock remains held through the originating action, not just
+        a snapshot check; the existing new-SID lock still owns child creation.
+        """
+        with self._get_order_action_lock(original_stealth_order_id):
+            original_order = self.stealth_manager._get_stealth_order(
+                original_stealth_order_id
+            )
+            # A previously resolved managed source may have been cleared while
+            # this caller waited. Missing ownership is not admission to originate.
+            yield original_order is not None and not StealthOrderManager.is_operator_cancel_requested(original_order)
+
     def create_follow_up_stealth_order(
         self,
         follow_up_stealth_order_id: Optional[str] = None,
         **kwargs,
     ) -> Optional[str]:
-        """Serialize a complete follow-up factory transaction by its new SID."""
+        """Serialize follow-up creation with its source cancel and new SID."""
 
         order_id = (
             str(follow_up_stealth_order_id)
             if follow_up_stealth_order_id
             else str(uuid.uuid4())
         )
-        with self._get_order_action_lock(order_id):
-            return self.stealth_manager.create_follow_up_stealth_order(
-                follow_up_stealth_order_id=order_id,
-                **kwargs,
-            )
+        with self.guard_follow_up_creation(kwargs["original_stealth_order_id"]) as allowed:
+            if not allowed:
+                return None
+            with self._get_order_action_lock(order_id):
+                return self.stealth_manager.create_follow_up_stealth_order(
+                    follow_up_stealth_order_id=order_id,
+                    **kwargs,
+                )
 
     def sync_exchange_order_id_for_placed_order(
         self,

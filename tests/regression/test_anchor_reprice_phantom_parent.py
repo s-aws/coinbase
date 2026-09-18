@@ -724,7 +724,7 @@ def test_operator_cancel_persists_rearm_supersession_before_rest(monkeypatch):
     assert manager.consume_anchor_rearm_cancellation(
         "placement-1",
         exchange_order_id="exchange-1",
-    ) is None
+    ) is StealthOrderStatus.CANCELLED
     assert operations == [
         ("persist", StealthOrderStatus.CANCELLED.value, True),
         ("cancel",),
@@ -738,7 +738,7 @@ def test_operator_cancel_persists_rearm_supersession_before_rest(monkeypatch):
     assert manager.consume_anchor_rearm_cancellation(
         "placement-1",
         exchange_order_id="exchange-1",
-    ) is None
+    ) is StealthOrderStatus.CANCELLED
     assert manager._update_stealth_order.call_count == 2
 
 

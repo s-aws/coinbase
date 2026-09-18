@@ -57,6 +57,7 @@ import json
 import threading
 import uuid
 from collections import deque
+from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from math import isfinite
@@ -100,7 +101,7 @@ from core.enums import (
     UserFeedPhase,
     WebSocketEventType,
 )
-from core.stealth_order_manager import resolve_stealth_chain_root
+from core.stealth_order_manager import StealthOrderManager, resolve_stealth_chain_root
 from core.exceptions import (
     OrderProcessingError,
     OrderCalculationError,
@@ -987,37 +988,51 @@ class OrderEngine:
             if not self._get_parent_enable_hotpoint_replication(parent_root):
                 return
 
-            event = detector.record_fill(
-                product_id=delta.product_id,
-                side=delta.side,
-                fill_price=float(delta.derived_price),
+            # Fill accounting already ran. Only new automation is stopped;
+            # hold the source SID lock through placement so cancel cannot win
+            # between this check and the exchange side effect.
+            source_order = (
+                self.stealth_order_bridge.stealth_manager
+                .find_stealth_order_by_placed_order_id(delta.client_order_id)
+                if self.stealth_order_bridge else None
             )
-            if event is None:
-                return
-
-            from business.hotpoint_placer import place_hotpoint_order
-            from configuration import REST_CLIENT
-            from database.order import insert_order_parent
-
-            product_meta = self.orderbook.product.get(delta.product_id, {})
+            source_guard = (
+                self.stealth_order_bridge.guard_follow_up_creation(
+                    source_order["stealth_order_id"]
+                )
+                if source_order else nullcontext(True)
+            )
             try:
-                # Worker threads start while runtime state is STARTING.  The
-                # hotpoint placer is a true originating exchange action, so
-                # admission and in-flight registration must be atomic here.
-                # Detector history remains intact while placement is blocked.
-                with get_runtime_controller().track_admitted_inflight(
-                    INFLIGHT_REST_PLACE
-                ):
-                    place_hotpoint_order(
-                        event=event,
-                        rate_limiter=rate_limiter,
-                        product_meta=product_meta,
-                        policy=policy,
-                        rest_client=REST_CLIENT,
-                        insert_order_parent_fn=insert_order_parent,
-                        kill_switch_enabled=self.is_hotpoint_auto_place_enabled(),
-                        log_callback=self.log_message,
+                with source_guard as allowed:
+                    if not allowed:
+                        return
+                    event = detector.record_fill(
+                        product_id=delta.product_id,
+                        side=delta.side,
+                        fill_price=float(delta.derived_price),
                     )
+                    if event is None:
+                        return
+
+                    from business.hotpoint_placer import place_hotpoint_order
+                    from configuration import REST_CLIENT
+                    from database.order import insert_order_parent
+
+                    product_meta = self.orderbook.product.get(delta.product_id, {})
+                    # Runtime admission still atomically owns the REST action.
+                    with get_runtime_controller().track_admitted_inflight(
+                        INFLIGHT_REST_PLACE
+                    ):
+                        place_hotpoint_order(
+                            event=event,
+                            rate_limiter=rate_limiter,
+                            product_meta=product_meta,
+                            policy=policy,
+                            rest_client=REST_CLIENT,
+                            insert_order_parent_fn=insert_order_parent,
+                            kill_switch_enabled=self.is_hotpoint_auto_place_enabled(),
+                            log_callback=self.log_message,
+                        )
             except EngineNotAdmittingError as admission_error:
                 self.log_message(
                     "info",
@@ -1450,6 +1465,9 @@ class OrderEngine:
                 )
                 return 0
 
+            if StealthOrderManager.is_operator_cancel_requested(original_stealth_order):
+                return 0
+
             # NOTE: partial-fill follow-ups intentionally bypass
             # ``max_order_replacement``. The cap exists to limit how many
             # times the parent gets re-anchored when a placement
@@ -1546,6 +1564,14 @@ class OrderEngine:
                     target_movement=parent_target_movement,
                     target_movement_type=parent_target_movement_type,
                 )
+
+                if stealth_follow_up_id is None:
+                    # Cancellation may win at the source-SID factory guard
+                    # after carry was reserved. No child consumed those units.
+                    self.order_progress_tracker.release_follow_up_units(
+                        client_order_id, units_to_create
+                    )
+                    return 0
 
                 # Flat hierarchy: register the follow-up against the chain ROOT,
                 # never against the placement uuid that just settled (which is
@@ -4951,6 +4977,10 @@ class OrderEngine:
         if original_stealth_order:
             self._register_stealth_placement_under_root(client_order_id, original_stealth_order)
 
+        if StealthOrderManager.is_operator_cancel_requested(original_stealth_order):
+            self.complete_follow_up_processing(FollowUpKind.CANCELLED, client_order_id)
+            return
+
         # Check if this is an external order (not created by our engine)
         # External orders are ones we didn't place, so we shouldn't create follow-ups
         is_external_order = self._is_external_order(client_order_id)
@@ -5157,6 +5187,9 @@ class OrderEngine:
                 if stealth_follow_up_id is None:
                     self.release_replacement_slots(root_parent_client_order_id, 1)
                     replacement_slot_claimed = False
+                    if StealthOrderManager.is_operator_cancel_requested(original_stealth_order):
+                        self.complete_follow_up_processing(FollowUpKind.CANCELLED, client_order_id)
+                        return
                     self.log_message(
                         "error",
                         {
@@ -5396,6 +5429,12 @@ class OrderEngine:
                     client_order_id,
                 )
                 return
+
+        if StealthOrderManager.is_operator_cancel_requested(original_stealth_order):
+            # A fill remains exchange truth even if it raced with a local stop.
+            # update_execution above records it; only new origination is denied.
+            self.complete_follow_up_processing(FollowUpKind.FILLED, client_order_id)
+            return
 
         # Check if this is an external order (not created by our engine)
         # External orders are ones we didn't place, so we shouldn't create follow-ups
@@ -5712,6 +5751,13 @@ class OrderEngine:
                         target_movement=parent_target_movement,
                         target_movement_type=parent_target_movement_type
                     )
+
+                    if stealth_follow_up_id is None:
+                        if StealthOrderManager.is_operator_cancel_requested(original_stealth_order):
+                            self.complete_follow_up_processing(FollowUpKind.FILLED, client_order_id)
+                        else:
+                            self.release_follow_up_processing(FollowUpKind.FILLED, client_order_id)
+                        return
                     
                     # Register stealth follow-up as child of the chain ROOT.
                     # Single canonical resolver â€” see resolve_stealth_chain_root.

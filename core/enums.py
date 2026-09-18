@@ -21,10 +21,14 @@ class OrderSide(str, Enum):
 
 
 class OrderStatus(str, Enum):
-    """Status of an order throughout its lifecycle.
+    """Exchange-placement lifecycle status, not logical stealth intent.
     
     From Coinbase API: PENDING/QUEUED, OPEN, FILLED, CANCELLED, EXPIRED,
     FAILED, and queued cancel/edit transitions.
+
+    CANCELLED says a placement ended at the exchange. Rehide/reprice may
+    consume it and return the owning stealth order to HIDDEN; it must not
+    blindly overwrite that logical state. External cancellations may replace.
 
     ``UPDATE`` and ``SNAPSHOT`` are legacy synthetic compatibility statuses.
     Current authenticated WebSocket envelope kinds live in
@@ -70,14 +74,16 @@ class StealthOrderStatus(str, Enum):
     Distinct from OrderStatus (which tracks API-visible states like OPEN, FILLED).
     StealthOrderStatus tracks the internal reveal and execution lifecycle of stealth orders.
     
-    - HIDDEN: Order created, not yet revealed to exchange
+    - HIDDEN: No live placement; eligible to evaluate/reveal (also after rehide)
     - PENDING: Reveal condition partially met, watching for full trigger
     - TRIGGERED: Reveal condition fully met, pending placement on exchange
     - REVEALED: Order partially or fully revealed to exchange
     - ERROR: Exchange placement was rejected or could not be proven accepted;
       terminal until an explicit operator recovery workflow is implemented
     - EXECUTED: Order fully executed
-    - CANCELLED: Order cancelled before execution
+    - CANCELLED: Logical order stopped. An intentional project cancel stops
+      triggers/follow-ups immediately, but exchange withdrawal may still be
+      pending; tracked placement identity is retained until confirmation.
     """
     HIDDEN = "HIDDEN"
     PENDING = "PENDING"

@@ -27,7 +27,8 @@ def test_manager_uses_one_active_status_predicate_for_visibility_and_actions():
     html = _manager_html()
     predicate = re.search(
         r"function isActiveStealthOrder\(order\)\s*\{"
-        r"\s*return\s*\[([^\]]+)\]\.includes\(order\.status\);\s*\}",
+        r"\s*return\s*\[([^\]]+)\]\.includes\(order\.status\)"
+        r"\s*\|\| isExchangeCancellationPending\(order\);\s*\}",
         html,
     )
     assert predicate is not None, "Missing shared active-order predicate"
@@ -160,6 +161,31 @@ def test_rehide_result_waits_for_authoritative_state_and_guards_conflicting_acti
     assert "order.anchor_repricing_state_json.pending_rearm" in pending_guard
 
     table = _slice_between(html, "function updateOrdersTable()", "function updateStats()")
-    for css_class in ("move-btn", "reprice-btn", "edit-btn", "cancel-btn"):
+    for css_class in ("move-btn", "reprice-btn", "edit-btn"):
         button = next(line for line in table.splitlines() if f'class="{css_class}"' in line)
         assert "rearmPending ? 'disabled' : ''" in button
+    cancel_button = next(line for line in table.splitlines() if 'class="cancel-btn"' in line)
+    assert "cancellationRequested ? 'disabled' : ''" in cancel_button
+
+
+@pytest.mark.regression
+def test_operator_cancellation_is_pending_authoritative_and_can_supersede_rehide():
+    html = _manager_html()
+    handler = _slice_between(html, '} else if (data.type === "stealth_order_cancel_result")',
+                             '} else if (data.type === "stealth_orders_cleared")')
+    assert "if (data.order) ordersData[data.stealth_order_id] = data.order" in handler
+    assert ".status =" not in handler
+    assert "ordersData = {}" not in handler
+    assert "stealth_orders_clear_result" in handler
+    assert "type: 'request_stealth_orders'" in handler
+    cancel = _slice_between(html, "function cancelOrder(orderID)", "function sendCreateStealthOrderMessage")
+    assert "isOperatorCancellationRequested(order)" in cancel
+    assert "isStealthRearmPending(order)" not in cancel
+    assert "No cancellation follow-up" in cancel
+    assert "pendingCancelRequests.clear()" in _slice_between(html, "ws.onclose =", "ws.onerror =")
+    pending = _slice_between(html, "function isExchangeCancellationPending(order)", "function updateOrdersTable()")
+    for field in ("operator_cancel_requested_at", "pending_rearm", "active_placement_client_order_id", "revealed_size", "executed_size"):
+        assert field in pending
+    assert "state.pending_rearm.return_to_hidden === false" in pending
+    assert "['CANCELLED', 'EXECUTED', 'ERROR'].includes(order.status)" in pending
+    assert "CANCEL PENDING" in html
