@@ -3,34 +3,17 @@
     "BTC-USD"
   ],
   "derivatives": [
-    "NER-20DEC30-CDE",
     "BIP-20DEC30-CDE",
     "BIT-25SEP26-CDE",
-    "ET-25SEP26-CDE",
+    "ET-30OCT26-CDE",
     "ETP-20DEC30-CDE",
     "GOL-25NOV26-CDE",
     "NER-20DEC30-CDE",
-    "NOL-21SEP26-CDE",
+    "NOL-19OCT26-CDE",
     "PAU-20DEC30-CDE"
   ],
   "ticker_to_trading": {},
   "metadata": {
-    "NER-20DEC30-CDE": {
-      "type": "FUTURE",
-      "base_currency": null,
-      "quote_currency": null,
-      "base_increment": "1",
-      "quote_increment": "0.01",
-      "price_increment": "0.0001",
-      "base_min_size": "1",
-      "quote_min_size": "0",
-      "display_name": "NEAR PERP",
-      "status": "",
-      "mid_price": null,
-      "trading_disabled": false,
-      "contract_size": null,
-      "expiry": null
-    },
     "BIP-20DEC30-CDE": {
       "type": "FUTURE",
       "base_currency": null,
@@ -63,7 +46,7 @@
       "contract_size": null,
       "expiry": null
     },
-    "ET-25SEP26-CDE": {
+    "ET-30OCT26-CDE": {
       "type": "FUTURE",
       "base_currency": null,
       "quote_currency": null,
@@ -72,7 +55,7 @@
       "price_increment": "0.5",
       "base_min_size": "1",
       "quote_min_size": "0",
-      "display_name": "ETH 25 SEP 26",
+      "display_name": "ETH 30 OCT 26",
       "status": "",
       "mid_price": null,
       "trading_disabled": false,
@@ -111,7 +94,23 @@
       "contract_size": null,
       "expiry": null
     },
-    "NOL-21SEP26-CDE": {
+    "NER-20DEC30-CDE": {
+      "type": "FUTURE",
+      "base_currency": null,
+      "quote_currency": null,
+      "base_increment": "1",
+      "quote_increment": "0.01",
+      "price_increment": "0.0001",
+      "base_min_size": "1",
+      "quote_min_size": "0",
+      "display_name": "NEAR PERP",
+      "status": "",
+      "mid_price": null,
+      "trading_disabled": false,
+      "contract_size": null,
+      "expiry": null
+    },
+    "NOL-19OCT26-CDE": {
       "type": "FUTURE",
       "base_currency": null,
       "quote_currency": null,
@@ -120,7 +119,7 @@
       "price_increment": "0.01",
       "base_min_size": "1",
       "quote_min_size": "0",
-      "display_name": "OIL 21 SEP 26",
+      "display_name": "OIL 19 OCT 26",
       "status": "",
       "mid_price": null,
       "trading_disabled": false,
