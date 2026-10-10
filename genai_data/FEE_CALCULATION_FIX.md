@@ -1,5 +1,11 @@
 # Fee Calculation Fix for Futures Contracts
 
+> **Historical record — status reviewed 2026-10-09.** The material below
+> preserves an earlier proposal, incident, or branch snapshot. Code examples,
+> line numbers, counts, commands, and completion claims are not current
+> implementation or authorization. Use [living references](README.md) and current
+> code/tests. A proposed behavior is not implemented merely because it appears here.
+
 ## Problem
 The percentage-based fee calculation in `ProfitValidator.is_profitable()` was incorrectly treating `order_size` as a unit size (BTC/USD) when it was actually a **contract count**. This caused fees to be vastly overestimated for futures contracts.
 

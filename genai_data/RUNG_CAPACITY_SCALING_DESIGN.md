@@ -1,5 +1,11 @@
 # Rung Capacity Scaling — By-Design Plan
 
+> **Historical design — status reviewed 2026-10-09.** The material below
+> preserves an earlier proposal, incident, or branch snapshot. Code examples,
+> line numbers, counts, commands, and completion claims are not current
+> implementation or authorization. Use [living references](README.md) and current
+> code/tests. A proposed behavior is not implemented merely because it appears here.
+
 > **Status:** design only, not implemented.
 > **Pattern name (this repo):** *rung capacity scaling*.
 > **Pattern in the literature:** flow-following / adaptive depth in market making

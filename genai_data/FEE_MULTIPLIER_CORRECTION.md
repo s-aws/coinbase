@@ -1,5 +1,11 @@
 # Fee Multiplier Correction & Open vs Close Order Fees
 
+> **Historical record — status reviewed 2026-10-09.** The material below
+> preserves an earlier proposal, incident, or branch snapshot. Code examples,
+> line numbers, counts, commands, and completion claims are not current
+> implementation or authorization. Use [living references](README.md) and current
+> code/tests. A proposed behavior is not implemented merely because it appears here.
+
 ## The Critical Distinction: OPEN vs CLOSE Orders
 
 When trading, there are two distinct order events:

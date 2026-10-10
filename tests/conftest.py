@@ -310,7 +310,7 @@ def stealth_order_factory():
 def test_config():
     """Test configuration settings."""
     return {
-        "database_url": ":memory:",  # Use in-memory SQLite for tests
+        "database_url": ":memory:",  # Legacy fixture label; PostgresDB does not use it
         "api_timeout": 5,  # Short timeout for tests
         "websocket_timeout": 10,
         "max_retries": 2

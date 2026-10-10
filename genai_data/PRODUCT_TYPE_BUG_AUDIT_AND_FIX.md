@@ -1,5 +1,11 @@
 # Audit Report: Product Type Detection Bug in Profit Validator
 
+> **Historical record — status reviewed 2026-10-09.** The material below
+> preserves an earlier proposal, incident, or branch snapshot. Code examples,
+> line numbers, counts, commands, and completion claims are not current
+> implementation or authorization. Use [living references](README.md) and current
+> code/tests. A proposed behavior is not implemented merely because it appears here.
+
 **Date:** 2026-04-26
 **Status:** 🔧 FIXED
 **Severity:** HIGH

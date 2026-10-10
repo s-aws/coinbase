@@ -1,7 +1,7 @@
 # Coinbase Trading Engine
 
 This repository contains a stateful, multithreaded Coinbase Advanced Trade
-engine for operator-managed spot and expiring-futures orders. Its primary
+engine for operator-managed spot and futures orders, including configured perpetual products. Its primary
 workflow is local **stealth orders**: an order remains under local control until
 its configured market condition is satisfied, then the engine submits and
 tracks the corresponding Coinbase placement.
@@ -34,7 +34,10 @@ See [CHANGELOG.md](CHANGELOG.md) for the current `prod` revival history.
   midpoint are post-only; the persisted pricing policy survives restart.
 - Fixed, staged tranche/iceberg, and volume-adaptive reveal sizing.
 - Audited manual movement of revealed orders, anchor-based repricing policy,
-  and configurable follow-up retreat from the anchor price.
+  confirmed same-order Rehide, and configurable new-child price retreat.
+- Reveal threshold offsets follow the configured limit independently for each
+  composite condition path. Manual threshold edits reset the corresponding
+  saved map; hold-duration edits preserve it.
 
 ### Order lifecycle and follow-ups
 
@@ -264,11 +267,16 @@ and tests remain authoritative when an older design note disagrees.
   bootstrap workflow.
 - `PAUSED` is an origination-admission boundary, not database or exchange
   read-only mode.
-- The automatic anchor repricer has a known full-reveal exposure-model
-  limitation; ordinary fully revealed resting placements can skip automatic
-  cancel/replace. Manual move and reconciliation remain separate paths.
-- This checkout has no general cancel/re-entry or "hide a live placement"
-  subsystem. Local state must never claim a revealed order is hidden without
-  exchange cancellation, fill, replacement, or reconciliation evidence.
+- Automatic revealed repricing and manual **Rehide** use one persisted
+  cancellation/rearm path for a single fully accounted zero-fill placement.
+  Only exact cancellation confirmation returns it to `HIDDEN`; its existing
+  reveal condition then owns the next placement. Multi-live exposure layouts
+  and partially filled placements are not eligible for this rearm.
+- Project **Cancel** persists an automation stop before requesting exchange
+  withdrawal. Pending exposure remains visible and protected from deletion;
+  racing fills are accounted without enabling new follow-ups. External
+  cancellation retains the configured replacement behavior.
+- This checkout has no distance-based cancel/re-entry or same-side hidden-order
+  retreat policy, enterprise HTTP Admin API, or Spot sweep/campaign service.
 - Live exchange validation and external tests require a separately authorized,
   guarded procedure; a passing local suite does not prove live routing.

@@ -6,7 +6,32 @@ history is not reconstructed here.
 
 ## Unreleased
 
-- No operator-visible runtime changes recorded yet.
+- Reconciled documentation and inline comments with the current `prod` code;
+  separated historical branch contracts and handoffs from living references,
+  refreshed test navigation, and rebuilt the repository graph.
+
+## Runtime updates — 2026-09-02 through 2026-10-07
+
+Scope: implementation commits after `e264793f7` through `030f4046`.
+
+- Revealed anchor repricing now persists exact cancellation intent and waits for
+  confirmed zero-fill cancellation before returning the same order to `HIDDEN`.
+  The regular reveal path owns re-entry; manual Move remains a separate action.
+- Added guarded manual Rehide using the same rearm path, with unchanged price
+  and policies, fresh placement IDs on later reveals, and pending-state UI.
+- Project Cancel now durably stops triggers and new follow-ups before exchange
+  withdrawal. It supersedes pending Rehide, retains identity through timeout or
+  rejection, accounts racing fills, and protects unresolved rows from deletion.
+  External cancellation retains normal replacement behavior.
+- Reveal thresholds now track offsets per composite-condition path; manual
+  threshold edits reset saved offsets while hold edits preserve them.
+- Inventory, StateManager, and stealth lifecycle events use the shared product
+  type resolver, preserving explicit classifications rather than guessing months.
+- Added per-order span-builder repricing controls and distance spacing; refreshed
+  the configured spot/futures/perpetual product catalog through October 7.
+
+These entries describe checked-in behavior. They do not imply new live exchange
+validation; current local validation is recorded in `genai_data/agent_state.md`.
 
 ## Production revival — 2026-08-13 through 2026-08-29
 

@@ -1,5 +1,8 @@
 # Data Models Reference
 
+Reconciled with the `prod` checkout on 2026-10-09. Current source and tests
+remain the evidence for runtime behavior.
+
 This document is a navigation reference and may contain historical model
 descriptions. `core/models.py`, `core/enums.py`, and `database/order.py` are the
 evidence for the current runtime and persistence surface.
@@ -42,17 +45,10 @@ Planning and execution result structures for move-revealed flow.
 Strongly-typed anchor repricing policy with normalization and helper methods.
 Serialized into `stealth_orders.anchor_repricing_policy_json`.
 
-### `CancelReentryPolicy` / `CancelReentryRuntimeState`
-Pure cancel/re-entry policy and mutable runtime state in `business/cancel_reentry_policy.py`.
-Serialized into `stealth_orders.cancel_reentry_policy_json` and `stealth_orders.cancel_reentry_state_json`.
-
-### `PostFillRetreatPolicy`
-Opt-in same-side hidden-order retreat policy in `business/post_fill_retreat_policy.py`.
-Serialized into `stealth_orders.post_fill_retreat_policy_json`.
-
 ### TypedDicts
 - `MarketData`: current market snapshot for stealth evaluation/repricing.
 - `RepricingState`: mutable per-stealth runtime state persisted in JSONB.
+- `PendingRearmState`: exact placement identity and persisted cancellation intent.
 
 ## Canonical Enums (`core/enums.py`)
 
@@ -61,8 +57,6 @@ High-impact enums:
 - `ProductType`, `TargetMovementType`
 - `RevealPricingPolicy`, `RevealPriceSource`, `RevealConditionType`
 - `RepricingReferenceSource`, `RepricingDistanceType`, `RepricingUpdateMode`
-- `PostFillRetreatScope`, `PostFillRetreatReason`
-- `CancelReentryState`, `CancelReentryDecision`
 - `FollowUpKind`, `StealthMutationKind`, `StealthMoveReason`
 - `OrderStateEvent`, `StealthLifecycleEvent`
 - `EventStreamType`, `EventSourceChannel`
@@ -93,11 +87,6 @@ cooperative daemon work finishing afterward.
   It is terminal and is not automatically retried.
 - `EXECUTED` and `CANCELLED`: terminal local states, but reconciliation still matters if exchange evidence later contradicts local assumptions.
 - `OrderStatus.CANCELLED` describes an exchange placement, not a command to stop its logical stealth order. Confirmed zero-fill Rehide/reprice returns the same stealth order to `HIDDEN`; external cancellation retains the existing replacement policy. Intentional project cancellation stops triggers and new follow-ups immediately, with exchange withdrawal tracked separately until confirmed. A racing fill remains real execution and does not remove the intentional stop.
-
-Cancel/re-entry uses status plus runtime state:
-- `REVEALED` + policy enabled + no executed size: eligible for policy cancellation when the distance threshold is crossed.
-- `HIDDEN` + `cancel_reentry_state_json.state = "cancelled_by_policy"`: not a normal hidden order; it is waiting for re-entry distance/cooldown/count checks.
-- `REVEALED` with any executed size must not be policy-hidden.
 
 Do not add a new stealth status unless the transition is backed by persistence, dashboard display, lifecycle/audit events, and regression tests.
 
@@ -157,7 +146,7 @@ Key columns:
 - size and status fields (`total_size`, `revealed_size`, `remaining_size`, `executed_size`, `status`)
 - condition fields (`reveal_condition_type`, `reveal_condition_json`, hold timestamps)
 - reveal execution policy (`reveal_pricing_policy`; defaults to `configured_limit`)
-- policy/state JSONB (`anchor_repricing_policy_json`, `anchor_repricing_state_json`, `sizing_strategy_json`, `cancel_reentry_policy_json`, `cancel_reentry_state_json`, `post_fill_retreat_policy_json`)
+- policy/state JSONB (`anchor_repricing_policy_json`, `anchor_repricing_state_json`, `sizing_strategy_json`)
 - lifecycle fields (`last_lifecycle_event`, `failure_reason`)
 
 `anchor_repricing_state_json` is also the active-placement pointer for revealed stealth orders. Important keys include:
@@ -170,36 +159,6 @@ Key columns:
 - `operator_cancel_requested_at` is the durable intentional-stop marker, persisted with local `CANCELLED` before REST. It survives acknowledgement/fills/restart, unlike `pending_rearm`, and suppresses new follow-ups/replication from that logical order without cancelling already-created children. Ordinary project withdrawal reuses `pending_rearm.return_to_hidden=false`; timeouts/rejections retain identifiers for exact reconciliation. Never infer stop intent solely from legacy `CANCELLED` status or notes.
 - `reveal_armed_at` (start of the current hidden time-delay cycle; reset only after authenticated cancellation returns a revealed placement to hidden)
 - A manual Rehide uses the same `pending_rearm` with `reprice_reason="rehide"`, unchanged desired configured price, and default `return_to_hidden=true`. It does not advance repricing metrics. The reveal-history audit classifies it as `reveal_event_type="rehide"`, not `reprice`. Existing `reveal_armed_at` also selects fresh placement IDs on later reveals when anchor repricing is disabled.
-- cancel/re-entry audit hints such as `cancel_reentry_last_reference_price` and `cancel_reentry_last_distance`
-- post-fill retreat state such as `post_fill_retreat_offset`, `post_fill_retreat_count`, `post_fill_retreat_source_order_ids`, and `last_post_fill_retreat_*`
-
-`cancel_reentry_policy_json` keys:
-- `enabled`
-- `reference_price_source` (`last_trade`, `midpoint`, `top_of_book`)
-- `distance_type` (`A` absolute or `P` percent)
-- `cancel_distance`
-- `reentry_distance` (must be greater than cancel distance)
-- `cooldown_seconds`
-- `max_reentry_count` (`0` means unlimited)
-- `inherit_to_follow_ups`
-
-`cancel_reentry_state_json` keys:
-- `state` (`resting` or `cancelled_by_policy`)
-- `last_cancel_at`
-- `last_reentry_at`
-- `reentry_count`
-- `cancelled_placement_client_order_id`
-- `cancelled_exchange_order_id`
-- `last_reason`
-
-`post_fill_retreat_policy_json` keys:
-- `enabled`
-- `scope` (`same_product_same_side`; only implemented scope)
-- `retreat_ticks` (integer count of product price ticks)
-- `inherit_to_follow_ups`
-
-Same-side post-fill retreat state is stored in `anchor_repricing_state_json`, not a separate active-placement pointer. The cumulative `post_fill_retreat_offset` is added to future anchor target bands so anchor repricing does not undo the retreat.
-
 > Note: `reveal_pricing_policy` is a first-class `stealth_orders` column and
 > is restored during both startup and lazy hydration.
 > `follow_up_reveal_direction` remains an **in-memory dict key only** and is
@@ -272,11 +231,11 @@ Downsampled ticker persistence (typically <= 1 row/sec/product).
 ### Stealth create/import payload
 `create_stealth_order` and active-stealth import payloads can include:
 - `anchor_repricing_policy`
-- `cancel_reentry_policy`
-- `post_fill_retreat_policy`
 - `sizing_strategy`
 
-Dashboard exports map persisted JSONB names back to request names, for example `cancel_reentry_policy_json` -> `cancel_reentry_policy`.
+Active export retains persisted field names such as `anchor_repricing_policy_json`;
+import maps that field to `anchor_repricing_policy`. The create handler also
+accepts `reveal_pricing_policy` and `follow_up_reveal_direction`.
 
 ## ID Model Summary
 
@@ -288,4 +247,4 @@ See `ORDER_ID_HANDLING.md` for strict usage rules.
 
 ---
 
-Last updated: 2026-05-16
+Last reconciled with checkout: 2026-10-09

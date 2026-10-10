@@ -5,6 +5,12 @@ description: "Detect potential deadlocks caused by recursive lock acquisition, l
 
 # Deadlock Detection Workflow
 
+> Status reviewed 2026-10-09: this is an audit methodology with historical
+> examples. Numeric source lines, timing estimates, and sample findings are
+> not current-checkout evidence. Resolve symbols and inspect current lock scope.
+> Validation policy comes from root AGENTS.md/agent.md: the complete local
+> non-external suite is required; focused selections need an explicit user request.
+
 ## Overview
 
 This skill provides a systematic methodology for finding deadlock vulnerabilities in Python multithreaded code, particularly focusing on:

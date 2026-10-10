@@ -46,3 +46,11 @@ Reviewed source in `genai_tools/` is tracked; generated/runtime artifacts are
 ignored. Open only a specifically relevant tool, inspect it before execution,
 and never treat it as design authority. See `agent.md` section
 "genai_tools Workflow".
+
+## Current versus historical references
+
+The living references were reconciled with prod on 2026-10-09. The overview
+also routes to enum, exception, partial-fill, move/rearm, and fee references.
+Marked historical summaries/designs retain provenance, not active instructions.
+Prior branch-specific API/architecture contracts and August handoff evidence
+are preserved in `genai_data/history/`; archived objectives do not authorize work.

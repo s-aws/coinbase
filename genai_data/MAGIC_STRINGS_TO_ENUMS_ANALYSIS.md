@@ -1,5 +1,11 @@
 # Magic Strings to Enums: Comprehensive Analysis
 
+> **Historical record — status reviewed 2026-10-09.** The material below
+> preserves an earlier proposal, incident, or branch snapshot. Code examples,
+> line numbers, counts, commands, and completion claims are not current
+> implementation or authorization. Use [living references](README.md) and current
+> code/tests. A proposed behavior is not implemented merely because it appears here.
+
 **Date:** April 21, 2026
 **Scope:** Full codebase audit for string literals that should use enums
 **Priority:** High - Type safety, IDE autocomplete, maintainability improvements

@@ -1,5 +1,11 @@
 # Implementation Complete: Stealth Order Follow-Up with Target Movement
 
+> **Historical record — status reviewed 2026-10-09.** The material below
+> preserves an earlier proposal, incident, or branch snapshot. Code examples,
+> line numbers, counts, commands, and completion claims are not current
+> implementation or authorization. Use [living references](README.md) and current
+> code/tests. A proposed behavior is not implemented merely because it appears here.
+
 ## 🎯 Objective Achieved
 
 Successfully implemented automatic stealth order child creation with target_movement inheritance. When a Parent stealth order reveals and fills, the system now properly creates a Child stealth order with all inherited trading parameters.

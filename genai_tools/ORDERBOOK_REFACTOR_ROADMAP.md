@@ -1,5 +1,10 @@
 # OrderBook Refactor Roadmap
 
+> **Historical toolbox document — status reviewed 2026-10-09.** Examples,
+> plans, results, counts, and line anchors below may be obsolete or from another
+> branch. This file is not implementation authority or permission to execute
+> a tool. Inspect the exact source and use [current context](../genai_data/README.md).
+
 **Goal:** Eliminate the class-level mutable defaults in `configuration.py::OrderBook` (every `OrderBook()` instance currently shares the same dicts) and give consumers an encapsulated API instead of reaching into raw dicts.
 
 **Constraint:** Engine runs in pseudo-production with real money. **No phase may break the running system.** Pattern: Fowler's *parallel change* / Feathers' *branch by abstraction* / strangler fig.

@@ -1,5 +1,11 @@
 # Deadlock Detection Audit: Systematic Methodology Application
 
+> **Historical record — status reviewed 2026-10-09.** The material below
+> preserves an earlier proposal, incident, or branch snapshot. Code examples,
+> line numbers, counts, commands, and completion claims are not current
+> implementation or authorization. Use [living references](README.md) and current
+> code/tests. A proposed behavior is not implemented merely because it appears here.
+
 **Goal**: Find ALL possible deadlocks and race conditions in OrderEngine by systematically tracing every function that acquires locks
 
 **Time estimate**: 1-2 hours for thorough audit

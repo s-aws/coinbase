@@ -73,9 +73,9 @@ class CoinbaseRestClient:
     # ========================================================================
     
     def get_account_wallets(self) -> Dict[str, Wallet]:
-        """Retrieve all active account wallets.
+        """Retrieve active wallets from the SDK's first accounts page.
         
-        Fetches account information for all currencies with active wallets.
+        Fetches one accounts page; this helper does not exhaust pagination.
         Filters out deleted accounts.
         
         Returns:
@@ -295,14 +295,16 @@ class CoinbaseRestClient:
         Coinbase accepts either order_id (exchange-assigned) or client_order_id (ours).
         We use client_order_id because:
         - We always have it (we generate it for every order)
-        - It works for both revealed and unrevealed orders
-        - More robust than relying on exchange-assigned order_id
+        Hidden local orders have no exchange placement to cancel. Managed
+        stealth cancellation uses the bridge's persisted withdrawal intent;
+        this legacy wrapper does not establish logical stealth state.
         
         Args:
             client_order_id: The client order ID we generated for this order
         
         Returns:
-            True if cancel successful, False if order not found
+            Truthiness of a nonempty SDK result collection. Per-order success
+            is not inspected, so this return value does not prove cancellation.
         
         Raises:
             Exception: If API call fails

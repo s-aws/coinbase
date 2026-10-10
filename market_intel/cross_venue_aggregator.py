@@ -2,8 +2,8 @@
 
 Single source of truth for "what is the current external view of
 this Coinbase product". Per-venue WS clients call ``record_tick``
-on every bookTicker update; downstream consumers (historical
-averager, reveal logic) call ``get_intel`` to read a snapshot
+on every bookTicker update; current terminal display consumers
+call ``get_intel`` to read a snapshot
 ``CrossVenueIntel`` for a Coinbase product.
 
 Design constraints (Phase 1):

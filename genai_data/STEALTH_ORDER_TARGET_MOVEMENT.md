@@ -1,5 +1,11 @@
 # Stealth Orders Target Movement Feature
 
+> **Historical record — status reviewed 2026-10-09.** The material below
+> preserves an earlier proposal, incident, or branch snapshot. Code examples,
+> line numbers, counts, commands, and completion claims are not current
+> implementation or authorization. Use [living references](README.md) and current
+> code/tests. A proposed behavior is not implemented merely because it appears here.
+
 ## Summary
 
 Extended `ui_stealth_orders_manager.html` and `dashboard_server.py` to support updating target movement for stealth orders. This allows users to specify custom profit targets (as a percentage or absolute amount) that will be used when follow-up orders are created from stealth order reveals.

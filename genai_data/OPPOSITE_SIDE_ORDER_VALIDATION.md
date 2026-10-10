@@ -1,5 +1,11 @@
 # Opposite-Side Order Validation Feature Design
 
+> **Historical design — status reviewed 2026-10-09.** The material below
+> preserves an earlier proposal, incident, or branch snapshot. Code examples,
+> line numbers, counts, commands, and completion claims are not current
+> implementation or authorization. Use [living references](README.md) and current
+> code/tests. A proposed behavior is not implemented merely because it appears here.
+
 ## Executive Summary
 
 This document designs a feature that **rejects order placement** if a pending order of the **opposite side and same bucket** exists, unless the new order meets **profit validation thresholds**.

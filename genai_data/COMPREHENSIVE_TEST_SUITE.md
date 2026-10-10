@@ -1,5 +1,8 @@
 # Comprehensive Test Suite
 
+Reconciled with the `prod` checkout on 2026-10-09. Current source and tests
+remain the evidence for runtime behavior.
+
 ## Overview
 
 This repository maintains a layered pytest suite with one complete local
@@ -7,13 +10,17 @@ non-external validation gate. The suite is designed to protect
 concurrency safety, ID discipline, and stealth/follow-up lifecycle behavior
 with a simple, repeatable execution policy.
 
-## Current Inventory (2026-05-16)
+## Current Inventory (2026-10-09)
 
-- Unit test files: 28
-- Integration test files: 7
-- Regression test files: 58
-- E2E test files: 2
-- External test files: 1
+- `tests/unit/`: 38 test files
+- `tests/integration/`: 7 test files
+- `tests/regression/`: 78 test files
+- `tests/e2e/`: 2 test files
+- `tests/external/`: 1 test file
+- `tests/` root: 2 test files
+
+Exact source inventory: `tests/TEST_FILES_INDEX.md`. These are file counts,
+not collected cases or measured coverage.
 
 ## Directory Map
 
@@ -65,7 +72,8 @@ test cases unless the user explicitly requests them.
 - cross-source reconciliation and ownership partitioning
 - DB cursor thread-safety guarantees
 - DB production-guard behavior for pytest and direct test-shaped scripts
-- stealth cancel/re-entry policy, same-side post-fill retreat, UI payloads, and active-placement safety
+- confirmed rearm/Rehide, operator stop/withdrawal, guarded deletion, UI
+  visibility, and per-condition threshold offsets
 
 ### E2E coverage highlights
 - top-level trading workflow traces
@@ -75,7 +83,8 @@ test cases unless the user explicitly requests them.
 - bridge cleanup retry after bounded scheduler joins or stop exceptions
 
 ### External coverage highlights
-- sandbox Coinbase REST contract checks
+- credential-gated Coinbase REST contract checks; sandbox routing is not
+  configured by the current fixture
 - optional live websocket smoke (opt-in marker path)
 
 ## Command Reference
@@ -89,7 +98,7 @@ pytest -c tests/pytest.ini tests -m "not external" -v --tb=short
 
 Focused selections require an explicit user request.
 
-### External sandbox
+### External opt-in
 ```powershell
 $env:COINBASE_API_KEY = "..."
 $env:COINBASE_API_SECRET = "..."
@@ -123,4 +132,4 @@ When adding code:
 
 ---
 
-Last updated: 2026-08-28
+Last reconciled with checkout: 2026-10-09

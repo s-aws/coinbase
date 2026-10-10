@@ -1,5 +1,10 @@
 # Same-Side Post-Fill Retreat Policy Plan
 
+> **Historical toolbox document — status reviewed 2026-10-09.** Examples,
+> plans, results, counts, and line anchors below may be obsolete or from another
+> branch. This file is not implementation authority or permission to execute
+> a tool. Inspect the exact source and use [current context](../genai_data/README.md).
+
 ## Intent
 
 Introduce an opt-in hidden-order policy that moves the nearest eligible same-product,

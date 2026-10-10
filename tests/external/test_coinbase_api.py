@@ -5,7 +5,7 @@ These tests interact with the actual Coinbase API or sandbox.
 
 ⚠️ IMPORTANT:
 - Requires COINBASE_API_KEY and COINBASE_API_SECRET environment variables
-- Should only run against sandbox environment
+- Current REST fixture does not configure sandbox routing; see the external runbook
 - Run separately from other tests: pytest tests/external/ -m external
 
 To run:
@@ -44,7 +44,7 @@ class TestCoinbaseRESTAPI:
         assert coinbase_credentials["api_secret"]
     
     def test_api_respects_sandbox_mode(self, coinbase_sandbox_mode):
-        """Verify we use sandbox in tests."""
+        """Verify the sandbox opt-in assertion, not actual SDK endpoint routing."""
         assert coinbase_sandbox_mode is True, "Must use sandbox for tests"
 
     def test_get_accounts_matches_contract_shape(self, coinbase_rest_client, api_reference_root):

@@ -594,7 +594,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
         logger.debug(f"[HANDLER] Received message type: {msg_type}")
 
         # Admission gate: reject originating-work messages when the engine is
-        # not RUNNING (paused / draining / stopped). Cancels, queries, and
+        # not RUNNING (starting / paused / draining / stopped). Cancels, queries, and
         # admin messages pass through so operators can still control the
         # system and wind down existing positions.
         controller = get_runtime_controller()
@@ -869,9 +869,9 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
             await websocket.send(json.dumps(response))
             
         elif msg_type == "cancel_order":
-            # Cancel order via REST API
-            # Use client_order_id (which we always have) rather than order_id
-            # This works for both revealed and unrevealed orders
+            # Resolve the internal client ID to managed stealth ownership first.
+            # Managed cancels persist a logical stop and retain exchange exposure
+            # until exact confirmation; unmapped orders use legacy direct REST.
             client_order_id = data.get("client_order_id")
             logger.info(f"Cancel requested for order: {client_order_id}")
 

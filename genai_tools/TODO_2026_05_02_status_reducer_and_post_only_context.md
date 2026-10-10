@@ -1,5 +1,10 @@
 # Scope-creep TODO — 2026-05-02 status reducer + deferred post-only saturation work
 
+> **Historical toolbox document — status reviewed 2026-10-09.** Examples,
+> plans, results, counts, and line anchors below may be obsolete or from another
+> branch. This file is not implementation authority or permission to execute
+> a tool. Inspect the exact source and use [current context](../genai_data/README.md).
+
 This note exists to preserve intent for a future agent.
 
 The current implementation around parent/root status writes and failed `post_only`

@@ -75,6 +75,8 @@ Dashboard transport is WebSocket at `ws://localhost:8765` via `dashboard_server.
 
 ### Primary UIs and consumers
 - `ui_stealth_orders_manager.html`
+- `ui_order_span_builder.html`
+- `ui_hotpoint_manager.html`
 - `ui_slide_calibration_chart.html`
 - `ui_stealth_repricing_chart.html`
 - `ui_spread_monitor.html`
@@ -84,7 +86,7 @@ Dashboard transport is WebSocket at `ws://localhost:8765` via `dashboard_server.
 ### WebSocket request message types currently handled
 - `admin_status`, `admin_pause`, `admin_resume`, `admin_shutdown`
 - `place_order`, `cancel_order`
-- `request_stealth_orders`, `create_stealth_order`, `cancel_stealth_order`
+- `request_stealth_orders`, `create_stealth_order`, `cancel_stealth_order`, `rehide_stealth_order`
 - `update_stealth_target_movement`, `update_stealth_price_threshold`
 - `reprice_now_stealth_order`, `move_revealed_stealth_order`
 - `request_slide_calibration_summary`, `request_market_chart_history`
@@ -93,6 +95,7 @@ Dashboard transport is WebSocket at `ws://localhost:8765` via `dashboard_server.
 - `request_parent_orders`, `create_parent_order`, `update_parent_order`, `delete_parent_order`
 - `update_parent_target_movement`
 - `request_products`, `update_products_list`
+- `request_hotpoint_state`, `set_hotpoint_kill_switch`, `place_hotpoint_test_order`
 - `request_move_history`, `move_order`, `premark_move`
 - `request_storyboard_products`, `request_investor_storyboard`
 - `ping`

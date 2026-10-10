@@ -127,7 +127,7 @@ def get_derivatives_per_side_fee(product_id: str) -> float:
 
 # Replacement Cap
 # Default ``max_order_replacement`` per parent. ``1`` means "round-trip
-# only" (open is free; one closing follow-up consumes the slot). To
+# only" (root creation uses no replacement slot; one follow-up uses it). To
 # allow re-anchors, override per parent at order-creation time.
 # Previously also lived in ``configuration.py`` with the desynced value
 # 101 — 2026-04-30 audit consolidated here.

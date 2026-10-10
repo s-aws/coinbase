@@ -1,12 +1,15 @@
 # Modules Reference
 
+Reconciled with the `prod` checkout on 2026-10-09. Current source and tests
+remain the evidence for runtime behavior.
+
 This file maps current code ownership by module.
 Use it to find the single canonical behavior path before editing.
 
 ## Quick Lookup by Task
 
 - Engine lifecycle and event processing: `core/order_engine.py`
-- Stealth order lifecycle/repricing/cancel-reentry/move: `core/stealth_order_manager.py`
+- Stealth order lifecycle/repricing/rearm/Rehide/cancel/move: `core/stealth_order_manager.py`
 - Runtime pause/resume/drain state: `core/runtime_controller.py`
 - Exchange-vs-local reconciliation: `core/startup_reconciler.py`, `core/periodic_reconciler.py`
 - Parent/child and stealth DB schema: `database/order.py`
@@ -75,8 +78,8 @@ Responsibilities:
 - condition evaluation and reveal gating
 - reveal execution plan generation and profitability checks
 - anchor repricing policy/state normalization and application
-- cancel/re-entry policy application for revealed no-fill placements
-- same-side post-fill retreat for opted-in hidden orders
+- same-order zero-fill rearm for revealed repricing and manual Rehide
+- durable operator stop and exchange withdrawal confirmation
 - move-revealed cancel-and-replace flow
 - lifecycle hook dispatch and audit writes
 - authoritative condition state transitions, including continuous price/spread
@@ -213,11 +216,12 @@ The heap is disposable derived state, never lifecycle truth.
 ### Stealth and Profitability
 - `business/stealth_condition_evaluator.py`
 - `business/stealth_reveal_strategy.py`
-- `business/cancel_reentry_policy.py`
 - `business/profit_threshold_engine.py`
 - `business/post_fill_hook.py`
 
-`business/cancel_reentry_policy.py` is intentionally pure: it returns `hold`, `cancel`, or `reenter`. Exchange cancel/place side effects remain in `StealthOrderManager`.
+Follow-up price retreat is a `RepricingPolicy` helper applied to new children.
+It is distinct from moving existing hidden orders after a same-side fill; the
+latter subsystem and cancel/re-entry distance policy are absent here.
 
 ### Telemetry and Metrics
 - `business/market_tick_recorder.py`
@@ -288,7 +292,7 @@ Canonical schema and write/read functions for core trading tables.
 
 > **Removed 2026-05-04:** `integration/engine_integration.py` and the
 > bridge shims (`integration/calculator_bridge.py`,
-> `integration/processor_bridge.py`, `integration/event_bridge.py`).
+> `integration/processor_bridge.py`).
 > They were duplicates of the `bridges/` package classes; only the dead
 > integration-side `EventBridge` had any real code. See
 > `integration/__init__.py` for full incident notes.
@@ -313,4 +317,4 @@ Canonical schema and write/read functions for core trading tables.
 
 ---
 
-Last updated: 2026-08-27
+Last reconciled with checkout: 2026-10-09

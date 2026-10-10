@@ -1,197 +1,82 @@
 # Enum Usage Guide
 
-## Overview
+Reconciled on 2026-10-09 from `core/enums.py`. Import directly from that module;
+`core/__init__.py` re-exports only a subset. Use enum members inside domain code
+and `.value` for persisted/wire values. UI JSON uses the same wire values.
 
-This project now uses comprehensive enums for all fixed sets of values, improving type safety, IDE autocomplete, and code maintainability. All enums are defined in `core/enums.py` and exported from `core/__init__.py`.
+`OrderStatus` is exchange-placement lifecycle. `WebSocketEventType` is envelope
+kind (`snapshot`, `update`, `patch`), and `UserFeedPhase` is connection bootstrap
+state. Synthetic legacy `OrderStatus.UPDATE`/`SNAPSHOT` are not canonical live
+order statuses. Logical `StealthOrderStatus.CANCELLED` may precede confirmed
+withdrawal: preserve tracked exposure and operator-stop intent.
 
-## Enum Categories
+`ProductType` contains SPOT and FUTURE; perpetual/expiring classification is
+separate in `ContractExpiryType`. Use the shared `normalize_product_type` helper in `calculation/resolver.py` rather than guessing
+expiry month strings.
 
-### 1. Order Attributes
+## Current enum inventory
 
-#### OrderSide
-- **Values**: `BUY`, `SELL`
-- **Usage**: All order creation and processing
-- **Already used in**: `core/models.py`, `core/constants.py`, `business/order_calculator.py`
+| Enum | Members and wire values |
+| --- | --- |
+| `OrderSide` | `BUY=BUY`, `SELL=SELL` |
+| `OrderStatus` | `PENDING=PENDING`, `OPEN=OPEN`, `FILLED=FILLED`, `CANCELLED=CANCELLED`, `EXPIRED=EXPIRED`, `FAILED=FAILED`, `QUEUED=QUEUED`, `CANCEL_QUEUED=CANCEL_QUEUED`, `EDIT_QUEUED=EDIT_QUEUED`, `UPDATE=UPDATE`, `SNAPSHOT=SNAPSHOT` |
+| `OrderPlacementOutcome` | `ACCEPTED=ACCEPTED`, `REJECTED=REJECTED`, `INDETERMINATE=INDETERMINATE` |
+| `StealthOrderStatus` | `HIDDEN=HIDDEN`, `PENDING=PENDING`, `TRIGGERED=TRIGGERED`, `REVEALED=REVEALED`, `ERROR=ERROR`, `EXECUTED=EXECUTED`, `CANCELLED=CANCELLED` |
+| `OrderType` | `LIMIT=LIMIT`, `MARKET=MARKET`, `STOP_LIMIT=STOP_LIMIT` |
+| `TimeInForce` | `GOOD_UNTIL_CANCELLED=GOOD_UNTIL_CANCELLED`, `IMMEDIATE_OR_CANCEL=IMMEDIATE_OR_CANCEL`, `FILL_OR_KILL=FILL_OR_KILL`, `GOOD_UNTIL_DATE_TIME=GOOD_UNTIL_DATE_TIME`, `GTC=GOOD_UNTIL_CANCELLED`, `IOC=IMMEDIATE_OR_CANCEL`, `FOK=FILL_OR_KILL`, `GTD=GOOD_UNTIL_DATE_TIME` |
+| `TriggerStatus` | `UNKNOWN_TRIGGER_STATUS=UNKNOWN_TRIGGER_STATUS`, `INVALID_ORDER_TYPE=INVALID_ORDER_TYPE`, `STOP_PENDING=STOP_PENDING`, `STOP_TRIGGERED=STOP_TRIGGERED` |
+| `ProductType` | `SPOT=SPOT`, `FUTURE=FUTURE` |
+| `ProductStatus` | `OPEN=OPEN`, `CLOSED=CLOSED`, `POST_ONLY=POST_ONLY`, `LIMIT_ONLY=LIMIT_ONLY` |
+| `ContractExpiryType` | `PERPETUAL=PERPETUAL`, `EXPIRING=EXPIRING`, `UNKNOWN_CONTRACT_EXPIRY_TYPE=UNKNOWN_CONTRACT_EXPIRY_TYPE` |
+| `ProductVenue` | `CBE=CBE`, `FCM=FCM` |
+| `FeeScheduleSource` | `DEFAULT=default`, `COINBASE=coinbase` |
+| `LiquidityAssumption` | `MAKER=maker`, `TAKER=taker` |
+| `Direction` | `ABOVE=above`, `BELOW=below` |
+| `RoundingDirection` | `UP=up`, `DOWN=down`, `NEAREST=nearest` |
+| `PriceRoundingPolicy` | `SIDE_CONSERVATIVE=side_conservative`, `NEAREST=nearest`, `UP=up`, `DOWN=down` |
+| `FollowUpRevealDirection` | `SAME=same`, `OPPOSITE=opposite` |
+| `FollowUpKind` | `FILLED=filled`, `CANCELLED=cancelled` |
+| `StealthMutationKind` | `MOVE=move`, `REPRICE=reprice`, `REHIDE=rehide` |
+| `StealthMoveReason` | `MANUAL_USER_MOVE=manual_user_move`, `OPERATOR_REPRICE=operator_reprice` |
+| `RevealPricingPolicy` | `CONFIGURED_LIMIT=configured_limit`, `TOP_OF_BOOK=top_of_book`, `MIDPOINT=midpoint` |
+| `RevealPriceSource` | `CONFIGURED_LIMIT=configured_limit`, `TICKER_BEST_BID=ticker_best_bid`, `TICKER_BEST_ASK=ticker_best_ask`, `TICKER_MIDPOINT=ticker_midpoint`, `UNAVAILABLE=unavailable` |
+| `RevealConditionType` | `PRICE_THRESHOLD=price`, `CUMULATIVE_VOLUME=cumulative_volume`, `TIME_DELAY=time_delay`, `SPREAD=spread`, `PRODUCT_RATIO=product_ratio`, `COMPOSITE=composite` |
+| `StealthWakePurpose` | `CONDITION_HOLD=condition_hold`, `TIME_DELAY=time_delay`, `ADMISSION_RETRY=admission_retry`, `ANCHOR_REPRICE=anchor_reprice`, `COMPATIBILITY_RECHECK=compatibility_recheck` |
+| `MarketEventMode` | `NORMAL=normal`, `STALE_INVALIDATION=stale_invalidation` |
+| `TickerPublicationDisposition` | `ACCEPTED=accepted`, `STALE_INVALIDATION=stale_invalidation` |
+| `RepricingReferenceSource` | `LAST_TRADE=last_trade`, `MIDPOINT=midpoint`, `TOP_OF_BOOK=top_of_book` |
+| `RepricingDistanceType` | `PERCENT=P`, `ABSOLUTE=A` |
+| `RepricingUpdateMode` | `ADAPTIVE=adaptive`, `FIXED=fixed` |
+| `WebSocketEventType` | `SNAPSHOT=snapshot`, `UPDATE=update`, `PATCH=patch` |
+| `UserFeedPhase` | `AWAITING_SNAPSHOT=awaiting_snapshot`, `BOOTSTRAPPING=bootstrapping`, `LIVE=live`, `DESYNCHRONIZED=desynchronized` |
+| `EventTriggerType` | `STEALTH_CONDITION=stealth_condition`, `FOLLOW_UP=follow_up` |
+| `EventSourceChannel` | `PLACEMENT_PRE_HOOK=placement_pre_hook`, `WS_USER=ws_user`, `FILL_HOOK=fill_hook`, `REST_SUBMIT=rest_submit`, `PLACEMENT_POST_HOOK=placement_post_hook`, `ORDER_STATE_HOOK=order_state_hook`, `STEALTH_LIFECYCLE_HOOK=stealth_lifecycle_hook`, `ORDER_ENGINE_OPEN=order_engine_open_handler`, `ORDER_ENGINE_TERMINAL=order_engine_terminal_handler` |
+| `EventStreamType` | `STEALTH_CONDITION_MET=stealth_condition_met`, `FILL_RECORDED=fill_recorded`, `ORDER_SUBMITTED=order_submitted`, `STEALTH_REVEALED=stealth_revealed`, `STEALTH_FOLLOW_UP_CREATED=stealth_follow_up_created`, `INVENTORY_OPENED=inventory_opened`, `INVENTORY_CLOSED=inventory_closed`, `PARTIAL_FILL_DETECTED=partial_fill_detected`, `PARTIAL_FILL_PROGRESS_UPDATED=partial_fill_progress_updated`, `PARTIAL_FILL_FOLLOW_UP_QUEUED=partial_fill_follow_up_queued`, `PARTIAL_FILL_BELOW_MIN=partial_fill_below_min_accumulated`, `PARTIAL_FILL_FINALIZED=partial_fill_finalized` |
+| `ChannelType` | `TICKER=ticker`, `LEVEL2=level2`, `MARKET_TRADES=market_trades`, `CANDLES=candles`, `HEARTBEATS=heartbeats`, `STATUS=status`, `TICKER_BATCH=ticker_batch`, `USER=user`, `FUTURES_BALANCE_SUMMARY=futures_balance_summary`, `SUBSCRIPTIONS=subscriptions` |
+| `RiskManagementType` | `MANAGED_BY_FCM=MANAGED_BY_FCM`, `MANAGED_BY_VENUE=MANAGED_BY_VENUE`, `UNKNOWN_RISK_MANAGEMENT_TYPE=UNKNOWN_RISK_MANAGEMENT_TYPE` |
+| `OrderStateEvent` | `OPENED=OPENED`, `FILLED=FILLED`, `CANCELLED=CANCELLED`, `EXPIRED=EXPIRED` |
+| `StealthLifecycleEvent` | `CREATED=CREATED`, `CONDITION_WATCHING=CONDITION_WATCHING`, `CONDITION_RESET=CONDITION_RESET`, `CONDITION_MET=CONDITION_MET`, `REVEAL_ATTEMPTED=REVEAL_ATTEMPTED`, `PLACEMENT_BLOCKED=PLACEMENT_BLOCKED`, `REVEAL_FAILED=REVEAL_FAILED`, `REVEAL_SUCCEEDED=REVEAL_SUCCEEDED`, `FILL_RECEIVED=FILL_RECEIVED`, `EXECUTED=EXECUTED`, `CANCELLED=CANCELLED` |
+| `TargetMovementType` | `PERCENTAGE=P`, `ABSOLUTE=A` |
+| `EngineState` | `STARTING=STARTING`, `RUNNING=RUNNING`, `PAUSING=PAUSING`, `PAUSED=PAUSED`, `DRAINING=DRAINING`, `STOPPED=STOPPED` |
+| `HotpointPlacementPolicy` | `WINDOW_CENTER=WINDOW_CENTER`, `LAST_FILL=LAST_FILL`, `MEAN_OF_FILLS=MEAN_OF_FILLS` |
+| `HotpointFillSource` | `OWN_ORDERS=OWN_ORDERS`, `TAPE=TAPE` |
 
-#### OrderStatus
-- **Values**: `PENDING`, `OPEN`, `FILLED`, `CANCELLED`, `EXPIRED`, `FAILED`, `CANCEL_QUEUED`
-- **Source**: Coinbase API order states
-- **Usage**: Order state tracking, filtering, database queries
-- **Already used in**: `business/order_processor.py`, `core/models.py`
-
-#### OrderType
-- **Values**: `LIMIT`, `MARKET`, `STOP_LIMIT`
-- **Source**: Coinbase API order types
-- **Usage**: Order placement, order configuration
-- **Potential usage locations**:
-  - `external/coinbase_client.py` (line 233: hardcoded "LIMIT")
-  - Tests that create mock orders
-
-#### TimeInForce
-- **Values**: `GOOD_UNTIL_CANCELLED` (alias: `GTC`), `IMMEDIATE_OR_CANCEL` (alias: `IOC`), `FILL_OR_KILL` (alias: `FOK`), `GOOD_UNTIL_DATE_TIME` (alias: `GTD`)
-- **Source**: Coinbase API order duration settings
-- **Usage**: Limit order configuration
-- **Recently updated**: `external/coinbase_client.py` (line 199 default parameter)
-
-#### TriggerStatus
-- **Values**: `UNKNOWN_TRIGGER_STATUS`, `INVALID_ORDER_TYPE`, `STOP_PENDING`, `STOP_TRIGGERED`
-- **Source**: Coinbase API stop order status
-- **Usage**: Stop order monitoring
-
-### 2. Product & Market Attributes
-
-#### ProductType
-- **Values**: `SPOT`, `FUTURE`
-- **Usage**: Product identification, spot vs futures trading logic
-- **Already used in**: `calculation/resolver.py`, `business/order_calculator.py`, `core/models.py`
-
-#### ProductStatus
-- **Values**: `OPEN`, `CLOSED`, `POST_ONLY`, `LIMIT_ONLY`
-- **Source**: Coinbase API product status
-- **Usage**: Product availability checks, order type restrictions
-
-#### ContractExpiryType
-- **Values**: `PERPETUAL`, `EXPIRING`, `UNKNOWN_CONTRACT_EXPIRY_TYPE`
-- **Source**: Coinbase API futures contract info
-- **Usage**: Futures contract classification
-
-#### Direction
-- **Values**: `ABOVE`, `BELOW`
-- **Usage**: Price threshold and ratio comparisons
-- **Recently updated**: `business/stealth_condition_evaluator.py` (lines 51, 232)
-
-### 3. Stealth Order Conditions
-
-#### RevealConditionType
-- **Values**: `PRICE_THRESHOLD`, `CUMULATIVE_VOLUME`, `TIME_DELAY`, `SPREAD`, `PRODUCT_RATIO`, `COMPOSITE`
-- **Source**: Stealth order reveal mechanism
-- **Usage**: Condition type identification and factory function
-- **Recently updated**: `business/stealth_condition_evaluator.py` (get_evaluator function)
-
-### 4. WebSocket & Event Types
-
-#### WebSocketEventType
-- **Values**: `SNAPSHOT`, `UPDATE`, `PATCH`
-- **Source**: Coinbase WebSocket message types
-- **Usage**: Message routing, event processing
-- **Potential usage locations**:
-  - `core/order_engine.py` (websocket event parsing)
-  - `external/coinbase_websocket.py` (message type detection)
-
-#### ChannelType
-- **Values**:
-  - Public: `TICKER`, `LEVEL2`, `MARKET_TRADES`, `CANDLES`, `HEARTBEATS`, `STATUS`, `TICKER_BATCH`
-  - Authenticated: `USER`, `FUTURES_BALANCE_SUMMARY`
-- **Source**: Coinbase WebSocket subscription channels
-- **Usage**: Channel subscription, message routing
-
-#### RiskManagementType
-- **Values**: `MANAGED_BY_FCM`, `MANAGED_BY_VENUE`, `UNKNOWN_RISK_MANAGEMENT_TYPE`
-- **Source**: Coinbase API futures risk management
-- **Usage**: Futures order risk configuration
-
-### 5. Profit Targets
-
-#### TargetMovementType
-- **Values**: `PERCENTAGE` (value: `"P"`), `ABSOLUTE` (value: `"A"`)
-- **Usage**: Profit target specification
-- **Already used in**: `core/models.py`
-
-## Migration Checklist
-
-### High Priority (In Progress)
-- [x] Created comprehensive enums in `core/enums.py`
-- [x] Updated `core/__init__.py` to export all enums
-- [x] Updated `external/coinbase_client.py` to import and use `TimeInForce`
-- [x] Updated `business/stealth_condition_evaluator.py` to use `Direction` and `RevealConditionType`
-
-### Medium Priority (Can be done)
-- [ ] Update `external/coinbase_client.py` to use `OrderType` enum (currently hardcoded "LIMIT")
-- [ ] Update WebSocket handlers to use `WebSocketEventType`
-- [ ] Update order creation in tests to use enums
-- [ ] Update UI form defaults to reference enum values
-
-### Low Priority (Nice to have)
-- [ ] Add validation methods in models to check enum values
-- [ ] Update database queries to use enum `.value` property
-- [ ] Add type hints using enums throughout codebase
-
-## Best Practices
-
-### Using Enums in Code
+## Example
 
 ```python
-from core import OrderStatus, TimeInForce, RevealConditionType
+from core.enums import OrderSide, OrderStatus, TargetMovementType
 
-# Option 1: Use enum directly (recommended for validation)
-if order.status == OrderStatus.FILLED:
-    process_filled_order()
-
-# Option 2: Use enum value for API calls or database
-api_call(status=order.status.value)
-
-# Option 3: Accept string but validate against enum
-def place_order(time_in_force: str = TimeInForce.GOOD_UNTIL_CANCELLED.value):
-    # time_in_force is a string (for API compatibility)
-    pass
-
-# Option 4: Use enum for factory/routing
-evaluator = get_evaluator(condition_type)  # expects RevealConditionType.value
+side = OrderSide.BUY
+status = OrderStatus.OPEN
+parent_payload = {
+    "client_order_id": client_order_id,
+    "side": side.value,
+    "status": status.value,
+    "target_movement_type": TargetMovementType.PERCENTAGE.value,
+}
 ```
 
-### Type Hints
-
-```python
-from core import OrderStatus, OrderSide
-
-def process_order(
-    order_id: str,
-    side: OrderSide,
-    status: OrderStatus
-) -> bool:
-    """Process an order with enum type hints."""
-    if status == OrderStatus.FILLED:
-        return True
-    return False
-```
-
-### Database & API Integration
-
-```python
-# When writing to database (store as string)
-INSERT INTO orders (status) VALUES (%s, %s)
-params = (order.order_id, order.status.value)
-
-# When reading from database/API (convert to enum)
-order_status = OrderStatus(api_response['status'])
-
-# When building query filters
-query.where(Order.status.in_([
-    OrderStatus.PENDING.value,
-    OrderStatus.OPEN.value
-]))
-```
-
-## References
-
-- **API Reference**: `api_reference/` directory for request/response structures
-- **WebSocket Reference**: `websocket_reference/` directory for message formats
-- **Source of Truth**: `core/enums.py` for all enum definitions
-- **Exports**: `core/__init__.py` for public API
-
-## Common Mistakes to Avoid
-
-1. ❌ Mixing enum and string: `if status == "OPEN" and status == OrderStatus.OPEN`
-2. ❌ Forgetting `.value` for API calls: `api_call(status=OrderStatus.OPEN)` → should be `OrderStatus.OPEN.value`
-3. ❌ Not importing from right place: `from core.enums import ...` (not `from core import ...` for direct use in type hints only)
-4. ❌ Creating magic strings when enum exists: `direction = "below"` → should be `Direction.BELOW.value`
-
-## Contributing
-
-When adding new fixed value sets:
-
-1. Add enum to `core/enums.py` with documentation
-2. Export from `core/__init__.py`
-3. Update this guide with usage location
-4. Update code to use the enum
-5. Consider adding validation if used in critical paths
+Validate incoming strings with the relevant enum at existing boundaries. Do not
+add a parallel normalizer or new status without reviewing the persistence,
+dashboard, lifecycle, and regression contracts. Internal ownership always uses
+`client_order_id`; see `ORDER_ID_HANDLING.md`.

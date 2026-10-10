@@ -1,5 +1,8 @@
 # Configuration Reference
 
+Reconciled with the `prod` checkout on 2026-10-09. Current source and tests
+remain the evidence for runtime behavior.
+
 This document describes active configuration sources in the current codebase.
 
 ## 1) Environment Variables
@@ -19,7 +22,7 @@ Loaded in `configuration.py` and used to initialize `REST_CLIENT`.
 
 Test suite guard (`tests/conftest.py`) sets these to test defaults (`port 9876`) and blocks accidental prod DB use unless `ALLOW_PROD_DB=1`. `database/database.py` also blocks direct test-shaped processes (`pytest`, root-level `test_*.py`) from connecting to localhost production port `5432` unless the same override is set.
 
-Expected local Docker layout:
+Example local Docker layout (container names are operator-managed):
 - `coinbase-stage-postgres`: host `127.0.0.1:5432` -> container `5432`
 - `coinbase-dev-postgres`: host `127.0.0.1:9876` -> container `5432`
 
@@ -44,45 +47,12 @@ The host `9876` mapping must point to container port `5432`. Mapping `9876->9876
   - controls metrics window preset in `business/market_metrics.py`.
   - supported: `standard` (default), `fibonacci`.
 
-- `ACTION_CONDITION_GUARDS_JSON`
-  - optional JSON object for stealth planning, reveal, and replacement
-    account-condition guards.
-  - direct dashboard `place_order` also evaluates this policy before REST
-    placement.
-  - overrides top-level `products.json::action_condition_guards` when set.
-  - supported keys: `wallet_available`, `known_inventory_available`, and
-    `limits`.
-  - see [Action Condition Guards](../README.action-condition-guards.md).
-
-- `PRODUCT_CAPABILITIES_JSON`
-  - optional JSON object for product capability overrides.
-  - overrides top-level `products.json::product_capabilities` when set.
-  - supports `product_type` and `product_id` maps.
-  - default spot policy enables direct placement, stealth planning, and stealth
-    reveal, while disabling spot move/reprice replacement, cancel/re-entry, and
-    hotpoint auto-placement by default. If move/reprice is explicitly enabled,
-    the replacement action guard credits the active same-currency Coinbase hold
-    and checks only the net new wallet requirement before cancel-and-replace.
-
-- `SPOT_FOLLOW_UP_POLICY_JSON`
-  - optional JSON object for spot follow-up intent policy.
-  - overrides top-level `products.json::spot_follow_up_policy` when set.
-  - default spot policy allows `exit` follow-ups and blocks `rebuy` and
-    `same_side_replacement` until explicitly enabled.
-
-- `SPOT_INVENTORY_BASELINES_JSON`
-  - optional JSON list for imported spot inventory lots.
-  - overrides top-level `products.json::spot_inventory_baselines` when set.
-  - each entry should include `product_id`, `quantity`, and optional
-    `entry_price`, `fees`, `entry_timestamp`, `source_id`, and
-    `cost_basis_status`.
-  - entries without positive known `entry_price` are treated as unknown cost
-    basis and cannot satisfy `known_inventory_available`.
-
 ### External test toggles
-- `COINBASE_USE_SANDBOX` (expected `true` for external tests)
+- `COINBASE_USE_SANDBOX` (external-test opt-in assertion; does not change
+  production runtime routing or configure the test SDK base URL)
 - `COINBASE_ENABLE_WEBSOCKET_EXTERNAL` (opt-in live websocket smoke)
-- `COINBASE_SANDBOX_URL` (external test override)
+- `COINBASE_SANDBOX_URL` (recorded in external fixtures but not passed to the
+  current RESTClient constructor; it is not proof of sandbox routing)
 
 ## 2) File-Based Configuration
 
@@ -96,25 +66,11 @@ Contains:
 - `metadata`: per-product increments/min sizes/type data. Metadata may carry
   API-style `type`; `configuration.py` normalizes this into canonical
   `product_type` values for runtime consumers.
-- `action_condition_guards`: optional file-backed default for stealth planning,
-  reveal, and replacement action guards. `ACTION_CONDITION_GUARDS_JSON`
-  overrides it.
-- `product_capabilities`: optional file-backed default for product capability
-  overrides. `PRODUCT_CAPABILITIES_JSON` overrides it.
-- `spot_follow_up_policy`: optional file-backed default for spot follow-up
-  intent policy. `SPOT_FOLLOW_UP_POLICY_JSON` overrides it.
-- `spot_inventory_baselines`: optional file-backed imported spot inventory
-  lots. `SPOT_INVENTORY_BASELINES_JSON` overrides it.
-
 Loaded by `configuration.py` into:
 - `SPOT_PRODUCT_IDS`
 - `DERIVATIVES_PRODUCT_IDS`
 - `PRODUCT_METADATA`
 - `TICKER_TO_TRADING`
-- `ACTION_CONDITION_GUARDS`
-- `PRODUCT_CAPABILITIES`
-- `SPOT_FOLLOW_UP_POLICY`
-- `SPOT_INVENTORY_BASELINES`
 
 ### `pyproject.toml`
 Project/package metadata and package inclusion list.
@@ -193,30 +149,20 @@ Many important behaviors are configured per order, not globally.
 - `reveal_condition_json`
 - `sizing_strategy_json`
 - `anchor_repricing_policy_json`
-- `cancel_reentry_policy_json`
-- `cancel_reentry_state_json`
-- `post_fill_retreat_policy_json`
+- `anchor_repricing_state_json` (placement/rearm/intent state; not operator policy)
+- `reveal_pricing_policy` (persisted column, default `configured_limit`)
 
-`cancel_reentry_policy_json` is per-order configuration for no-fill revealed placements. It cancels the live exchange placement when the market gets too close to the limit and re-enters only after a wider distance, optional cooldown, and optional max re-entry count. It is not a global bot setting.
-
-`post_fill_retreat_policy_json` is per-order configuration for hidden-order response to fills elsewhere on the same product/side. It uses product `price_increment` ticks, stores cumulative runtime offset in `anchor_repricing_state_json`, and does not mutate live revealed placements.
-
-### Stealth order config (in-memory dict only — NOT persisted)
-- `reveal_pricing_policy`
-- `follow_up_reveal_direction`
-
-> These two fields live on the in-memory order dict and are passed
-> through `StealthOrderManager.create_stealth_order` / follow-up
-> creation, but the rolled-back `stealth_orders` schema has no
-> column for them. They reset to defaults on process restart.
-> If persistence is needed, add an `ALTER TABLE` and update
-> `_save_stealth_order_to_db` / `_load_stealth_order_from_db`.
+`follow_up_reveal_direction` remains an in-memory creation option and resets
+on hydration; it is not a persisted column. Distance-based cancel/re-entry and
+same-side hidden-order retreat policies are absent from this checkout.
 
 Do not introduce duplicate global settings when a per-order canonical field already exists.
 
 ## 6) Product Precision and Size Rules
 
-- Price increment enforcement uses `calculation/formatter.py::quantize_to_increment`.
+- Exchange-bound price enforcement uses
+  `calculation/price_validation.py::normalize_price_for_product`; it uses
+  `calculation/formatter.py::quantize_to_increment` internally.
 - Size validation uses `calculation/size_validation.py::validate_and_quantize_size`.
 - Product increments/min sizes come from `PRODUCT_METADATA` (from `products.json`).
 - Spot ticker/trading mappings must only point to live tradable products. The
@@ -225,19 +171,16 @@ Do not introduce duplicate global settings when a per-order canonical field alre
 ## 7) Operational Commands (PowerShell)
 
 ```powershell
-# Full regression gate for durable milestone closeout or explicit request
-pytest tests/regression/ -v
-
-# Full suite (major changes)
-pytest tests/ -v --tb=short --cov=.
+# Required complete local non-external gate for every non-agent-file change
+.\.venv\Scripts\python.exe -m pytest -c tests/pytest.ini tests -m "not external" -v --tb=short
 
 # Disable reconcilers for local troubleshooting
 $env:DISABLE_RECONCILER = "1"
-py main.py
+.\.venv\Scripts\python.exe -m main
 
 # Use fibonacci metrics windows (optional)
 $env:MARKET_METRICS_WINDOWS = "fibonacci"
-py main.py
+.\.venv\Scripts\python.exe -m main
 
 # Verify the test database endpoint
 python -c "import psycopg2; psycopg2.connect(host='127.0.0.1', port=9876, dbname='postgres', user='postgres', password='postgres').close(); print('ok')"
@@ -254,4 +197,4 @@ python -c "import psycopg2; psycopg2.connect(host='127.0.0.1', port=9876, dbname
 
 ---
 
-Last updated: 2026-08-26
+Last reconciled with checkout: 2026-10-09

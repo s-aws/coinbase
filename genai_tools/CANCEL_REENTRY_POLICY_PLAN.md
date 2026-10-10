@@ -1,5 +1,10 @@
 # Cancel/Re-Entry Policy Plan
 
+> **Historical toolbox document — status reviewed 2026-10-09.** Examples,
+> plans, results, counts, and line anchors below may be obsolete or from another
+> branch. This file is not implementation authority or permission to execute
+> a tool. Inspect the exact source and use [current context](../genai_data/README.md).
+
 Date: 2026-05-16
 
 ## Intent

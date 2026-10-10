@@ -31,10 +31,11 @@ class MarketData(TypedDict, total=False):
         product_id:    Coinbase product symbol (e.g. ``BTC-USDC``).
         price:         Last trade price.
         bid / ask:     Best bid / ask from the order book or ticker.
-        volume_1m:     Trade volume in the last 60 seconds (used by the
-                       repricing volume guardrail).
+        volume_1m:     Volume signal used by the repricing guardrail. The
+                       ticker bridge estimates it as 24h volume / 1440;
+                       it is not a measured rolling 60-second total.
         market_spread: Pre-computed ``ask - bid`` when available.
-        time:          Timestamp of the snapshot (engine-local datetime).
+        time:          UTC-normalized Coinbase event time, with host UTC fallback.
         source:        Provenance tag — one of ``ticker``, ``snapshot``,
                        ``unavailable``, ``synthetic_follow_up_seed``.
                        Audit/log only; never used for control flow.
@@ -859,7 +860,7 @@ class RepricingPolicy:
         product's ``price_increment`` before placement.
         """
         # A disabled policy is fully inert: no anchor repricing AND no
-        # retreat. The defaults on the dataclass are the OPT-OUT values
+        # retreat. The defaults on the dataclass are the enabled-policy values
         # that take effect once a policy is enabled and omits the retreat
         # fields; they are NOT meant to leak into a fully-disabled policy.
         if not self.enabled:

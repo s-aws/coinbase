@@ -1,17 +1,13 @@
 # System Architecture
 
-> Verification status: this document contains architecture retained from more
-> than one branch. A component named here is active only if it exists in the
-> current checkout. Verify behavior against code and tests before changing it.
+Reconciled with the `prod` checkout on 2026-10-09. Current source and tests
+remain the evidence for runtime behavior.
 
 ## Overview
 
 The runtime is centered on a single `OrderEngine` instance (`core/order_engine.py`) with supporting subsystems:
 
 - `dashboard_server.py`: operator command surface and state broadcast over WebSocket.
-- `api/v1/app.py`: enterprise Admin API contract app and OpenAPI source.
-- `application/admin_api/`: shared command-service boundary for FastAPI and
-  dashboard compatibility adapters.
 - `bridges/stealth_order_bridge.py` +
   `bridges/stealth_event_deadline_scheduler.py`: ordered stealth condition
   evaluation, deadline scheduling, and reveal orchestration.
@@ -29,18 +25,9 @@ The runtime is centered on a single `OrderEngine` instance (`core/order_engine.p
   envelopes flow through `OrderEngine.on_user_message` on a separate
   `WSUserClient` connection.
 - Dashboard websocket commands flow into `dashboard_server.handle_client_message`.
-- Enterprise Admin API routes flow through `api/v1/routes/*` into
-  `application.admin_api.command_service.AdminApiCommandService`. HTTP
-  mutating routes are no-live by default. Manual Spot order and cancel are
-  route-scoped configured exceptions that may reach the shared backend live
-  branch only after exact backend auth/RBAC, idempotency, approval,
-  admission-audit, cap/guard, reconciliation, manual acknowledgement,
-  live-service, REST-client, and event-stream gates pass; other mutating HTTP
-  routes remain live-disabled/fail-closed and do not call Coinbase.
-
 2. **Domain Layer**
 - `OrderEngine` handles parent/child lifecycle, follow-up creation, partial-fill state, and ownership classification.
-- `StealthOrderManager` handles stealth creation, condition checks, reveal, repricing, cancel/re-entry, same-side post-fill retreat, and move-revealed execution.
+- `StealthOrderManager` handles stealth creation, condition checks, reveal, repricing/rearm, manual Rehide, intentional cancellation, and move-revealed execution.
 
 3. **Persistence Layer**
 - `database/order.py` is canonical schema + write/read API.
@@ -194,7 +181,6 @@ Concurrency safety mechanisms:
 - Follow-up claim ledgers (filled/cancelled namespaces) to prevent duplicate child creation.
 - Replacement-slot claim accounting to enforce `max_order_replacement` under race.
 - Stealth mutation claims (`move`, `reprice`, `rehide`) prevent conflicting concurrent mutation.
-- Cancel/re-entry policy evaluation runs before anchor repricing on ticker updates, so a policy-cancel decision wins over repricing the same revealed placement.
 
 ## Lifecycle State Machine
 
@@ -224,9 +210,9 @@ stop publications share the engine's short lifecycle commit boundary, so a
 status snapshot prepared before stop cannot overwrite the stop hook's false
 value. That hook normally publishes DRAINING; the later logical STOPPED
 transition is immediately visible through `admin_status` but is not
-republished by OrderEngine. Existing dashboard and terminal-console consumers
-still label every `running=false` sample as “Stopped”; they do not yet render
-STARTING or PAUSED distinctly.
+republished by OrderEngine. The stealth-manager UI additionally uses `admin_status` to render the exact
+authoritative state and enables its confirmed Resume control only in PAUSED.
+Other consumers may still collapse `running=false` into a stopped label.
 
 Admission is enforced at dashboard and engine-originated entry points. The
 main-owned shutdown order first runs OrderEngine's startup-quiesce/status hook.
@@ -307,8 +293,9 @@ pause either wins first or the already-admitted action drains as existing work.
    retaining their existing fallback semantics.
 4. `TRIGGERED` is a committed snapshot. Runtime pause can defer placement, but
    later market events do not roll it back; reveal admission and inflight
-   registration are atomic, and admission retries use the existing 100ms
-   slice/retry cadence.
+   registration are atomic. Closed admission leaves no recurring trigger retry;
+   the admission-open hook schedules one immediate retry per eligible order.
+   Running retries use the existing 100 ms cadence with one successor owner.
 5. Anchor deadlines only mark a logical order due. The next live ticker for its
    product claims that deadline generation and invokes the existing manager
    repricing path; stale generations are no-ops and anchor repricing REST/DB work
@@ -329,11 +316,9 @@ pause either wins first or the already-admitted action drains as existing work.
    leaves revealed size, remaining size, and active placement pointers
    unchanged.
 8. Reveal events and lifecycle transitions persist to audit/history tables.
-9. Cancel/re-entry policy can cancel a no-fill revealed placement, return the stealth order to `HIDDEN`, and later re-enter through the existing reveal path when the market moves far enough away.
-10. Same-side post-fill retreat can move the nearest opted-in hidden order on the same product/side by configured price ticks after another order fills.
-11. Anchor repricing of a revealed order uses the accepted reveal event as live-placement truth, persists a `pending_rearm` cancel intent, and requests cancellation without placing a replacement. The default `return_to_hidden=true` mode keeps the order `REVEALED` until the matching authenticated `CANCELLED` event returns that placement's size to hidden inventory. The same intent may be superseded with `return_to_hidden=false` when terminal local state must win (for example, an operator cancel during an in-flight rearm); this reuses the acknowledgement path rather than adding another cancel protocol. A fill aborts the rearm, and every non-terminal/ambiguous cancel outcome leaves the intent pending. The existing condition evaluator and reveal path own all later re-entry. Repricing fails closed when one tracked cancellation cannot account for all revealed exposure; multi-live sizing layouts are intentionally unsupported by this minimal path.
-12. The operator Move-revealed flow remains a distinct direct cancel-and-replace action with audit row insertion; it is not the automatic cancel-to-hidden rearm path.
-13. Manual Rehide enters the same persisted rearm/confirmation path without requiring anchor repricing or a price change. It preserves the configured price, condition configuration, sizing, and flat linkage; only one fully accounted zero-fill placement is eligible. The bridge requires startup readiness and atomically admitted runtime work under its existing per-order action lock. A request acknowledgement means pending exchange confirmation, never an optimistic `HIDDEN` status. Confirmation restarts the existing reveal policy; a satisfied condition may reveal again subject to its normal hold/delay and admission rules. Manual rehide does not increment repricing history or reset anchor pacing.
+9. Anchor repricing of a revealed order uses the accepted reveal event as live-placement truth, persists a `pending_rearm` cancel intent, and requests cancellation without placing a replacement. The default `return_to_hidden=true` mode keeps the order `REVEALED` until the matching authenticated `CANCELLED` event returns that placement's size to hidden inventory. The same intent may be superseded with `return_to_hidden=false` when terminal local state must win (for example, an operator cancel during an in-flight rearm); this reuses the acknowledgement path rather than adding another cancel protocol. A fill aborts the rearm, and every non-terminal/ambiguous cancel outcome leaves the intent pending. The existing condition evaluator and reveal path own all later re-entry. Repricing fails closed when one tracked cancellation cannot account for all revealed exposure; multi-live sizing layouts are intentionally unsupported by this minimal path.
+10. The operator Move-revealed flow remains a distinct direct cancel-and-replace action with audit row insertion; it is not the automatic cancel-to-hidden rearm path.
+11. Manual Rehide enters the same persisted rearm/confirmation path without requiring anchor repricing or a price change. It preserves the configured price, condition configuration, sizing, and flat linkage; only one fully accounted zero-fill placement is eligible. The bridge requires startup readiness and atomically admitted runtime work under its existing per-order action lock. A request acknowledgement means pending exchange confirmation, never an optimistic `HIDDEN` status. Confirmation restarts the existing reveal policy; a satisfied condition may reveal again subject to its normal hold/delay and admission rules. Manual rehide does not increment repricing history or reset anchor pacing.
 
 ### Stealth State and Exchange Truth
 
@@ -346,28 +331,12 @@ Stealth status is operational state, not display-only metadata:
 - `ERROR` means exchange placement was rejected or acceptance could not be
   proven. It is terminal, excluded from active evaluation, and is never
   automatically resubmitted.
-- A revealed order cannot become hidden again by local status mutation alone. The live exchange order must be cancelled, filled, moved/replaced, or reconciled closed before local state claims it is no longer revealed.
+- A revealed order cannot become hidden again by local status mutation alone. The live exchange order must be cancelled, filled, moved/replaced, or reconciled closed before local state claims it is hidden. Intentional local CANCELLED may
+  precede withdrawal, but must preserve exposure identifiers and pending intent.
 - If an exchange cancel fails, keep the local state conservative and surface operator action. Do not clear the active exchange pointer and mark the order hidden as if the order were gone.
 - A confirmed rearm sets `reveal_armed_at` only on the `REVEALED` to `HIDDEN` transition. Hidden anchor-price maintenance does not restart time-delay reveal policy.
 - Once `reveal_armed_at` exists, each new reveal uses a fresh placement `client_order_id`, including orders with repricing disabled. The logical stealth ID and original root linkage stay unchanged; retired exchange client IDs are never reused after rehide.
 - Hydrated or dropped-event rearm intents are recovered by the existing stealth reconciliation loop using an exact authenticated exchange-order lookup. `OPEN` reissues cancellation of that same exchange order; `CANCELLED` and `FILLED` return through the canonical order-event path. This completion path remains active when the broad startup/periodic drift auditor is disabled because it finishes a previously persisted exchange mutation rather than discovering unrelated drift.
-
-Cancel/re-entry is not general hide-again behavior. It is a narrower policy-cancel/re-entry mechanism:
-- It applies only to revealed stealth orders with no executed size.
-- It cancels the tracked active exchange placement before marking the stealth order hidden.
-- It persists policy and runtime state in `cancel_reentry_policy_json` and `cancel_reentry_state_json`.
-- While state is `cancelled_by_policy`, normal reveal checks are held until re-entry distance, cooldown, and max-count rules allow re-entry.
-- Re-entry calls the existing reveal path instead of adding a parallel placement implementation.
-
-The old dashboard "Hide" action is not the same contract. It is a UI/operator action and must not be treated as proof that the exchange placement was cancelled unless the code path explicitly performs or reconciles that cancellation. Do not describe either UI Hide or cancel/re-entry as a general hide-again feature.
-
-Same-side post-fill retreat is a separate hidden-order policy:
-- It is opt-in on the hidden order being moved (`post_fill_retreat_policy_json`).
-- It triggers from a filled same-product/same-side stealth placement.
-- It chooses one nearest eligible hidden order by distance from the fill price.
-- It never mutates `REVEALED` live exchange placements; those stay under cancel/move/reprice/reconcile paths.
-- It updates `limit_price`, absolute reveal-condition price fields, pending trigger timestamps, and `anchor_repricing_state_json`.
-- `anchor_repricing_state_json.post_fill_retreat_offset` is cumulative and is applied to future anchor target bands so anchor repricing does not erase the retreat.
 
 ### 3. Reconciliation Flow
 
@@ -412,7 +381,7 @@ Analytics support tables:
 
 `dashboard_server.py` exposes command handlers for:
 - runtime admin (`admin_status`, `admin_pause`, `admin_resume`, `admin_shutdown`)
-- parent CRUD, stealth CRUD/update/move/reprice and create/import payloads carrying cancel/re-entry and post-fill retreat policy
+- parent CRUD, stealth creation/update/cancel/Rehide/move/reprice and import/export
 - chart and calibration reads
 - products list refresh
 - move history and premark flows
@@ -421,114 +390,6 @@ Broadcast model:
 - shared in-memory `engine_state`
 - periodic and event-driven `state_update` pushes
 - JSON-safe serialization for Decimal/datetime payloads
-
-## Enterprise Admin API
-
-The enterprise Admin API is the contract surface for the separate frontend
-repository at `C:\coinbase-frontend`. HTTP mutating routes are no-live by
-default. Manual Spot order and cancel are the only current route-scoped
-configured exceptions, and they may reach the shared backend live branch only
-after exact backend auth/RBAC, idempotency, approval, admission-audit,
-cap/guard, reconciliation, manual acknowledgement, live-service, REST-client,
-and event-stream gates pass. Other mutating HTTP routes remain
-live-disabled/fail-closed.
-
-Current modules:
-- `api/v1/app.py`: FastAPI app factory.
-- `api/v1/routes/admin.py`: read-only backend association, health,
-  session/RBAC, capability, guard/risk policy, audit workbench, gate, and
-  frontend-fixture routes.
-- `api/v1/routes/orders.py`: thin route adapters for `POST /api/v1/orders`,
-  `GET /api/v1/orders`, `GET /api/v1/orders/{client_order_id}`,
-  `POST /api/v1/orders/{client_order_id}/cancel`, and
-  `POST /api/v1/spot/campaign/executions`.
-- `api/v1/routes/spot.py`: read-only spot operator routes.
-- `api/v1/routes/stealth.py`: read-only stealth lifecycle evidence routes.
-- `api/v1/routes/movement_repricing.py`: read-only movement/repricing
-  evidence routes over `order_moves`, `stealth_order_moves`, stealth repricing
-  state, and runtime-safe claim snapshots.
-- `api/v1/routes/futures.py`: read-only futures/perpetual account, risk, and
-  position evidence routes keyed by backend `position_key`.
-- `application/admin_api/command_service.py`: shared command service used by
-  HTTP routes and legacy dashboard compatibility adapters.
-- `application/admin_api/auth.py`: fail-closed bearer-token/RBAC bootstrap.
-- `application/admin_api/idempotency.py`: durable JSONL idempotency store and
-  payload-hash contract.
-- `application/admin_api/approval.py`: approval snapshot contract.
-- `application/admin_api/audit.py`: durable JSONL command audit store.
-- `application/admin_api/read_service.py`: read-only operator status service.
-- `application/admin_api/route_inventory.py`: route/message inventory.
-- `openapi/coinbase-admin-api.yaml`: generated backend-owned OpenAPI artifact.
-
-Current behavior:
-- Admin API mutating routes authenticate, authorize, evaluate idempotency, write
-  audit records, and fail closed unless their route has explicit backend
-  live-service admission.
-- Manual Spot order creation and cancel-by-`client_order_id` are explicit
-  configured live-service exceptions. They still require exact backend
-  auth/RBAC, idempotency, approval, admission-audit, cap/guard,
-  reconciliation, manual acknowledgement, live-service, REST-client, and
-  event-stream evidence before calling the shared command-service live branch.
-- Other mutating HTTP routes return live-disabled or not-implemented evidence
-  and do not submit Coinbase orders, cancel Coinbase orders, or mutate live
-  exchange state.
-- Admin API OpenAPI includes typed `200` accepted/replayed command response
-  schemas for explicit live-enabled states and typed blocked response contracts
-  for live-disabled states.
-- Legacy dashboard `place_order` and `cancel_order` WebSocket messages delegate
-  to `AdminApiCommandService` as compatibility adapters.
-- Order read routes are local-evidence reads keyed by `client_order_id`.
-  Exchange-native ids are exposed only as `exchange_order_id` evidence.
-- Stealth read routes are local-evidence reads keyed by `stealth_order_id`.
-  Active placement client ids and exchange-native ids are exposed as evidence
-  only. Stealth cancel is modeled as a live-disabled Admin API command keyed
-  by `stealth_order_id`.
-- Movement/repricing read routes expose durable parent move history, revealed
-  stealth move audit rows, anchor repricing state, replacement-slot evidence,
-  and runtime mutation claim state when safely observable. Movement reprice is
-  modeled as a live-disabled Admin API command keyed by `stealth_order_id`;
-  stealth move has a live-disabled Admin API draft keyed by `stealth_order_id`;
-  live move execution, premark, and move-revealed command authority is not
-  modeled.
-- Futures/perpetual read routes expose account, margin, collateral, funding,
-  liquidation, close/reduce-side, position, and P/L evidence. `position_key`
-  is the position read identity. Configured product scope and observed
-  position scope are separate. Close/reduce sides are backend-derived from
-  observed position side and are not exchange-observed order flags.
-- Guard/risk policy reads expose existing backend action-condition policy,
-  configured cap rules, live execution gate posture, product capability
-  policy, profitability-validator posture, authority sources, and rejection
-  categories as evidence only. They do not fetch Coinbase wallets and do not
-  approve browser live execution.
-- Audit workbench reads expose route inventory, command audit events,
-  correlation ids, request ids, audit ids, module summaries, and exchange
-  evidence as a read-only cross-module workbench. They do not mutate audit
-  history, fetch Coinbase, replay commands, or approve browser live execution.
-- Admin bootstrap, health, session/RBAC, capabilities, release/recovery,
-  fill-ledger health, and frontend fixture routes are read-only backend
-  association surfaces for `C:\coinbase-frontend`.
-- Admin API responses include observability headers and structured error
-  payloads for auth, RBAC, and validation failures.
-- Read-only spot routes expose readiness, sweep status, sweep P/L, cost-basis
-  status, campaign status, and direct-order audit; they are auth/RBAC-gated and
-  document `401`/`403` in the generated OpenAPI contract.
-
-Future live behavior must use one path:
-
-```text
-frontend request
--> FastAPI route
--> auth/RBAC
--> idempotency and approval gate
--> shared command service
--> existing domain/bridge/exchange path
--> durable audit
--> typed response
-```
-
-Legacy dashboard WebSocket live commands that do not pass through equivalent
-enterprise gates remain explicitly compatibility-only and excluded from new
-frontend workflows.
 
 ## Optional Cross-Venue Intelligence
 
@@ -540,6 +401,25 @@ Current scope is intentionally narrow and fail-soft:
 - no mutation of trading state
 - consumers treat missing intel as no-signal fallback
 - terminal UI (`ui_console.py`) can display cross-venue premium/lead indicators
+
+## Known implementation boundaries
+
+- A pre-reveal intentional stop persists the stealth row but still leaves the
+  same-SID order_parent projection PENDING and omits the CANCELLED lifecycle
+  event. This is a durable audit/projection gap, not an active reveal plan;
+  startup reconciliation does not repair it.
+- Dashboard direct placement checks admission before REST and uses plain
+  in-flight accounting. It does not share the scheduler's atomic admitted-work
+  boundary, so a later pause can race that direct path. Manual hotpoint-test
+  placement similarly has an initial gate and no uniform atomic boundary.
+- Pending rearm requires one fully accounted zero-fill placement. Multi-live
+  exposure fails closed rather than treating hidden remaining_size as exposure.
+- Cumulative-volume compatibility evaluation expects trade-volume fields that
+  the ticker bridge does not supply and retains evaluator-lifetime limitations.
+  Its presence in the factory is not evidence of correct live accumulation.
+- The legacy single-order cancel wrapper and unmapped dashboard fallback do not
+  inspect exact per-order terminal confirmation. Managed stealth withdrawal uses
+  its persisted exact-order recovery contract.
 
 ## Key Architectural Invariants
 
@@ -567,4 +447,4 @@ When adding a feature:
 
 ---
 
-Last updated: 2026-05-16
+Last reconciled with checkout: 2026-10-09

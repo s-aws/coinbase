@@ -1,191 +1,57 @@
-# Coinbase Advanced Trade API Reference Library
+# Coinbase REST Reference Fixtures
 
-This directory contains a structured collection of Coinbase Advanced Trade API REST endpoint request/response schemas. Use this library as a quick reference when developing features or debugging API integrations.
+Inventory reconciled on 2026-10-09. These are stored examples and fixture
+contracts, not a live Coinbase specification. Presence does not prove current
+endpoint support, subscription validity, runtime routing, or coverage.
 
-## Directory Structure
+Use [the current local API contract](../genai_data/API_REFERENCE.md) and
+[the WebSocket integration reference](../docs/COINBASE_WEBSOCKET_REFERENCE.md)
+for project behavior. External execution follows
+[the runbook](../docs/EXTERNAL_TESTING_RUNBOOK.md).
 
-```
-api_reference/
-├── accounts/           # Account management and balance operations
-├── orders/            # Order placement, management, and history
-├── products/          # Product information and market data
-├── portfolios/        # Portfolio management and breakdowns
-├── fees/              # Fee schedules and tier information
-├── perpetuals/        # Futures/perpetual trading
-├── conversions/       # Currency conversion operations
-└── README.md          # This file
-```
+## Stored files
 
-## Naming Convention
+| Path | Top-level JSON keys |
+| --- | --- |
+| [accounts/get_account_request.json](accounts/get_account_request.json) | `authentication`, `description`, `endpoint`, `headers`, `method`, `notes`, `path_parameters` |
+| [accounts/get_account_response.json](accounts/get_account_response.json) | `description`, `endpoint`, `example`, `method`, `response`, `status_codes` |
+| [accounts/list_accounts_request.json](accounts/list_accounts_request.json) | `authentication`, `description`, `endpoint`, `headers`, `method`, `notes`, `query_parameters` |
+| [accounts/list_accounts_response.json](accounts/list_accounts_response.json) | `description`, `endpoint`, `example`, `method`, `response`, `status_codes` |
+| [conversions/convert_request.json](conversions/convert_request.json) | `authentication`, `description`, `endpoint`, `headers`, `method`, `notes`, `request_body` |
+| [conversions/convert_response.json](conversions/convert_response.json) | `description`, `endpoint`, `example`, `method`, `response`, `status_codes` |
+| [fees/get_fees_request.json](fees/get_fees_request.json) | `authentication`, `description`, `endpoint`, `headers`, `method`, `notes`, `project_filtered_requests`, `query_parameters`, `wrapper`, `wrapper_behavior` |
+| [fees/get_fees_response.json](fees/get_fees_response.json) | `description`, `endpoint`, `fee_manager_consumption`, `fixed_cde_cost_scope`, `method`, `response`, `sanitized_example`, `status_codes` |
+| [orders/cancel_order_request.json](orders/cancel_order_request.json) | `authentication`, `description`, `endpoint`, `headers`, `method`, `notes`, `path_parameters` |
+| [orders/cancel_order_response.json](orders/cancel_order_response.json) | `description`, `endpoint`, `example`, `method`, `response`, `status_codes` |
+| [orders/create_order_request.json](orders/create_order_request.json) | `authentication`, `description`, `endpoint`, `headers`, `method`, `notes`, `request_body` |
+| [orders/create_order_response.json](orders/create_order_response.json) | `description`, `endpoint`, `example`, `method`, `response`, `status_codes` |
+| [orders/list_fills_request.json](orders/list_fills_request.json) | `authentication`, `description`, `endpoint`, `headers`, `method`, `notes`, `query_parameters` |
+| [orders/list_fills_response.json](orders/list_fills_response.json) | `description`, `endpoint`, `example`, `method`, `response`, `status_codes` |
+| [orders/list_orders_request.json](orders/list_orders_request.json) | `authentication`, `description`, `endpoint`, `headers`, `method`, `notes`, `query_parameters` |
+| [orders/list_orders_response.json](orders/list_orders_response.json) | `description`, `endpoint`, `example`, `method`, `response`, `status_codes` |
+| [perpetuals/list_perpetual_orders_request.json](perpetuals/list_perpetual_orders_request.json) | `authentication`, `description`, `endpoint`, `headers`, `method`, `notes`, `query_parameters` |
+| [perpetuals/list_perpetual_orders_response.json](perpetuals/list_perpetual_orders_response.json) | `description`, `endpoint`, `method`, `response`, `status_codes` |
+| [perpetuals/list_perpetual_positions_request.json](perpetuals/list_perpetual_positions_request.json) | `authentication`, `description`, `endpoint`, `headers`, `method`, `notes`, `query_parameters` |
+| [perpetuals/list_perpetual_positions_response.json](perpetuals/list_perpetual_positions_response.json) | `description`, `endpoint`, `example`, `method`, `response`, `status_codes` |
+| [portfolios/get_portfolio_request.json](portfolios/get_portfolio_request.json) | `authentication`, `description`, `endpoint`, `headers`, `method`, `notes`, `path_parameters` |
+| [portfolios/get_portfolio_response.json](portfolios/get_portfolio_response.json) | `description`, `endpoint`, `example`, `method`, `response`, `status_codes` |
+| [portfolios/list_portfolios_request.json](portfolios/list_portfolios_request.json) | `authentication`, `description`, `endpoint`, `headers`, `method`, `notes`, `query_parameters` |
+| [portfolios/list_portfolios_response.json](portfolios/list_portfolios_response.json) | `description`, `endpoint`, `method`, `response`, `status_codes` |
+| [products/get_candles_request.json](products/get_candles_request.json) | `authentication`, `description`, `endpoint`, `headers`, `method`, `notes`, `path_parameters`, `query_parameters` |
+| [products/get_candles_response.json](products/get_candles_response.json) | `description`, `endpoint`, `example`, `method`, `response`, `status_codes` |
+| [products/get_product_request.json](products/get_product_request.json) | `authentication`, `description`, `endpoint`, `headers`, `method`, `notes`, `path_parameters` |
+| [products/get_product_response.json](products/get_product_response.json) | `description`, `endpoint`, `example`, `method`, `response`, `status_codes` |
+| [products/list_products_request.json](products/list_products_request.json) | `authentication`, `description`, `endpoint`, `headers`, `method`, `notes`, `query_parameters` |
+| [products/list_products_response.json](products/list_products_response.json) | `description`, `endpoint`, `example`, `method`, `response`, `status_codes` |
 
-Each endpoint is documented with TWO files:
+## Reuse and updates
 
-- **`{endpoint_name}_request.json`** - Request parameters, headers, authentication requirements
-- **`{endpoint_name}_response.json`** - Response structure, field types, examples, status codes
+Read the exact file before reusing its schema/example. The external contract
+tests commonly read an `example` member, while WebSocket references may carry
+channel/auth/message metadata. Verify the source and test expectations rather
+than assuming all files use one format.
 
-### Examples
-
-- `list_accounts_request.json` / `list_accounts_response.json`
-- `create_order_request.json` / `create_order_response.json`
-- `list_perpetual_positions_request.json` / `list_perpetual_positions_response.json`
-
-## File Structure Conventions
-
-### Request Files
-
-Each request file includes:
-- **endpoint**: Full endpoint path (GET, POST, etc.)
-- **method**: HTTP method (GET, POST, DELETE, etc.)
-- **description**: What the endpoint does
-- **path_parameters**: Path variables (if any)
-- **query_parameters**: Query string parameters with types and descriptions
-- **request_body**: POST/PATCH body structure (if applicable)
-- **headers**: Required/optional headers
-- **authentication**: Authentication type (Bearer token, etc.)
-- **notes**: Important usage information
-
-### Response Files
-
-Each response file includes:
-- **endpoint**: Full endpoint path
-- **method**: HTTP method
-- **description**: Response structure details
-- **response**: Full response body structure with field descriptions
-- **status_codes**: HTTP status codes and meanings
-- **example**: Real-world example (when applicable)
-
-## Quick Reference by Category
-
-### Accounts (`accounts/`)
-- `list_accounts` - Get all trading accounts
-- `get_account` - Get specific account details
-
-### Orders (`orders/`)
-- `create_order` - Place a new limit or market order
-- `list_orders` - Get historical orders with pagination
-- `list_fills` - Get order fill/execution history
-- `cancel_order` - Cancel an open order
-
-### Products (`products/`)
-- `list_products` - Get all available products
-- `get_product` - Get specific product details
-- `get_candles` - Get OHLC candlestick data
-
-### Portfolios (`portfolios/`)
-- `list_portfolios` - Get all portfolios
-- `get_portfolio` - Get portfolio details and breakdown
-
-### Perpetuals/Futures (`perpetuals/`)
-- `list_perpetual_orders` - Get open futures orders
-- `list_perpetual_positions` - Get active futures positions
-
-### Fees (`fees/`)
-- `get_fees` - Get current fee schedule and tier
-
-### Conversions (`conversions/`)
-- `convert` - Convert between stablecoin currencies
-
-## Integration Guide
-
-### Using with Your Trading Bot
-
-1. **Order Placement**: Reference `orders/create_order_request.json` for required fields and `orders/create_order_response.json` for expected response structure
-
-2. **Position Tracking**: Use `perpetuals/list_perpetual_positions_response.json` to understand position object structure
-
-3. **Product Info**: Reference `products/get_product_response.json` when building product selection or validation logic
-
-4. **Fee Calculations**: Check `fees/get_fees_response.json` for tier and rate structures
-
-### Example Usage in Code
-
-```python
-# From orders/create_order_request.json
-order_payload = {
-    "client_order_id": "550e8400-e29b-41d4-a716-446655440000",
-    "product_id": "BTC-USD",
-    "side": "BUY",
-    "order_configuration": {
-        "limit_order_config": {
-            "base_size": "0.25",
-            "limit_price": "42500.50",
-            "post_only": True
-        }
-    }
-}
-
-# Expected response structure from orders/create_order_response.json
-response = {
-    "success": True,
-    "order_id": "7c4a3d3e-e8f2-4e7a-9c1d-5a6e9f2b8c1d",
-    "status": "OPEN",
-    # ... see create_order_response.json for full structure
-}
-```
-
-## Common Field Types
-
-- **string**: Text value
-- **integer**: Whole number
-- **string (decimal)**: Numeric value as string for precision (common in finance APIs)
-- **string (UUID)**: UUID format identifier
-- **string (enum)**: One of predefined values (see enum array)
-- **string (ISO8601)**: Timestamp in ISO 8601 format (e.g., "2024-01-15T10:30:45.123Z")
-- **boolean**: True/False
-
-## Authentication
-
-All endpoints require OAuth2 Bearer token authentication:
-
-```
-Authorization: Bearer <access_token>
-```
-
-Content-Type is always `application/json`.
-
-## Error Handling
-
-Standard HTTP status codes:
-- **200**: Success
-- **400**: Bad Request (invalid parameters)
-- **401**: Unauthorized (invalid/expired token)
-- **403**: Forbidden (insufficient permissions)
-- **404**: Not Found (resource doesn't exist)
-- **429**: Too Many Requests (rate limit exceeded)
-
-## Pagination
-
-Endpoints that return lists typically support pagination using:
-- **limit**: Maximum results per page
-- **after** / **before**: Cursor-based pagination
-- **has_next**: Boolean indicating more results available
-
-## Rate Limiting
-
-Coinbase Advanced Trade API has rate limits based on:
-- Endpoint tier (standard, advanced, etc.)
-- User's trading volume tier
-- Requests per second
-
-See official Coinbase documentation for current rate limits.
-
-## Updates & Maintenance
-
-This reference library tracks the Coinbase Advanced Trade API v1 specification. Keep files synchronized with:
-- https://docs.cdp.coinbase.com/api-reference/advanced-trade-api/rest-api
-- API changelog for deprecations or new endpoints
-
-## Related Files in Project
-
-- **main.py**: Uses these endpoints via `configuration.py`
-- **configuration.py**: REST API implementation with actual HTTP calls
-- **order.py**: Order placement helpers
-- **database/order.py**: Persists API responses to PostgreSQL
-
-## Next Steps
-
-1. Extend this library with additional endpoints (deposits, withdrawals, etc.)
-2. Create webhook/event schemas when adding WebSocket documentation
-3. Add error response examples for common failure scenarios
-4. Build API client wrapper generation from these schemas
-
+Update fixtures only from reviewed endpoint/schema evidence or an intentional
+test-contract change. Avoid committing captured credentials or account data.
+Run the complete local gate in [tests/README.md](../tests/README.md); focused
+test selections and external network runs require their documented opt-in.

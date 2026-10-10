@@ -1,3 +1,8 @@
+> **Historical toolbox document — status reviewed 2026-10-09.** Examples,
+> plans, results, counts, and line anchors below may be obsolete or from another
+> branch. This file is not implementation authority or permission to execute
+> a tool. Inspect the exact source and use [current context](../genai_data/README.md).
+
 """Order Placement Hooks - Usage Guide and Examples
 
 This guide shows how to use the OrderPlacementHookRegistry to extend the order

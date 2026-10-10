@@ -1,5 +1,11 @@
 # Ticker-Anchored Repricing Design
 
+> **Historical design — status reviewed 2026-10-09.** The material below
+> preserves an earlier proposal, incident, or branch snapshot. Code examples,
+> line numbers, counts, commands, and completion claims are not current
+> implementation or authorization. Use [living references](../genai_data/README.md) and current
+> code/tests. A proposed behavior is not implemented merely because it appears here.
+
 ## Goal
 
 Add an optional order-creation feature that keeps an order a configured percentage or fixed amount away from a market reference price from the ticker feed.

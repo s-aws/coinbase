@@ -152,7 +152,7 @@ class CoinbaseWebSocketClient:
                     channels=[channel]
                 )
             else:
-                # Public channels don't require specific auth
+                # The selected SDK client role also owns private balance/heartbeat channels
                 self._client.subscribe(
                     product_ids=products,
                     channels=[channel]
@@ -167,7 +167,8 @@ class CoinbaseWebSocketClient:
         
         Args:
             products: Specific products to unsubscribe from (optional, all if None)
-            channels: Specific channels to unsubscribe from (optional, all if None)
+            channels: Only the first supplied channel is forwarded. With no
+                products or channels this helper closes the SDK connection.
         
         Examples:
             >>> client.unsubscribe(products=['BTC-USDC'], channels=['ticker'])

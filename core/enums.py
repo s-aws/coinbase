@@ -108,7 +108,7 @@ class TimeInForce(str, Enum):
     """How long an order remains valid.
     
     - GTC (GOOD_UNTIL_CANCELLED): Order stays until filled or manually cancelled
-    - IOC (IMMEDIATE_OR_CANCEL): Fill entire order immediately or cancel
+    - IOC (IMMEDIATE_OR_CANCEL): Fill immediately; cancel any unfilled remainder
     - FOK (FILL_OR_KILL): Fill entire order immediately or cancel (no partial)
     - GTD (GOOD_UNTIL_DATE_TIME): Order expires at specified end_time
     """

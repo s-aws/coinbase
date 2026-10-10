@@ -1,5 +1,11 @@
 # Stealth Order Follow-Up Fix
 
+> **Historical record — status reviewed 2026-10-09.** The material below
+> preserves an earlier proposal, incident, or branch snapshot. Code examples,
+> line numbers, counts, commands, and completion claims are not current
+> implementation or authorization. Use [living references](README.md) and current
+> code/tests. A proposed behavior is not implemented merely because it appears here.
+
 ## Problem
 When stealth orders were revealed and filled, the system marked them as "external orders" and did NOT create follow-up orders. The logs showed:
 ```

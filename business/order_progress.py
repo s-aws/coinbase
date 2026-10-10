@@ -217,7 +217,7 @@ class OrderProgressTracker:
             # denominated in the quote currency and includes the contract
             # multiplier on futures, so ``value_delta / size_delta`` would yield
             # notional-per-contract, which is inconsistent with every other
-            # module (OrderCalculator, OrderProcessor, stealth pricing all read
+            # price consumer (engine templates and stealth pricing read
             # ``avg_price`` / ``limit_price`` directly). Use the same lookup
             # here so the fill ledger and order-match audit stay consistent.
             derived_price = safe_float(

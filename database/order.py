@@ -37,7 +37,7 @@ def _json_default_for_db(value: Any):
 def create_order_parent_table() -> None:
     """Create the order_parent table if it doesn't exist.
     
-    Creates parent order table to track the initial orders placed in the system.
+    Creates the table for both root parents and flat-linked child placements.
     Parent orders can have multiple child orders created when they fill or are cancelled.
     
     Table Schema:
@@ -59,7 +59,7 @@ def create_order_parent_table() -> None:
         None. Creates table as side effect.
     
     Raises:
-        No exceptions - uses IF NOT EXISTS to prevent errors if table already exists.
+        Database/DDL failures can propagate; IF NOT EXISTS only handles an existing table.
     
     Example:
         >>> create_order_parent_table()
@@ -132,7 +132,7 @@ def create_stealth_orders_table() -> None:
         - condition_first_met_at: Timestamp when condition was first detected
         - condition_confirmed_at: Timestamp when condition was fully confirmed
         - sizing_strategy_json: JSONB configuration for reveal sizing
-        - revealed_orders: JSONB array of order IDs placed on exchange
+        - revealed_orders: JSONB array of reveal-event dictionaries with placement identity
         - last_placement_at: Timestamp of most recent reveal/placement
         - target_movement: Profit target value
         - target_movement_type: 'P' for percentage or 'A' for absolute amount
@@ -143,7 +143,7 @@ def create_stealth_orders_table() -> None:
         None. Creates table as side effect.
     
     Raises:
-        No exceptions - uses IF NOT EXISTS to prevent errors if table already exists.
+        Database/DDL failures can propagate; IF NOT EXISTS only handles an existing table.
     
     Example:
         >>> create_stealth_orders_table()
@@ -363,7 +363,7 @@ def create_stealth_order_snapshots_table() -> None:
         None. Creates table as side effect.
     
     Raises:
-        No exceptions - uses IF NOT EXISTS to prevent errors if table already exists.
+        Database/DDL failures can propagate; IF NOT EXISTS only handles an existing table.
     
     Example:
         >>> create_stealth_order_snapshots_table()
@@ -517,7 +517,7 @@ def create_stealth_order_reveal_history_table() -> None:
         None. Creates table as side effect.
     
     Raises:
-        No exceptions - uses IF NOT EXISTS to prevent errors if table already exists.
+        Database/DDL failures can propagate; IF NOT EXISTS only handles an existing table.
     
     Example:
         >>> create_stealth_order_reveal_history_table()
@@ -657,7 +657,9 @@ def insert_order_parent(
     """Insert a parent order into the order_parent table.
     
     Creates a new parent order entry with tracking for follow-up order replacement count.
-    This operation is idempotent - if the parent order already exists, it returns the existing ID.
+    Existing client IDs return their row ID unless reject_existing=True,
+    which raises instead of reusing the row. This helper does not validate UUID
+    format; callers own that contract and original-root linkage.
     
     Args:
         client_order_id: Unique client-assigned order ID.

@@ -47,7 +47,7 @@ try:
         TICKER_TO_TRADING = _products_config.get("ticker_to_trading", {})
 except (FileNotFoundError, json.JSONDecodeError) as e:
     print(f"Warning: Failed to load products.json: {e}")
-    # Fallback to hardcoded values
+    # Missing/unreadable catalog leaves product lists and metadata empty
     DERIVATIVES_PRODUCT_IDS = []
     SPOT_PRODUCT_IDS = []
     PRODUCT_METADATA = {}
@@ -119,9 +119,8 @@ def get_trading_product_id(ticker_product_id: str) -> str:
     """
     Convert a ticker product ID to its trading equivalent.
     
-    Example:
-        get_trading_product_id("BTC-USD") -> "BTC-USDC"
-        get_trading_product_id("BTC-USDC") -> "BTC-USDC"  # Already a trading product
+    The current products.json mapping decides the result; unmapped IDs
+    pass through unchanged. Do not assume every USD ticker maps to USDC.
     
     Args:
         ticker_product_id: Product ID from ticker feed
@@ -763,7 +762,7 @@ def determine_open_close_sides(product_type: str, position_side: str = None, par
     - POSITION FLIP (order_size > position_size): Partial close + partial open
       * First portion closes existing position (opposite order closes position)
       * Remaining portion opens new position in opposite direction
-      * Fee applies only to closing portion
+      * Opening/closing classification does not waive execution fees
     
     CRITICAL: When account position reaches 0 contracts, the next order opens a new position.
     Position resets when balance â†’ 0, so the direction of that next order determines whether
@@ -810,7 +809,7 @@ def determine_open_close_sides(product_type: str, position_side: str = None, par
         >>> determine_open_close_sides('FUTURE', position_side='LONG', 
         ...                              parent_order_side='SELL', 
         ...                              position_size=5.0, order_size=10.0)
-        ('BUY', 'SELL')  # SELL closes LONG portion (fee applies here)
+        ('BUY', 'SELL')  # SELL reduces the current LONG position
         
         >>> # After flip completes, position is SHORT
         >>> determine_open_close_sides('FUTURE', position_side='SHORT')
@@ -842,8 +841,9 @@ def detect_position_flip(position_side: str, position_size: float, order_side: s
     
     When order size exceeds current position size and opposes it, the position flips.
     This has implications for profit calculation:
-    - Portion that closes: Fee applies, profit/loss realized
-    - Portion that opens: No fee yet, future profit depends on follow-up
+    - Closing portion realizes position profit/loss
+    - Opening portion establishes the opposite position
+    Both portions can incur execution fees; this helper only splits quantities.
     
     Args:
         position_side: Current position ('LONG', 'SHORT', or None)

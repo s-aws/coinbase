@@ -1388,7 +1388,7 @@ class OrderEngine:
         return adjusted_size, details
 
     def _resolve_min_order_size(self, product_id: str) -> float:
-        """Return the base_increment (minimum tradeable quantity) for a product.
+        """Return the product base_increment used as a partial-fill carry unit.
 
         Reads from the in-memory ``orderbook.product`` cache populated at startup.
 
@@ -1396,7 +1396,8 @@ class OrderEngine:
             product_id: Exchange product ID (e.g. 'BTC-USDC').
 
         Returns:
-            Minimum order size as float, or 0.0 if product metadata is unavailable.
+            Carry unit as float, or 0.0 if product metadata is unavailable.
+            Exchange minimum size/notional is validated at child creation.
         """
         if not product_id:
             return 0.0

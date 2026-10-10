@@ -95,6 +95,6 @@ Start a new session when any of these happens:
 
 1. Do not rely on raw chat history as the source of truth.
 2. Do not store long reasoning dumps in the state file.
-3. Do not skip focused validation for "small" behavior changes; choose the
-   narrowest test or validator that proves the changed path.
+3. Do not skip the complete local non-external gate for a non-agent-file
+   change. Focused test selections require an explicit user request.
 4. Do not leave assumptions undocumented.

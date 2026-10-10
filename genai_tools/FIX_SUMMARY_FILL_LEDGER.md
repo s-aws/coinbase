@@ -1,5 +1,10 @@
 # Fix Summary: Fill Ledger Recording Bug
 
+> **Historical toolbox document — status reviewed 2026-10-09.** Examples,
+> plans, results, counts, and line anchors below may be obsolete or from another
+> branch. This file is not implementation authority or permission to execute
+> a tool. Inspect the exact source and use [current context](../genai_data/README.md).
+
 ## 🔴 Issue Reported
 User observed that `fill_ledger` and `conditional_orders` tables were empty despite 15 orders having FILLED status in the `order_parent` table.
 

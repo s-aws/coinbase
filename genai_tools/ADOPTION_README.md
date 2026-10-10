@@ -1,5 +1,10 @@
 # Child Order Adoption
 
+> **Historical toolbox document — status reviewed 2026-10-09.** Examples,
+> plans, results, counts, and line anchors below may be obsolete or from another
+> branch. This file is not implementation authority or permission to execute
+> a tool. Inspect the exact source and use [current context](../genai_data/README.md).
+
 ## Overview
 
 The child order adoption feature allows you to reassign a child order to a different parent order. This is useful for dynamic trading strategies where orders need to be reorganized based on market conditions without losing the ability to track their original ownership.

@@ -1,5 +1,8 @@
 # Debugging Strategy
 
+Reconciled with the `prod` checkout on 2026-10-09. Current source and tests
+remain the evidence for runtime behavior.
+
 This is the practical debugging workflow for the current engine.
 
 ## Core Principles
@@ -41,7 +44,8 @@ Use read-only probes first.
 Suggested commands/scripts:
 - focused SQL queries via `database/database.py`
 - `genai_tools/debug_<topic>.py` scripts for controlled inspection
-- dashboard websocket replay payloads from `websocket_reference/`
+- dashboard request contracts from `genai_data/API_REFERENCE.md`;
+  `websocket_reference/` contains Coinbase transport samples
 - targeted log context from engine payload builders
 
 ### Step 4: Verify lock and ordering assumptions
@@ -90,6 +94,8 @@ pytest -c tests/pytest.ini tests -m "not external" -v --tb=short
   - `build_reveal_execution_plan`
   - `reveal_order_slice`
   - `process_anchor_repricing_for_product`
+  - `rehide_revealed_order`, `cancel_stealth_order`
+  - `consume_anchor_rearm_cancellation`, `is_operator_cancel_requested`
   - `build_stealth_move_plan` / `execute_stealth_move`
 
 - `core/startup_reconciler.py`
@@ -142,4 +148,4 @@ Check:
 
 ---
 
-Last updated: 2026-08-28
+Last reconciled with checkout: 2026-10-09

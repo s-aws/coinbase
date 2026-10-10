@@ -1,5 +1,8 @@
 # Testing Strategy
 
+Reconciled with the `prod` checkout on 2026-10-09. Current source and tests
+remain the evidence for runtime behavior.
+
 This project uses pytest with one simple default gate: the complete local
 non-external suite. Focused selections are opt-in and may be run only when the
 user explicitly requests them.
@@ -13,7 +16,7 @@ contains the mandatory regression directory and must exit `0` before handoff:
 pytest -c tests/pytest.ini tests -m "not external" -v --tb=short
 ```
 
-Exception (docs/process-only): if changes are limited to agent/context files (`AGENTS.md`, `agent.md`, `ai-context.md`, `docs/agents/*.md`, `genai_data/AGENT_*.md`, `genai_data/agent_state.md`), regression tests may be skipped.
+Exception (docs/process-only): if changes are limited to agent/context files (`AGENTS.md`, `agent.md`, `ai-context.md`, `genai_data/AGENT_*.md`, `genai_data/agent_state.md`), regression tests may be skipped.
 
 ## Milestone Closeout
 
@@ -21,14 +24,17 @@ Run the complete non-external suite sequentially. Tests frequently monkeypatch
 process globals and several tests touch shared files or the test database. This
 repository does not provide a parallel test runner.
 
-## Current Test Layout
+## Current Inventory (2026-10-09)
 
-As of 2026-06-21:
-- `tests/unit/`: 28 files (`test_*.py`)
-- `tests/integration/`: 7 files
-- `tests/regression/`: 82 files
-- `tests/e2e/`: 4 files
-- `tests/external/`: 1 file
+- `tests/unit/`: 38 test files
+- `tests/integration/`: 7 test files
+- `tests/regression/`: 78 test files
+- `tests/e2e/`: 2 test files
+- `tests/external/`: 1 test file
+- `tests/` root: 2 test files
+
+Exact source inventory: `tests/TEST_FILES_INDEX.md`. These are file counts,
+not collected cases or measured coverage.
 
 ## What Each Layer Covers
 
@@ -53,8 +59,10 @@ High-risk bug prevention and invariants.
 Examples include:
 - ID discipline and flat hierarchy
 - follow-up claim and replacement-slot race prevention
-- stealth cancel/re-entry and move/reprice active-placement safety
-- same-side post-fill retreat hidden-order selection, idempotency, reveal-threshold tracking, and anchor-offset persistence
+- confirmed revealed rearm, manual Rehide, and move/reprice placement safety
+- durable operator cancellation, stopped-source follow-up suppression, and
+  guarded deletion of unresolved exposure
+- composite reveal-threshold offsets and manual-edit invalidation
 - runtime controller STARTING/readiness, sticky startup-pause, and
   admission/drain behavior
 - startup orchestration order and originating-action rejection before readiness
@@ -73,7 +81,11 @@ Examples include:
 Top-level user-message and workflow tests.
 
 ### External
-Live/sandbox Coinbase contract tests (opt-in, credential-gated).
+Credential-gated Coinbase contract tests and optional public-feed smoke.
+
+External execution is separately authorized. The current fixture does not
+pass its sandbox URL into RESTClient; `COINBASE_USE_SANDBOX=true` is only an
+assertion. See `docs/EXTERNAL_TESTING_RUNBOOK.md`.
 
 ## Standard Command Set (PowerShell)
 
@@ -87,7 +99,7 @@ pytest -c tests/pytest.ini tests -m "not external" -v --tb=short
 Do not run a single test file, a name-filtered selection, or a single test case
 unless the user explicitly asks for focused validation.
 
-### External sandbox runs
+### External opt-in runs
 ```powershell
 $env:COINBASE_API_KEY = "..."
 $env:COINBASE_API_SECRET = "..."
@@ -109,7 +121,7 @@ pytest tests/external/test_coinbase_api.py -v -m websocket --tb=short
 
 `database/database.py` also refuses test-shaped direct script processes from connecting to localhost `5432` unless `ALLOW_PROD_DB=1`. This covers root-level scripts such as `test_*.py` that do not load `tests/conftest.py`.
 
-Expected Docker mapping:
+Example Docker mapping (container names are operator-managed):
 - stage/prod-like DB: `coinbase-stage-postgres` on host `127.0.0.1:5432`
 - test/dev DB: `coinbase-dev-postgres` on host `127.0.0.1:9876` mapped to container port `5432`
 
@@ -125,22 +137,14 @@ This guard exists to prevent accidental writes to production-like local DB insta
 
 ## Stealth Lifecycle Test Checklist
 
-For features that cancel, move, reprice, hide, cancel/re-enter, or otherwise mutate a `REVEALED` stealth order, tests should prove:
-- the live exchange placement is cancelled/replaced/reconciled before local state stops being `REVEALED`;
-- failed exchange cancel does not mark the order hidden or clear the active exchange pointer as if the placement were gone;
-- no-fill guards prevent cancel/re-entry from hiding partially filled revealed orders;
-- cancel/re-entry state blocks normal reveal until re-entry criteria are met;
-- dashboard request handling calls an existing bridge/domain method;
-- UI payloads and dashboard handler kwargs carry new config end to end;
-- reload from `stealth_orders` restores the config/state needed after restart.
-
-For same-side post-fill retreat, tests should prove:
-- only opted-in hidden/PENDING/TRIGGERED orders with no active exchange placement can be moved;
-- one nearest same-product/same-side hidden order is selected;
-- BUY retreats lower and SELL retreats higher by product price ticks;
-- reveal-condition price fields and pending trigger timestamps are reset with the limit;
-- the filled placement id cannot apply a second retreat on retry/replay;
-- cumulative `post_fill_retreat_offset` is applied to future anchor target bands.
+For cancellation/rearm changes, prove that:
+- accepted local intent is distinguished from confirmed exchange closure;
+- Rehide/reprice reaches HIDDEN only after exact zero-fill cancellation;
+- rejection/timeouts retain placement identity and restart recovery;
+- intentional operator stop suppresses new source follow-ups and hotpoints
+  while fill accounting and already-created children remain valid;
+- unresolved exposure stays visible and protected from deletion;
+- bridge/dashboard handlers use the existing canonical lifecycle path.
 
 ## Pre-Merge Checklist
 
@@ -161,4 +165,4 @@ For same-side post-fill retreat, tests should prove:
 
 ---
 
-Last updated: 2026-08-28
+Last reconciled with checkout: 2026-10-09

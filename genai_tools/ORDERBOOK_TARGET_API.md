@@ -1,5 +1,10 @@
 # OrderBook v2 — Target API Spec
 
+> **Historical toolbox document — status reviewed 2026-10-09.** Examples,
+> plans, results, counts, and line anchors below may be obsolete or from another
+> branch. This file is not implementation authority or permission to execute
+> a tool. Inspect the exact source and use [current context](../genai_data/README.md).
+
 **Status:** Draft for Phase 0b review
 **Source of truth for:** Phase 1a (implementation), Phase 1b (tests), Phase 2 (compat shim)
 **Inventory basis:** [orderbook_inventory.json](orderbook_inventory.json)

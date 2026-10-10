@@ -1,5 +1,11 @@
 # WebSocket Hooks Extension System - Implementation Summary
 
+> **Historical record — status reviewed 2026-10-09.** The material below
+> preserves an earlier proposal, incident, or branch snapshot. Code examples,
+> line numbers, counts, commands, and completion claims are not current
+> implementation or authorization. Use [living references](genai_data/README.md) and current
+> code/tests. A proposed behavior is not implemented merely because it appears here.
+
 ## What Was Created
 
 A complete pre/post hook system for WebSocket message handling that allows core features to be extended without modifying OrderEngine code.

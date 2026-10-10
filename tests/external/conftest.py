@@ -27,7 +27,7 @@ def get_api_secret() -> Optional[str]:
 
 
 def get_sandbox_url() -> str:
-    """Get Coinbase sandbox URL."""
+    """Record the sandbox URL; the current REST fixture does not pass it to SDK."""
     return os.environ.get("COINBASE_SANDBOX_URL", "https://api-sandbox.coinbase.com")
 
 
@@ -51,7 +51,7 @@ def coinbase_credentials():
 
 @pytest.fixture
 def coinbase_sandbox_mode() -> bool:
-    """Whether to use Coinbase sandbox (test mode)."""
+    """Required opt-in assertion; it does not configure SDK endpoint routing."""
     return os.environ.get("COINBASE_USE_SANDBOX", "true").lower() == "true"
 
 

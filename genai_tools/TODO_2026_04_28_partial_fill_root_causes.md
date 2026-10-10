@@ -1,5 +1,10 @@
 # Scope-creep TODO — 2026-04-28 partial_fill_progress FK incident
 
+> **Historical toolbox document — status reviewed 2026-10-09.** Examples,
+> plans, results, counts, and line anchors below may be obsolete or from another
+> branch. This file is not implementation authority or permission to execute
+> a tool. Inspect the exact source and use [current context](../genai_data/README.md).
+
 The 2026-04-28 audit revealed three bugs in the same window. The exception
 constructor bug (the one that *masked* the real failure) has been fixed and
 guarded by a regression test. The remaining two are architectural and were

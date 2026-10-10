@@ -1,5 +1,10 @@
 # TODO: Stealth Slice Tick-Dust Bank
 
+> **Historical toolbox document — status reviewed 2026-10-09.** Examples,
+> plans, results, counts, and line anchors below may be obsolete or from another
+> branch. This file is not implementation authority or permission to execute
+> a tool. Inspect the exact source and use [current context](../genai_data/README.md).
+
 **Status:** proposed, not scheduled
 **Origin:** 2026-04-29 conversation about Decimal vs float quantization in `quantize_to_increment`.
 **Inspiration:** Perl-era "bank the leftover bits, withdraw on a later order" pattern (Kahan-style compensated summation generalized across orders in the same campaign).
