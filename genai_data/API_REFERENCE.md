@@ -378,6 +378,11 @@ Core fields:
 USD-quoted products). The stealth-manager and span-builder UIs expose this as a
 separate Profit Target Type selector.
 
+`allow_partial_fills` controls partial-fill follow-up creation. The handler
+defaults it to `true` when omitted. The span builder exposes Enable Partial
+Fills in Advanced settings, unchecked by default, and sends an explicit boolean
+for every order in both creation modes. Reset clears the checkbox.
+
 Policy fields:
 - `anchor_repricing_policy`
 - `reveal_pricing_policy`

@@ -874,6 +874,14 @@
                             </div>
 
                             <div class="form-group">
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                    <input type="checkbox" id="allow_partial_fills" style="cursor: pointer; width: 14px; height: 14px;">
+                                    <span>Enable Partial Fills</span>
+                                </label>
+                                <div class="help-text">Automatically create follow-up orders when partial fills occur. Applies to all orders in this span. Off by default.</div>
+                            </div>
+
+                            <div class="form-group">
                                 <label>Notes</label>
                                 <input type="text" id="notes" placeholder="Optional notes">
                             </div>
@@ -1554,6 +1562,7 @@
                 target_movement_type: document.getElementById('target_movement_type').value,
                 max_followups: parseInt(document.getElementById('max_followups').value),
                 notes: document.getElementById('notes').value,
+                allow_partial_fills: document.getElementById('allow_partial_fills').checked,
                 enable_hotpoint_replication: document.getElementById('enable_hotpoint_replication').checked,
                 anchor_repricing_policy: buildAnchorRepricingPolicy()
             };
@@ -1641,6 +1650,7 @@
                     target_movement: formData.target_movement,
                     target_movement_type: formData.target_movement_type,
                     notes: formData.notes ? `[SPAN #${i + 1}] ${formData.notes}` : `[SPAN #${i + 1}/${formData.order_count}]`,
+                    allow_partial_fills: formData.allow_partial_fills,
                     enable_hotpoint_replication: formData.enable_hotpoint_replication,
                     anchor_repricing_policy: buildIndexedAnchorRepricingPolicy(
                         formData.anchor_repricing_policy,
@@ -1699,6 +1709,7 @@
                     notes: i === 0 
                         ? `[SPAN] ${formData.notes} (Order 1/${formData.order_count})` 
                         : `[SPAN] Child of span (Order ${i + 1}/${formData.order_count})`,
+                    allow_partial_fills: formData.allow_partial_fills,
                     enable_hotpoint_replication: formData.enable_hotpoint_replication,
                     anchor_repricing_policy: buildIndexedAnchorRepricingPolicy(
                         formData.anchor_repricing_policy,
@@ -1838,6 +1849,7 @@
             document.getElementById('target_movement').value = '0.002';
             document.getElementById('target_movement_type').value = 'P';
             document.getElementById('max_followups').value = '11';
+            document.getElementById('allow_partial_fills').checked = false;
             document.getElementById('notes').value = '';
             document.getElementById('reveal_type').value = 'price';
             document.getElementById('price_hold_duration_seconds').value = '0';

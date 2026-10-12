@@ -10,18 +10,18 @@
     "local_codex_turn_diff_refs",
     "opaque_identifiers_and_literal_payloads"
   ],
-  "excluded_git_ref_count": 1,
-  "graph_digest": "53758a01ce86bc9f745fcecf37dd067a01673e6b75e4a7da22d55476b04b59d3",
+  "excluded_git_ref_count": 2,
+  "graph_digest": "96d131fb497155596539a16f69337bc739e822d001e36e83cf768ffb92201880",
   "graph_format_version": "2.0.0",
   "graph_schema_version": "1.2.0",
-  "history_snapshot_head": "c5b0077cb2ee7a9dfca15accb9f251eb1fa2d696",
+  "history_snapshot_head": "9a7d5c57d365184669db240f1c2c16ccfb4f97f4",
   "index_hashes": {
-    "edges.jsonl": "ac245015e0cca58a2787f47337ae7b795669dee95a7344c01c225ed1b73cc457",
-    "files.jsonl": "28a7471bb16541f2aab2c8b695813869e95b0494bd83c699e439bb35ef577ddf",
-    "git_commits.jsonl": "49c9f3795c023b7c32db8353a63d428b3b3088e0d728e00e11e12a4743f29e89",
-    "git_refs.jsonl": "88e8f2e70a92691e5f518f0183312af0e9450d84762d51a1269aee7748071af3",
-    "path_history.jsonl": "20baddfaad134516e6b39ec15b80d8cea83974ac326f2db726dcdda8eb0e42ee",
-    "symbols.jsonl": "438103d16a040e08d25b8cba3b07ee6397c4c6d435ed268724f9974bc7692927",
+    "edges.jsonl": "316b43864dcff8e919da2632606c221599ccc3c5a1d079cea2d6f05528a4517a",
+    "files.jsonl": "31b06e210d034c12ea078ce33602a7bde50d2b8f72631dca6848439d0bd97b71",
+    "git_commits.jsonl": "7852635dad800cfe01a2e05f5c1e43b4fe86bc1eb38aa008e33f0e21de1da08c",
+    "git_refs.jsonl": "3a289a6a1cb8571992e25839b7510f8587957fd42b9dd765008ed1a5aa95f412",
+    "path_history.jsonl": "2267a7dc40e382e1b99c49ff86c4cbbd978d234eff081e4785c1e1f9d8197b86",
+    "symbols.jsonl": "77e6d16fffdfed25cb5c32abce8179cc9a63aef9a99e7eb37e9f8ee3e7c4695a",
     "tests.jsonl": "8014233ea94a1b2335375906dda7d9d2986d038294fc31cf67377dc4445160c1"
   },
   "indexed_file_count": 468,
@@ -37,7 +37,7 @@
     "runtime_flows.jsonl": "0980fb31102d17af6210b95efef6a3ecd19e52a6627c1cc26f93fa14c544eb4c",
     "task_routes.jsonl": "d69592dd4c5511e18a74a374918e90682f2741f30276b1488431aa9cbbdbd2d0"
   },
-  "source_tree_digest": "261613be25c5cfc254d3e6a09ccb293ccf9d869a1231ad24f1c4853e0671e051",
+  "source_tree_digest": "435d817cb05a533260375e37d0e05a5fc7162466fb8fd56c3df80a26fe98b4b0",
   "tool_hashes": {
     "ENTRYPOINT.md": "e13ec3a741804fb879c63b27393226e12798c31f99d54235c8655cf6db8d6aff",
     "build_graph.py": "e7fe36ef005c2dd68f0cdcb7877a55d37064c5f0a6ba65c5b248736f3e84d2b4",
