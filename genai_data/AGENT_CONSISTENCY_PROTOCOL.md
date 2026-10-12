@@ -40,8 +40,7 @@ If a recommendation would land softer than the evidence warrants, the recommenda
 4. Prune context every 20-30 minutes or after each milestone.
 5. Do not carry unresolved assumptions forward. Convert them to explicit risks in `agent_state.md`.
 6. Use one code path per behavior. Do not implement parallel logic.
-7. Follow the validation gate in root `AGENTS.md`. It controls over historical
-   testing guidance in other context files.
+7. Follow the validation gate in root `AGENTS.md`.
 8. At phase end, close subagents spawned for that phase and any stale or
    previously unused subagents from earlier phases or milestones found during
    the sweep, after their findings have been consumed, remediated, or
@@ -62,7 +61,8 @@ If a recommendation would land softer than the evidence warrants, the recommenda
    - Hard constraints
    - In-scope files
    - Pending risks
-4. If objective changed, start a fresh session and archive old handoff notes.
+4. If the objective changed, replace the handoff with the current objective
+   and durable constraints. Remove superseded handoff notes; do not archive them.
 
 ## In-Session Operating Rules
 
@@ -73,8 +73,8 @@ If a recommendation would land softer than the evidence warrants, the recommenda
 2. Keep intermediate notes short and factual.
 3. If scope expands, record it before coding.
 4. If state is unclear, inspect the current branch, working tree, code, tests,
-   and task-relevant docs. Do not manufacture an objective from historical
-   state.
+   and task-relevant docs. Only the current operator-approved objective
+   authorizes work.
 
 ## Handoff Standard
 

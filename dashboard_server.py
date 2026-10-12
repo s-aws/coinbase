@@ -73,10 +73,7 @@ _ORIGINATING_MSG_TYPES = frozenset({
 # CANCELLED) — anything else represents a live order whose configuration we
 # want to be able to back up and replay. REVEALED is included: the root is
 # placed on the exchange but not yet filled, so re-importing after a wipe
-# must recreate it. Hard-coding string literals here previously caused two
-# regressions: invented values ("EXECUTING", "PARTIAL") that don't exist in
-# the enum, and the omission of "REVEALED" — which silently dropped any
-# revealed root from the export.
+# must recreate it. Use enum values so export tracks the lifecycle contract.
 _TERMINAL_STEALTH_STATUSES = frozenset({
     StealthOrderStatus.EXECUTED.value,
     StealthOrderStatus.CANCELLED.value,
@@ -1419,9 +1416,8 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
 
                 # CANONICAL: target_movement lives on the ``order_parent`` row.
                 # The engine's ``_resolve_target_movement_for_plan`` reads from
-                # there. Writing to ``stealth_orders`` (the previous behaviour)
-                # was silently ignored by every reveal/profit-validation path
-                # so UI edits had no runtime effect. See 2026-04-30 audit.
+                # there; updating only ``stealth_orders`` cannot affect
+                # reveal or profit validation.
                 success = update_parent_order_target_movement(
                     parent_order_id=stealth_order_id,
                     target_movement=target_movement,
@@ -3045,7 +3041,7 @@ async def send_stealth_orders_snapshot(websocket: WebSocketServerProtocol):
             # Enrich stealth orders with parent target_movement
             enriched_orders = _enrich_stealth_orders_with_parent_data(engine_state["stealth_orders"])
             
-            # Phase 3: Calculate repricing statistics
+            # Calculate repricing statistics
             repricing_stats = _calculate_repricing_statistics(enriched_orders)
             
             payload = {

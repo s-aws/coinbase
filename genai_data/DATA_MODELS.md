@@ -3,8 +3,8 @@
 Reconciled with the `prod` checkout on 2026-10-09. Current source and tests
 remain the evidence for runtime behavior.
 
-This document is a navigation reference and may contain historical model
-descriptions. `core/models.py`, `core/enums.py`, and `database/order.py` are the
+This document is a current navigation reference. `core/models.py`,
+`core/enums.py`, and `database/order.py` are the
 evidence for the current runtime and persistence surface.
 
 ## Core Typed Models (`core/models.py`)

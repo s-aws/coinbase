@@ -8,7 +8,7 @@ permission to deploy or proof of live Coinbase behavior.
 2. Review the canonical behavior path and its ID, flat-hierarchy, enum, and lock
    constraints. Preserve existing operator changes.
 3. Update living docs, comments, and affected graph semantic evidence to match
-   any intentional behavior change. Historical records remain dated history.
+   any intentional behavior change. Remove superseded documentation.
 4. Run the complete local non-external suite sequentially:
 
    ```powershell

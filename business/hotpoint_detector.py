@@ -1,7 +1,5 @@
 """Hotpoint detector — windowed fill-rate trigger over log-spaced price buckets.
 
-See `genai_data` (none yet) and conversation 2026-05-03 for the design. In short:
-
 * A "hotpoint" is a price bucket where >= N qualifying fills have occurred on
   the same (product, side) within the last T seconds.
 * Buckets are log-spaced and deterministic:

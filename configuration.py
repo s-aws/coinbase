@@ -205,7 +205,7 @@ ORDER_DIRECTION = {
 
 # DERIVATIVES_PER_SIDE_FEE_* and DEFAULT_MAX_ORDER_REPLACEMENT
 # are imported above from ``core.constants`` (canonical source of truth).
-# Do NOT redefine them here â€” see 2026-04-30 audit.
+# Do not redefine them here.
 
 
 # ``safe_float`` returns ``None`` when callers explicitly pass ``default=None`` â€”
@@ -944,8 +944,7 @@ def detect_position_flip(position_side: str, position_size: float, order_side: s
 class OrderBook():
     """Compatibility shim wrapping :class:`core.orderbook.OrderBook` (v2).
 
-    Phase 2 of the OrderBook refactor (see
-    ``genai_tools/ORDERBOOK_REFACTOR_ROADMAP.md``).  The real state lives in a
+    The real state lives in a
     :class:`core.orderbook.OrderBook` instance held in ``self._impl``; this
     class exposes the legacy attribute surface (``order``, ``parent_order_ids``,
     ``child_order_ids``, ``positions``, ``product``, ``profit``, etc.) as
@@ -958,7 +957,6 @@ class OrderBook():
     * Class-level mutable defaults (the original design smell) eliminated:
       every instance has its own state.
     * Thread-safety inherited from the wrapped v2 class (``self._impl.lock``).
-    * Phase 3 will migrate consumers off this shim; Phase 4 deletes it.
     """
 
     def __init__(self, *, read_only: bool = False):
@@ -1025,18 +1023,8 @@ class OrderBook():
             read_only=read_only,
         )
 
-        # Sole legacy attribute kept on the shim: production reads this via
-        # getattr(self.orderbook, "default_max_order_replacement", ...) at
-        # core/order_engine.py:1310 and :1553.  Tests also override it as a
-        # mock-orderbook hook.  Other dead attrs (transaction_summary,
-        # cancelled, filled, active, price, db_client) were removed after a
-        # workspace-wide grep confirmed zero consumers (2026-04-27).
-        #
-        # Follow-up note (2026-04-27): the cancelled/filled cleanup BROKE
-        # follow-up creation because OrderEngine.{claim,release,complete}_
-        # follow_up_processing reached those dicts via getattr() on a string
-        # name (invisible to grep).  Replaced by the typed claim API on the
-        # v2 OrderBook (try_claim_follow_up et al), exposed below.
+        # Compatibility default read by OrderEngine and mock-orderbook tests.
+        # Follow-up processing uses the typed claim API exposed below.
         self.default_max_order_replacement = DEFAULT_MAX_ORDER_REPLACEMENT
 
     # ------------------------------------------------------------------

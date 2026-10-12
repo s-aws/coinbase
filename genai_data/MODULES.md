@@ -189,18 +189,6 @@ aggregate continuity boundary with exact per-product loss counts. The event's
 intrinsic snapshot flag, not its opaque payload, identifies a retained ticker.
 The heap is disposable derived state, never lifecycle truth.
 
-> **Removed 2026-05-04:** `bridges/engine_orchestrator.py`
-> (`OrderEngineOrchestrator`), `bridges/calculator_bridge.py`,
-> `bridges/processor_bridge.py`. Strangler-fig scaffolding from the v2
-> `OrderEngine` refactor; the migration was complete and the wrappers
-> were unused (orchestrator was a 250-line pass-through facade with one
-> live one-line method). `main.py` now owns reconciliation and readiness,
-> then calls `engine.run_forever()` with the readiness callback.
-> `business.OrderCalculator` and `business.OrderProcessor`
-> were also removed later the same day after audit confirmed they had
-> zero production callers once the bridges were gone.
-> `business.EventProcessor` survives — it backs the live `EventBridge`.
-
 ## `business/` (Business Logic)
 
 ### Fill and Reconciliation
@@ -289,13 +277,6 @@ Canonical schema and write/read functions for core trading tables.
 - `integration/order_placement_hooks.py`
 - `integration/order_state_hooks.py`
 - `integration/stealth_lifecycle_hooks.py`
-
-> **Removed 2026-05-04:** `integration/engine_integration.py` and the
-> bridge shims (`integration/calculator_bridge.py`,
-> `integration/processor_bridge.py`).
-> They were duplicates of the `bridges/` package classes; only the dead
-> integration-side `EventBridge` had any real code. See
-> `integration/__init__.py` for full incident notes.
 
 ## `market_intel/` (Cross-Venue Intelligence)
 

@@ -4,8 +4,6 @@ Reconciled with the `prod` checkout on 2026-10-09. Current surfaces are the
 Coinbase wrappers and the local dashboard WebSocket server. This checkout has
 no enterprise HTTP Admin API, Spot sweep/campaign CLI, account-condition guard,
 cancel/re-entry distance policy, or same-side hidden-order retreat subsystem.
-Earlier mixed-branch contracts are retained in
-[the historical reference](history/api_reference_mixed_branches.md).
 
 ## 1) Coinbase REST Wrapper (`CoinbaseRestClient`)
 

@@ -6,7 +6,7 @@ on every bookTicker update; current terminal display consumers
 call ``get_intel`` to read a snapshot
 ``CrossVenueIntel`` for a Coinbase product.
 
-Design constraints (Phase 1):
+Design constraints:
 - **Read-only side effects.** No mutation of orderbook / pricing
   state. This module returns a value object; consumers decide
   whether to act on it.

@@ -10,20 +10,8 @@ Strategies are pure: same inputs always produce the same output. Side
 effects (REST cancels, audit writes, lifecycle events) live in
 ``StealthOrderManager``.
 
-Architecture rationale (2026-05-03)
-====================================
-
-Extracted from ``StealthOrderManager._calculate_reveal_size`` to validate
-whether the "configurable engine" goal (stop adding new code, add new
-policies instead) is feasible. If three distinct sizing behaviours
-(``fixed``, ``adaptive``, ``tranche-iceberg``) fit one small interface,
-the abstraction holds; if not, this entire file is one-day cheap to
-throw away. Nothing else depends on the interface yet.
-
-Strategy mirrors the established
-``business.stealth_condition_evaluator.ConditionEvaluator`` pattern
-(ABC + concrete subclasses + factory) so it slots into the existing
-mental model.
+``StealthOrderManager._calculate_reveal_size`` selects fixed, adaptive, or
+tranche sizing through the strategy factory.
 """
 from __future__ import annotations
 
@@ -61,9 +49,7 @@ class FixedRevealStrategy(RevealStrategy):
 class AdaptiveRevealStrategy(RevealStrategy):
     """Reveal proportional to recent market volume.
 
-    Note: does NOT include iceberg pacing in this iteration. Adaptive
-    sizing is volume-driven, not fill-driven; combining both is a
-    future composition (out of scope for the 2026-05-03 extraction).
+    Adaptive sizing is volume-driven and does not include iceberg pacing.
     """
 
     def __init__(
@@ -133,25 +119,15 @@ class TrancheRevealStrategy(RevealStrategy):
 
     Burst semantics (``iceberg_mode=False``, opt-out)
     -------------------------------------------------
-    - All tranches post in rapid succession (matches pre-2026-05-03
-      behaviour). Provided for backward compatibility with any
-      operators who genuinely want N visible orders at once. This is
-      anti-stealth in most contexts and is NOT recommended.
-
-    Background (2026-05-03 incident)
-    --------------------------------
-    The original tranche strategy had no pacing. Combined with the
-    ``should_trigger_reveal`` snapshot-commit fix, the bridge would
-    call ``reveal_order_slice`` on every 100ms tick after TRIGGERED,
-    posting all 4 tranches in ~1 second — defeating the entire point
-    of slicing. Iceberg mode is the fix; default ``True`` because the
-    burst behaviour is a bug, not a feature.
+    - All tranches may post on successive evaluations without waiting
+      for the active placement to settle. This can expose multiple
+      placements at once; iceberg pacing is the default.
     """
 
     def __init__(self, config: Dict[str, Any]):
         cfg = config or {}
         self._tranches = list(cfg.get("tranches", [0.25, 0.50, 0.75, 1.0]))
-        # Default True: burst behaviour is anti-stealth. See incident note.
+        # Default to one live placement at a time.
         self._iceberg_mode = bool(cfg.get("iceberg_mode", True))
 
     def next_slice_size(self, order: Dict[str, Any]) -> float:
@@ -166,14 +142,11 @@ class TrancheRevealStrategy(RevealStrategy):
                 return 0.0
             # Cumulative gating against EXECUTED size means a posted-
             # but-then-cancelled slice with partial fill rolls forward
-            # to fill the gap, not to advance to the next tranche
-            # (option (a) cumulative semantics from the 2026-05-03
-            # design review).
+            # to fill the gap, not to advance to the next tranche.
             progress = float(order.get("executed_size", 0) or 0)
         else:
             # Burst mode: gate on REVEALED size to avoid posting the
-            # same tranche twice on consecutive bridge ticks. This
-            # preserves pre-2026-05-03 behaviour exactly.
+            # same tranche twice on consecutive bridge ticks.
             progress = float(order.get("revealed_size", 0) or 0)
 
         next_target = self._next_cumulative_target(total_size, progress)

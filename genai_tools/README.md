@@ -47,8 +47,6 @@ execution; the user's authorized scope controls whether a live/DB action may run
 5. Keep dumps, logs, captured data, credentials, browser profiles, and generated
    output ignored. Never productionize a tool directly from this directory.
 
-Other Markdown files here are historical plans/reports unless their own status
-and current source establish otherwise. Their commands are not authorization,
-and proposed features may be absent from this checkout. Living navigation is
+Retain current, reusable tool guidance only. Living navigation is
 [genai_data/README.md](../genai_data/README.md); investigation policy is
 [DEBUGGING_STRATEGY.md](../genai_data/DEBUGGING_STRATEGY.md).

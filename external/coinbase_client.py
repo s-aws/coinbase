@@ -493,9 +493,7 @@ class CoinbaseRestClient:
         # The SDK accepts ``**kwargs`` and silently DROPS unknown
         # parameter names — passing the user-facing names ``product_id``,
         # ``start_date``, ``end_date`` here makes the filter a no-op and
-        # the call returns ALL historical fills. (2026-04-30 incident:
-        # the 24h fee report and the startup missed-fills audit were
-        # both reading unfiltered all-time data.)
+        # the call returns unfiltered fills.
         kwargs: Dict[str, Any] = {"limit": limit}
         if order_id is not None:
             kwargs["order_ids"] = [order_id]

@@ -68,25 +68,7 @@ COINBASE_TO_EXTERNAL: Dict[str, list] = {
         ExternalSymbol(Venue.OKX_SWAP, "BTC-USDT-SWAP"),
     ],
 
-    # ----- Other perps (deferred until BTC pipeline is proven out) -----
-    # Phase 1 scope is BTC-only. Re-enable as separate commits with
-    # their own measurement / regression coverage. Leaving the
-    # mappings inline (commented) so the format stays obvious.
-    # "ETP-20DEC30-CDE": [
-    #     ExternalSymbol(Venue.BINANCE_PERP, "ETHUSDT"),
-    #     ExternalSymbol(Venue.BYBIT_PERP, "ETHUSDT"),
-    #     ExternalSymbol(Venue.OKX_SWAP, "ETH-USDT-SWAP"),
-    # ],
-    # "PAU-20DEC30-CDE": [
-    #     ExternalSymbol(Venue.BINANCE_PERP, "PAXGUSDT"),
-    # ],
-
-    # ----- Dated futures: intentionally NO external mappings -----
-    # See the docstring above. Intra-Coinbase basis tracker lives
-    # elsewhere (TBD) and is the correct way to price these from BIP.
-    # "BIT-29MAY26-CDE": [],
-    # "ET-29MAY26-CDE":  [],
-    # "GOL-27MAY26-CDE": [],
+    # Other products have no configured external proxies.
 }
 
 

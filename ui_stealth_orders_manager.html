@@ -850,7 +850,7 @@
                         disabled
                     >Resume Engine</button>
                 </div>
-                <!-- Phase 3: Repricing statistics -->
+                <!-- Repricing statistics -->
                 <div class="stat" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; border-radius: 4px;">
                     <span class="stat-label">⟳ Repricing</span>
                     <span class="stat-value" id="stat-repricing-active" style="color: #fff;">0</span>
@@ -1942,7 +1942,7 @@
                             console.log("Sample order structure:", firstOrder);
                         }
                         
-                        // Phase 3: Handle repricing statistics
+                        // Handle repricing statistics
                         if (data.repricing_stats) {
                             document.getElementById('stat-repricing-active').textContent = data.repricing_stats.active_repricing_count || 0;
                             document.getElementById('stat-repricing-total').textContent = data.repricing_stats.total_reprices_executed || 0;
@@ -2059,7 +2059,7 @@
                         // failing stage so the UI can highlight the
                         // operator-action-required case (place_failed_after_cancel
                         // leaves the stealth order CANCELLED with no
-                        // exchange replacement \u2014 see audit table).
+                        // exchange replacement).
                         const sid = data.stealth_order_id || '';
                         const sidShort = sid ? sid.substring(0, 8) + '\u2026' : '?';
                         if (data.success) {

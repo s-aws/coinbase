@@ -15,12 +15,6 @@ Coinbase taker fees are charged on **every fill** — both the open
 therefore computes round-trip percentage fees as
 ``(open_price + close_price) × size × effective_fee_rate``.
 
-Pre-2026-05-01 the formula computed only the close-side fee and the
-FeeManager carried a hidden 2.0 multiplier to compensate. That coupling
-broke when the multiplier was tuned and silently halved real fee
-accounting on futures. The two pieces are now decoupled: validator
-formula is honest about both sides, multiplier is honest about cushion.
-
 Mandatory contract fee
 ----------------------
 Coinbase Derivatives charges fixed costs **per contract per side**. The
@@ -285,7 +279,7 @@ class FeeManager:
         return self._refresh_fee_rate()
 
     def start(self) -> bool:
-        """Start hourly refresh and perform the historical immediate refresh.
+        """Start hourly refresh and perform an immediate refresh.
 
         Kept as the compatibility entry point. OrderEngine uses the split
         methods so its lifecycle lock never spans Coinbase REST calls.

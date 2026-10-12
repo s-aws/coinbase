@@ -481,12 +481,8 @@ function handleTicker(payload) {
 
     // Resolve the chart x-axis timestamp using the cleanest available
     // source, in priority order:
-    //   1. ``server_time_ms`` — added 2026-05-01, true UTC, no
-    //      ``utcnow()`` bug, no client-side TZ correction needed.
-    //   2. Legacy ``time`` (server's ``datetime.utcnow().timestamp()``)
-    //      — buggy on non-UTC hosts; the historic
-    //      ``getTimezoneOffset`` correction stays here ONLY for that
-    //      legacy path so old engine builds keep rendering.
+    //   1. ``server_time_ms`` supplies a UTC epoch without TZ correction.
+    //   2. Compatibility ``time`` uses client timezone correction.
     //   3. Browser ``Date.now()`` as a last resort.
     let ts;
     if (Number.isFinite(t.server_time_ms)) {

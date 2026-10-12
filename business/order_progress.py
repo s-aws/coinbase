@@ -4,13 +4,8 @@ Owns the watermark used by BOTH:
   * fill-ledger row generation (one row per real per-match delta), and
   * partial-fill follow-up creation (when accumulated carry crosses min_order_size).
 
-Replaces the two parallel state dicts that previously lived on ``OrderEngine``
-(``_partial_fill_state`` and ``_fill_recording_state``). One delta object,
-one lock per ``client_order_id``, one persistence point.
-
-Pure logic in this module — DB persistence is wired in the engine in step 4.
-
-See ai-context.md and the design plan for the full architecture rationale.
+Uses one delta object, one lock per ``client_order_id``, and one persistence
+point. This module owns pure tracking logic; OrderEngine wires DB persistence.
 """
 
 from __future__ import annotations
@@ -283,7 +278,6 @@ class OrderProgressTracker:
         available units and decrements carry under the same lock so that
         concurrent WS-delta threads cannot all observe the same carry
         snapshot and each spawn a duplicate full-size follow-up.
-        See 2026-04-29 duplicate-buy incident.
         """
         if units <= 0:
             return
@@ -311,11 +305,9 @@ class OrderProgressTracker:
         available or the record is unknown).
 
         This MUST be called from the partial-fill follow-up creator BEFORE
-        the REST place call. Concurrent WS deltas previously each observed
-        the same stale ``carry_remainder_qty`` snapshot and each spawned a
-        full-size follow-up; the resulting over-buy is the 2026-04-29
-        incident. Atomic claim under the lock makes the second concurrent
-        thread observe the already-reduced carry.
+        the REST place call. Atomic claim under the lock makes a second
+        concurrent thread observe the already-reduced carry and prevents
+        duplicate full-size follow-ups.
 
         On placement failure callers may call :meth:`release_follow_up_units`
         to refund the reservation; otherwise the units are considered

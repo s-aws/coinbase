@@ -129,8 +129,6 @@ def get_derivatives_per_side_fee(product_id: str) -> float:
 # Default ``max_order_replacement`` per parent. ``1`` means "round-trip
 # only" (root creation uses no replacement slot; one follow-up uses it). To
 # allow re-anchors, override per parent at order-creation time.
-# Previously also lived in ``configuration.py`` with the desynced value
-# 101 — 2026-04-30 audit consolidated here.
 DEFAULT_MAX_ORDER_REPLACEMENT = 1
 
 # Product Lists

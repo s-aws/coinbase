@@ -15,8 +15,6 @@ tracks the corresponding Coinbase placement.
 > `COINBASE_USE_SANDBOX` is an external-test setting and does not turn the main
 > runtime into a sandbox.
 
-See [CHANGELOG.md](CHANGELOG.md) for the current `prod` revival history.
-
 ## Major Features
 
 ### Stealth execution
@@ -259,7 +257,7 @@ the default validation command.
 
 Deeper architecture, configuration, and message-contract references are
 indexed by [ai-context.md](ai-context.md). Current code, schema, configuration,
-and tests remain authoritative when an older design note disagrees.
+and tests remain authoritative for current behavior.
 
 ## Current Operational Boundaries
 

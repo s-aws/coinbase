@@ -3,8 +3,7 @@
 Reconciled on 2026-10-09. Profit validation is a pre-placement estimate; it does
 not guarantee profitable realized trades. Current implementation lives in
 `calculation/fee_manager.py`, `calculation/profit_validator.py`, and
-`business/profit_threshold_engine.py`. Earlier close-only fee and 4x-multiplier
-notes are historical and must not drive current calculations.
+`business/profit_threshold_engine.py`.
 
 ## Fee selection
 
@@ -46,9 +45,8 @@ RECONCILED evidence. Submission ownership comes from
 `order_event_stream` order_submitted/rest_submit rows.
 
 Lot helpers in `business/position_lot.py`, `business/lot_builder.py`, and
-`business/post_fill_hook.py` support lot accounting; historical lot integration
-notes do not prove every runtime hook is enabled. Follow current callers and
-ledger evidence rather than completion banners.
+`business/post_fill_hook.py` support lot accounting. Follow current callers and
+ledger evidence to determine which runtime hooks are enabled.
 
 ## Validation navigation
 

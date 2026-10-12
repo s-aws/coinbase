@@ -401,11 +401,6 @@ class ProfitValidator:
         # Budget the selected maker/taker rate on BOTH sides (open + close).
         # The pre-trade model intentionally applies one liquidity assumption
         # to the complete round trip.
-        # The pre-2026-05-01 formula computed only the close-side fee and
-        # relied on a hidden 2.0 multiplier in FeeManager to compensate.
-        # That coupling silently broke when the multiplier was tuned away
-        # from 2.0; this version makes the round-trip fee explicit so the
-        # multiplier can mean what it says (cushion only).
         percentage_fees = (filled_price + follow_up_price) * effective_size * fee_rate
 
         if triggered_by_fill:
@@ -665,12 +660,9 @@ class ProfitValidator:
         
         # Add validation status and remediation
         result["is_valid"] = True
-        # Effective rate already includes the (now product-type-aware)
-        # multiplier and regime factor from FeeManager. Surface the live
-        # effective rate as-is; callers that want the base rate can ask
-        # FeeManager directly. The legacy ``/ 2.0`` divisor here was a
-        # leftover from when DEFAULT_MULTIPLIER was hardcoded to 2.0 and
-        # would lie about the base rate after the 2026-05-01 split.
+        # Effective rate includes the product-type multiplier and regime
+        # factor from FeeManager. Callers needing the base rate must use
+        # FeeManager directly.
         result["fee_rate_effective"] = fee_rate
         result["parent_filled_price"] = parent_filled_price
         result["follow_up_proposed_price"] = follow_up_price

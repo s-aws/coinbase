@@ -196,8 +196,7 @@ class LotPosition:
     Distinct from ``core.models.Position`` (the API-response dataclass for
     futures contracts). This class represents the internal lot-tracking
     aggregate — a collection of ``PositionLot`` entries with FIFO
-    accounting helpers. Renamed from ``Position`` on 2026-05-04 to remove
-    the same-name collision that made stack traces and imports ambiguous.
+    accounting helpers.
 
     Attributes:
         instrument: Trading pair

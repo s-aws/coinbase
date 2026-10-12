@@ -6,7 +6,7 @@
     <title>Slide Calibration Chart — Mid vs Anchor</title>
 
     <!--
-        Phase-2 calibration view: per-product time-series chart overlaying
+        Calibration view: per-product time-series chart overlaying
 
           * Market price line  (from market_tick; falls back to
             market_candle_1m close for any minute without ticks)
@@ -180,7 +180,7 @@
                 stealth root's anchor price over time, rebuilt from
                 <code>anchor_repricing_state_json.reprice_history</code>.
                 Run <code>python -m genai_tools.backfill_candles</code>
-                to populate historical context before tonight's tick data accumulates.
+                to populate candle history for periods without recorded ticks.
             </div>
         </section>
 

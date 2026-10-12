@@ -462,7 +462,7 @@ def run_all_tests():
         print("="*70)
         print("\nWebSocket hook system with normalizers is working correctly!")
         print("\nNext steps:")
-        print("1. Read genai_data/WEBSOCKET_HOOKS_EXTENSION.md for usage guide")
+        print("1. Read integration/websocket_hooks.py for the hook registry contract")
         print("2. See genai_tools/websocket_hook_examples.py for practical examples")
         print("3. Register your own hooks with: engine.websocket_hooks.register_*()")
         print("4. Register normalizers with: engine.websocket_hooks.register_*_normalizer()")

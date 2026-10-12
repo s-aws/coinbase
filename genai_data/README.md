@@ -8,12 +8,10 @@ reverts restore them together with code.
 
 This repo evolves quickly. Use these files for intended design and navigation,
 then verify behavioral claims against the current code, schema, configuration,
-and tests. Topical fix/completion documents may describe historical work from
-another branch and are not current implementation authority.
+and tests.
 
 The living references were reconciled with the `prod` checkout on 2026-10-09.
-Historical summaries and designs are explicitly marked; their line numbers,
-code samples, counts, completion claims, and commands are not current contracts.
+The checkout retains current references only.
 
 ## Read Order
 
@@ -55,8 +53,7 @@ A stealth order is a local execution plan, not a normal exchange order. It may s
 - Stealth local state must match live exchange reality: hidden/pending/triggered orders have no active Coinbase placement; revealed orders may have one until cancellation, fill, move/reprice, or reconciliation accounts for it. Intentional local CANCELLED is an automation stop and may retain pending exchange exposure.
 - Use enums from `core/enums.py`, not ad hoc strings.
 - Respect thread-safety boundaries and existing lock ownership.
-- Follow the validation gate in root `AGENTS.md`. It controls over any older
-  testing guidance retained in historical context files.
+- Follow the validation gate in root `AGENTS.md`.
 
 ## Main Runtime Entry Points
 
@@ -83,11 +80,10 @@ A stealth order is a local execution plan, not a normal exchange order. It may s
 
 ## Documentation Scope
 
-The living references above describe this checkout. Historical summaries and
-unimplemented designs elsewhere are retained for provenance, with a status
-notice at the top. Mixed-branch API/architecture and prior agent state live in
-`history/`; they do not authorize new work. `genai_tools/` remains an opt-in
-toolbox, never implementation authority.
+The living references above describe this checkout. Remove superseded notes,
+completed handoffs, incident reports, and unimplemented design documents
+rather than retaining archives. `genai_tools/` remains an opt-in toolbox,
+never implementation authority.
 
 API fixtures in `api_reference/` and `websocket_reference/` are stored samples,
 not a guarantee of current Coinbase behavior. The code graph is checked and

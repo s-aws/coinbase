@@ -442,9 +442,8 @@ class OrderEngine:
         # used by ``claim_replacement_slots``: ``current + pending < max``.
         # Without this, multiple WS-event threads each observe the same
         # stale ``current_order_replacement`` snapshot, all pass the gate
-        # check, and breach ``max_order_replacement`` (see 2026-04-29
-        # incident: max=1, observed current=4 with 4 BUY follow-ups
-        # spawned). All access protected by ``orderbook_lock``.
+        # check, and breach ``max_order_replacement``. All access is
+        # protected by ``orderbook_lock``.
         self._pending_replacement_claims: Dict[str, int] = {}
 
         # Diagnostic throttle for the parent/child reconciler drift
@@ -599,8 +598,8 @@ class OrderEngine:
         # Reconstructive timeline event stream integration via existing hooks.
         self._initialize_event_stream_integration()
 
-        # Hotpoint Auto-Replicate subsystem. See `business/hotpoint_*.py` and
-        # the 2026-05-03 design conversation. Detector + rate limiter live
+        # Hotpoint Auto-Replicate subsystem: `business/hotpoint_*.py`.
+        # Detector and rate limiter live
         # entirely in memory (rate limiter is restart-rebuilt from
         # `order_parent` rows in `start_background_threads`). Sweeper is
         # daemon-thread, also started in `start_background_threads`.
@@ -615,7 +614,7 @@ class OrderEngine:
                     "expiring_futures_positions",
                 ],
             },
-            # Historical compatibility inputs. Coinbase's authenticated wire
+            # Compatibility inputs. Coinbase's authenticated wire
             # contract uses SNAPSHOT plus UPDATE/PATCH envelopes; lifecycle
             # status is carried by each order row.
             OrderStatus.OPEN.name: {"type": "open", "orders": []},
@@ -1478,9 +1477,8 @@ class OrderEngine:
             # follow-ups are just refilling the unfilled slice. Letting
             # the cap gate them strands the operator with un-hedged
             # exposure equal to the carry remainder when ``cap=1`` and
-            # the placement partial-fills (2026-04-30 incident: 10-unit
-            # SELL filled-in-full but only 1 of 9 BUY follow-ups
-            # spawned). The carry budget alone (``claim_follow_up_units``)
+            # the placement partial-fills. The carry budget alone
+            # (``claim_follow_up_units``)
             # bounds the spawn rate; the cap is conceptually a different
             # budget and is enforced separately on the cancel/full-fill
             # follow-up path.
@@ -1488,10 +1486,8 @@ class OrderEngine:
             # CRITICAL: atomically reserve carry units BEFORE the slow REST
             # place call. Without this claim, concurrent WS-delta threads each
             # observe the same stale ``carry_remainder_qty`` snapshot and each
-            # spawn a duplicate full-size follow-up. See 2026-04-29
-            # over-buy incident: a 100-unit SELL filled in 6 partial matches
-            # produced 5 BUY follow-ups @ 100 units each (500 total instead
-            # of 100). The atomic claim under the per-order lock causes the
+            # spawn a duplicate full-size follow-up. The atomic claim
+            # under the per-order lock causes the
             # second concurrent thread to observe the already-reduced carry
             # and back off.
             units_to_create = self.order_progress_tracker.claim_follow_up_units(
@@ -1768,7 +1764,7 @@ class OrderEngine:
         if created_units > 0:
             # Carry was already decremented atomically by
             # ``claim_follow_up_units`` inside ``_create_partial_fill_follow_up``
-            # BEFORE the REST place call (2026-04-29 race fix). Just persist
+            # before the REST place call. Persist
             # the updated tracker state so the database reflects the new
             # ``carry_remainder_qty`` and ``partial_follow_ups_created``.
             updated_record = self.order_progress_tracker.get_record(client_order_id)
@@ -2233,15 +2229,8 @@ class OrderEngine:
             ...     # Do follow-up work
 
         Note:
-            History (2026-04-27): this previously fetched ``self.orderbook
-            .filled`` and ``.cancelled`` via ``getattr`` on the legacy shim.
-            When those dict attributes were removed during the OrderBook v2
-            cleanup, every call here returned ``False`` â€” silently disabling
-            all FILLED and CANCELLED follow-up creation across production.
-            The API is now backed by :meth:`core.orderbook.OrderBook
-            .try_claim_follow_up`, which validates the kind against the
-            :class:`FollowUpKind` enum at the boundary so a future rename of
-            either side cannot fail silently again.
+            Uses the typed OrderBook.try_claim_follow_up API, which validates
+            the kind against FollowUpKind at the boundary.
         """
         return self.orderbook.try_claim_follow_up(processed_flag_name, client_order_id)
 
@@ -2299,9 +2288,7 @@ class OrderEngine:
             >>> # Now child_123 is tracked as child of parent_123 and count is incremented
         """
         # Contract guard: never register a phantom child. Passing None
-        # here previously consumed a replacement slot on the parent and
-        # appended `None` into the orders list, stranding exposure (see
-        # incident 2026-05-04, cancel-path follow-up returning None).
+        # here would consume a replacement slot and corrupt child linkage.
         if child_client_order_id is None:
             self.log_message(
                 "error",
@@ -4254,7 +4241,6 @@ class OrderEngine:
         # write. partial_fill_progress.client_order_id_fkey requires a parent
         # row, so for genuinely-unknown (external) orders we must create one
         # NOW â€” before _process_ws_order_delta runs the watermark upsert.
-        # See genai_tools/TODO_2026_04_28_partial_fill_root_causes.md (#1).
         coid_lock = self._get_coid_handler_lock(client_order_id)
         with coid_lock:
             self._ensure_order_parent_row_exists(normalized_order)
@@ -4271,7 +4257,7 @@ class OrderEngine:
             )
             self._process_ws_order_delta(normalized_order)
             # Terminal payloads can repeat or regress counters. Preserve both
-            # sides of ingest because the historical tracker accepts terminal
+            # sides of ingest because the tracker accepts terminal
             # status regressions before it is finalized below.
             progress_after_ingest = self.order_progress_tracker.get_record(
                 client_order_id
@@ -4523,10 +4509,7 @@ class OrderEngine:
         # If the persisted row is itself a child (parent_order_id set), hydrate
         # the chain root first and register this COID as a child under it.
         # Otherwise downstream lookups (is_parent_order / status routing)
-        # mis-classify it as a root and update the wrong order_parent row â€”
-        # source of the 2026-04-29 stealth-status-stuck-at-PENDING bug where
-        # status writes targeted the placement uuid (row 62) instead of the
-        # stealth root (row 61).
+        # mis-classify it as a root and update the wrong order_parent row.
         db_parent_link = parent_order.get("parent_order_id")
         if db_parent_link:
             root_client_order_id = str(db_parent_link)
@@ -4582,13 +4565,8 @@ class OrderEngine:
         Why this exists:
             ``partial_fill_progress.client_order_id_fkey`` requires that an
             ``order_parent`` row already be present before any watermark
-            upsert. Prior to 2026-04-28 the WS handler called
-            :meth:`_process_ws_order_delta` (which writes that watermark)
-            *before* the FILLED/CANCELLED routing that would have created
-            the parent row for externally-placed orders. Result: every
-            brand-new external order produced a ``ForeignKeyViolation``
-            and at least one parent insert was lost when the error
-            handler itself crashed (separate exception-signature bug).
+            upsert. Ensure the row before processing WS watermark deltas
+            for externally placed orders.
 
         Behaviour:
             - Already tracked (parent or child in memory) â†’ no-op.
@@ -4879,9 +4857,7 @@ class OrderEngine:
         This method is the **single gate** for replacement-cap enforcement.
         Callers must NOT do their own ``can_create_follow_up_order`` +
         compute-remaining-then-create pattern: that pattern lets concurrent
-        threads each observe the same stale snapshot and breach the cap (see
-        2026-04-29 incident â€” ``max_order_replacement=1`` with four
-        concurrent BUY follow-ups created on the same parent).
+        threads each observe the same stale snapshot and breach the cap.
 
         Args:
             parent_client_order_id: Parent order id (or child id; resolved).
@@ -5096,7 +5072,7 @@ class OrderEngine:
                 # land here under current flow (all orders are stealth).
                 # Fail closed rather than feed `None` into the lookup, which
                 # would silently return None below and burn a replacement
-                # slot on a phantom child (see incident 2026-05-04).
+                # slot on a phantom child.
                 if not original_stealth_order:
                     self.log_message(
                         "warning",
@@ -5505,10 +5481,6 @@ class OrderEngine:
             )
             return
 
-        # Handle stealth order fills - create a Child stealth order as follow-up
-        # NOTE: This is handled in the later stealth order code path (around line 1663)
-        # After normal follow-up processing claims the order. Kept here for reference only.
-
         # Note: We already claimed processing at the start of handle_filled_order
         # No need to claim again here
         
@@ -5517,10 +5489,8 @@ class OrderEngine:
             # The cap is meant to gate pre-fill cancel/reprice (anchor track) cycles,
             # not the closing leg that completes the round-trip after a fill.
             # Conflating the two strands the operator with un-hedged exposure when
-            # earlier reprices have already exhausted the slot (incident 2026-05-04,
-            # parent 514563cc-607b-446f-b92f-c3714594fc44). See
-            # /memories/budget-vs-completion-cap.md and the partial-fill bypass
-            # precedent in _create_partial_fill_follow_up.
+            # earlier reprices have already exhausted the slot. Partial-fill
+            # follow-ups use the same separation of carry and replacement budgets.
             can_replace, replacement_details = self.can_create_follow_up_order(parent_client_order_id)
             if not can_replace:
                 self.log_message(
@@ -5764,8 +5734,7 @@ class OrderEngine:
                     # Single canonical resolver â€” see resolve_stealth_chain_root.
                     # bypass_replacement_cap=True: matches the gate-bypass above.
                     # The post-fill closing leg must not consume a replacement slot,
-                    # otherwise pre-fill anchor reprices can starve it (incident
-                    # 2026-05-04). See /memories/budget-vs-completion-cap.md.
+                    # otherwise pre-fill anchor reprices can starve it.
                     root_parent_client_order_id = resolve_stealth_chain_root(original_stealth_order)
                     self.register_child_order(
                         stealth_follow_up_id,
@@ -6150,18 +6119,10 @@ class OrderEngine:
                     )
                 return False
 
-            # Atomic dual-replace via the v2 OrderBook â€” closes the TOCTOU
-            # window where the previous code wrote ``parent_order_ids`` and
-            # ``child_order_ids`` in two separate statements while another
-            # thread could observe the half-replaced state.
-            #
-            # DIAGNOSTIC (2026-04-30): persistent drift was suspected to be
-            # field-shape mismatch between the bootstrap path
-            # (``register_child_order``) and the DB-rehydrated snapshot
-            # (``build_parent_child_order_ids_snapshot``). Capture a
-            # one-shot diff of the first few differing entries so the
-            # cause is verifiable from logs rather than inferred. The
-            # diagnostic suppresses itself for ~1 hour after each emit.
+            # Replace both link maps atomically so readers cannot observe
+            # half-replaced parent/child state. Capture a throttled diff
+            # between cached linkage and the DB-rehydrated snapshot; the
+            # diagnostic suppresses itself for about an hour after each emit.
             diff_payload = self._build_reconcile_diff_diagnostic(
                 self.orderbook.parent_order_ids,
                 new_parent_order_ids,
@@ -6791,7 +6752,7 @@ class OrderEngine:
             )
         
         # Publish the hourly worker under the short lifecycle boundary, then
-        # perform the historical immediate Coinbase refresh without holding
+        # perform the immediate Coinbase refresh without holding
         # that boundary. A stop can therefore return while REST is blocked;
         # the post-refresh checkpoint prevents any later websocket launch.
         if not self._commit_startup_activation(

@@ -8,9 +8,8 @@ Restart safety
 The limiter is in-memory but **rebuilt at startup** from
 ``order_parent`` rows where ``auto_placed_by_hotpoint = TRUE`` and
 ``created_at`` is inside the rate-limit window. This means an engine
-restart during a hot period does not reset the counter to zero (which
-would defeat the cap and create a runaway-liquidation risk per the
-2026-05-03 design conversation).
+restart during a hot period does not reset the counter to zero or bypass
+the placement cap.
 
 The limiter does **not** persist counters of its own — `order_parent`
 is the source of truth. New successful placements call

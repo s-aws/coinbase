@@ -65,7 +65,7 @@ from rich.text import Text
 # tests/regression/test_repricing_policy.py.
 from core.models import RepricingPolicy
 
-# Cross-venue intel (Phase 1: Binance USDT-M perp). Owned entirely by
+# Cross-venue intel for configured external feeds. Owned entirely by
 # this consumer — no engine coupling — and toggleable via --no-cross-venue.
 # Heavy imports happen lazily inside ``CrossVenueMonitor.start`` so that
 # disabling the feed (or running on a host without ``websockets`` available
@@ -286,7 +286,7 @@ def render_market_metrics_panel(metrics: Dict[str, Any]) -> Panel:
                  border_style="cyan", padding=(0, 1))
 
 
-# ---- Cross-Venue Monitor (Phase 1) ----------------------------------------
+# ---- Cross-Venue Monitor --------------------------------------------------
 #
 # Standalone, ui_console-owned tracker of (Coinbase mid vs external
 # venue mid). Runs the Binance USDT-M perp WS client in a background

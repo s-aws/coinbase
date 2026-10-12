@@ -90,7 +90,7 @@ class PostgresDB:
         # threads concurrently: if thread A's transaction aborts (e.g.
         # ForeignKeyViolation), thread B's cursor on the same connection
         # sees ``InFailedSqlTransaction`` before A's rollback runs. The
-        # cascade was observed in production on 2026-04-28 — see
+        # lock contract is covered by
         # ``tests/regression/test_db_cursor_thread_safety.py``.
         self._cursor_lock: threading.RLock = threading.RLock()
     

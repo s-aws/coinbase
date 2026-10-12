@@ -10,8 +10,8 @@ CONTEXT_DIRECTORY=genai_data/
 - Current code, schema, configuration, and tests are the evidence for current
   behavior. Documentation describes intended design and navigation, but a
   behavioral claim must be verified before it drives a change.
-- Do not bulk-load `genai_data/`. Topical completion notes and fix summaries
-  may be historical or branch-specific.
+- Do not bulk-load `genai_data/`. Read only the current references relevant
+  to the task.
 - `agent_state.md` is authoritative only when it explicitly names an active,
   operator-approved objective for the current checkout. Otherwise treat it as
   having no active handoff.
@@ -47,10 +47,9 @@ ignored. Open only a specifically relevant tool, inspect it before execution,
 and never treat it as design authority. See `agent.md` section
 "genai_tools Workflow".
 
-## Current versus historical references
+## Current references
 
 The living references were reconciled with prod on 2026-10-09. The overview
 also routes to enum, exception, partial-fill, move/rearm, and fee references.
-Marked historical summaries/designs retain provenance, not active instructions.
-Prior branch-specific API/architecture contracts and August handoff evidence
-are preserved in `genai_data/history/`; archived objectives do not authorize work.
+Only current references and the current handoff are retained in this checkout.
+Do not create archives of superseded documentation or completed handoffs.

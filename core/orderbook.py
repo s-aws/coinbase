@@ -1,16 +1,6 @@
 ﻿"""Instance-scoped, thread-safe order book.
 
-This is the v2 replacement for ``configuration.OrderBook``.  See
-``genai_tools/ORDERBOOK_TARGET_API.md`` for the design spec and the rationale
-for every method on this class.
-
-Migration is staged:
-
-* Phase 1 (this file): new class lives alongside the legacy one. Nothing imports it yet.
-* Phase 2: ``configuration.OrderBook`` becomes a compatibility shim that
-  delegates to an instance of this class.
-* Phase 3: consumers migrate from legacy attribute access to the methods below.
-* Phase 4: shim retired.
+The canonical state implementation wrapped by ``configuration.OrderBook``.
 
 Thread-safety contract
 ----------------------
@@ -33,8 +23,8 @@ Both are documented at the call site.
 Internal storage shape
 ----------------------
 Parent order entries are stored as plain dicts (``dict[str, dict]``) rather
-than as :class:`ParentOrderEntry` dataclass instances.  This keeps the Phase 2
-compatibility shim trivial and matches the legacy on-disk shape.
+than as :class:`ParentOrderEntry` dataclass instances. The compatibility shim
+exposes the same dict state used by persistence.
 :class:`ParentOrderEntry` is provided as an ergonomic constructor: callers can
 build a typed entry, then pass it to :meth:`register_parent`, which stores
 ``entry.as_dict()``.  Phase 3+ may tighten typing once consumers migrate.

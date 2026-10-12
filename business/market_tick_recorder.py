@@ -2,7 +2,7 @@
 
 Subscribes to the existing WebSocket ticker fan-out in ``core/order_engine``
 and writes one downsampled row per product per second to ``market_tick``.
-Used by the (forthcoming) slide-calibration chart to draw a market-mid
+Used by the slide-calibration chart to draw a market-mid
 reference line and a "miss-distance" band around the anchor.
 
 Why this module exists
@@ -25,8 +25,7 @@ Design
   no DB round-trip on the hot path.
 * Best-effort write: any exception is logged and swallowed. Tick recording
   must never delay or crash the ticker worker.
-* Reads use the shared ``DB_CLIENT`` (whose cursor lock from 2026-04-28
-  serialises cross-thread access).
+* Reads use the shared ``DB_CLIENT`` with its cross-thread cursor lock.
 * Retention sweep runs in a daemon thread, deleting rows older than
   ``retention_days`` every ``sweep_interval_seconds``. Default 7 days.
 

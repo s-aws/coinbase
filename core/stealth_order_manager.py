@@ -174,11 +174,9 @@ def resolve_stealth_chain_root(stealth_order: Dict[str, Any]) -> str:
 
     This is the SINGLE source of truth for that resolution. Any code that needs
     the root of a stealth chain MUST call this function instead of open-coding
-    ``stealth.get("parent_order_id") or stealth["stealth_order_id"]``. Six
-    duplications of that line caused the 2026-04-27 grandchild incident; the
-    static guard in
-    ``tests/regression/test_flat_hierarchy_stealth_placement.py`` enforces
-    that no caller reverts to inlining it.
+    ``stealth.get("parent_order_id") or stealth["stealth_order_id"]``.
+    ``tests/regression/test_flat_hierarchy_stealth_placement.py`` guards
+    against callers inlining the resolver.
 
     Raises:
         KeyError: if ``stealth_order["stealth_order_id"]`` is missing — that
@@ -258,7 +256,7 @@ class StealthOrderManager:
         self._market_cache_lock = RLock()
         self._market_cache: Dict[str, MarketData] = {}  # product_id -> latest market snapshot
         self._placed_order_index = {}  # Index: placed_order_id -> stealth_order (O(1) lookup)
-        # ``load_all_active_orders_from_db`` keeps its historical integer return
+        # ``load_all_active_orders_from_db`` keeps its integer return
         # for callers, while this flag lets startup distinguish an empty table
         # from a failed or partial hydration.
         self._last_hydration_complete = False
@@ -1264,7 +1262,7 @@ class StealthOrderManager:
         if len(recent) >= policy.max_reprices_per_hour:
             return True
 
-        # Phase 2: Spread monitoring guardrail
+        # Spread monitoring guardrail
         if policy.enable_spread_monitoring and market_data:
             bid = safe_float(market_data.get("bid"), default=None)
             ask = safe_float(market_data.get("ask"), default=None)
@@ -1273,7 +1271,7 @@ class StealthOrderManager:
                 if spread_bps > policy.max_spread_bps:
                     return True
 
-        # Phase 2: Volume requirement guardrail
+        # Volume requirement guardrail
         if policy.require_minimum_volume > 0 and market_data:
             volume_1m = safe_float(market_data.get("volume_1m"), default=0.0)
             if volume_1m < policy.require_minimum_volume:
@@ -1306,7 +1304,7 @@ class StealthOrderManager:
         else:
             interval = 60
 
-        # Phase 2: Volatility-based adjustment
+        # Volatility-based adjustment
         if market_data:
             bid = safe_float(market_data.get("bid"), default=None)
             ask = safe_float(market_data.get("ask"), default=None)
@@ -3485,7 +3483,7 @@ class StealthOrderManager:
 
         ``stealth_order_ids`` lets the bridge scope work to due logical orders.
         ``market_data`` carries the live ticker snapshot that admitted the
-        work.  Omitting either argument preserves the historical public path.
+        work.  Omitting either argument preserves the public compatibility path.
         """
         from core.enums import StealthMutationKind
 
@@ -5187,12 +5185,7 @@ class StealthOrderManager:
         admitting tick WITHOUT re-evaluating the live condition. The
         ``hold_duration_seconds`` gate already exists to filter ticker
         noise; re-running the evaluator after that gate has passed
-        defeats its purpose and silently strands orders when the
-        triggering tick ages out (incident 2026-05-03 stealth
-        4b6d2185: SELL @ 78190, ticker briefly touched 78195, status
-        flipped TRIGGERED, then last-trade fell back below threshold
-        and every subsequent re-evaluation returned False with no log
-        and no placement).
+        can strand committed orders when the triggering tick ages out.
         
         Returns:
             Tuple of (should_reveal: bool, reason: Optional[str])
@@ -5274,9 +5267,7 @@ class StealthOrderManager:
             if slice_size <= 0:
                 # Throttled diagnostic so a tranche-iceberg lock or a
                 # fully-covered fixed strategy doesn't silently no-op
-                # at the bridge poll rate. Pattern parallels the
-                # 2026-05-03 stranded-order incident: silent loops
-                # at high frequency are unobservable.
+                # at the bridge poll rate.
                 self._maybe_log_no_slice(stealth_order_id, order)
                 return None
             
@@ -6306,8 +6297,6 @@ class StealthOrderManager:
         ``anchor_repricing_state_json.active_placement_client_order_id``
         (the same SSOT the reprice flow uses).
 
-        See 2026-05-03 incident notes in the strategy module for the
-        rationale behind this extraction.
         """
         from business.stealth_reveal_strategy import get_reveal_strategy
 

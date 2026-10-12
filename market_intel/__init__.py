@@ -2,14 +2,10 @@
 
 Aggregates public ticker streams from external crypto exchanges
 (Binance, Bybit, OKX, ...) and exposes derived signals (consensus
-mid, Coinbase-vs-world premium, short-term lead/lag) intended to
-*influence* Coinbase-side pricing decisions, never to replace them.
+mid, Coinbase-vs-world premium, short-term lead/lag) for terminal display.
 
-Phase 1 (current): read-only data collection + measurement. No
-reveal-logic integration. The module is safe to import even when
-external feeds are disabled — every consumer receives ``None`` when
-no fresh data is available, and falls back to the engine's own
-historical averaging.
+The module collects read-only measurements without reveal-logic integration.
+Missing fresh external data yields no signal; engine pricing remains separate.
 
 See ``cross_venue_aggregator.CrossVenueAggregator`` for the single
 entry point.
