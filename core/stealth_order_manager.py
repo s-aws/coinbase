@@ -568,13 +568,13 @@ class StealthOrderManager:
         if reveal_pricing_policy == "configured_limit":
             return configured_limit_price, reveal_price_source, fallback_used
         
-        if reveal_pricing_policy == "top_of_book":
+        if reveal_pricing_policy == RevealPricingPolicy.TOP_OF_BOOK.value:
             if market_source == "ticker":
                 try:
-                    if normalized_side == "BUY" and market_ask is not None and float(market_ask) > 0:
-                        return float(market_ask), RevealPriceSource.TICKER_BEST_ASK.value, False
-                    if normalized_side == "SELL" and market_bid is not None and float(market_bid) > 0:
+                    if normalized_side == OrderSide.BUY.value and market_bid is not None and float(market_bid) > 0:
                         return float(market_bid), RevealPriceSource.TICKER_BEST_BID.value, False
+                    if normalized_side == OrderSide.SELL.value and market_ask is not None and float(market_ask) > 0:
+                        return float(market_ask), RevealPriceSource.TICKER_BEST_ASK.value, False
                 except (TypeError, ValueError):
                     pass
             return configured_limit_price, RevealPriceSource.CONFIGURED_LIMIT.value, True

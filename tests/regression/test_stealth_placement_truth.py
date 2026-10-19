@@ -456,6 +456,13 @@ def test_post_only_retry_price_is_revalidated_before_parent_or_rest_write(
         )
     )
     order["reveal_pricing_policy"] = "top_of_book"
+    manager._get_current_market_data = lambda _product_id: {
+        "price": 77120.0,
+        "bid": 77115.0,
+        "ask": 77125.0,
+        "volume_1m": 1.0,
+        "source": "ticker",
+    }
     manager._resolve_target_movement_for_plan = lambda *args, **kwargs: (
         0.001,
         "P",

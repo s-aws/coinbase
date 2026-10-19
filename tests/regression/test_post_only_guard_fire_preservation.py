@@ -16,7 +16,7 @@ under the single ``fallback_used`` flag:
     1. Market data unknown (resolver couldn't read bid/ask) — legit
        reason to demote post_only to taker.
     2. Guard fired with a known market — choosing the configured price
-       INSIDE the spread is *more* maker-likely than the policy's pick
+       beyond the same-side touch is *more* maker-likely than the policy's pick
        would have been. Demoting post_only here over-rejected reveals
        at the (much higher) taker rate, killing legitimate maker fills.
 
@@ -94,15 +94,15 @@ def _base_order(side: str, configured: float, sid: str = "sid") -> dict:
 
 
 def test_post_only_preserved_when_guard_fires_with_known_market_buy():
-    """BUY: top-of-book ask above configured → guard falls back to
+    """BUY: top-of-book bid above configured → guard falls back to
     configured. Configured price is BELOW the ask, so it rests as
     maker. post_only must STAY True."""
     order = _base_order(side="BUY", configured=78300.0, sid="sid_buy_guard")
     market = {
         "product_id": "BTC-USDC",
         "source": "ticker",
-        "bid": 78295.0,
-        "ask": 78305.0,  # top_of_book BUY would pick 78305 → worse than 78300 → guard fires
+        "bid": 78305.0,  # bid exceeds configured 78300 → guard fires
+        "ask": 78310.0,
         "price": 78300.0,
     }
     mgr = _bare_manager_with_order(order, market_data=market)
@@ -110,29 +110,29 @@ def test_post_only_preserved_when_guard_fires_with_known_market_buy():
     plan = mgr.build_reveal_execution_plan(order["stealth_order_id"])
 
     assert plan is not None
-    # Guard fired: submitted equals configured, not the ask.
+    # Guard fired: submitted equals configured, below the bid.
     assert plan.submitted_limit_price == pytest.approx(78300.0)
     assert plan.reveal_price_source == RevealPriceSource.CONFIGURED_LIMIT.value
     # Wire-level back-compat: fallback_used reports the demotion.
     assert plan.fallback_used is True
     # CRITICAL: post_only must NOT be demoted — we know the market and
-    # 78300 < 78305 ask → strict maker.
+    # 78300 < 78310 ask → strict maker.
     assert plan.post_only is True, (
         "post_only must stay True when guard chooses a price strictly "
-        "inside the known spread (more maker-likely than policy's pick)."
+        "on the conservative side of the known touch."
     )
 
 
 def test_post_only_preserved_when_guard_fires_with_known_market_sell():
-    """SELL: top-of-book bid below configured → guard falls back to
+    """SELL: top-of-book ask below configured → guard falls back to
     configured. Configured price is ABOVE the bid, so it rests as
     maker. post_only must STAY True."""
     order = _base_order(side="SELL", configured=78305.0, sid="sid_sell_guard")
     market = {
         "product_id": "BTC-USDC",
         "source": "ticker",
-        "bid": 78295.0,  # top_of_book SELL would pick 78295 → worse than 78305 → guard fires
-        "ask": 78310.0,
+        "bid": 78295.0,
+        "ask": 78300.0,  # ask is below configured 78305 → guard fires
         "price": 78300.0,
     }
     mgr = _bare_manager_with_order(order, market_data=market)
@@ -175,15 +175,20 @@ def test_post_only_demoted_when_market_data_actually_unavailable():
     )
 
 
-def test_post_only_true_for_top_of_book_with_clean_market():
-    """Sanity baseline: TOP_OF_BOOK with a healthy ticker keeps post_only=True
-    via the standard policy → implies_post_only path."""
-    order = _base_order(side="BUY", configured=78400.0, sid="sid_clean")
+@pytest.mark.parametrize(
+    ("side", "configured", "expected", "source"),
+    (
+        (OrderSide.BUY.value, 78400.0, 78290.0, RevealPriceSource.TICKER_BEST_BID.value),
+        (OrderSide.SELL.value, 78200.0, 78295.0, RevealPriceSource.TICKER_BEST_ASK.value),
+    ),
+)
+def test_post_only_true_for_top_of_book_with_clean_market(side, configured, expected, source):
+    """Both sides rest at their own touch and retain post-only intent."""
+    order = _base_order(side=side, configured=configured, sid="sid_clean")
     market = {
         "product_id": "BTC-USDC",
         "source": "ticker",
         "bid": 78290.0,
-        # ask 78295 < configured 78400 → policy picks 78295 (BETTER), guard does not fire
         "ask": 78295.0,
         "price": 78292.0,
     }
@@ -192,7 +197,11 @@ def test_post_only_true_for_top_of_book_with_clean_market():
     plan = mgr.build_reveal_execution_plan(order["stealth_order_id"])
 
     assert plan is not None
-    assert plan.submitted_limit_price == pytest.approx(78295.0)
-    assert plan.reveal_price_source == RevealPriceSource.TICKER_BEST_ASK.value
+    assert plan.submitted_limit_price == pytest.approx(expected)
+    assert plan.reveal_price_source == source
     assert plan.fallback_used is False
     assert plan.post_only is True
+    if side == OrderSide.BUY.value:
+        assert plan.submitted_limit_price < market["ask"]
+    else:
+        assert plan.submitted_limit_price > market["bid"]

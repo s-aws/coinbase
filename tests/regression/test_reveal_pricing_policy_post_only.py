@@ -110,7 +110,7 @@ def test_reveal_execution_plan_post_only_round_trips_through_to_dict():
         configured_limit_price=100.0,
         submitted_limit_price=99.5,
         reveal_pricing_policy="top_of_book",
-        reveal_price_source="ticker_best_ask",
+        reveal_price_source="ticker_best_bid",
         fallback_used=False,
         post_only=True,
     )

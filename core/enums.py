@@ -293,7 +293,7 @@ class RevealPricingPolicy(str, Enum):
       chosen one that crosses the spread, so the order submits with
       ``post_only=False`` (taker semantics) and is fee-validated against the
       taker rate.
-    - TOP_OF_BOOK: Use current best bid (SELL) or best ask (BUY) from ticker.
+    - TOP_OF_BOOK: Use current best bid (BUY) or best ask (SELL) from ticker.
       Submitted with ``post_only=True`` so the order rests at the touch as
       a maker. On post-only rejection the reveal path retries with the price
       one tick safer (``next_safer_tick``); after exhausting retries the
@@ -325,8 +325,8 @@ class RevealPriceSource(str, Enum):
     Used for audit trails and understanding reveal execution decisions.
     
     - CONFIGURED_LIMIT: Used original limit price from order creation (fallback or direct use)
-    - TICKER_BEST_BID: Used best bid from ticker (SELL orders with TOP_OF_BOOK policy)
-    - TICKER_BEST_ASK: Used best ask from ticker (BUY orders with TOP_OF_BOOK policy)
+    - TICKER_BEST_BID: Used best bid from ticker (BUY orders with TOP_OF_BOOK policy)
+    - TICKER_BEST_ASK: Used best ask from ticker (SELL orders with TOP_OF_BOOK policy)
     - TICKER_MIDPOINT: Used midpoint between bid/ask (MIDPOINT policy)
     - UNAVAILABLE: Market data unavailable, fell back to configured limit
     """

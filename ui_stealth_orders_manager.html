@@ -2431,9 +2431,22 @@
             const stopped = state.operator_cancel_requested_at
                 || (state.pending_rearm && state.pending_rearm.return_to_hidden === false)
                 || ['CANCELLED', 'EXECUTED', 'ERROR'].includes(order.status);
+            // A matching external cancellation clears both active IDs. Its
+            // historical revealed quantity is retained; missing IDs are ambiguous.
+            const closedExternalPlacement = order.status === 'CANCELLED'
+                && !isOperatorCancellationRequested(order)
+                && !state.pending_rearm
+                && state.active_placement_client_order_id === null
+                && state.active_exchange_order_id === null
+                && Array.isArray(order.revealed_orders)
+                && order.revealed_orders.length === 1
+                && order.revealed_orders[0]?.placement_success === true
+                && !order.revealed_orders[0].operator_cancel_supersession
+                && !order.revealed_orders[0].operator_cancel_consumed;
             return Boolean(stopped && (
                 state.pending_rearm || state.active_placement_client_order_id || state.active_exchange_order_id
-                || Number(order.revealed_size || 0) > Number(order.executed_size || 0)
+                || (!closedExternalPlacement
+                    && Number(order.revealed_size || 0) > Number(order.executed_size || 0))
             ));
         }
 

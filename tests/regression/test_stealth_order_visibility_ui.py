@@ -1,6 +1,9 @@
 """Regression contracts for actionable stealth-order visibility and labels."""
 
+import json
 import re
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -189,3 +192,108 @@ def test_operator_cancellation_is_pending_authoritative_and_can_supersede_rehide
     assert "state.pending_rearm.return_to_hidden === false" in pending
     assert "['CANCELLED', 'EXECUTED', 'ERROR'].includes(order.status)" in pending
     assert "CANCEL PENDING" in html
+
+
+@pytest.fixture(scope="module")
+def evaluate_cancellation_visibility():
+    """Execute the actual UI predicates without loading the dashboard."""
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node.js is required to execute the dashboard predicates")
+    predicates = _slice_between(
+        _manager_html(),
+        "function isActiveStealthOrder(order)",
+        "function updateOrdersTable()",
+    )
+
+    def evaluate(order):
+        result = subprocess.run(
+            [node, "-e", "const pendingCancelRequests = new Set();\n" + predicates + """
+                const fs = require('node:fs');
+                const order = JSON.parse(fs.readFileSync(0, 'utf8'));
+                process.stdout.write(JSON.stringify({
+                    pending: isExchangeCancellationPending(order),
+                    active: isActiveStealthOrder(order),
+                }));
+            """],
+            input=json.dumps(order),
+            text=True,
+            capture_output=True,
+            check=True,
+            timeout=10,
+        )
+        return json.loads(result.stdout)
+
+    return evaluate
+
+
+@pytest.mark.regression
+@pytest.mark.parametrize(
+    ("overrides", "pending", "active"),
+    [
+        pytest.param({}, False, False, id="confirmed-external-cancel"),
+        pytest.param({"executed_size": 3}, False, False, id="confirmed-partial-cancel"),
+        pytest.param(
+            {"anchor_repricing_state_json": {
+                "active_placement_client_order_id": None,
+                "active_exchange_order_id": None,
+                "operator_cancel_requested_at": "2026-10-19T14:00:00",
+            }}, True, True, id="operator-stop-unresolved-quantity",
+        ),
+        pytest.param(
+            {"anchor_repricing_state_json": {"pending_rearm": {"return_to_hidden": False}}},
+            True, True, id="pending-operator-cancel",
+        ),
+        pytest.param(
+            {"anchor_repricing_state_json": {"pending_rearm": {"return_to_hidden": True}}},
+            True, True, id="pending-rehide",
+        ),
+        pytest.param(
+            {"anchor_repricing_state_json": {"active_placement_client_order_id": "11111111-2222-4333-8444-555555555555"}},
+            True, True, id="active-placement",
+        ),
+        pytest.param(
+            {"anchor_repricing_state_json": {"active_exchange_order_id": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"}},
+            True, True, id="active-exchange-order",
+        ),
+        pytest.param({"anchor_repricing_state_json": {}}, True, True, id="missing-identities"),
+        pytest.param(
+            {"anchor_repricing_state_json": {"active_placement_client_order_id": None}},
+            True, True, id="missing-exchange-identity",
+        ),
+        pytest.param(
+            {"anchor_repricing_state_json": {
+                "active_placement_client_order_id": "", "active_exchange_order_id": "",
+            }}, True, True, id="empty-identities",
+        ),
+        pytest.param({"revealed_orders": None}, True, True, id="missing-placement-history"),
+        pytest.param({"revealed_orders": [{}]}, True, True, id="unknown-placement-outcome"),
+        pytest.param(
+            {"revealed_orders": [{"placement_success": True}, {"placement_success": True}]},
+            True, True, id="multiple-placements",
+        ),
+        pytest.param(
+            {"revealed_orders": [{"placement_success": True, "operator_cancel_consumed": True}]},
+            True, True, id="legacy-operator-cancel",
+        ),
+        pytest.param({"status": StealthOrderStatus.ERROR.value}, True, True, id="error-with-exposure"),
+        pytest.param({"status": StealthOrderStatus.EXECUTED.value}, True, True, id="executed-with-exposure"),
+        pytest.param({"status": StealthOrderStatus.HIDDEN.value}, False, True, id="hidden-automation-active"),
+    ],
+)
+def test_cancellation_visibility_preserves_unresolved_exposure(
+    evaluate_cancellation_visibility, overrides, pending, active,
+):
+    order = {
+        "status": StealthOrderStatus.CANCELLED.value,
+        "revealed_size": 20,
+        "executed_size": 0,
+        "anchor_repricing_state_json": {
+            "active_placement_client_order_id": None,
+            "active_exchange_order_id": None,
+        },
+        "revealed_orders": [{"placement_success": True}],
+    }
+    order.update(overrides)
+
+    assert evaluate_cancellation_visibility(order) == {"pending": pending, "active": active}
