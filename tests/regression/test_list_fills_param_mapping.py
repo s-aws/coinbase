@@ -43,6 +43,41 @@ import pytest
 
 
 @pytest.mark.regression
+@pytest.mark.parametrize("sdk_object", [False, True])
+@pytest.mark.parametrize(
+    ("payload", "expected_has_next"),
+    [
+        ({"fills": [{"entry_id": "fill-1"}], "cursor": "next-page"}, True),
+        ({"fills": [{"entry_id": "fill-1"}], "cursor": ""}, False),
+        ({"fills": [{"entry_id": "fill-1"}]}, False),
+        ({"fills": [], "cursor": "last-page"}, False),
+        ({"fills": [], "cursor": ""}, False),
+        (
+            {"fills": [{"entry_id": "fill-1"}], "cursor": "last-page", "has_next": False},
+            False,
+        ),
+    ],
+)
+def test_list_fills_normalizes_cursor_pagination_without_mutating_sdk_response(
+    payload, expected_has_next, sdk_object
+):
+    from external.coinbase_client import CoinbaseRestClient
+
+    sdk = MagicMock()
+    if sdk_object:
+        sdk.get_fills.return_value.to_dict.return_value = payload
+    else:
+        sdk.get_fills.return_value = payload
+    original = dict(payload)
+
+    result = CoinbaseRestClient(sdk).list_fills()
+
+    assert result == {**original, "has_next": expected_has_next}
+    assert result is not payload
+    assert payload == original
+
+
+@pytest.mark.regression
 def test_list_fills_maps_friendly_names_to_sdk_param_names():
     """The wrapper must translate ``product_id`` → ``product_ids``,
     ``start_date`` → ``start_sequence_timestamp``,

@@ -170,6 +170,40 @@ class TestAuditMissedFills:
         assert report.missed == []
 
     @pytest.mark.regression
+    def test_paginates_real_wrapper_when_coinbase_omits_has_next(
+        self, patch_rest_and_ledger
+    ):
+        from external.coinbase_client import CoinbaseRestClient
+
+        sdk = MagicMock()
+        sdk.get_fills.side_effect = [
+            {"fills": [_fill("a")], "cursor": "c1"},
+            {"fills": [_fill("b")], "cursor": "c2"},
+            {"fills": [], "cursor": "c2"},
+        ]
+        rest = CoinbaseRestClient(sdk)
+        rp, lp, op, wp = patch_rest_and_ledger(rest, {"a", "b"})
+        since = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        until = datetime(2026, 2, 1, tzinfo=timezone.utc)
+
+        with rp, lp, op, wp:
+            report = audit_missed_fills(
+                since=since, until=until, product_id="BTC-USDC"
+            )
+
+        assert report.rest_fills_examined == 2
+        assert report.already_recorded == 2
+        assert report.failed_pages == 0
+        assert report.missed == []
+        calls = sdk.get_fills.call_args_list
+        assert len(calls) == 3
+        assert [call.kwargs.get("cursor") for call in calls] == [None, "c1", "c2"]
+        for call in calls:
+            assert call.kwargs["start_sequence_timestamp"] == since.isoformat()
+            assert call.kwargs["end_sequence_timestamp"] == until.isoformat()
+            assert call.kwargs["product_ids"] == ["BTC-USDC"]
+
+    @pytest.mark.regression
     def test_uses_default_lookback_when_since_not_supplied(
         self, patch_rest_and_ledger
     ):

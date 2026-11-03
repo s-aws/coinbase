@@ -477,10 +477,14 @@ class CoinbaseRestClient:
             start_date: ISO-8601 lower bound for ``trade_time``.
             end_date: ISO-8601 upper bound for ``trade_time``.
             cursor: Opaque pagination cursor returned by a prior call.
-            limit: Page size; Coinbase caps at 100.
+            limit: Requested page size (defaults to 100).
 
         Returns:
-            Raw dict with shape ``{"fills": [...], "cursor": "...", "has_next": bool}``.
+            Dict with shape ``{"fills": [...], "cursor": "...", "has_next": bool}``.
+            Coinbase supplies a cursor without ``has_next``. When absent,
+            the wrapper derives ``has_next`` from a nonempty fills page and
+            cursor; an empty page terminates pagination. An explicit SDK
+            ``has_next`` value is preserved.
             Fields per fill match ``api_reference/orders/list_fills_response.json``.
 
         Raises:
@@ -507,7 +511,9 @@ class CoinbaseRestClient:
             kwargs["cursor"] = cursor
 
         response = self._client.get_fills(**kwargs)
-        return response.to_dict() if hasattr(response, "to_dict") else response
+        result = dict(response.to_dict() if hasattr(response, "to_dict") else response)
+        result.setdefault("has_next", bool(result.get("fills") and result.get("cursor")))
+        return result
 
     def get_candles(
         self,

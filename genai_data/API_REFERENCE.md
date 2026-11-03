@@ -114,6 +114,10 @@ wallet map as proof of complete account inventory.
   `time_in_force` argument, and returns the SDK response dictionary. Placement
   callers must classify acceptance with `classify_placement_response`.
 - `list_fills` maps user-facing params to SDK keys (`order_ids`, `product_ids`, `start_sequence_timestamp`, `end_sequence_timestamp`).
+  It also supplies `has_next` when Coinbase returns only a continuation
+  `cursor`: a nonempty fills page with a cursor continues pagination; an
+  empty page or missing cursor ends it. An explicit SDK `has_next` is retained.
+  Callers must walk every page for complete account history.
 - `list_orders` exposes the SDK continuation `cursor`; callers
   that require a complete exchange snapshot must walk every page and honor the
   response's `has_next`/`cursor` contract.
