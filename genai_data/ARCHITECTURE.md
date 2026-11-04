@@ -379,6 +379,16 @@ Analytics support tables:
 
 ## Dashboard and Operator Interface
 
+`dashboard_server.py` runs a plain, unauthenticated WebSocket listener in a
+daemon thread. `main.py` calls `start_dashboard_server()` with import-time
+environment defaults: `DASHBOARD_SERVER_HOST`, falling back to `HOSTNAME`
+then `localhost`, and integer `DASHBOARD_SERVER_PORT`, defaulting to `8765`.
+Explicit function arguments override these values; direct
+`run_websocket_server()` calls retain literal `localhost:8765` defaults.
+Browser and terminal clients choose their own endpoints; changing the listener
+does not reconfigure clients or serve HTML. See `CONFIGURATION.md` for the
+endpoint matrix and local-only binding guidance.
+
 `dashboard_server.py` exposes command handlers for:
 - runtime admin (`admin_status`, `admin_pause`, `admin_resume`, `admin_shutdown`)
 - parent CRUD, stealth creation/update/cancel/Rehide/move/reprice and import/export

@@ -4,10 +4,15 @@ Provides real-time order updates, engine status, and manual order placement.
 Runs as a separate thread alongside the main trading engine.
 
 Usage:
-    python dashboard_server.py  # Starts on ws://localhost:8765
-    Then open dashboard.html in browser
-"""
+    Set DASHBOARD_SERVER_HOST and DASHBOARD_SERVER_PORT before launch.
+    python dashboard_server.py  # Standalone dashboard/demo, not the trading engine
+    Then open ui_dashboard.html (its URL must match the listener).
 
+start_dashboard_server defaults: DASHBOARD_SERVER_HOST -> HOSTNAME -> localhost;
+DASHBOARD_SERVER_PORT -> 8765 (integer). Both are captured at import time.
+Browser/console endpoints are selected separately; see genai_data/CONFIGURATION.md.
+"""
+from os import environ
 import asyncio
 import json
 import uuid
@@ -20,6 +25,9 @@ from queue import Queue
 from typing import Set, Dict, Any, Optional
 import websockets
 from websockets.server import WebSocketServerProtocol
+
+DASHBOARD_SERVER_HOST = environ.get("DASHBOARD_SERVER_HOST", environ.get("HOSTNAME", "localhost"))
+DASHBOARD_SERVER_PORT = int(environ.get("DASHBOARD_SERVER_PORT", 8765))
 
 # Import REST client for order placement
 try:
@@ -3219,7 +3227,7 @@ async def _spread_broadcast_loop():
 
 
 async def run_websocket_server(host: str = "localhost", port: int = 8765):
-    """Start the WebSocket server."""
+    """Start plain WebSocket transport; direct calls default to localhost:8765."""
     global server_event_loop
     server_event_loop = asyncio.get_event_loop()
     
@@ -3242,12 +3250,12 @@ async def run_websocket_server(host: str = "localhost", port: int = 8765):
     asyncio.create_task(_stealth_orders_refresh_loop())
     
     async with websockets.serve(handler, host, port):
-        logger.info("WebSocket server running. Connect dashboard.html to ws://localhost:8765")
+        logger.info(f"WebSocket server running. Connect dashboard.html to ws://{host}:{port}")
         await asyncio.Event().wait()  # Run forever
 
 
-def start_dashboard_server(host: str = "localhost", port: int = 8765):
-    """Start dashboard server in background thread."""
+def start_dashboard_server(host: str = DASHBOARD_SERVER_HOST, port: int = DASHBOARD_SERVER_PORT):
+    """Start a daemon thread with import-time env defaults or explicit overrides."""
     
     def run():
         loop = asyncio.new_event_loop()

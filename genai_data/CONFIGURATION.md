@@ -28,6 +28,45 @@ Example local Docker layout (container names are operator-managed):
 
 The host `9876` mapping must point to container port `5432`. Mapping `9876->9876` creates a TCP listener that is not a working Postgres endpoint because the stock Postgres image listens on `5432`.
 
+### Dashboard WebSocket listener (`dashboard_server.py`)
+
+`main.py` and the standalone dashboard/demo call `start_dashboard_server()`
+without arguments. Its defaults are captured at module import:
+
+| Setting | Resolution | Notes |
+| --- | --- | --- |
+| Host | `DASHBOARD_SERVER_HOST` -> `HOSTNAME` -> `localhost` | Fallback applies only when a variable is absent, not when it is blank. `HOSTNAME` is an environment value, not a system-hostname lookup. |
+| Port | `int(DASHBOARD_SERVER_PORT)`; `8765` if absent | Blank or non-integer values raise `ValueError` during import. No explicit port-range validation is performed; binding can reject invalid values. |
+
+Set these variables before launching the process; changing them after import
+does not update function defaults. Explicit `start_dashboard_server(host=...,
+port=...)` arguments override the captured defaults and are forwarded to
+`run_websocket_server`. Calling `run_websocket_server()` directly without
+arguments still uses its own literal `localhost:8765` defaults. Startup logs
+show the supplied host and port; a wildcard bind address is not a usable
+browser destination, and port `0` does not report its OS-assigned port.
+
+The listener uses plain `ws` and has no application authentication. A
+`HOSTNAME` fallback may select a non-loopback interface; use an explicit
+`DASHBOARD_SERVER_HOST=localhost` for local-only operation. A remote bind must
+resolve to a local interface, and clients must use a reachable server address.
+Keep this operator API off untrusted networks.
+
+Client endpoint selection is independent of server environment variables:
+
+- `ui_console.py`: `--host` and `--port`, defaulting to `localhost` and `8765`.
+- `ui_dashboard.html`: fixed `ws://localhost:8765`.
+- `ui_stealth_orders_manager.html` and `ui_hotpoint_manager.html`: page hostname
+  or `localhost`, fixed port `8765`, plain `ws`.
+- Chart, spread, calibration, repricing, and `ui_codex.html` pages: page
+  hostname or `localhost`, fixed port `8765`; HTTPS pages select `wss`.
+- `ui_order_span_builder.html` and `ui_investor_storyboard.html`: page host/port
+  and matching `ws`/`wss` when served, otherwise `ws://localhost:8765`.
+
+Custom server bindings require matching client URLs or proxy routing. There
+is no shared browser endpoint setting or server-provided HTML hosting. HTTPS
+pages selecting `wss` require TLS termination outside this plain listener.
+
 ### Runtime toggles
 - `ENGINE_START_PAUSED`
   - defaults to paused when unset or blank.
@@ -178,6 +217,13 @@ Do not introduce duplicate global settings when a per-order canonical field alre
 $env:DISABLE_RECONCILER = "1"
 .\.venv\Scripts\python.exe -m main
 
+# Choose the dashboard listener before process startup (loopback, custom port)
+$env:DASHBOARD_SERVER_HOST = "localhost"
+$env:DASHBOARD_SERVER_PORT = "9000"
+.\.venv\Scripts\python.exe -m main
+# In another terminal, point the console at the same endpoint
+.\.venv\Scripts\python.exe ui_console.py --host localhost --port 9000
+
 # Use fibonacci metrics windows (optional)
 $env:MARKET_METRICS_WINDOWS = "fibonacci"
 .\.venv\Scripts\python.exe -m main
@@ -198,3 +244,4 @@ python -c "import psycopg2; psycopg2.connect(host='127.0.0.1', port=9876, dbname
 ---
 
 Last reconciled with checkout: 2026-10-09
+Dashboard listener and client endpoint reference updated: 2026-11-04

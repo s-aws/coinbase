@@ -36,6 +36,11 @@ Bootstraps:
 ### `dashboard_server.py`
 WebSocket server for operator commands and state broadcasts.
 Owns message contract for browser and terminal UIs.
+Owns the import-time `DASHBOARD_SERVER_HOST`/`DASHBOARD_SERVER_PORT` defaults
+used by `start_dashboard_server()` (`HOSTNAME` then `localhost` host fallback,
+port `8765` fallback). Explicit Python arguments override them; direct
+`run_websocket_server()` defaults remain `localhost:8765`. See
+`CONFIGURATION.md` for listener and independent client endpoint settings.
 
 ### `ui_console.py`
 Terminal dashboard consumer of `state_update` broadcast.

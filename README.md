@@ -105,7 +105,7 @@ commands below assume the repository root is the current directory.
 - An initialized engine database. The runtime applies several additive table
   migrations, but the current checkout does **not** provide a supported,
   non-destructive full-schema bootstrap command for an empty database.
-- TCP port `8765` available for the local dashboard WebSocket server.
+- The configured dashboard TCP port available (`8765` by default).
 
 Do not use `__dangerous_delete_all_tables__.py` as an installation step. It
 permanently drops every table in the target database before recreating schema.
@@ -136,6 +136,10 @@ $env:COINBASE_DB_PORT = "5432"
 $env:COINBASE_DB_NAME = "<initialized-database-name>"
 $env:COINBASE_DB_USER = "postgres"
 $env:COINBASE_DB_PASSWORD = "<database-password>"
+
+# Pin the dashboard to loopback; otherwise HOSTNAME may select another interface.
+$env:DASHBOARD_SERVER_HOST = "localhost"
+$env:DASHBOARD_SERVER_PORT = "8765"
 
 # Optional because PAUSED is already the safe default.
 $env:ENGINE_START_PAUSED = "true"
@@ -201,9 +205,25 @@ the exchange/local drift safety barrier.
 
 ### 5. Connect an operator UI
 
-The engine exposes its unauthenticated dashboard protocol on localhost at
-`ws://localhost:8765`. Do not expose that port to an untrusted network. Open
-one of the local HTML files directly in a browser:
+With the configuration above, the engine exposes its unauthenticated dashboard
+protocol at `ws://localhost:8765`. The server reads `DASHBOARD_SERVER_HOST`,
+falling back to `HOSTNAME`, then `localhost`; `DASHBOARD_SERVER_PORT` defaults
+to `8765`. These values are captured when `dashboard_server.py` is imported,
+so set them before launch. Do not expose this operator port to an untrusted
+network. See [dashboard configuration](genai_data/CONFIGURATION.md#dashboard-websocket-listener-dashboard_serverpy)
+for parsing rules and Python overrides.
+
+Clients select their endpoints independently; changing the server environment
+does not update browser URLs or console defaults. Most browser pages use the
+page hostname (or `localhost` for local files) and fixed port `8765`;
+`ui_dashboard.html` always uses `ws://localhost:8765`. The span builder and
+investor storyboard instead use the page host/port when served over HTTP(S).
+For a custom listener, match the client URL to a reachable server address and
+port, or configure a proxy for the page's expected endpoint. A wildcard bind
+such as `0.0.0.0` is not a client destination. The server provides plain `ws`,
+so pages choosing `wss` under HTTPS need TLS termination in front of it.
+
+Open one of the local HTML files directly in a browser:
 
 - `ui_stealth_orders_manager.html` — create/manage stealth orders and display
   authoritative engine state. Its **Resume Engine** button is enabled only
@@ -219,6 +239,9 @@ For a terminal client, run:
 
 ```powershell
 .\.venv\Scripts\python.exe ui_console.py
+
+# Match a custom server address/port (the console defaults remain localhost:8765).
+.\.venv\Scripts\python.exe ui_console.py --host <reachable-server-address> --port 9000
 ```
 
 Use `Ctrl+C` in the engine terminal for the ordinary cooperative drain and

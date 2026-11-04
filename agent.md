@@ -71,7 +71,14 @@ When adding order lifecycle behavior, validate flat hierarchy explicitly.
 
 ## Runtime and Dashboard Surface
 
-Dashboard transport is WebSocket at `ws://localhost:8765` via `dashboard_server.py`.
+Dashboard transport is plain WebSocket via `dashboard_server.py`.
+`start_dashboard_server()` defaults to import-time `DASHBOARD_SERVER_HOST`
+(fallback `HOSTNAME`, then `localhost`) and integer `DASHBOARD_SERVER_PORT`
+(default `8765`); explicit Python arguments override those defaults.
+`run_websocket_server()` called directly still defaults to `localhost:8765`.
+Client URLs are selected separately. See `genai_data/CONFIGURATION.md` for
+listener precedence and browser/console endpoint limits. The operator API is
+unauthenticated, so bind explicitly to loopback for local-only access.
 
 ### Primary UIs and consumers
 - `ui_stealth_orders_manager.html`
