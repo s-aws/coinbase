@@ -16,7 +16,7 @@ from uuid import NAMESPACE_URL, uuid5
 import pytest
 
 import dashboard_server
-from core.enums import OrderStatus
+from core.enums import OrderStatus, UserFeedPhase
 from tests.unit.test_partial_fill_followups import (
     _build_engine_for_partial_fill_tests,
 )
@@ -48,6 +48,11 @@ def dashboard_burst_case(monkeypatch):
     monkeypatch.setattr(dashboard_server, "_state_publish_dirty", False)
     monkeypatch.setattr(dashboard_server, "_ticker_publish_scheduled", False)
     monkeypatch.setattr(dashboard_server, "_pending_ticker_updates", {})
+    monkeypatch.setattr(
+        dashboard_server,
+        "DASHBOARD_STATE_PUBLISH_INTERVAL_SECONDS",
+        0,
+    )
     return client
 
 
@@ -104,6 +109,43 @@ def test_state_mutation_during_send_gets_one_follow_up_snapshot(
         runner.run(dashboard_server._drain_state_broadcasts())
 
     assert calls == 2
+    assert dashboard_server._state_publish_scheduled is False
+    assert dashboard_server._state_publish_dirty is False
+
+
+def test_state_publisher_batches_mutations_during_ui_frame(
+    dashboard_burst_case,
+    monkeypatch,
+):
+    broadcasts = AsyncMock()
+    sleep_calls = 0
+
+    async def mutate_during_frame(_seconds):
+        nonlocal sleep_calls
+        sleep_calls += 1
+        if sleep_calls == 1:
+            dashboard_server._trigger_broadcast()
+
+    monkeypatch.setattr(
+        dashboard_server,
+        "DASHBOARD_STATE_PUBLISH_INTERVAL_SECONDS",
+        0.25,
+    )
+    monkeypatch.setattr(asyncio, "sleep", mutate_during_frame)
+    monkeypatch.setattr(dashboard_server, "_async_broadcast_state", broadcasts)
+    monkeypatch.setattr(
+        asyncio,
+        "run_coroutine_threadsafe",
+        Mock(side_effect=AssertionError("a second publisher was scheduled")),
+    )
+    dashboard_server._state_publish_scheduled = True
+    dashboard_server._state_publish_dirty = True
+
+    with asyncio.Runner() as runner:
+        runner.run(dashboard_server._drain_state_broadcasts())
+
+    assert sleep_calls == 1
+    broadcasts.assert_awaited_once()
     assert dashboard_server._state_publish_scheduled is False
     assert dashboard_server._state_publish_dirty is False
 
@@ -457,3 +499,35 @@ def test_linux_cancel_pipeline_stress_releases_per_order_runtime_state():
     assert measurements["retained_follow_up_claims"] == 0
     assert measurements["retained_coid_locks"] == 0
     assert measurements["dispatcher_pending"] == 0
+
+
+def test_linux_user_recovery_stress_fences_and_rehydrates():
+    project_root = Path(__file__).resolve().parents[2]
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(project_root / "scripts" / "stress_user_recovery.py"),
+            "--reconnect-cycles",
+            "5",
+            "--restart-orders",
+            "5",
+            "--orders-per-envelope",
+            "5",
+            "--idle-window-seconds",
+            "0.05",
+        ],
+        cwd=project_root,
+        text=True,
+        capture_output=True,
+        timeout=30,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr or completed.stdout
+    report = json.loads(completed.stdout)
+    assert report["status"] == "pass"
+    measurements = report["measurements"]
+    assert measurements["stale_messages_dropped"] == 5
+    assert measurements["user_feed_phase"] == UserFeedPhase.LIVE.value
+    assert measurements["retained_generated_parent_entries"] == 0
+    assert measurements["retained_generation_inflight"] == 0

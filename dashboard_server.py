@@ -28,6 +28,10 @@ from websockets.server import WebSocketServerProtocol
 
 DASHBOARD_SERVER_HOST = environ.get("DASHBOARD_SERVER_HOST", environ.get("HOSTNAME", "localhost"))
 DASHBOARD_SERVER_PORT = int(environ.get("DASHBOARD_SERVER_PORT", 8765))
+DASHBOARD_STATE_PUBLISH_INTERVAL_SECONDS = max(
+    0.01,
+    float(environ.get("DASHBOARD_STATE_PUBLISH_INTERVAL_SECONDS", "0.25")),
+)
 
 # Import REST client for order placement
 try:
@@ -322,11 +326,17 @@ async def _async_broadcast_state():
 
 
 async def _drain_state_broadcasts() -> None:
-    """Publish latest state while coalescing mutations that arrive in bursts."""
+    """Publish rate-limited latest state while coalescing burst mutations."""
 
     global _state_publish_dirty, _state_publish_scheduled
 
     while True:
+        # The authenticated feed may deliver hundreds of distinct order
+        # transitions per second. Waiting for one short UI frame batches those
+        # transitions into a single latest-state snapshot instead of repeatedly
+        # serializing and transmitting the same bounded order history.
+        await asyncio.sleep(DASHBOARD_STATE_PUBLISH_INTERVAL_SECONDS)
+
         # Mutations received before this point are represented by the snapshot
         # we are about to build. A mutation during serialization or send sets
         # the bit again and earns exactly one follow-up snapshot.

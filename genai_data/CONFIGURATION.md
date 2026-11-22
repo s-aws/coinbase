@@ -39,6 +39,7 @@ without arguments. Its defaults are captured at module import:
 | --- | --- | --- |
 | Host | `DASHBOARD_SERVER_HOST` -> `HOSTNAME` -> `localhost` | Fallback applies only when a variable is absent, not when it is blank. `HOSTNAME` is an environment value, not a system-hostname lookup. |
 | Port | `int(DASHBOARD_SERVER_PORT)`; `8765` if absent | Blank or non-integer values raise `ValueError` during import. No explicit port-range validation is performed; binding can reject invalid values. |
+| State publish interval | `float(DASHBOARD_STATE_PUBLISH_INTERVAL_SECONDS)`; `0.25` if absent | Full latest-state snapshots are emitted at most once per interval during bursts. Values below `0.01` are clamped to `0.01`; invalid values raise `ValueError` during import. Ticker messages use their separate latest-value publisher. |
 
 Set these variables before launching the process; changing them after import
 does not update function defaults. Explicit `start_dashboard_server(host=...,

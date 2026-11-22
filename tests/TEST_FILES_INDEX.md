@@ -73,7 +73,7 @@ an explicit user request.
 | --- | ---: | --- |
 | [test_anchor_rearm_tombstone_replay.py](regression/test_anchor_rearm_tombstone_replay.py) | 3 | Regression coverage for stale rows after authenticated anchor rearming. |
 | [test_anchor_reprice_phantom_parent.py](regression/test_anchor_reprice_phantom_parent.py) | 23 | Regression coverage for revealed anchor repricing. |
-| [test_cancel_burst_resource_bounds.py](regression/test_cancel_burst_resource_bounds.py) | 12 | Cancellation bursts retain bounded dashboard and engine runtime state. |
+| [test_cancel_burst_resource_bounds.py](regression/test_cancel_burst_resource_bounds.py) | 14 | Cancellation bursts and reconnect/restart recovery retain bounded dashboard and engine runtime state. |
 | [test_cancel_followup_stealth_id_passthrough.py](regression/test_cancel_followup_stealth_id_passthrough.py) | 6 | Regression: 2026-05-04 phantom-child / stranded-exposure incident. |
 | [test_configuration_cloudflare_fallback.py](regression/test_configuration_cloudflare_fallback.py) | 3 | Regression coverage for transient malformed Coinbase gateway responses. |
 | [test_core_functionality.py](regression/test_core_functionality.py) | 10 | Regression tests - Critical path tests that must always pass before deployment. |

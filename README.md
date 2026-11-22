@@ -297,7 +297,21 @@ path:
 This exchange-free test defaults to three batches of 100 cancellations,
 requires the isolated port-9876 PostgreSQL instance, verifies that all durable
 rows were written, and fails if per-order locks, claims, progress records,
-parent entries, queues, tasks, or publishers remain active afterward.
+parent entries, queues, tasks, or publishers remain active afterward. It also
+enforces the dashboard publication rate and a default 32 KiB transmitted-byte
+budget per measured cancellation.
+
+For repeated private-feed generation loss followed by a database-backed
+process restart:
+
+```bash
+./scripts/run_user_recovery_stress.sh
+```
+
+This exchange-free harness rejects stale-generation messages, repeatedly
+returns the private feed to `LIVE`, persists active external orders, replaces
+the engine process state, rehydrates from PostgreSQL plus a venue snapshot,
+and verifies terminal cleanup without retained per-order state.
 
 ## Project Map
 

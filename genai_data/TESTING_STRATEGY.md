@@ -113,7 +113,20 @@ does not replace the complete pytest gate.
 The pipeline harness adds authenticated user-envelope reduction, keyed worker
 dispatch, real isolated-test-database writes, terminal external-order cleanup,
 and dashboard publication. It refuses port 5432, removes only its generated
-UUID rows, and verifies that per-order runtime maps are empty at quiescence.
+UUID rows, verifies that per-order runtime maps are empty at quiescence, and
+fails if full-state publication exceeds the configured UI-frame rate or the
+default 32 KiB transmitted-byte budget per measured cancellation.
+
+```bash
+./scripts/run_user_recovery_stress.sh
+```
+
+The recovery harness repeatedly desynchronizes the authenticated feed with a
+sequence gap, verifies stale-generation fencing and clean snapshot recovery,
+then persists active external orders across engine replacement. A new engine
+must reload durable external provenance, hydrate live venue state, process the
+terminal cancellations, and release generated parent, order, claim, lock,
+dispatcher, and generation-inflight state.
 
 ### Focused runs
 

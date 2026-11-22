@@ -36,7 +36,9 @@ server.
 Two exchange-free Linux resource checks are available outside the required
 gate: `./scripts/run_cancel_stress.sh` exercises dashboard publication alone;
 `./scripts/run_cancel_pipeline_stress.sh` traverses authenticated user-event
-reduction, the engine worker pool, the isolated database, and the dashboard.
+reduction, the engine worker pool, the isolated database, and the dashboard;
+`./scripts/run_user_recovery_stress.sh` exercises private-feed generation
+fencing and database-backed process restart recovery.
 
 ## Inventory
 

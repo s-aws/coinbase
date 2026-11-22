@@ -14,6 +14,7 @@ from contextlib import redirect_stdout
 import gc
 import io
 import json
+import math
 import os
 from pathlib import Path
 import sys
@@ -165,6 +166,37 @@ class PipelineOrderBook(CoreOrderBook):
         self._db_module = value
 
 
+def build_pipeline_engine(
+    *,
+    orderbook: PipelineOrderBook | None = None,
+    max_workers: int = 16,
+    queue_maxsize: int = 1_000,
+) -> tuple[OrderEngine, PipelineOrderBook]:
+    """Build the exchange-free engine used by pipeline stress harnesses."""
+
+    pipeline_orderbook = orderbook or PipelineOrderBook()
+    subscription = SimpleNamespace(
+        channels=(ChannelType.USER.value,),
+        private_channels=(ChannelType.USER.value,),
+        public_channels=(),
+        product_ids=("BTC-USDC",),
+    )
+    engine = OrderEngine(
+        orderbook=pipeline_orderbook,
+        db_module=order_database,
+        subscription=subscription,
+        api_key="offline",
+        api_secret="offline",
+        order_post_only={"BUY": False, "SELL": False},
+        websocket_thread_maximum=1,
+        max_workers=max_workers,
+        queue_maxsize=queue_maxsize,
+        websocket_hooks=WebSocketHookRegistry(),
+    )
+    engine.logging_flags = {key: False for key in engine.logging_flags}
+    return engine, pipeline_orderbook
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Stress user-channel cancellation processing on the test DB.",
@@ -179,6 +211,11 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-idle-cpu-seconds", type=_positive_float, default=0.05)
     parser.add_argument("--max-rss-growth-mib", type=_positive_float, default=64.0)
     parser.add_argument("--max-traced-growth-mib", type=_positive_float, default=24.0)
+    parser.add_argument(
+        "--max-dashboard-bytes-per-cancellation",
+        type=_positive_float,
+        default=32 * 1024,
+    )
     return parser
 
 
@@ -329,27 +366,11 @@ async def _run_stress(args: argparse.Namespace) -> dict[str, Any]:
     dashboard_server._state_publish_scheduled = False
     dashboard_server._state_publish_dirty = False
 
-    orderbook = PipelineOrderBook()
-    subscription = SimpleNamespace(
-        channels=(ChannelType.USER.value,),
-        private_channels=(ChannelType.USER.value,),
-        public_channels=(),
-        product_ids=("BTC-USDC",),
-    )
     max_workers = min(16, max(args.orders_per_batch, args.warmup_orders))
-    engine = OrderEngine(
-        orderbook=orderbook,
-        db_module=order_database,
-        subscription=subscription,
-        api_key="offline",
-        api_secret="offline",
-        order_post_only={"BUY": False, "SELL": False},
-        websocket_thread_maximum=1,
+    engine, orderbook = build_pipeline_engine(
         max_workers=max_workers,
         queue_maxsize=max(1_000, args.orders_per_batch * 2),
-        websocket_hooks=WebSocketHookRegistry(),
     )
-    engine.logging_flags = {key: False for key in engine.logging_flags}
 
     generated_ids: list[str] = []
     run_id = str(uuid4())
@@ -386,6 +407,7 @@ async def _run_stress(args: argparse.Namespace) -> dict[str, Any]:
         threads_before = threading.active_count()
         fds_before = _open_fd_count()
         messages_before = client.messages_sent
+        bytes_before = client.bytes_sent
 
         cpu_started = time.process_time()
         wall_started = time.perf_counter()
@@ -429,6 +451,8 @@ async def _run_stress(args: argparse.Namespace) -> dict[str, Any]:
 
         database_counts = _database_counts(generated_ids)
         total_orders = args.warmup_orders + args.orders_per_batch * args.batches
+        measured_cancellations = args.orders_per_batch * args.batches
+        dashboard_bytes = client.bytes_sent - bytes_before
         retained_orders = len(dashboard_server.engine_state["orders"])
         expected_retained_orders = min(
             total_orders,
@@ -455,6 +479,9 @@ async def _run_stress(args: argparse.Namespace) -> dict[str, Any]:
             "fd_growth": fds_after - fds_before,
             "pending_asyncio_tasks": pending_tasks,
             "publisher_messages": client.messages_sent - messages_before,
+            "dashboard_publish_interval_seconds": (
+                dashboard_server.DASHBOARD_STATE_PUBLISH_INTERVAL_SECONDS
+            ),
             "publisher_scheduled": dashboard_server._state_publish_scheduled,
             "publisher_dirty": dashboard_server._state_publish_dirty,
             "retained_dashboard_orders": retained_orders,
@@ -470,7 +497,10 @@ async def _run_stress(args: argparse.Namespace) -> dict[str, Any]:
             "user_queue_depth": engine.event_queue[ChannelType.USER.value].qsize(),
             "user_feed_phase": engine._user_feed_phase.value,
             "database_counts": database_counts,
-            "bytes_sent": client.bytes_sent,
+            "bytes_sent": dashboard_bytes,
+            "dashboard_bytes_per_cancellation": (
+                dashboard_bytes / measured_cancellations
+            ),
         }
         limits = {
             "wall_seconds": args.max_wall_seconds,
@@ -481,6 +511,13 @@ async def _run_stress(args: argparse.Namespace) -> dict[str, Any]:
             "thread_growth": max_workers,
             "fd_growth": 0,
             "pending_asyncio_tasks": 0,
+            "publisher_messages": math.ceil(
+                wall_seconds
+                / dashboard_server.DASHBOARD_STATE_PUBLISH_INTERVAL_SECONDS
+            ) + 1,
+            "dashboard_bytes_per_cancellation": (
+                args.max_dashboard_bytes_per_cancellation
+            ),
         }
         violations = []
         for metric, limit in limits.items():
@@ -540,7 +577,7 @@ async def _run_stress(args: argparse.Namespace) -> dict[str, Any]:
             "workload": {
                 "orders_per_batch": args.orders_per_batch,
                 "measured_batches": args.batches,
-                "measured_cancellations": args.orders_per_batch * args.batches,
+                "measured_cancellations": measured_cancellations,
                 "warmup_cancellations": args.warmup_orders,
             },
             "measurements": measurements,
