@@ -43,6 +43,7 @@ from calculation.price_validation import normalize_price_for_product
 from core.enums import (
     EngineState,
     FollowUpRevealDirection,
+    OrderStatus,
     PriceRoundingPolicy,
     RepricingReferenceSource,
     StealthOrderStatus,
@@ -141,6 +142,32 @@ engine_state = {
 }
 max_logs = 100
 
+# Dashboard delivery is a lossy latest-state view. Trading state remains
+# authoritative in the engine/database, so queuing one full snapshot per
+# mutation only creates stale work during bursts. Keep one state publisher
+# active, retain one dirty bit for a follow-up snapshot, and bound every
+# client send so a stalled browser cannot retain messages indefinitely.
+_DASHBOARD_CLIENT_SEND_TIMEOUT_SECONDS = 2.0
+_DASHBOARD_CLIENT_CLOSE_TIMEOUT_SECONDS = 0.5
+_MAX_TERMINAL_DASHBOARD_ORDERS = 1_000
+_TERMINAL_DASHBOARD_ORDER_STATUSES = frozenset({
+    OrderStatus.FILLED.value,
+    OrderStatus.CANCELLED.value,
+    OrderStatus.EXPIRED.value,
+    OrderStatus.FAILED.value,
+})
+
+_state_publish_lock = Lock()
+_state_publish_scheduled = False
+_state_publish_dirty = False
+
+# Ticker consumers need the newest price for each product, not every stale
+# relay attempt. The pending map therefore has a fixed upper bound equal to
+# the configured product count even when a client is slower than Coinbase.
+_ticker_publish_lock = Lock()
+_ticker_publish_scheduled = False
+_pending_ticker_updates: Dict[str, Dict[str, Any]] = {}
+
 # Custom JSON encoder for handling Decimal and other non-standard types
 from decimal import Decimal
 
@@ -213,7 +240,7 @@ async def register_client(websocket: WebSocketServerProtocol):
                     "spot": products_data.get("spot", []),
                     "metadata": products_data.get("metadata", {}),
                 }
-                await websocket.send(json_lib.dumps(products_payload))
+                await _send_dashboard_message(websocket, json_lib.dumps(products_payload))
     except Exception as e:
         logger.error(f"Failed to send products list: {e}")
     
@@ -227,64 +254,131 @@ async def unregister_client(websocket: WebSocketServerProtocol):
     logger.info(f"Client disconnected. Total clients: {len(connected_clients)}")
 
 
-async def _async_broadcast_state():
-    """Async version of broadcast_state for scheduling from event loop."""
-    with state_lock:
-        # Fold in the live Fibonacci-window market metrics so dashboard /
-        # console clients can render multi-timeframe trend without a
-        # separate channel. Snapshot is built outside the lock-protected
-        # mutate path because the tracker has its own lock.
-        engine_state["market_metrics"] = _build_market_metrics_payload()
-        payload = {
-            "type": "state_update",
-            "data": engine_state,
-            "timestamp": datetime.utcnow().isoformat(),
-        }
-    
-    message = json.dumps(payload, cls=CustomJSONEncoder)
-    
+async def _send_dashboard_message(
+    client: WebSocketServerProtocol,
+    message: str,
+) -> None:
+    """Send one dashboard message without allowing an unbounded stall."""
+
+    try:
+        await asyncio.wait_for(
+            client.send(message),
+            timeout=_DASHBOARD_CLIENT_SEND_TIMEOUT_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        connected_clients.discard(client)
+        logger.warning("Dropping dashboard client after send timeout")
+        try:
+            await asyncio.wait_for(
+                client.close(
+                    code=1013,
+                    reason="Dashboard client could not keep up",
+                ),
+                timeout=_DASHBOARD_CLIENT_CLOSE_TIMEOUT_SECONDS,
+            )
+        except Exception:
+            pass
+        raise
+    except websockets.exceptions.ConnectionClosed:
+        connected_clients.discard(client)
+        raise
+    except Exception as exc:
+        connected_clients.discard(client)
+        logger.debug(f"Dashboard client broadcast failed: {exc}")
+        raise
+
+
+async def _broadcast_dashboard_message(message: str) -> None:
+    """Fan one serialized message out through the bounded send path."""
+
     for client in connected_clients.copy():
         try:
-            await client.send(message)
-        except websockets.exceptions.ConnectionClosed:
-            connected_clients.discard(client)
+            await _send_dashboard_message(client, message)
+        except Exception:
+            # One dead or lagging browser must not block other clients.
+            pass
+
+
+def _build_state_update_message() -> str:
+    """Capture and serialize one internally consistent dashboard snapshot."""
+
+    market_metrics = _build_market_metrics_payload()
+    with state_lock:
+        engine_state["market_metrics"] = market_metrics
+        state_snapshot = deepcopy(engine_state)
+    payload = {
+        "type": "state_update",
+        "data": state_snapshot,
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+    return json.dumps(payload, cls=CustomJSONEncoder)
+
+
+async def _async_broadcast_state():
+    """Broadcast one full latest-state snapshot to every current client."""
+
+    message = _build_state_update_message()
+    await _broadcast_dashboard_message(message)
+
+
+async def _drain_state_broadcasts() -> None:
+    """Publish latest state while coalescing mutations that arrive in bursts."""
+
+    global _state_publish_dirty, _state_publish_scheduled
+
+    while True:
+        # Mutations received before this point are represented by the snapshot
+        # we are about to build. A mutation during serialization or send sets
+        # the bit again and earns exactly one follow-up snapshot.
+        with _state_publish_lock:
+            _state_publish_dirty = False
+
+        try:
+            await _async_broadcast_state()
+        except Exception:
+            logger.exception("Dashboard state broadcast failed")
+
+        with _state_publish_lock:
+            if _state_publish_dirty:
+                continue
+            _state_publish_scheduled = False
+            return
 
 
 def _trigger_broadcast():
-    """Trigger broadcast from sync code to all connected clients."""
-    global server_event_loop
-    if server_event_loop and connected_clients:
-        try:
-            asyncio.run_coroutine_threadsafe(_async_broadcast_state(), server_event_loop)
-        except Exception as e:
-            logger.error(f"Failed to trigger broadcast: {e}")
+    """Mark state dirty and schedule at most one publisher coroutine."""
+
+    global _state_publish_dirty, _state_publish_scheduled
+
+    loop = server_event_loop
+    if not loop or not connected_clients:
+        return
+
+    with _state_publish_lock:
+        _state_publish_dirty = True
+        if _state_publish_scheduled:
+            return
+        _state_publish_scheduled = True
+
+    coroutine = _drain_state_broadcasts()
+    try:
+        asyncio.run_coroutine_threadsafe(coroutine, loop)
+    except Exception as exc:
+        coroutine.close()
+        with _state_publish_lock:
+            _state_publish_scheduled = False
+        logger.error(f"Failed to trigger dashboard state broadcast: {exc}")
 
 
 async def broadcast_state(websocket: WebSocketServerProtocol = None):
     """Broadcast current engine state to all connected clients."""
-    with state_lock:
-        engine_state["market_metrics"] = _build_market_metrics_payload()
-        payload = {
-            "type": "state_update",
-            "data": engine_state,
-            "timestamp": datetime.utcnow().isoformat(),
-        }
-    
-    message = json.dumps(payload, cls=CustomJSONEncoder)
-    
     if websocket:
-        # Send to single client
-        try:
-            await websocket.send(message)
-        except websockets.exceptions.ConnectionClosed:
-            pass
+        await _send_dashboard_message(
+            websocket,
+            _build_state_update_message(),
+        )
     else:
-        # Broadcast to all
-        for client in connected_clients.copy():
-            try:
-                await client.send(message)
-            except websockets.exceptions.ConnectionClosed:
-                connected_clients.discard(client)
+        await _async_broadcast_state()
 
 
 def _build_investor_storyboard_snapshot(
@@ -620,7 +714,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 "engine_state": controller.state.value,
                 "message": rejection_message,
             }
-            await websocket.send(json.dumps(response))
+            await _send_dashboard_message(websocket, json.dumps(response))
             add_log_entry(
                 "WARNING",
                 f"Rejected {msg_type}: engine state {controller.state.value}",
@@ -638,7 +732,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 "total_inflight": controller.total_inflight(),
                 "timestamp": datetime.utcnow().isoformat(),
             }
-            await websocket.send(json.dumps(response))
+            await _send_dashboard_message(websocket, json.dumps(response))
             return
 
         if msg_type == "admin_pause":
@@ -657,7 +751,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     )
                 else:
                     add_log_entry("WARNING", "Engine paused via admin_pause")
-            await websocket.send(json.dumps(response))
+            await _send_dashboard_message(websocket, json.dumps(response))
             return
 
         if msg_type == "admin_resume":
@@ -670,7 +764,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
             }
             if changed:
                 add_log_entry("INFO", "Engine resumed via admin_resume")
-            await websocket.send(json.dumps(response))
+            await _send_dashboard_message(websocket, json.dumps(response))
             return
 
         if msg_type == "admin_shutdown":
@@ -683,7 +777,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     data.get("timeout_seconds", 30.0)
                 )
             except ValueError as exc:
-                await websocket.send(json.dumps({
+                await _send_dashboard_message(websocket, json.dumps({
                     "type": "admin_shutdown_response",
                     "accepted": False,
                     "engine_state_before": controller.state.value,
@@ -720,7 +814,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "Could not start admin drain worker; draining synchronously"
                 )
                 controller.drain_and_stop(timeout_seconds=timeout)
-            await websocket.send(json.dumps(response))
+            await _send_dashboard_message(websocket, json.dumps(response))
             add_log_entry(
                 "WARNING",
                 f"Engine shutdown requested (timeout={timeout}s)",
@@ -738,7 +832,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "status": "error",
                     "message": "REST client not available",
                 }
-                await websocket.send(json.dumps(response))
+                await _send_dashboard_message(websocket, json.dumps(response))
                 return
             
             try:
@@ -871,7 +965,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 }
                 add_log_entry("ERROR", f"Order placement failed: {e}")
             
-            await websocket.send(json.dumps(response))
+            await _send_dashboard_message(websocket, json.dumps(response))
             
         elif msg_type == "cancel_order":
             # Resolve the internal client ID to managed stealth ownership first.
@@ -890,10 +984,10 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                         "type": "cancel_response", "client_order_id": client_order_id,
                         "status": "success" if response["accepted"] else "error",
                     })
-                    await websocket.send(json.dumps(response, cls=CustomJSONEncoder))
+                    await _send_dashboard_message(websocket, json.dumps(response, cls=CustomJSONEncoder))
                     return
             except Exception as exc:
-                await websocket.send(json.dumps({
+                await _send_dashboard_message(websocket, json.dumps({
                     "type": "cancel_response", "status": "error",
                     "accepted": False, "message": str(exc),
                 }))
@@ -905,7 +999,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "status": "error",
                     "message": "REST client not available",
                 }
-                await websocket.send(json.dumps(response))
+                await _send_dashboard_message(websocket, json.dumps(response))
                 return
             
             try:
@@ -933,7 +1027,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 }
                 add_log_entry("ERROR", f"Order cancellation failed: {str(e)}")
             
-            await websocket.send(json.dumps(response))
+            await _send_dashboard_message(websocket, json.dumps(response))
             
         elif msg_type == "request_stealth_orders":
             # Send current stealth orders snapshot
@@ -1012,7 +1106,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "status": "error",
                     "message": f"Failed to build summary: {e}",
                 }
-            await websocket.send(json.dumps(response, cls=CustomJSONEncoder))
+            await _send_dashboard_message(websocket, json.dumps(response, cls=CustomJSONEncoder))
 
         elif msg_type == "request_market_chart_history":
             # Time series for the slide-calibration phase-2 chart: ticks
@@ -1050,7 +1144,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "status": "error",
                     "message": f"Failed to build chart history: {e}",
                 }
-            await websocket.send(json.dumps(response, cls=CustomJSONEncoder))
+            await _send_dashboard_message(websocket, json.dumps(response, cls=CustomJSONEncoder))
 
         elif msg_type == "request_storyboard_products":
             # Return distinct product IDs available in fill_ledger
@@ -1063,7 +1157,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
             except Exception as e:
                 logger.warning(f"Could not fetch storyboard products: {e}")
                 products = []
-            await websocket.send(json.dumps({"type": "storyboard_products", "products": products}))
+            await _send_dashboard_message(websocket, json.dumps({"type": "storyboard_products", "products": products}))
 
         elif msg_type == "request_investor_storyboard":
             # Send investor storyboard snapshot
@@ -1083,7 +1177,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 "message_id": str(uuid.uuid4()),
             }
             
-            await websocket.send(json.dumps(response, cls=CustomJSONEncoder))
+            await _send_dashboard_message(websocket, json.dumps(response, cls=CustomJSONEncoder))
         
         elif msg_type == "export_active_stealth_orders":
             # Read-only export of all currently active root stealth orders.
@@ -1097,7 +1191,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "status": "error",
                     "message": "Stealth order system not initialized",
                 }
-                await websocket.send(json.dumps(response))
+                await _send_dashboard_message(websocket, json.dumps(response))
                 return
 
             try:
@@ -1186,7 +1280,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "INFO",
                     f"Exported {len(exported)} active stealth orders for backup",
                 )
-                await websocket.send(json.dumps(response))
+                await _send_dashboard_message(websocket, json.dumps(response))
             except Exception as e:
                 logger.exception("Failed to export active stealth orders")
                 response = {
@@ -1194,7 +1288,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "status": "error",
                     "message": f"Export failed: {e}",
                 }
-                await websocket.send(json.dumps(response))
+                await _send_dashboard_message(websocket, json.dumps(response))
 
         elif msg_type == "import_stealth_orders":
             # Bulk-replay create_stealth_order for each entry in payload.
@@ -1208,7 +1302,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "status": "error",
                     "message": "'orders' must be a list",
                 }
-                await websocket.send(json.dumps(response))
+                await _send_dashboard_message(websocket, json.dumps(response))
                 return
 
             if not stealth_order_bridge:
@@ -1217,7 +1311,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "status": "error",
                     "message": "Stealth order system not initialized",
                 }
-                await websocket.send(json.dumps(response))
+                await _send_dashboard_message(websocket, json.dumps(response))
                 return
 
             results: list[dict] = []
@@ -1283,7 +1377,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 "INFO",
                 f"Imported {success_count}/{len(orders_to_import)} stealth orders",
             )
-            await websocket.send(json.dumps(response))
+            await _send_dashboard_message(websocket, json.dumps(response))
             # Push fresh state to all clients so the new orders show up.
             await broadcast_stealth_order_update({
                 "type": "stealth_orders_imported",
@@ -1301,7 +1395,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "type": "error",
                     "message": "Missing order data"
                 }
-                await websocket.send(json.dumps(response))
+                await _send_dashboard_message(websocket, json.dumps(response))
                 return
             
             if not stealth_order_bridge:
@@ -1309,7 +1403,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "type": "error",
                     "message": "Stealth order system not initialized"
                 }
-                await websocket.send(json.dumps(response))
+                await _send_dashboard_message(websocket, json.dumps(response))
                 return
             
             try:
@@ -1361,7 +1455,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "message": f"Failed to create order: {str(e)}"
                 }
                 add_log_entry("ERROR", f"Stealth order creation failed: {str(e)}")
-                await websocket.send(json.dumps(response))
+                await _send_dashboard_message(websocket, json.dumps(response))
         
         elif msg_type == "cancel_stealth_order":
             stealth_order_id = data.get("stealth_order_id")
@@ -1373,7 +1467,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "exchange_cancel_pending": False, "error": str(exc), "message": str(exc),
                 }
             response["type"] = "stealth_order_cancel_result"
-            await websocket.send(json.dumps(response, cls=CustomJSONEncoder))
+            await _send_dashboard_message(websocket, json.dumps(response, cls=CustomJSONEncoder))
         
         elif msg_type == "rehide_stealth_order":
             stealth_order_id = data.get("stealth_order_id")
@@ -1403,7 +1497,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 )
                 add_log_entry("INFO", f"Stealth order rehide requested: {stealth_order_id}")
             # Never infer HIDDEN from an accepted request or overwrite the cache.
-            await websocket.send(json.dumps(response))
+            await _send_dashboard_message(websocket, json.dumps(response))
 
         elif msg_type == "update_stealth_target_movement":
             # Update target movement for a stealth order
@@ -1416,7 +1510,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "type": "error",
                     "message": "Missing stealth_order_id"
                 }
-                await websocket.send(json.dumps(response))
+                await _send_dashboard_message(websocket, json.dumps(response))
                 return
             
             try:
@@ -1462,20 +1556,16 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     
                     # Broadcast to all clients
                     message = json.dumps(response)
-                    for client in connected_clients.copy():
-                        try:
-                            await client.send(message)
-                        except websockets.exceptions.ConnectionClosed:
-                            connected_clients.discard(client)
+                    await _broadcast_dashboard_message(message)
                     
-                    await websocket.send(json.dumps({"type": "update_success", "message": "Target movement updated"}))
+                    await _send_dashboard_message(websocket, json.dumps({"type": "update_success", "message": "Target movement updated"}))
                 else:
                     response = {
                         "type": "error",
                         "message": f"Failed to update stealth order: {stealth_order_id}"
                     }
                     add_log_entry("ERROR", f"Failed to update stealth target_movement: {stealth_order_id}")
-                    await websocket.send(json.dumps(response))
+                    await _send_dashboard_message(websocket, json.dumps(response))
                 
             except Exception as e:
                 logger.error(f"Failed to update stealth target_movement: {e}")
@@ -1484,14 +1574,14 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "message": f"Failed to update target movement: {str(e)}"
                 }
                 add_log_entry("ERROR", f"Stealth target_movement update failed: {str(e)}")
-                await websocket.send(json.dumps(response))
+                await _send_dashboard_message(websocket, json.dumps(response))
 
         elif msg_type == "reprice_now_stealth_order":
             # Immediately trigger anchor repricing for a single stealth order,
             # bypassing the next_reprice_at cooldown.
             stealth_order_id = data.get("stealth_order_id")
             if not stealth_order_id or not stealth_order_bridge:
-                await websocket.send(json.dumps({
+                await _send_dashboard_message(websocket, json.dumps({
                     "type": "error",
                     "message": "Missing stealth_order_id or system not initialised"
                 }))
@@ -1501,7 +1591,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 mgr = stealth_order_bridge.stealth_manager
                 order = mgr.in_memory_orders.get(stealth_order_id)
                 if not order:
-                    await websocket.send(json.dumps({
+                    await _send_dashboard_message(websocket, json.dumps({
                         "type": "reprice_now_result",
                         "stealth_order_id": stealth_order_id,
                         "processed": 0,
@@ -1511,7 +1601,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
 
                 policy = RepricingPolicy.from_dict(order.get("anchor_repricing_policy_json"))
                 if not policy.enabled:
-                    await websocket.send(json.dumps({
+                    await _send_dashboard_message(websocket, json.dumps({
                         "type": "reprice_now_result",
                         "stealth_order_id": stealth_order_id,
                         "processed": 0,
@@ -1521,7 +1611,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
 
                 active_statuses = {"HIDDEN", "PENDING", "TRIGGERED", "REVEALED"}
                 if order.get("status") not in active_statuses:
-                    await websocket.send(json.dumps({
+                    await _send_dashboard_message(websocket, json.dumps({
                         "type": "reprice_now_result",
                         "stealth_order_id": stealth_order_id,
                         "processed": 0,
@@ -1538,7 +1628,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 add_log_entry("INFO", f"Manual reprice triggered for {stealth_order_id}: processed={processed}")
                 logger.info(f"[REPRICE-NOW] {stealth_order_id} processed={processed}")
 
-                await websocket.send(json.dumps({
+                await _send_dashboard_message(websocket, json.dumps({
                     "type": "reprice_now_result",
                     "stealth_order_id": stealth_order_id,
                     "processed": processed
@@ -1546,7 +1636,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
 
             except Exception as e:
                 logger.error(f"reprice_now_stealth_order failed: {e}")
-                await websocket.send(json.dumps({
+                await _send_dashboard_message(websocket, json.dumps({
                     "type": "reprice_now_result",
                     "stealth_order_id": stealth_order_id,
                     "processed": 0,
@@ -1577,7 +1667,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
             new_target_movement_type = data.get("new_target_movement_type")
 
             if not stealth_order_id or new_limit_price is None or not stealth_order_bridge:
-                await websocket.send(json.dumps({
+                await _send_dashboard_message(websocket, json.dumps({
                     "type": "stealth_order_moved",
                     "stealth_order_id": stealth_order_id,
                     "success": False,
@@ -1596,7 +1686,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     try:
                         reason_enum = StealthMoveReason(reason_raw)
                     except ValueError:
-                        await websocket.send(json.dumps({
+                        await _send_dashboard_message(websocket, json.dumps({
                             "type": "stealth_order_moved",
                             "stealth_order_id": stealth_order_id,
                             "success": False,
@@ -1654,11 +1744,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 }
                 # Broadcast so any other connected dashboards refresh too.
                 message = json.dumps(response)
-                for client in connected_clients.copy():
-                    try:
-                        await client.send(message)
-                    except websockets.exceptions.ConnectionClosed:
-                        connected_clients.discard(client)
+                await _broadcast_dashboard_message(message)
 
             except StealthMoveError as e:
                 # Stage tells the UI which phase failed: validate / claim /
@@ -1674,7 +1760,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "WARN" if e.stage in ("validate", "claim") else "ERROR",
                     f"Stealth move {stealth_order_id} failed at {e.stage}: {e}",
                 )
-                await websocket.send(json.dumps({
+                await _send_dashboard_message(websocket, json.dumps({
                     "type": "stealth_order_moved",
                     "stealth_order_id": stealth_order_id,
                     "success": False,
@@ -1687,7 +1773,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "ERROR",
                     f"Stealth move {stealth_order_id} crashed: {e}",
                 )
-                await websocket.send(json.dumps({
+                await _send_dashboard_message(websocket, json.dumps({
                     "type": "stealth_order_moved",
                     "stealth_order_id": stealth_order_id,
                     "success": False,
@@ -1706,7 +1792,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "type": "error",
                     "message": "Missing stealth_order_id"
                 }
-                await websocket.send(json.dumps(response))
+                await _send_dashboard_message(websocket, json.dumps(response))
                 return
 
             if price_threshold is None:
@@ -1714,7 +1800,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "type": "error",
                     "message": "Missing price_threshold"
                 }
-                await websocket.send(json.dumps(response))
+                await _send_dashboard_message(websocket, json.dumps(response))
                 return
 
             try:
@@ -1724,7 +1810,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "type": "error",
                     "message": "price_threshold must be numeric"
                 }
-                await websocket.send(json.dumps(response))
+                await _send_dashboard_message(websocket, json.dumps(response))
                 return
 
             if threshold <= 0:
@@ -1732,7 +1818,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "type": "error",
                     "message": "price_threshold must be greater than 0"
                 }
-                await websocket.send(json.dumps(response))
+                await _send_dashboard_message(websocket, json.dumps(response))
                 return
 
             # Validate optional hold_duration_seconds
@@ -1747,7 +1833,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                         "type": "error",
                         "message": "hold_duration_seconds must be a non-negative integer"
                     }
-                    await websocket.send(json.dumps(response))
+                    await _send_dashboard_message(websocket, json.dumps(response))
                     return
 
             try:
@@ -1759,7 +1845,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                         "type": "error",
                         "message": f"Stealth order not found: {stealth_order_id}"
                     }
-                    await websocket.send(json.dumps(response))
+                    await _send_dashboard_message(websocket, json.dumps(response))
                     return
 
                 if str(existing.get("reveal_condition_type", "")).lower() != "price":
@@ -1767,7 +1853,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                         "type": "error",
                         "message": "Threshold updates are only supported for price reveal conditions"
                     }
-                    await websocket.send(json.dumps(response))
+                    await _send_dashboard_message(websocket, json.dumps(response))
                     return
 
                 if not stealth_order_bridge:
@@ -1775,7 +1861,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                         "type": "error",
                         "message": "Stealth order bridge is not available",
                     }
-                    await websocket.send(json.dumps(response))
+                    await _send_dashboard_message(websocket, json.dumps(response))
                     return
 
                 try:
@@ -1793,7 +1879,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                         "type": "error",
                         "message": str(update_error),
                     }
-                    await websocket.send(json.dumps(response))
+                    await _send_dashboard_message(websocket, json.dumps(response))
                     return
 
                 hold_duration_persisted = hold_secs is not None
@@ -1819,13 +1905,9 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 logger.info(f"Stealth threshold updated: {stealth_order_id} -> {threshold}" + (f", hold={hold_secs}s" if hold_secs is not None else ""))
 
                 message = json.dumps(response, cls=CustomJSONEncoder)
-                for client in connected_clients.copy():
-                    try:
-                        await client.send(message)
-                    except websockets.exceptions.ConnectionClosed:
-                        connected_clients.discard(client)
+                await _broadcast_dashboard_message(message)
 
-                await websocket.send(json.dumps({"type": "update_success", "message": "Threshold updated"}))
+                await _send_dashboard_message(websocket, json.dumps({"type": "update_success", "message": "Threshold updated"}))
 
             except Exception as e:
                 logger.error(f"Failed to update stealth threshold: {e}")
@@ -1834,7 +1916,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "message": f"Failed to update threshold: {str(e)}"
                 }
                 add_log_entry("ERROR", f"Stealth threshold update failed: {str(e)}")
-                await websocket.send(json.dumps(response))
+                await _send_dashboard_message(websocket, json.dumps(response))
         
         elif msg_type == "update_parent_target_movement":
             # Update target movement for a parent order
@@ -1847,7 +1929,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "type": "error",
                     "message": "Missing parent_order_id"
                 }
-                await websocket.send(json.dumps(response))
+                await _send_dashboard_message(websocket, json.dumps(response))
                 return
             
             try:
@@ -1881,20 +1963,16 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     
                     # Broadcast to all clients
                     message = json.dumps(response, cls=CustomJSONEncoder)
-                    for client in connected_clients.copy():
-                        try:
-                            await client.send(message)
-                        except websockets.exceptions.ConnectionClosed:
-                            connected_clients.discard(client)
+                    await _broadcast_dashboard_message(message)
                     
-                    await websocket.send(json.dumps({"type": "update_success", "message": "Parent target movement updated"}))
+                    await _send_dashboard_message(websocket, json.dumps({"type": "update_success", "message": "Parent target movement updated"}))
                 else:
                     response = {
                         "type": "error",
                         "message": f"Failed to update parent order: {parent_order_id}"
                     }
                     add_log_entry("ERROR", f"Failed to update parent target_movement: {parent_order_id}")
-                    await websocket.send(json.dumps(response))
+                    await _send_dashboard_message(websocket, json.dumps(response))
                 
             except Exception as e:
                 logger.error(f"Failed to update parent target_movement: {e}")
@@ -1903,7 +1981,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "message": f"Failed to update parent target movement: {str(e)}"
                 }
                 add_log_entry("ERROR", f"Parent target_movement update failed: {str(e)}")
-                await websocket.send(json.dumps(response))
+                await _send_dashboard_message(websocket, json.dumps(response))
 
         elif msg_type == "request_hotpoint_state":
             # Hotpoint Auto-Replicate: full UI snapshot.
@@ -1917,21 +1995,21 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     else None
                 )
                 if engine is None:
-                    await websocket.send(json.dumps({
+                    await _send_dashboard_message(websocket, json.dumps({
                         "type": "hotpoint_state",
                         "available": False,
                         "error": "engine_not_initialized",
                     }))
                 else:
                     snap = engine.get_hotpoint_state_snapshot()
-                    await websocket.send(json.dumps({
+                    await _send_dashboard_message(websocket, json.dumps({
                         "type": "hotpoint_state",
                         "available": True,
                         "state": snap,
                     }))
             except Exception as e:
                 logger.error(f"hotpoint_state request failed: {e}")
-                await websocket.send(json.dumps({
+                await _send_dashboard_message(websocket, json.dumps({
                     "type": "hotpoint_state",
                     "available": False,
                     "error": str(e),
@@ -1948,7 +2026,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     else None
                 )
                 if engine is None:
-                    await websocket.send(json.dumps({
+                    await _send_dashboard_message(websocket, json.dumps({
                         "type": "hotpoint_kill_switch_response",
                         "success": False,
                         "error": "engine_not_initialized",
@@ -1959,14 +2037,14 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                         "INFO",
                         f"Hotpoint auto-place {'ENABLED' if requested else 'DISABLED'} via UI",
                     )
-                    await websocket.send(json.dumps({
+                    await _send_dashboard_message(websocket, json.dumps({
                         "type": "hotpoint_kill_switch_response",
                         "success": True,
                         "enabled": engine.is_hotpoint_auto_place_enabled(),
                     }))
             except Exception as e:
                 logger.error(f"set_hotpoint_kill_switch failed: {e}")
-                await websocket.send(json.dumps({
+                await _send_dashboard_message(websocket, json.dumps({
                     "type": "hotpoint_kill_switch_response",
                     "success": False,
                     "error": str(e),
@@ -1986,7 +2064,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 price = size = 0.0
 
             if not (product_id and side in ("BUY", "SELL") and price > 0 and size > 0):
-                await websocket.send(json.dumps({
+                await _send_dashboard_message(websocket, json.dumps({
                     "type": "place_hotpoint_test_order_response",
                     "success": False,
                     "error": "invalid_payload",
@@ -2074,7 +2152,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     f"Hotpoint test order placed: {client_order_id} {product_id} "
                     f"{side} {size}@{price}",
                 )
-                await websocket.send(json.dumps({
+                await _send_dashboard_message(websocket, json.dumps({
                     "type": "place_hotpoint_test_order_response",
                     "success": True,
                     "client_order_id": client_order_id,
@@ -2091,7 +2169,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                         e,
                     )
                     try:
-                        await websocket.send(json.dumps({
+                        await _send_dashboard_message(websocket, json.dumps({
                             "type": "place_hotpoint_test_order_response",
                             "success": True,
                             "client_order_id": client_order_id,
@@ -2123,7 +2201,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                             status_error,
                         )
                 logger.error(f"place_hotpoint_test_order failed: {e}")
-                await websocket.send(json.dumps({
+                await _send_dashboard_message(websocket, json.dumps({
                     "type": "place_hotpoint_test_order_response",
                     "success": False,
                     "client_order_id": locals().get("client_order_id"),
@@ -2175,7 +2253,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                             mgr.clear_in_memory_orders()
                             mgr._placed_order_index.clear()
                 if blocked:
-                    await websocket.send(json.dumps({
+                    await _send_dashboard_message(websocket, json.dumps({
                         "type": "stealth_orders_clear_result", "cleared": False,
                         "exchange_cancel_pending": pending,
                         "in_memory_cancelled": cancelled_in_memory,
@@ -2211,18 +2289,14 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     
                     # Broadcast to all clients
                     message = json.dumps(response)
-                    for client in connected_clients.copy():
-                        try:
-                            await client.send(message)
-                        except websockets.exceptions.ConnectionClosed:
-                            connected_clients.discard(client)
+                    await _broadcast_dashboard_message(message)
                 else:
                     response = {
                         "type": "error",
                         "message": f"Failed to clear orders: {result.get('error', 'Unknown error')}"
                     }
                     add_log_entry("ERROR", f"Failed to clear stealth orders: {result.get('error')}")
-                    await websocket.send(json.dumps(response))
+                    await _send_dashboard_message(websocket, json.dumps(response))
                 
             except Exception as e:
                 logger.error(f"Failed to clear stealth orders: {e}")
@@ -2231,7 +2305,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "message": f"Failed to clear orders: {str(e)}"
                 }
                 add_log_entry("ERROR", f"Clear stealth orders failed: {str(e)}")
-                await websocket.send(json.dumps(response))
+                await _send_dashboard_message(websocket, json.dumps(response))
         
         elif msg_type == "request_parent_orders":
             # Send parent orders list
@@ -2246,7 +2320,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "type": "parent_orders_list",
                     "orders": orders_dict
                 }
-                await websocket.send(json.dumps(response))
+                await _send_dashboard_message(websocket, json.dumps(response))
                 logger.info(f"Sent {len(orders)} parent orders to client")
                 
             except Exception as e:
@@ -2255,7 +2329,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "type": "error",
                     "message": f"Failed to fetch orders: {str(e)}"
                 }
-                await websocket.send(json.dumps(response))
+                await _send_dashboard_message(websocket, json.dumps(response))
         
         elif msg_type == "create_parent_order":
             # Create new parent order
@@ -2294,11 +2368,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 
                 # Broadcast to all clients
                 message = json.dumps(response)
-                for client in connected_clients.copy():
-                    try:
-                        await client.send(message)
-                    except websockets.exceptions.ConnectionClosed:
-                        connected_clients.discard(client)
+                await _broadcast_dashboard_message(message)
                 
             except Exception as e:
                 logger.error(f"Failed to create parent order: {e}")
@@ -2307,7 +2377,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "message": f"Failed to create order: {str(e)}"
                 }
                 add_log_entry("ERROR", f"Parent order creation failed: {str(e)}")
-                await websocket.send(json.dumps(response))
+                await _send_dashboard_message(websocket, json.dumps(response))
         
         elif msg_type == "update_parent_order":
             # Update existing parent order
@@ -2343,11 +2413,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 
                 # Broadcast to all clients
                 message = json.dumps(response)
-                for client in connected_clients.copy():
-                    try:
-                        await client.send(message)
-                    except websockets.exceptions.ConnectionClosed:
-                        connected_clients.discard(client)
+                await _broadcast_dashboard_message(message)
                 
             except Exception as e:
                 logger.error(f"Failed to update parent order: {e}")
@@ -2356,7 +2422,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "message": f"Failed to update order: {str(e)}"
                 }
                 add_log_entry("ERROR", f"Parent order update failed: {str(e)}")
-                await websocket.send(json.dumps(response))
+                await _send_dashboard_message(websocket, json.dumps(response))
         
         elif msg_type == "delete_parent_order":
             # Delete parent order
@@ -2377,11 +2443,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 
                 # Broadcast to all clients
                 message = json.dumps(response)
-                for client in connected_clients.copy():
-                    try:
-                        await client.send(message)
-                    except websockets.exceptions.ConnectionClosed:
-                        connected_clients.discard(client)
+                await _broadcast_dashboard_message(message)
                 
             except Exception as e:
                 logger.error(f"Failed to delete parent order: {e}")
@@ -2390,7 +2452,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "message": f"Failed to delete order: {str(e)}"
                 }
                 add_log_entry("ERROR", f"Parent order deletion failed: {str(e)}")
-                await websocket.send(json.dumps(response))
+                await _send_dashboard_message(websocket, json.dumps(response))
         
         elif msg_type == "request_products":
             # Send products list to client
@@ -2404,7 +2466,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                             "derivatives": products_data.get("derivatives", []),
                             "spot": products_data.get("spot", []),
                         }
-                        await websocket.send(json.dumps(response))
+                        await _send_dashboard_message(websocket, json.dumps(response))
                 else:
                     logger.warning("products.json not found")
                     response = {
@@ -2412,11 +2474,11 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                         "derivatives": [],
                         "spot": [],
                     }
-                    await websocket.send(json.dumps(response))
+                    await _send_dashboard_message(websocket, json.dumps(response))
             except Exception as e:
                 logger.error(f"Failed to send products: {e}")
                 response = {"type": "error", "message": f"Failed to load products: {str(e)}"}
-                await websocket.send(json.dumps(response))
+                await _send_dashboard_message(websocket, json.dumps(response))
         
         elif msg_type == "request_move_history":
             # Send move history list
@@ -2435,7 +2497,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "type": "move_history_list",
                     "moves": _serialize_for_json(moves_dict)
                 }
-                await websocket.send(json.dumps(response))
+                await _send_dashboard_message(websocket, json.dumps(response))
                 logger.info(f"Sent {len(result or [])} move records to client")
 
             except Exception as e:
@@ -2444,7 +2506,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "type": "error",
                     "message": f"Failed to fetch move history: {str(e)}"
                 }
-                await websocket.send(json.dumps(response))
+                await _send_dashboard_message(websocket, json.dumps(response))
         
         elif msg_type == "move_order":
             # Execute a manual move (immediate)
@@ -2494,11 +2556,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 
                 # Broadcast to all clients
                 message = json.dumps(response)
-                for client in connected_clients.copy():
-                    try:
-                        await client.send(message)
-                    except websockets.exceptions.ConnectionClosed:
-                        connected_clients.discard(client)
+                await _broadcast_dashboard_message(message)
                 
             except Exception as e:
                 logger.error(f"Failed to move order: {e}")
@@ -2507,7 +2565,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "message": f"Failed to move order: {str(e)}"
                 }
                 add_log_entry("ERROR", f"Order move failed: {str(e)}")
-                await websocket.send(json.dumps(response))
+                await _send_dashboard_message(websocket, json.dumps(response))
         
         elif msg_type == "premark_move":
             # Pre-mark an order for automatic move (when cancelled)
@@ -2552,11 +2610,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 
                 # Broadcast to all clients
                 message = json.dumps(response)
-                for client in connected_clients.copy():
-                    try:
-                        await client.send(message)
-                    except websockets.exceptions.ConnectionClosed:
-                        connected_clients.discard(client)
+                await _broadcast_dashboard_message(message)
                 
             except Exception as e:
                 logger.error(f"Failed to pre-mark order for move: {e}")
@@ -2565,11 +2619,11 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "message": f"Failed to pre-mark order: {str(e)}"
                 }
                 add_log_entry("ERROR", f"Pre-mark failed: {str(e)}")
-                await websocket.send(json.dumps(response))
+                await _send_dashboard_message(websocket, json.dumps(response))
         
         elif msg_type == "ping":
             response = {"type": "pong", "timestamp": datetime.utcnow().isoformat()}
-            await websocket.send(json.dumps(response))
+            await _send_dashboard_message(websocket, json.dumps(response))
         
         elif msg_type == "update_products_list":
             # Update products.json with latest data from REST API
@@ -2601,7 +2655,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     add_log_entry("ERROR", f"Products list update failed: {result['message']}")
                 
                 # Send response to requesting client
-                await websocket.send(json.dumps(response))
+                await _send_dashboard_message(websocket, json.dumps(response))
                 
                 # If successful, broadcast updated products to all clients
                 if result["success"]:
@@ -2619,11 +2673,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                                 
                                 # Broadcast to all connected clients
                                 message = json.dumps(broadcast_payload)
-                                for client in connected_clients.copy():
-                                    try:
-                                        await client.send(message)
-                                    except websockets.exceptions.ConnectionClosed:
-                                        connected_clients.discard(client)
+                                await _broadcast_dashboard_message(message)
                     except Exception as e:
                         logger.error(f"Failed to broadcast updated products: {e}")
                 
@@ -2638,7 +2688,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "metadata_count": 0,
                 }
                 add_log_entry("ERROR", f"Products update exception: {str(e)}")
-                await websocket.send(json.dumps(response))
+                await _send_dashboard_message(websocket, json.dumps(response))
             
     except json.JSONDecodeError:
         logger.error(f"Invalid JSON received: {message}")
@@ -2657,11 +2707,30 @@ async def handler(websocket: WebSocketServerProtocol, path: str):
 
 def update_order(order_id: str, order_data: Dict[str, Any]):
     """Update order in dashboard state."""
+    status = getattr(order_data.get("status"), "value", order_data.get("status"))
     with state_lock:
+        if status in _TERMINAL_DASHBOARD_ORDER_STATUSES:
+            # Reinsert terminal transitions at the end so dict order is also
+            # terminal-recency order for the bounded-history eviction below.
+            engine_state["orders"].pop(order_id, None)
         engine_state["orders"][order_id] = {
             **order_data,
             "updated_at": datetime.utcnow().isoformat(),
         }
+        if status in _TERMINAL_DASHBOARD_ORDER_STATUSES:
+            terminal_order_ids = [
+                existing_order_id
+                for existing_order_id, existing_order in engine_state["orders"].items()
+                if getattr(
+                    existing_order.get("status"),
+                    "value",
+                    existing_order.get("status"),
+                )
+                in _TERMINAL_DASHBOARD_ORDER_STATUSES
+            ]
+            excess = len(terminal_order_ids) - _MAX_TERMINAL_DASHBOARD_ORDERS
+            for expired_order_id in terminal_order_ids[:max(0, excess)]:
+                engine_state["orders"].pop(expired_order_id, None)
     _trigger_broadcast()
 
 
@@ -2824,20 +2893,34 @@ def update_products_json_from_api() -> Dict[str, Any]:
 
 
 async def _async_broadcast_ticker(ticker_data: Dict[str, Any]):
-    """Async version of broadcast_ticker for scheduling from event loop."""
+    """Broadcast one latest-per-product ticker update."""
     payload = {
         "type": "ticker",
         "data": ticker_data,
         "timestamp": datetime.utcnow().isoformat(),
     }
-    
     message = json.dumps(payload)
-    
-    for client in connected_clients.copy():
-        try:
-            await client.send(message)
-        except websockets.exceptions.ConnectionClosed:
-            connected_clients.discard(client)
+    await _broadcast_dashboard_message(message)
+
+
+async def _drain_ticker_broadcasts() -> None:
+    """Drain bounded latest-per-product ticker updates."""
+
+    global _ticker_publish_scheduled
+
+    while True:
+        with _ticker_publish_lock:
+            updates = tuple(_pending_ticker_updates.values())
+            _pending_ticker_updates.clear()
+
+        for ticker_data in updates:
+            await _async_broadcast_ticker(ticker_data)
+
+        with _ticker_publish_lock:
+            if _pending_ticker_updates:
+                continue
+            _ticker_publish_scheduled = False
+            return
 
 
 def broadcast_ticker(
@@ -2864,7 +2947,7 @@ def broadcast_ticker(
         >>> broadcast_ticker('BTC-USDC', 42500.50, 41200.00,
         ...                  cb_time='2026-05-01T16:07:21.234567Z')
     """
-    global server_event_loop
+    global _ticker_publish_scheduled
     
     if not server_event_loop:
         # Server not started yet or stopping, silently skip
@@ -2905,11 +2988,20 @@ def broadcast_ticker(
             if cb_ms is not None:
                 ticker_data["cb_time_ms"] = cb_ms
 
-        # Schedule on the event loop without blocking
-        asyncio.run_coroutine_threadsafe(
-            _async_broadcast_ticker(ticker_data),
-            server_event_loop
-        )
+        with _ticker_publish_lock:
+            _pending_ticker_updates[product_id] = ticker_data
+            if _ticker_publish_scheduled:
+                return
+            _ticker_publish_scheduled = True
+
+        coroutine = _drain_ticker_broadcasts()
+        try:
+            asyncio.run_coroutine_threadsafe(coroutine, server_event_loop)
+        except Exception:
+            coroutine.close()
+            with _ticker_publish_lock:
+                _ticker_publish_scheduled = False
+            raise
     except Exception as e:
         logger.debug(f"Failed to broadcast ticker: {e}")
 
@@ -2951,8 +3043,10 @@ def _coerce_cb_time_to_epoch_ms(value: Any) -> Optional[int]:
     return None
 
 
-# Spread monitoring for arbitrage detection
-spread_data = {}  # product_id -> { bids: [prices], asks: [prices], last_window: timestamp }
+# Spread monitoring for arbitrage detection. Keep aggregates rather than raw
+# per-tick lists so memory remains O(products) if the dashboard has no clients
+# or its event loop is delayed.
+spread_data = {}
 spread_lock = Lock()
 
 
@@ -2972,13 +3066,42 @@ def record_spread_tick(product_id: str, bid: float, ask: float):
     with spread_lock:
         if product_id not in spread_data:
             spread_data[product_id] = {
-                'bids': [],
-                'asks': [],
+                'bid_total': 0.0,
+                'ask_total': 0.0,
+                'sample_count': 0,
                 'last_window': datetime.utcnow().timestamp(),
             }
-        
-        spread_data[product_id]['bids'].append(float(bid))
-        spread_data[product_id]['asks'].append(float(ask))
+
+        data = spread_data[product_id]
+        data['bid_total'] += float(bid)
+        data['ask_total'] += float(ask)
+        data['sample_count'] += 1
+
+
+def _take_spread_snapshot() -> list:
+    """Return and reset the current spread window in bounded memory."""
+
+    snapshot = []
+    with spread_lock:
+        for product_id, data in spread_data.items():
+            sample_count = int(data['sample_count'])
+            if sample_count <= 0:
+                continue
+
+            avg_bid = data['bid_total'] / sample_count
+            avg_ask = data['ask_total'] / sample_count
+            snapshot.append({
+                'product_id': product_id,
+                'bid': round(avg_bid, 8),
+                'ask': round(avg_ask, 8),
+                'mid': round((avg_bid + avg_ask) / 2, 8),
+            })
+
+            data['bid_total'] = 0.0
+            data['ask_total'] = 0.0
+            data['sample_count'] = 0
+            data['last_window'] = datetime.utcnow().timestamp()
+    return snapshot
 
 
 async def _async_broadcast_spread(spread_snapshot: list):
@@ -2988,78 +3111,28 @@ async def _async_broadcast_spread(spread_snapshot: list):
         "data": spread_snapshot,
         "timestamp": datetime.utcnow().isoformat(),
     }
-    
     message = json.dumps(payload)
-    
-    for client in connected_clients.copy():
-        try:
-            await client.send(message)
-        except websockets.exceptions.ConnectionClosed:
-            connected_clients.discard(client)
-
-
-def broadcast_spread():
-    """Aggregate and broadcast 1-second spread averages to all connected clients.
-    
-    Calculates average bid/ask for each product over the last second and sends
-    to all connected spread monitor clients.
-    """
-    global server_event_loop, spread_data
-    
-    if not server_event_loop or not connected_clients:
-        return
-    
-    try:
-        snapshot = []
-        
-        with spread_lock:
-            for product_id, data in spread_data.items():
-                if not data['bids'] or not data['asks']:
-                    continue
-                
-                avg_bid = sum(data['bids']) / len(data['bids'])
-                avg_ask = sum(data['asks']) / len(data['asks'])
-                mid = (avg_bid + avg_ask) / 2
-                
-                snapshot.append({
-                    'product_id': product_id,
-                    'bid': round(avg_bid, 8),
-                    'ask': round(avg_ask, 8),
-                    'mid': round(mid, 8),
-                })
-                
-                # Reset for next window
-                data['bids'] = []
-                data['asks'] = []
-                data['last_window'] = datetime.utcnow().timestamp()
-        
-        if snapshot:
-            asyncio.run_coroutine_threadsafe(
-                _async_broadcast_spread(snapshot),
-                server_event_loop
-            )
-    except Exception as e:
-        logger.debug(f"Failed to broadcast spread: {e}")
+    await _broadcast_dashboard_message(message)
 
 
 async def send_stealth_orders_snapshot(websocket: WebSocketServerProtocol):
     """Send current stealth orders to a client."""
     try:
         with state_lock:
-            # Enrich stealth orders with parent target_movement
-            enriched_orders = _enrich_stealth_orders_with_parent_data(engine_state["stealth_orders"])
-            
-            # Calculate repricing statistics
-            repricing_stats = _calculate_repricing_statistics(enriched_orders)
-            
-            payload = {
-                "type": "stealth_orders_snapshot",
-                "orders": enriched_orders,
-                "repricing_stats": repricing_stats,
-                "timestamp": datetime.utcnow().isoformat(),
-            }
+            orders_snapshot = deepcopy(engine_state["stealth_orders"])
+
+        # Parent enrichment performs database I/O. Never hold state_lock while
+        # waiting for it, and fetch all relevant parents in one query.
+        enriched_orders = _enrich_stealth_orders_with_parent_data(orders_snapshot)
+        repricing_stats = _calculate_repricing_statistics(enriched_orders)
+        payload = {
+            "type": "stealth_orders_snapshot",
+            "orders": enriched_orders,
+            "repricing_stats": repricing_stats,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
         
-        await websocket.send(json.dumps(payload, cls=CustomJSONEncoder))
+        await _send_dashboard_message(websocket, json.dumps(payload, cls=CustomJSONEncoder))
     except Exception as e:
         logger.error(f"Failed to send stealth orders snapshot: {e}")
 
@@ -3119,8 +3192,24 @@ def _enrich_stealth_orders_with_parent_data(orders: Dict[str, Any]) -> Dict[str,
         - For child orders: parent_target_movement, parent_target_movement_type, parent_max_order_replacements
         - For parent orders: max_order_replacements from order_parent table
     """
-    from database.order import get_parent_order
-    
+    from database.order import get_parent_orders_by_client_ids
+
+    parent_ids = {
+        order_data.get("parent_order_id") or order_id
+        for order_id, order_data in orders.items()
+        if isinstance(order_data, dict)
+    }
+    try:
+        parent_rows = get_parent_orders_by_client_ids(tuple(parent_ids))
+    except Exception as exc:
+        logger.debug(f"Failed to load parent data for dashboard enrichment: {exc}")
+        parent_rows = []
+    parents_by_client_order_id = {
+        row.get("client_order_id"): row
+        for row in parent_rows
+        if isinstance(row, dict) and row.get("client_order_id")
+    }
+
     enriched = {}
     for order_id, order_data in orders.items():
         enriched_order = order_data.copy() if isinstance(order_data, dict) else dict(order_data)
@@ -3129,29 +3218,20 @@ def _enrich_stealth_orders_with_parent_data(orders: Dict[str, Any]) -> Dict[str,
         parent_order_id = enriched_order.get("parent_order_id")
         
         if parent_order_id:
-            # Child order: get parent's data by parent_order_id
-            try:
-                parent_data = get_parent_order(parent_order_id)
-                if parent_data:
-                    enriched_order["parent_target_movement"] = parent_data.get("target_movement")
-                    enriched_order["parent_target_movement_type"] = parent_data.get("target_movement_type", "P")
-                    enriched_order["parent_max_order_replacements"] = parent_data.get("max_order_replacement", 0)
-            except Exception as e:
-                logger.debug(f"Failed to enrich order {order_id} with parent data: {e}")
+            parent_data = parents_by_client_order_id.get(parent_order_id)
+            if parent_data:
+                enriched_order["parent_target_movement"] = parent_data.get("target_movement")
+                enriched_order["parent_target_movement_type"] = parent_data.get("target_movement_type", "P")
+                enriched_order["parent_max_order_replacements"] = parent_data.get("max_order_replacement", 0)
         else:
-            # Parent order: look it up in order_parent using stealth_order_id as client_order_id
-            # to get max_order_replacements (target_movement is already in stealth_order)
-            try:
-                parent_data = get_parent_order(order_id)
-                if parent_data:
-                    enriched_order["max_order_replacements"] = parent_data.get("max_order_replacement", 0)
-                    # Also ensure we have the parent's target movement for consistent UI display
-                    if not enriched_order.get("target_movement"):
-                        enriched_order["target_movement"] = parent_data.get("target_movement")
-                    if not enriched_order.get("target_movement_type"):
-                        enriched_order["target_movement_type"] = parent_data.get("target_movement_type", "P")
-            except Exception as e:
-                logger.debug(f"Failed to enrich parent order {order_id}: {e}")
+            parent_data = parents_by_client_order_id.get(order_id)
+            if parent_data:
+                enriched_order["max_order_replacements"] = parent_data.get("max_order_replacement", 0)
+                # Also ensure we have the parent's target movement for consistent UI display
+                if not enriched_order.get("target_movement"):
+                    enriched_order["target_movement"] = parent_data.get("target_movement")
+                if not enriched_order.get("target_movement_type"):
+                    enriched_order["target_movement_type"] = parent_data.get("target_movement_type", "P")
         
         enriched[order_id] = enriched_order
     
@@ -3168,11 +3248,7 @@ async def broadcast_stealth_order_update(update: Dict[str, Any]):
     try:
         message = json.dumps(update, cls=CustomJSONEncoder)
         
-        for client in connected_clients.copy():
-            try:
-                await client.send(message)
-            except websockets.exceptions.ConnectionClosed:
-                connected_clients.discard(client)
+        await _broadcast_dashboard_message(message)
     except Exception as e:
         logger.debug(f"Failed to broadcast stealth order update: {e}")
 
@@ -3204,11 +3280,7 @@ async def _stealth_orders_refresh_loop():
                     }
                     
                     message = json.dumps(payload, cls=CustomJSONEncoder)
-                    for client in connected_clients.copy():
-                        try:
-                            await client.send(message)
-                        except websockets.exceptions.ConnectionClosed:
-                            connected_clients.discard(client)
+                    await _broadcast_dashboard_message(message)
                 except Exception as e:
                     logger.debug(f"Error refreshing stealth orders: {e}")
         
@@ -3221,7 +3293,9 @@ async def _spread_broadcast_loop():
     while True:
         try:
             await asyncio.sleep(1)
-            broadcast_spread()
+            snapshot = _take_spread_snapshot()
+            if snapshot and connected_clients:
+                await _async_broadcast_spread(snapshot)
         except Exception as e:
             logger.debug(f"Spread broadcast loop error: {e}")
 

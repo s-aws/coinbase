@@ -219,6 +219,25 @@ class ClaimLedger:
             ledger = self._slots.setdefault(kind_key, {})
             ledger[key] = "done"
 
+    def discard_completed(self, kind, key: str) -> bool:
+        """Discard a terminal claim after durable state makes replay safe.
+
+        Processing claims are never removed.  This narrow operation exists
+        for external terminal orders: their durable ``externally_created``
+        marker prevents follow-up creation after the process-local claim is
+        released.
+        """
+
+        kind_key = self._coerce_kind(kind)
+        with self._lock:
+            ledger = self._slots.get(kind_key)
+            if ledger is None or ledger.get(key) != "done":
+                return False
+            ledger.pop(key, None)
+            if not ledger:
+                self._slots.pop(kind_key, None)
+            return True
+
     def state(self, kind, key: str):
         """Inspect current state â€” ``None``, ``"processing"`` or ``"done"``."""
 
@@ -434,6 +453,13 @@ class OrderBook:
         """Mark a claim as terminally ``done`` so it can never re-fire."""
 
         self._follow_up_ledger.complete(kind, client_order_id)
+
+    def discard_completed_follow_up(
+        self, kind: "str | FollowUpKind", client_order_id: str
+    ) -> bool:
+        """Discard a completed claim whose replay safety is persisted."""
+
+        return self._follow_up_ledger.discard_completed(kind, client_order_id)
 
     def follow_up_claim_state(
         self, kind: "str | FollowUpKind", client_order_id: str

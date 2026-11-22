@@ -319,6 +319,18 @@ Common/global:
 - `pong`
 - `ticker`
 
+Dashboard delivery is latest-state and bounded. Concurrent order, position,
+status, and log mutations coalesce behind one `state_update` publisher; a
+mutation during a send produces at most one follow-up snapshot. Ticker relay
+similarly retains only the newest unsent update per product. Client sends time
+out after two seconds and the lagging client is removed from broadcast fanout.
+The dashboard cache keeps every active direct order plus the newest 1,000
+terminal direct orders; durable history remains in PostgreSQL. One-second
+spread messages are computed from constant-space per-product accumulators,
+including while no dashboard client is connected.
+Stealth snapshots copy their view under `state_lock`, release the lock, and
+enrich all referenced parent `client_order_id` rows with one bulk query.
+
 ### Stealth message contract rules
 
 - A dashboard request type is considered active only when it is implemented end to end: browser/terminal caller, `dashboard_server.py` handler, bridge method if the handler routes through `StealthOrderBridge`, manager/domain method, and regression coverage.

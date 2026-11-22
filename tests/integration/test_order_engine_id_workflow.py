@@ -51,6 +51,7 @@ def test_handle_filled_order_uses_client_order_id_for_stealth_lookup():
     engine.claim_follow_up_processing = Mock(return_value=True)
     engine.orderbook.should_replace = {"FILLED": False, "CANCELLED": False}
     engine.fill_repo = None
+    engine._handle_external_order_tracking = Mock(return_value=True)
 
     filled_order = {
         "client_order_id": "550e8400-e29b-41d4-a716-446655440000",

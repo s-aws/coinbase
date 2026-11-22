@@ -28,12 +28,7 @@ def _payloads(websocket: Mock) -> list[dict]:
 
 
 def _run(coro):
-    try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-    return loop.run_until_complete(coro)
+    return asyncio.run(coro)
 
 
 def test_every_originating_message_is_rejected_while_starting() -> None:

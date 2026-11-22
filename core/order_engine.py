@@ -67,6 +67,7 @@ from copy import deepcopy
 from concurrent.futures import Future, ThreadPoolExecutor
 from types import ModuleType
 from typing import Any, Callable, Deque, Dict, List, Optional, Tuple
+from weakref import WeakValueDictionary
 from coinbase.websocket import (
     WSClient,
     WSClientConnectionClosedException,
@@ -485,7 +486,9 @@ class OrderEngine:
         # The keyed user-order dispatcher owns full lifecycle FIFO in
         # production. This narrow lock protects only the FK-dependent write
         # pair for direct/synthetic compatibility callers as well.
-        self._coid_handler_locks: Dict[str, threading.Lock] = {}
+        self._coid_handler_locks: WeakValueDictionary[str, threading.Lock] = (
+            WeakValueDictionary()
+        )
         self._coid_handler_locks_guard = threading.Lock()
 
         # Cooperative shutdown signal for all background loops/threads owned
@@ -2028,7 +2031,16 @@ class OrderEngine:
         with self.orderbook_lock:
             self.orderbook.positions["FUTURE"] = refreshed_positions
 
-    def resolve_parent_client_order_id(self, client_order_id: str, order: dict = None, create_parent: bool = False, status: str = None, stealth_order: dict = None, allow_partial_fills: bool = False) -> tuple:
+    def resolve_parent_client_order_id(
+        self,
+        client_order_id: str,
+        order: dict = None,
+        create_parent: bool = False,
+        status: str = None,
+        stealth_order: dict = None,
+        allow_partial_fills: bool = False,
+        externally_created: bool = False,
+    ) -> tuple:
         """Resolve if an order is a parent or find its parent.
         
         Returns (is_parent: bool, parent_client_order_id: str).
@@ -2085,6 +2097,7 @@ class OrderEngine:
                 "max_order_replacement": max_order_replacement,
                 "current_order_replacement": 0,
                 "allow_partial_fills": allow_partial_fills,
+                "externally_created": externally_created,
             }
 
             self.log_message(
@@ -2109,6 +2122,7 @@ class OrderEngine:
                 max_order_replacement=self.orderbook.parent_order_ids[client_order_id]["max_order_replacement"],
                 current_order_replacement=self.orderbook.parent_order_ids[client_order_id]["current_order_replacement"],
                 allow_partial_fills=allow_partial_fills,
+                externally_created=externally_created,
             )
 
             self.orderbook.parent_order_ids[client_order_id]["parent_id"] = parent_id
@@ -2509,6 +2523,7 @@ class OrderEngine:
                 order=order,
                 create_parent=True,
                 status=event_type.upper(),
+                externally_created=True,
             )
         
         # Log the external order event
@@ -2526,6 +2541,18 @@ class OrderEngine:
         # Complete processing to prevent follow-up retries
         if processed_flag_name:
             self.complete_follow_up_processing(processed_flag_name, client_order_id)
+            self.orderbook.discard_completed_follow_up(
+                processed_flag_name,
+                client_order_id,
+            )
+
+        # The database marker now owns replay classification.  Retaining the
+        # process-local parent entry for every terminal external order creates
+        # an unbounded shared-account history cache.
+        with self.orderbook_lock:
+            cached = self.orderbook.parent_order_ids.get(client_order_id)
+            if cached and cached.get("externally_created"):
+                self.orderbook.parent_order_ids.pop(client_order_id, None)
         
         return True
 
@@ -4541,16 +4568,17 @@ class OrderEngine:
                 "current_order_replacement": int(parent_order.get("current_order_replacement") or 0),
                 "parent_id": parent_order.get("id"),
                 "allow_partial_fills": bool(parent_order.get("allow_partial_fills", False)),
+                "externally_created": bool(parent_order.get("externally_created", False)),
             }
         return True
 
     def _get_coid_handler_lock(self, client_order_id: str) -> threading.Lock:
         """Return the per-COID handler lock, creating it on first access.
 
-        The map of locks is itself protected by a small guard lock so that
-        the get-or-create sequence is atomic. Locks are never evicted â€”
-        the working set is bounded by the number of distinct active COIDs
-        and entries are tiny (a single threading.Lock each).
+        The weak map is protected by a small guard lock so get-or-create is
+        atomic. A caller holds a strong reference for the whole critical
+        section; after all callers leave, inactive unique-COID locks can be
+        reclaimed instead of accumulating for process lifetime.
         """
         with self._coid_handler_locks_guard:
             lock = self._coid_handler_locks.get(client_order_id)
@@ -4600,11 +4628,8 @@ class OrderEngine:
             order=normalized_order,
             create_parent=True,
             status=normalized_order.get("status"),
+            externally_created=True,
         )
-        with self.orderbook_lock:
-            cached = self.orderbook.parent_order_ids.get(client_order_id)
-            if cached is not None:
-                cached["externally_created"] = True
 
     def apply_position_update(self, order_template: dict) -> None:
         """Apply position update from order template to orderbook.
@@ -5422,6 +5447,18 @@ class OrderEngine:
         # match from cumulative-counter deltas. Do NOT add bulk single-row recording
         # here â€” that collapsed N matches into 1 and corrupted lot accounting.
 
+        # External fills are accounting-only. Resolve and release their
+        # process-local tracking before replacement-policy branches so a
+        # disabled FILLED replacement policy cannot strand claims or parents.
+        if is_external_order and not original_stealth_order:
+            self._handle_external_order_tracking(
+                client_order_id,
+                order,
+                "filled",
+                processed_flag_name="filled",
+            )
+            return
+
         with self.orderbook_lock:
             should_replace_filled = self.orderbook.should_replace["FILLED"] is True
 
@@ -5469,17 +5506,6 @@ class OrderEngine:
                 parent_client_order_id = explicit_parent
                 # NOTE: Child registration already happened at line 2528, so don't call again here
                 # Calling twice would cause duplicate replacement count increments
-
-        # For external orders, just track them but don't create follow-ups
-        # EXCEPT: Stealth-revealed orders should create follow-ups (Child stealth orders)
-        if is_external_order and not original_stealth_order:
-            self._handle_external_order_tracking(
-                client_order_id,
-                order,
-                "filled",
-                processed_flag_name=None,  # Don't complete processing for filled orders
-            )
-            return
 
         # Note: We already claimed processing at the start of handle_filled_order
         # No need to claim again here
@@ -5797,6 +5823,21 @@ class OrderEngine:
         parent_orders = self.db_module.get_parent_orders()
 
         for parent in parent_orders:
+            # Terminal external rows remain durable audit/FK history, but they
+            # own no follow-up lineage and must not be reloaded into the
+            # process-local parent cache after terminal cleanup.
+            if (
+                bool(parent.get("externally_created", False))
+                and parent.get("status")
+                in {
+                    OrderStatus.CANCELLED.value,
+                    OrderStatus.FILLED.value,
+                    OrderStatus.FAILED.value,
+                    OrderStatus.EXPIRED.value,
+                }
+            ):
+                continue
+
             parent_client_order_id = parent["client_order_id"]
 
             parent_order_ids[parent_client_order_id] = {
@@ -5809,6 +5850,7 @@ class OrderEngine:
                 "max_order_replacement": int(parent["max_order_replacement"]),
                 "current_order_replacement": int(parent["current_order_replacement"]),
                 "allow_partial_fills": bool(parent.get("allow_partial_fills", False)),
+                "externally_created": bool(parent.get("externally_created", False)),
             }
 
             # All children are stealth children (stored in stealth_orders table)

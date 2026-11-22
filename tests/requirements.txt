@@ -1,5 +1,5 @@
 # Test suite requirements and dependencies.
-# Install with: .\.venv\Scripts\python.exe -m pip install -r tests/requirements.txt
+# Install with: ./.venv/bin/python -m pip install -r tests/requirements.txt
 
 # Core testing framework
 pytest>=7.0.0

@@ -1,6 +1,6 @@
 # AGENTS.md - Session Entry Point
 
-This project runs on **Windows 11 + VS Code**. Linux/bash commands may not work as-is.
+This project runs on **Linux**. Repository setup and validation commands use Bash.
 
 ## Required Reading (in this order)
 

@@ -33,7 +33,9 @@ This test pins:
 from __future__ import annotations
 
 import re
+import gc
 import threading
+from weakref import WeakValueDictionary
 from pathlib import Path
 
 import pytest
@@ -107,3 +109,19 @@ def test_per_coid_lock_does_not_block_different_coids():
     a = engine._get_coid_handler_lock("coid-A")
     b = engine._get_coid_handler_lock("coid-B")
     assert a is not b
+
+
+def test_inactive_per_coid_locks_are_reclaimed():
+    """Unique completed COIDs must not accumulate locks for process life."""
+    from core.order_engine import OrderEngine
+
+    engine = OrderEngine.__new__(OrderEngine)
+    engine._coid_handler_locks = WeakValueDictionary()
+    engine._coid_handler_locks_guard = threading.Lock()
+
+    lock = engine._get_coid_handler_lock("terminal-external-coid")
+    assert len(engine._coid_handler_locks) == 1
+
+    del lock
+    gc.collect()
+    assert len(engine._coid_handler_locks) == 0

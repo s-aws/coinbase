@@ -1040,6 +1040,9 @@ class OrderBook():
     def complete_follow_up(self, kind, client_order_id):
         return self._impl.complete_follow_up(kind, client_order_id)
 
+    def discard_completed_follow_up(self, kind, client_order_id):
+        return self._impl.discard_completed_follow_up(kind, client_order_id)
+
     def follow_up_claim_state(self, kind, client_order_id):
         return self._impl.follow_up_claim_state(kind, client_order_id)
 

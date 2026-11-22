@@ -111,7 +111,7 @@ When extending UI behavior, update both dashboard handler logic and the correspo
 
 ---
 
-## Testing Commands (PowerShell)
+## Testing Commands (Linux/Bash)
 
 The complete local non-external suite is the default validation for every
 non-agent-file change; it includes the mandatory regression gate. Focused test
@@ -119,19 +119,19 @@ files, name filters, and single-test selections must not be run unless the user
 explicitly requests them.
 Exception: if changes are limited to agent/context files only (`AGENTS.md`, `agent.md`, `ai-context.md`, `genai_data/AGENT_*.md`, `genai_data/agent_state.md`), regression tests may be skipped.
 
-```powershell
+```bash
 # Default local validation (includes regression; excludes opt-in external tests)
-pytest -c tests/pytest.ini tests -m "not external" -v --tb=short
+./scripts/run_tests.sh
 
 # External (Coinbase REST, sandbox credentials)
-$env:COINBASE_API_KEY = "..."
-$env:COINBASE_API_SECRET = "..."
-$env:COINBASE_USE_SANDBOX = "true"
-pytest tests/external/ -v -m external
+export COINBASE_API_KEY="..."
+export COINBASE_API_SECRET="..."
+export COINBASE_USE_SANDBOX="true"
+./.venv/bin/python -m pytest tests/external/ -v -m external
 
 # External websocket smoke (opt-in)
-$env:COINBASE_ENABLE_WEBSOCKET_EXTERNAL = "true"
-pytest tests/external/test_coinbase_api.py -v -m websocket --tb=short
+export COINBASE_ENABLE_WEBSOCKET_EXTERNAL="true"
+./.venv/bin/python -m pytest tests/external/test_coinbase_api.py -v -m websocket --tb=short
 ```
 
 ---

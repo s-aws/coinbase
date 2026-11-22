@@ -138,6 +138,10 @@ def test_parent_row_is_created_before_ws_order_delta_processing():
         f"ensure_parent must run before process_delta; got {call_order}"
     )
     engine.db_module.insert_order_parent.assert_called_once()
+    assert (
+        engine.db_module.insert_order_parent.call_args.kwargs["externally_created"]
+        is True
+    )
 
 
 @pytest.mark.regression
@@ -186,6 +190,7 @@ def test_ensure_hydrates_from_db_without_inserting_when_row_exists():
         "max_order_replacement": 11,
         "current_order_replacement": 0,
         "allow_partial_fills": False,
+        "externally_created": True,
     })
 
     engine._ensure_order_parent_row_exists({
@@ -200,6 +205,7 @@ def test_ensure_hydrates_from_db_without_inserting_when_row_exists():
     engine.db_module.get_parent_order.assert_called_once_with(coid)
     engine.db_module.insert_order_parent.assert_not_called()
     assert coid in engine.orderbook.parent_order_ids
+    assert engine.orderbook.parent_order_ids[coid]["externally_created"] is True
 
 
 @pytest.mark.regression
@@ -243,3 +249,77 @@ def test_externally_created_orders_still_route_to_external_tracking():
         "current_order_replacement": 0,
     }
     assert engine._is_external_order(internal_coid) is False
+
+
+@pytest.mark.regression
+def test_terminal_external_tracking_releases_process_local_state():
+    engine = _build_engine()
+    coid = "502256f5-0944-4bbc-bf13-d2446723f8d1"
+    order = {
+        "client_order_id": coid,
+        "product_id": "BTC-USDC",
+        "order_side": "BUY",
+        "status": OrderStatus.CANCELLED.value,
+        "limit_price": "42000.00",
+        "filled_size": "0",
+    }
+
+    engine._handle_external_order_tracking(
+        coid,
+        order,
+        "cancelled",
+        processed_flag_name="cancelled",
+    )
+
+    assert coid not in engine.orderbook.parent_order_ids
+    engine.orderbook.complete_follow_up.assert_called_once_with(
+        "cancelled",
+        coid,
+    )
+    engine.orderbook.discard_completed_follow_up.assert_called_once_with(
+        "cancelled",
+        coid,
+    )
+    assert (
+        engine.db_module.insert_order_parent.call_args.kwargs["externally_created"]
+        is True
+    )
+
+
+@pytest.mark.regression
+def test_parent_reconciliation_keeps_only_active_external_provenance():
+    engine = _build_engine()
+    engine.db_module.get_parent_orders.return_value = [
+        {
+            "id": 1,
+            "client_order_id": "active-external",
+            "target_movement": 0.004,
+            "target_movement_type": "P",
+            "max_order_replacement": 0,
+            "current_order_replacement": 0,
+            "allow_partial_fills": False,
+            "externally_created": True,
+            "status": OrderStatus.OPEN.value,
+        },
+        {
+            "id": 2,
+            "client_order_id": "terminal-external",
+            "target_movement": 0.004,
+            "target_movement_type": "P",
+            "max_order_replacement": 0,
+            "current_order_replacement": 0,
+            "allow_partial_fills": False,
+            "externally_created": True,
+            "status": OrderStatus.CANCELLED.value,
+        },
+    ]
+
+    with patch(
+        "database.order.get_stealth_children_for_parent",
+        return_value=[],
+    ):
+        parents, children = engine.build_parent_child_order_ids_snapshot()
+
+    assert children == {}
+    assert set(parents) == {"active-external"}
+    assert parents["active-external"]["externally_created"] is True

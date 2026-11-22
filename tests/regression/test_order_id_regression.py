@@ -71,6 +71,7 @@ def test_filled_order_lookup_uses_client_order_id_not_exchange_order_id():
     # stealth lookup without exercising the unrelated profit-target / DB paths
     # (which aren't meaningfully mockable on a spec'd OrderBook).
     engine.orderbook.should_replace = {"FILLED": False, "CANCELLED": False}
+    engine._handle_external_order_tracking = Mock(return_value=True)
 
     filled_order = {
         "client_order_id": "client-order-001",

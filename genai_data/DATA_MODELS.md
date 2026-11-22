@@ -136,6 +136,8 @@ Key columns:
 - `target_movement`, `target_movement_type`
 - `max_order_replacement`, `current_order_replacement`
 - `allow_partial_fills`
+- `externally_created` (durable ownership marker for shared-account replay;
+  terminal external runtime caches may be evicted only after this is persisted)
 
 ### `stealth_orders`
 Primary stealth order state table.

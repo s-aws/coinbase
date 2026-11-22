@@ -20,13 +20,15 @@ Loaded in `configuration.py` and used to initialize `REST_CLIENT`.
 - `COINBASE_DB_USER` (default `postgres`)
 - `COINBASE_DB_PASSWORD` (default `postgres`)
 
-Test suite guard (`tests/conftest.py`) sets these to test defaults (`port 9876`) and blocks accidental prod DB use unless `ALLOW_PROD_DB=1`. `database/database.py` also blocks direct test-shaped processes (`pytest`, root-level `test_*.py`) from connecting to localhost production port `5432` unless the same override is set.
-
-Example local Docker layout (container names are operator-managed):
-- `coinbase-stage-postgres`: host `127.0.0.1:5432` -> container `5432`
-- `coinbase-dev-postgres`: host `127.0.0.1:9876` -> container `5432`
-
-The host `9876` mapping must point to container port `5432`. Mapping `9876->9876` creates a TCP listener that is not a working Postgres endpoint because the stock Postgres image listens on `5432`.
+The test suite ignores runtime `COINBASE_DB_*` values and maps the dedicated
+`COINBASE_TEST_DB_HOST`, `COINBASE_TEST_DB_PORT`, `COINBASE_TEST_DB_NAME`,
+`COINBASE_TEST_DB_USER`, and `COINBASE_TEST_DB_PASSWORD` values into the
+process instead. Defaults are `127.0.0.1:9876/postgres` and
+`postgres`/`postgres`. `tests/conftest.py` starts the user-owned Linux cluster
+through `scripts/test_database.sh` unless `COINBASE_TEST_DB_AUTOSTART=0`, then
+runs the non-destructive `database.schema` bootstrap before test collection.
+Both test guards block accidental localhost production-port use unless
+`ALLOW_PROD_DB=1`.
 
 ### Dashboard WebSocket listener (`dashboard_server.py`)
 
@@ -207,32 +209,36 @@ Do not introduce duplicate global settings when a per-order canonical field alre
 - Spot ticker/trading mappings must only point to live tradable products. The
   default BTC spot path keeps `BTC-USD` as both ticker and trading product.
 
-## 7) Operational Commands (PowerShell)
+## 7) Operational Commands (Linux/Bash)
 
-```powershell
+```bash
 # Required complete local non-external gate for every non-agent-file change
-.\.venv\Scripts\python.exe -m pytest -c tests/pytest.ini tests -m "not external" -v --tb=short
+./scripts/run_tests.sh
 
 # Disable reconcilers for local troubleshooting
-$env:DISABLE_RECONCILER = "1"
-.\.venv\Scripts\python.exe -m main
+export DISABLE_RECONCILER=1
+./.venv/bin/python -m main
 
 # Choose the dashboard listener before process startup (loopback, custom port)
-$env:DASHBOARD_SERVER_HOST = "localhost"
-$env:DASHBOARD_SERVER_PORT = "9000"
-.\.venv\Scripts\python.exe -m main
+export DASHBOARD_SERVER_HOST=localhost
+export DASHBOARD_SERVER_PORT=9000
+./.venv/bin/python -m main
 # In another terminal, point the console at the same endpoint
-.\.venv\Scripts\python.exe ui_console.py --host localhost --port 9000
+./.venv/bin/python ui_console.py --host localhost --port 9000
 
 # Use fibonacci metrics windows (optional)
-$env:MARKET_METRICS_WINDOWS = "fibonacci"
-.\.venv\Scripts\python.exe -m main
+export MARKET_METRICS_WINDOWS=fibonacci
+./.venv/bin/python -m main
 
-# Verify the test database endpoint
-python -c "import psycopg2; psycopg2.connect(host='127.0.0.1', port=9876, dbname='postgres', user='postgres', password='postgres').close(); print('ok')"
+# Provision and verify the isolated test database endpoint and schema
+./scripts/test_database.sh start
+COINBASE_DB_HOST=127.0.0.1 COINBASE_DB_PORT=9876 \
+COINBASE_DB_NAME=postgres COINBASE_DB_USER=postgres \
+COINBASE_DB_PASSWORD=postgres ./.venv/bin/python -m database.schema
+./scripts/test_database.sh status
 
 # Read-only live fee diagnostic: raw filtered summaries + public cache/quotes
-.\.venv\Scripts\python.exe genai_tools\check_live_fee_tier.py
+./.venv/bin/python genai_tools/check_live_fee_tier.py
 ```
 
 ## 8) Configuration Anti-Patterns

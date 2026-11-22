@@ -10,7 +10,7 @@ It manages the parent-child order relationship for the trading engine.
 import json
 from logging_service import get_logger
 from database.database import PostgresDB
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Sequence
 from core.constants import get_local_now
 from core.enums import StealthLifecycleEvent, StealthOrderStatus
 from core.exceptions import DatabaseConnectionError, OrderPersistenceError, DatabaseTransactionError
@@ -53,6 +53,7 @@ def create_order_parent_table() -> None:
         - price: Limit price for the order
         - status: Order status ('PENDING', 'OPEN', 'FILLED', 'CANCELLED', etc.)
         - parent_order_id: UUID of parent if this is a follow-up order
+        - externally_created: Whether the placement originated outside this engine
         - created_at: Timestamp when record was inserted
     
     Returns:
@@ -80,6 +81,7 @@ def create_order_parent_table() -> None:
         status VARCHAR(20) NOT NULL,
         parent_order_id VARCHAR(40),
         allow_partial_fills BOOLEAN NOT NULL DEFAULT FALSE,
+        externally_created BOOLEAN NOT NULL DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """
@@ -102,6 +104,10 @@ def create_order_parent_table() -> None:
         cursor.execute(
             "ALTER TABLE order_parent ADD COLUMN IF NOT EXISTS "
             "auto_placed_by_hotpoint BOOLEAN NOT NULL DEFAULT FALSE"
+        )
+        cursor.execute(
+            "ALTER TABLE order_parent ADD COLUMN IF NOT EXISTS "
+            "externally_created BOOLEAN NOT NULL DEFAULT FALSE"
         )
         print("order_parent table done.")
 
@@ -653,6 +659,7 @@ def insert_order_parent(
     enable_hotpoint_replication: bool = False,
     auto_placed_by_hotpoint: bool = False,
     reject_existing: bool = False,
+    externally_created: bool = False,
 ) -> Optional[int]:
     """Insert a parent order into the order_parent table.
     
@@ -673,6 +680,7 @@ def insert_order_parent(
         current_order_replacement: Current count of replacements created (default 0).
         status: Order status (default 'pending').
         parent_order_id: Optional parent order UUID (for child/follow-up orders).
+        externally_created: Whether this row originated outside this engine.
     
     Returns:
         The inserted order's database ID if successful, None if failed.
@@ -710,9 +718,10 @@ def insert_order_parent(
         parent_order_id,
         allow_partial_fills,
         enable_hotpoint_replication,
-        auto_placed_by_hotpoint
+        auto_placed_by_hotpoint,
+        externally_created
     )
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     RETURNING id
     """
     params = (
@@ -730,6 +739,7 @@ def insert_order_parent(
         bool(allow_partial_fills),
         bool(enable_hotpoint_replication),
         bool(auto_placed_by_hotpoint),
+        bool(externally_created),
     )
 
     try:
@@ -860,6 +870,23 @@ def get_parent_orders() -> List[Dict[str, Any]]:
     """
     query = "SELECT * FROM order_parent"
     return DB_CLIENT.execute_query(query)
+
+
+def get_parent_orders_by_client_ids(
+    client_order_ids: Sequence[str],
+) -> List[Dict[str, Any]]:
+    """Retrieve a bounded set of parent rows in one database round trip."""
+
+    unique_ids = list(dict.fromkeys(
+        client_order_id
+        for client_order_id in client_order_ids
+        if isinstance(client_order_id, str) and client_order_id
+    ))
+    if not unique_ids:
+        return []
+
+    query = "SELECT * FROM order_parent WHERE client_order_id = ANY(%s)"
+    return DB_CLIENT.execute_query(query, (unique_ids,))
 
 
 def get_parent_order(client_order_id: str) -> Optional[Dict[str, Any]]:

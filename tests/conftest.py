@@ -19,22 +19,27 @@ import os
 # `PostgresDB()` with no args, which defaulted to port 5432 and wrote 40
 # phantom rows into the production `order_parent` table. Never again.
 # ============================================================================
-os.environ.setdefault("COINBASE_DB_HOST", "127.0.0.1")
-os.environ.setdefault("COINBASE_DB_PORT", "9876")
-os.environ.setdefault("COINBASE_DB_NAME", "postgres")
-os.environ.setdefault("COINBASE_DB_USER", "postgres")
-os.environ.setdefault("COINBASE_DB_PASSWORD", "postgres")
+os.environ["COINBASE_DB_HOST"] = os.environ.get(
+    "COINBASE_TEST_DB_HOST", "127.0.0.1"
+)
+os.environ["COINBASE_DB_PORT"] = os.environ.get("COINBASE_TEST_DB_PORT", "9876")
+os.environ["COINBASE_DB_NAME"] = os.environ.get("COINBASE_TEST_DB_NAME", "postgres")
+os.environ["COINBASE_DB_USER"] = os.environ.get("COINBASE_TEST_DB_USER", "postgres")
+os.environ["COINBASE_DB_PASSWORD"] = os.environ.get(
+    "COINBASE_TEST_DB_PASSWORD", "postgres"
+)
 
 import pytest
 import json
+import subprocess
 import sys
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Dict, Any
 
 # Add project root to path for imports
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
+PROJECT_ROOT = Path(__file__).parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
 
 
 # ===================== PROD-DB CONNECTION GUARD =====================
@@ -66,6 +71,44 @@ def _install_prod_db_guard():
 _install_prod_db_guard()
 
 
+def pytest_sessionstart(session):
+    """Ensure the isolated Linux test PostgreSQL and schema are ready."""
+
+    autostart_disabled = os.environ.get(
+        "COINBASE_TEST_DB_AUTOSTART", "1"
+    ).lower() in {
+        "0",
+        "false",
+        "no",
+    }
+
+    if not autostart_disabled:
+        script = PROJECT_ROOT / "scripts" / "test_database.sh"
+        result = subprocess.run(
+            [str(script), "start"],
+            cwd=PROJECT_ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout).strip()
+            raise pytest.UsageError(
+                "Unable to provision the isolated test PostgreSQL. "
+                f"Run '{script} start' for details. {detail}"
+            )
+
+    try:
+        from database.schema import initialize_database_schema
+
+        initialize_database_schema()
+    except Exception as exc:
+        raise pytest.UsageError(
+            "Unable to initialize the isolated test database schema: "
+            f"{type(exc).__name__}: {exc}"
+        ) from exc
+
+
 # ===================== MARKERS =====================
 
 def pytest_configure(config):
@@ -89,7 +132,7 @@ def pytest_configure(config):
 @pytest.fixture
 def project_root():
     """Path to project root directory."""
-    return Path(__file__).parent.parent
+    return PROJECT_ROOT
 
 
 @pytest.fixture

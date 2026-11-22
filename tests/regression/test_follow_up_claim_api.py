@@ -86,6 +86,35 @@ def test_release_on_done_does_not_revive(orderbook: OrderBook) -> None:
     assert orderbook.try_claim_follow_up(FollowUpKind.FILLED, "coid_A") is False
 
 
+def test_completed_claim_can_be_discarded_after_durable_replay_guard(
+    orderbook: OrderBook,
+) -> None:
+    orderbook.try_claim_follow_up(FollowUpKind.CANCELLED, "external_A")
+    orderbook.complete_follow_up(FollowUpKind.CANCELLED, "external_A")
+
+    assert orderbook.discard_completed_follow_up(
+        FollowUpKind.CANCELLED,
+        "external_A",
+    ) is True
+    assert orderbook.follow_up_claim_state(
+        FollowUpKind.CANCELLED,
+        "external_A",
+    ) is None
+
+
+def test_processing_claim_cannot_be_discarded(orderbook: OrderBook) -> None:
+    orderbook.try_claim_follow_up(FollowUpKind.CANCELLED, "external_A")
+
+    assert orderbook.discard_completed_follow_up(
+        FollowUpKind.CANCELLED,
+        "external_A",
+    ) is False
+    assert orderbook.follow_up_claim_state(
+        FollowUpKind.CANCELLED,
+        "external_A",
+    ) == "processing"
+
+
 def test_string_kind_accepted_for_back_compat(orderbook: OrderBook) -> None:
     assert orderbook.try_claim_follow_up("filled", "coid_A") is True
     assert orderbook.try_claim_follow_up("cancelled", "coid_A") is True

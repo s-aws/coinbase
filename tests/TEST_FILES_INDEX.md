@@ -1,6 +1,6 @@
 # Test Files Index
 
-Generated from the current tracked checkout on 2026-10-09. Module summaries
+Generated from the current checkout on 2026-11-22. Module summaries
 describe test intent, not measured coverage. Case counts vary with parametrization.
 Run the complete gate from [README.md](README.md); focused selections require
 an explicit user request.
@@ -67,12 +67,13 @@ an explicit user request.
 | [test_order_processing.py](integration/test_order_processing.py) | 13 | Integration tests for complete order processing workflows. |
 | [test_stealth_order_workflow.py](integration/test_stealth_order_workflow.py) | 6 | Integration tests for stealth order workflows. |
 
-## tests/regression (78 files)
+## tests/regression (80 files)
 
 | File | Defined test functions | Module intent |
 | --- | ---: | --- |
 | [test_anchor_rearm_tombstone_replay.py](regression/test_anchor_rearm_tombstone_replay.py) | 3 | Regression coverage for stale rows after authenticated anchor rearming. |
 | [test_anchor_reprice_phantom_parent.py](regression/test_anchor_reprice_phantom_parent.py) | 23 | Regression coverage for revealed anchor repricing. |
+| [test_cancel_burst_resource_bounds.py](regression/test_cancel_burst_resource_bounds.py) | 12 | Cancellation bursts retain bounded dashboard and engine runtime state. |
 | [test_cancel_followup_stealth_id_passthrough.py](regression/test_cancel_followup_stealth_id_passthrough.py) | 6 | Regression: 2026-05-04 phantom-child / stranded-exposure incident. |
 | [test_configuration_cloudflare_fallback.py](regression/test_configuration_cloudflare_fallback.py) | 3 | Regression coverage for transient malformed Coinbase gateway responses. |
 | [test_core_functionality.py](regression/test_core_functionality.py) | 10 | Regression tests - Critical path tests that must always pass before deployment. |
@@ -82,13 +83,14 @@ an explicit user request.
 | [test_dashboard_move_revealed_handler.py](regression/test_dashboard_move_revealed_handler.py) | 6 | Regression tests for the move_revealed_stealth_order dashboard |
 | [test_dashboard_rehide.py](regression/test_dashboard_rehide.py) | 6 | Manual Rehide uses the bridge and reports intent, never inferred exchange truth. |
 | [test_dashboard_startup_admission.py](regression/test_dashboard_startup_admission.py) | 9 | Dashboard admission remains fail-closed through runtime startup. |
+| [test_database_schema_bootstrap.py](regression/test_database_schema_bootstrap.py) | 1 | Fresh isolated PostgreSQL schema bootstrap is complete and idempotent. |
 | [test_db_cursor_thread_safety.py](regression/test_db_cursor_thread_safety.py) | 2 | Regression: PostgresDB.get_cursor() must serialize cursor access across threads. |
 | [test_exception_kwargs_signature.py](regression/test_exception_kwargs_signature.py) | 11 | Regression: every exception class accepts the kwargs that real call sites use. |
 | [test_fee_manager_lifecycle.py](regression/test_fee_manager_lifecycle.py) | 5 | Fee refresh publication remains stop-dominant during engine startup. |
 | [test_fee_multiplier_by_product_type.py](regression/test_fee_multiplier_by_product_type.py) | 6 | Regression: fee schedule and cushion must both be product-type aware. |
 | [test_filtered_fee_schedules.py](regression/test_filtered_fee_schedules.py) | 8 | Regression contract for filtered, isolated Coinbase fee schedules. |
 | [test_flat_hierarchy_stealth_placement.py](regression/test_flat_hierarchy_stealth_placement.py) | 6 | Regression: flat-hierarchy rule must not be violated by stealth placements. |
-| [test_follow_up_claim_api.py](regression/test_follow_up_claim_api.py) | 10 | Regression: follow-up claim API must work after the OrderBook v2 cleanup. |
+| [test_follow_up_claim_api.py](regression/test_follow_up_claim_api.py) | 12 | Regression: follow-up claim API must work after the OrderBook v2 cleanup. |
 | [test_follow_up_creation_retreat_wiring.py](regression/test_follow_up_creation_retreat_wiring.py) | 7 | Regression: create_follow_up_stealth_order actually applies the |
 | [test_follow_up_retreat.py](regression/test_follow_up_retreat.py) | 14 | Regression: RepricingPolicy.compute_follow_up_price (post-fill |
 | [test_hotpoint_decay_sweeper.py](regression/test_hotpoint_decay_sweeper.py) | 8 | Tests for business.hotpoint_decay_sweeper. |
@@ -112,7 +114,7 @@ an explicit user request.
 | [test_operator_cancel_followups.py](regression/test_operator_cancel_followups.py) | 9 | An accepted project cancel stops new automation, not exchange accounting. |
 | [test_operator_cancel_lifecycle.py](regression/test_operator_cancel_lifecycle.py) | 15 | Intentional stealth cancellation stops automation without losing venue truth. |
 | [test_order_id_regression.py](regression/test_order_id_regression.py) | 3 | Regression guards for critical order ID and hierarchy behavior. |
-| [test_parent_row_before_ws_delta.py](regression/test_parent_row_before_ws_delta.py) | 4 | Regression: order_parent row must exist BEFORE _process_ws_order_delta. |
+| [test_parent_row_before_ws_delta.py](regression/test_parent_row_before_ws_delta.py) | 6 | Regression: order_parent row must exist BEFORE _process_ws_order_delta. |
 | [test_partial_fill_follow_up_atomic_claim.py](regression/test_partial_fill_follow_up_atomic_claim.py) | 4 | Regression: 2026-04-29 duplicate-buy / over-buy incident. |
 | [test_per_side_mandatory_fee.py](regression/test_per_side_mandatory_fee.py) | 7 | Regression: Coinbase Derivatives per-side mandatory fee schedule. |
 | [test_place_limit_order_returns_dict.py](regression/test_place_limit_order_returns_dict.py) | 7 | Regression: CoinbaseClient.place_limit_order must return the SDK's |
@@ -123,7 +125,7 @@ an explicit user request.
 | [test_post_only_retry_no_orphan.py](regression/test_post_only_retry_no_orphan.py) | 5 | Regression: post-only retry must not orphan the placement from |
 | [test_price_camouflage.py](regression/test_price_camouflage.py) | 14 | Regression tests for calculation.price_camouflage. |
 | [test_price_normalization.py](regression/test_price_normalization.py) | 10 | Regression coverage for the canonical exchange-price grid boundary. |
-| [test_process_user_order_per_coid_lock.py](regression/test_process_user_order_per_coid_lock.py) | 4 | Regression: per-COID serialisation in process_user_order. |
+| [test_process_user_order_per_coid_lock.py](regression/test_process_user_order_per_coid_lock.py) | 5 | Regression: per-COID serialisation in process_user_order. |
 | [test_profitability_failure_throttling.py](regression/test_profitability_failure_throttling.py) | 16 | Regression: profitability-validation failures must be log-throttled |
 | [test_profitability_fee_quote_consistency.py](regression/test_profitability_fee_quote_consistency.py) | 2 | Regression coverage for atomic profitability fee sampling. |
 | [test_quantize_to_increment.py](regression/test_quantize_to_increment.py) | 11 | Regression tests for the canonical quantize_to_increment. |

@@ -1,8 +1,28 @@
 {
   "content_exclusions": [
     {
+      "path": "scripts/run_cancel_pipeline_stress.sh",
+      "reason": "unknown_or_binary_type"
+    },
+    {
+      "path": "scripts/run_cancel_stress.sh",
+      "reason": "unknown_or_binary_type"
+    },
+    {
+      "path": "scripts/run_tests.sh",
+      "reason": "unknown_or_binary_type"
+    },
+    {
+      "path": "scripts/test_database.sh",
+      "reason": "unknown_or_binary_type"
+    },
+    {
       "path": "server_log.txt",
       "reason": "log_or_runtime_output"
+    },
+    {
+      "path": "setup.sh",
+      "reason": "unknown_or_binary_type"
     },
     {
       "path": "startup_output.txt",
@@ -10,14 +30,14 @@
     }
   ],
   "counts": {
-    "commits": 2087,
-    "edges": 38658,
-    "files": 468,
+    "commits": 2088,
+    "edges": 39316,
+    "files": 478,
     "git_refs": 11,
     "path_history": 1491,
     "semantic_records": 177,
-    "symbols": 7293,
-    "tests": 1546
+    "symbols": 7393,
+    "tests": 1564
   },
   "dangling_edge_ids": [],
   "duplicate_conflicts": {
@@ -32,27 +52,27 @@
   "explicit_exclusions": [],
   "fatal_errors": [],
   "index_hashes": {
-    "edges.jsonl": "60c71d05be8b7be3651d3b43a7fb1b81020ccefdf58cf92691fcea0434317eb7",
-    "files.jsonl": "ba65742008173b149c02c5df1b434b4d035f93ba501be47a2e001efb84b535eb",
-    "git_commits.jsonl": "899e46e6e4a1e9cf278fadad1191c9b11ff7c63793499f199fc7e8499c5bc6ad",
-    "git_refs.jsonl": "888bd88ad2136849314cb5d168a67bda098c3035b038395b95a8c7aa02e83d9a",
-    "path_history.jsonl": "cbce7f5ae58c117919677229e792d1c26da27f14e0b023629abd7a0085b9de0f",
-    "symbols.jsonl": "e1a38af1cbf0e58906b8d176ebb0a1bd1f459d4ab168ba271efdc303567267b5",
-    "tests.jsonl": "a5b12cf146736a200c4a49e5e25e04acc3ae4f09ae679c963011bb95dd03d8b7"
+    "edges.jsonl": "f9918e3566e2a5695d902bf7353306785fd62c7a95d59918bbb4eef5642e3248",
+    "files.jsonl": "c407da7947c9d38f2101ca6e8df58495137eef451aabd331333251c0fa8b5e1c",
+    "git_commits.jsonl": "b3604fed3784fa7b0cced61c4ac5b570a2f1eb70322ce9ccdc705efeb22f92da",
+    "git_refs.jsonl": "27030759cf32176b806d9fee7bd3ecabdd72443b6b4932c5d7820326324d592c",
+    "path_history.jsonl": "11e37fb7ade08abc616d0895427554302f6a5d95d84f5430c256b4fb1ed620bc",
+    "symbols.jsonl": "1355cd7edd670506c0bc4ff9d8efbd0f5e0e99461a98b20abe2e5008884fcbd7",
+    "tests.jsonl": "dc41b25c1a1ead3708bb19053b185e5864e69baa49f1b22f7060c1fb35015dce"
   },
   "index_invariant_errors": [],
   "parse_findings": [],
   "redaction_errors": [],
-  "represented_path_count": 468,
+  "represented_path_count": 478,
   "schema_validation": {
     "error_count": 0,
-    "record_count": 51731,
+    "record_count": 52518,
     "validator": "built_in_json_schema_subset"
   },
   "semantic_reference_errors": [],
   "sensitive_output_findings": [],
   "source_edge_ids_missing": [],
-  "source_tree_digest": "2d0fee653efecbaf90c3f1b0363eb922735a2048d256cc8adc2edcd7382c1727",
+  "source_tree_digest": "e9ceb4351a40306d00cd497e7bd6db626aa640d80d3fb1998b97f929de234e86",
   "status": "pass",
-  "unresolved_call_edge_count": 20482
+  "unresolved_call_edge_count": 20726
 }

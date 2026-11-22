@@ -93,18 +93,17 @@ tracks the corresponding Coinbase placement.
 
 ## Getting Started
 
-The production development environment is Windows 11 with PowerShell. The
-commands below assume the repository root is the current directory.
+The development environment is Linux. Commands below use Bash and assume the
+repository root is the current directory.
 
 ### 1. Prerequisites
 
-- Python 3.13 (the package requires `>=3.13`).
-- PostgreSQL reachable from Windows.
+- Python 3.13 or newer (the package requires `>=3.13`).
+- PostgreSQL server/client tools (`initdb`, `pg_ctl`, `pg_isready`, `psql`).
 - Coinbase Advanced Trade API credentials authorized for the account and
   products you intend to operate.
-- An initialized engine database. The runtime applies several additive table
-  migrations, but the current checkout does **not** provide a supported,
-  non-destructive full-schema bootstrap command for an empty database.
+- A PostgreSQL database for the engine. It may be empty; the supported schema
+  bootstrap below creates or forward-migrates the required tables.
 - The configured dashboard TCP port available (`8765` by default).
 
 Do not use `__dangerous_delete_all_tables__.py` as an installation step. It
@@ -112,37 +111,38 @@ permanently drops every table in the target database before recreating schema.
 
 ### 2. Install the runtime
 
-```powershell
+```bash
 git switch prod
-py -3.13 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\.venv\Scripts\python.exe -m pip install -e .
+./setup.sh
 ```
 
-The editable install provides the runtime dependencies declared in
-`pyproject.toml`, including the Coinbase SDK, PostgreSQL driver, Rich, and the
-dashboard WebSocket version used by this branch.
+`setup.sh` creates the virtual environment, installs runtime and test
+dependencies, and provisions the isolated test PostgreSQL at
+`127.0.0.1:9876`, including its complete test schema. The editable install
+provides the runtime dependencies declared in `pyproject.toml`, including the
+Coinbase SDK, PostgreSQL driver, Rich, and the dashboard WebSocket version used
+by this branch.
 
 ### 3. Configure the process
 
-Set configuration in the same PowerShell session that will launch the engine:
+Set configuration in the same shell that will launch the engine:
 
-```powershell
-$env:COINBASE_API_KEY = "<coinbase-api-key>"
-$env:COINBASE_API_SECRET = "<coinbase-api-secret>"
+```bash
+export COINBASE_API_KEY="<coinbase-api-key>"
+export COINBASE_API_SECRET="<coinbase-api-secret>"
 
-$env:COINBASE_DB_HOST = "127.0.0.1"
-$env:COINBASE_DB_PORT = "5432"
-$env:COINBASE_DB_NAME = "<initialized-database-name>"
-$env:COINBASE_DB_USER = "postgres"
-$env:COINBASE_DB_PASSWORD = "<database-password>"
+export COINBASE_DB_HOST="127.0.0.1"
+export COINBASE_DB_PORT="5432"
+export COINBASE_DB_NAME="<initialized-database-name>"
+export COINBASE_DB_USER="postgres"
+export COINBASE_DB_PASSWORD="<database-password>"
 
 # Pin the dashboard to loopback; otherwise HOSTNAME may select another interface.
-$env:DASHBOARD_SERVER_HOST = "localhost"
-$env:DASHBOARD_SERVER_PORT = "8765"
+export DASHBOARD_SERVER_HOST="localhost"
+export DASHBOARD_SERVER_PORT="8765"
 
 # Optional because PAUSED is already the safe default.
-$env:ENGINE_START_PAUSED = "true"
+export ENGINE_START_PAUSED="true"
 ```
 
 Do not commit credentials. Product scope, ticker mappings, increments, minimum
@@ -157,8 +157,8 @@ The database defaults are `127.0.0.1:5432/postgres` with user/password
 variable explicitly. Verify the resolved target and server identity read-only
 before stateful startup:
 
-```powershell
-@'
+```bash
+./.venv/bin/python - <<'PY'
 from database.database import PostgresDB
 
 db = PostgresDB()
@@ -171,13 +171,20 @@ try:
     )[0])
 finally:
     db.disconnect()
-'@ | .\.venv\Scripts\python.exe -
+PY
+```
+
+After verifying the target, bootstrap or forward-migrate the runtime schema.
+The command is additive and does not delete rows or tables:
+
+```bash
+./.venv/bin/python -m database.schema
 ```
 
 ### 4. Start the complete engine
 
-```powershell
-.\.venv\Scripts\python.exe -m main
+```bash
+./.venv/bin/python -m main
 ```
 
 Use `main`, not `dashboard_server.py`, for trading. `main` owns the required
@@ -195,8 +202,8 @@ Expected state progression is:
 Wait for `Trading engine startup complete (PAUSED)` before opening the primary
 operator page:
 
-```powershell
-Start-Process .\ui_stealth_orders_manager.html
+```bash
+xdg-open ./ui_stealth_orders_manager.html
 ```
 
 `DISABLE_RECONCILER=1` bypasses both startup and periodic reconciliation. It is
@@ -237,11 +244,11 @@ Open one of the local HTML files directly in a browser:
 
 For a terminal client, run:
 
-```powershell
-.\.venv\Scripts\python.exe ui_console.py
+```bash
+./.venv/bin/python ui_console.py
 
 # Match a custom server address/port (the console defaults remain localhost:8765).
-.\.venv\Scripts\python.exe ui_console.py --host <reachable-server-address> --port 9000
+./.venv/bin/python ui_console.py --host <reachable-server-address> --port 9000
 ```
 
 Use `Ctrl+C` in the engine terminal for the ordinary cooperative drain and
@@ -250,20 +257,47 @@ stop. The tracked HTML and console clients do not currently expose the
 
 ## Validation
 
-The default repository gate is the complete local non-external suite. It
-expects an isolated test PostgreSQL instance at `127.0.0.1:9876` (mapped to
-PostgreSQL's container port `5432`) and refuses localhost production port
-`5432` for test-shaped processes unless explicitly overridden.
+The default repository gate is the complete local non-external suite. It uses
+an isolated, user-owned PostgreSQL cluster at `127.0.0.1:9876`, stored under
+`.local/test-postgres`, and refuses localhost production port `5432` for
+test-shaped processes unless explicitly overridden.
 
 Install the repository's test dependencies, then run:
 
-```powershell
-.\.venv\Scripts\python.exe -m pip install -r tests\requirements.txt
-.\.venv\Scripts\python.exe -m pytest -c tests/pytest.ini tests -m "not external" -v --tb=short
+```bash
+./scripts/run_tests.sh
 ```
+
+Pytest also starts the isolated database on demand. Manage it directly with
+`./scripts/test_database.sh start|status|stop`. Runtime `COINBASE_DB_*`
+settings are ignored by tests; use `COINBASE_TEST_DB_*` only for an alternate
+isolated test endpoint.
 
 External Coinbase tests are credential-gated and opt-in; they are not part of
 the default validation command.
+
+For a repeatable Linux resource check of the dashboard cancellation hot path:
+
+```bash
+./scripts/run_cancel_stress.sh
+```
+
+The default workload publishes 20 batches of 1,000 synthetic cancellations
+and fails on retained tasks, threads, file descriptors, publisher work, or
+configured CPU/memory limits. It does not contact Coinbase or replace the full
+test suite.
+
+For the stronger authenticated-envelope → engine → test-database → dashboard
+path:
+
+```bash
+./scripts/run_cancel_pipeline_stress.sh
+```
+
+This exchange-free test defaults to three batches of 100 cancellations,
+requires the isolated port-9876 PostgreSQL instance, verifies that all durable
+rows were written, and fails if per-order locks, claims, progress records,
+parent entries, queues, tasks, or publishers remain active afterward.
 
 ## Project Map
 
@@ -284,8 +318,6 @@ and tests remain authoritative for current behavior.
 
 ## Current Operational Boundaries
 
-- A fresh empty database still needs an approved non-destructive schema
-  bootstrap workflow.
 - `PAUSED` is an origination-admission boundary, not database or exchange
   read-only mode.
 - Automatic revealed repricing and manual **Rehide** use one persisted

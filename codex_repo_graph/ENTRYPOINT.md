@@ -9,7 +9,7 @@ COMMIT_WINDOW=one_post_snapshot_source_changing_commit+unlimited_graph_only_succ
 
 LOAD_PROTOCOL:
 1. Read `manifest.json`.
-2. Run `.venv/Scripts/python.exe codex_repo_graph/build_graph.py --check` before relying on cached records.
+2. Run `.venv/bin/python codex_repo_graph/build_graph.py --check` before relying on cached records.
 3. Route with `query_graph.py task <tag>`; do not preload `index/*.jsonl`.
 4. Load only returned files/records, then inspect cited source lines.
 5. Treat `heuristic`, `unknown`, `conflicted`, `intended_only`, and `historical` records as non-proof.
@@ -70,5 +70,5 @@ STATIC_GRAPH_LIMITS:
 - Write mode captures Git history/ref/path-history inputs at `history_snapshot_head`; check mode reuses that snapshot so its containing commit does not invalidate it.
 - Check mode requires the snapshot commit to exist and remain an ancestor of current HEAD. Live HEAD and snapshot distance are transient validation inputs and are not stored in generated artifacts.
 
-REBUILD=`.venv/Scripts/python.exe codex_repo_graph/build_graph.py`
-CHECK=`.venv/Scripts/python.exe codex_repo_graph/build_graph.py --check`
+REBUILD=`.venv/bin/python codex_repo_graph/build_graph.py`
+CHECK=`.venv/bin/python codex_repo_graph/build_graph.py --check`

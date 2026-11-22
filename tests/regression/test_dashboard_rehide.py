@@ -35,18 +35,13 @@ def _invoke(bridge, *, state=EngineState.RUNNING, stealth_id=STEALTH_ID):
         },
     }
     original = deepcopy(cache)
-    try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
     with (
         patch.object(dashboard_server, "stealth_order_bridge", bridge),
         patch.object(dashboard_server, "get_runtime_controller", return_value=controller),
         patch.object(dashboard_server, "engine_state", cache),
         patch.object(dashboard_server, "add_log_entry"),
     ):
-        loop.run_until_complete(
+        asyncio.run(
             dashboard_server.handle_client_message(
                 websocket,
                 json.dumps({"type": "rehide_stealth_order", "stealth_order_id": stealth_id}),

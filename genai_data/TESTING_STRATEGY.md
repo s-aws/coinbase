@@ -1,6 +1,6 @@
 # Testing Strategy
 
-Reconciled with the `prod` checkout on 2026-10-09. Current source and tests
+Reconciled with the `prod` checkout on 2026-11-22. Current source and tests
 remain the evidence for runtime behavior.
 
 This project uses pytest with one simple default gate: the complete local
@@ -12,8 +12,8 @@ user explicitly requests them.
 For every non-agent-file change, run the complete local non-external suite. It
 contains the mandatory regression directory and must exit `0` before handoff:
 
-```powershell
-pytest -c tests/pytest.ini tests -m "not external" -v --tb=short
+```bash
+./scripts/run_tests.sh
 ```
 
 Exception (docs/process-only): if changes are limited to agent/context files (`AGENTS.md`, `agent.md`, `ai-context.md`, `genai_data/AGENT_*.md`, `genai_data/agent_state.md`), regression tests may be skipped.
@@ -24,11 +24,11 @@ Run the complete non-external suite sequentially. Tests frequently monkeypatch
 process globals and several tests touch shared files or the test database. This
 repository does not provide a parallel test runner.
 
-## Current Inventory (2026-10-09)
+## Current Inventory (2026-11-22)
 
 - `tests/unit/`: 38 test files
 - `tests/integration/`: 7 test files
-- `tests/regression/`: 78 test files
+- `tests/regression/`: 80 test files
 - `tests/e2e/`: 2 test files
 - `tests/external/`: 1 test file
 - `tests/` root: 2 test files
@@ -87,12 +87,33 @@ External execution is separately authorized. The current fixture does not
 pass its sandbox URL into RESTClient; `COINBASE_USE_SANDBOX=true` is only an
 assertion. See `docs/EXTERNAL_TESTING_RUNBOOK.md`.
 
-## Standard Command Set (PowerShell)
+## Standard Command Set (Linux/Bash)
 
 ### Default local validation
-```powershell
-pytest -c tests/pytest.ini tests -m "not external" -v --tb=short
+```bash
+./scripts/run_tests.sh
 ```
+
+### Cancellation resource stress
+
+```bash
+./scripts/run_cancel_stress.sh
+```
+
+This Linux-only, exchange-free harness measures the bounded dashboard
+cancellation-publication path in a fresh process. It reports CPU time, idle CPU,
+resident/traced memory growth, retained asyncio tasks, threads, file
+descriptors, publisher count, and retained dashboard state. It complements but
+does not replace the complete pytest gate.
+
+```bash
+./scripts/run_cancel_pipeline_stress.sh
+```
+
+The pipeline harness adds authenticated user-envelope reduction, keyed worker
+dispatch, real isolated-test-database writes, terminal external-order cleanup,
+and dashboard publication. It refuses port 5432, removes only its generated
+UUID rows, and verifies that per-order runtime maps are empty at quiescence.
 
 ### Focused runs
 
@@ -100,30 +121,38 @@ Do not run a single test file, a name-filtered selection, or a single test case
 unless the user explicitly asks for focused validation.
 
 ### External opt-in runs
-```powershell
-$env:COINBASE_API_KEY = "..."
-$env:COINBASE_API_SECRET = "..."
-$env:COINBASE_USE_SANDBOX = "true"
-pytest tests/external/ -v -m external
+```bash
+export COINBASE_API_KEY="..."
+export COINBASE_API_SECRET="..."
+export COINBASE_USE_SANDBOX="true"
+./.venv/bin/python -m pytest tests/external/ -v -m external
 ```
 
 ### External websocket smoke (explicit opt-in)
-```powershell
-$env:COINBASE_ENABLE_WEBSOCKET_EXTERNAL = "true"
-pytest tests/external/test_coinbase_api.py -v -m websocket --tb=short
+```bash
+export COINBASE_ENABLE_WEBSOCKET_EXTERNAL="true"
+./.venv/bin/python -m pytest tests/external/test_coinbase_api.py -v -m websocket --tb=short
 ```
 
 ## Test Environment Safeguards
 
 `tests/conftest.py` enforces DB safety:
-- defaults DB env vars to test instance (`COINBASE_DB_PORT=9876`)
+- replaces runtime `COINBASE_DB_*` values with the isolated
+  `COINBASE_TEST_DB_*` target (default port `9876`)
+- starts `scripts/test_database.sh` unless `COINBASE_TEST_DB_AUTOSTART=0`
+- runs the additive `database.schema` bootstrap before test collection
 - refuses localhost:5432 connections unless `ALLOW_PROD_DB=1`
 
 `database/database.py` also refuses test-shaped direct script processes from connecting to localhost `5432` unless `ALLOW_PROD_DB=1`. This covers root-level scripts such as `test_*.py` that do not load `tests/conftest.py`.
 
-Example Docker mapping (container names are operator-managed):
-- stage/prod-like DB: `coinbase-stage-postgres` on host `127.0.0.1:5432`
-- test/dev DB: `coinbase-dev-postgres` on host `127.0.0.1:9876` mapped to container port `5432`
+Linux setup uses a user-owned PostgreSQL cluster under
+`.local/test-postgres`, listening only on `127.0.0.1:9876`. Manage it with:
+
+```bash
+./scripts/test_database.sh start
+./scripts/test_database.sh status
+./scripts/test_database.sh stop
+```
 
 This guard exists to prevent accidental writes to production-like local DB instances during tests. It does not make destructive SQL safe; still inspect target host/port before any reset or restore.
 
