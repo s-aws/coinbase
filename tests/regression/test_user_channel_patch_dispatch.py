@@ -19,6 +19,7 @@ import pytest
 import core.order_engine as order_engine_module
 from core.enums import ChannelType, UserFeedPhase
 from core.order_engine import OrderEngine, UserStreamEnvelope
+from core.user_feed_processor import UserFeedProcessor
 
 
 pytestmark = pytest.mark.regression
@@ -105,6 +106,32 @@ def _wire_user_message(
             "events": events,
         }
     )
+
+
+def test_order_engine_exposes_one_instance_owned_user_feed_processor():
+    engine, generation, _ = _private_ingress_engine()
+
+    processor = engine._get_user_feed_processor()
+    assert isinstance(processor, UserFeedProcessor)
+    assert engine._user_feed_lock is processor._user_feed_lock
+
+    engine.on_user_message(
+        _wire_user_message(1, [{"type": "snapshot", "orders": []}]),
+        generation=generation,
+    )
+    envelope = engine.event_queue[ChannelType.USER.value].get_nowait()
+    engine.process_private_envelope(envelope)
+
+    assert engine.get_user_feed_metrics() == {
+        "generation": generation,
+        "phase": UserFeedPhase.LIVE.value,
+        "bootstrap_orders": 0,
+        "generation_inflight": 0,
+        "queue_depth": 0,
+        "dispatcher_pending": 0,
+        "dispatcher_queues": 0,
+        "dispatcher_active_keys": 0,
+    }
 
 
 @pytest.mark.parametrize("continuation_type", ("patch", "update"))

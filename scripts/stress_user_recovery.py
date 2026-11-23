@@ -314,20 +314,15 @@ async def _run_stress(args: argparse.Namespace) -> dict[str, Any]:
         ) != args.restart_orders:
             raise RuntimeError("recovered orders did not persist terminal status")
 
-        with restart_engine._user_order_dispatcher._lock:
-            dispatcher_pending = restart_engine._user_order_dispatcher._pending_count
-            dispatcher_queues = len(restart_engine._user_order_dispatcher._queues)
-            dispatcher_active = len(restart_engine._user_order_dispatcher._active_keys)
+        user_feed_metrics = restart_engine.get_user_feed_metrics()
         with restart_orderbook._follow_up_ledger._lock:
             follow_up_claims = sum(
                 len(slots)
                 for slots in restart_orderbook._follow_up_ledger._slots.values()
             )
-        active_generation = restart_engine._user_stream_generation
-        user_feed_phase = restart_engine._user_feed_phase
-        user_queue_depth = restart_engine.event_queue[
-            ChannelType.USER.value
-        ].qsize()
+        active_generation = user_feed_metrics["generation"]
+        user_feed_phase = UserFeedPhase(user_feed_metrics["phase"])
+        user_queue_depth = user_feed_metrics["queue_depth"]
         retained_generated_parent_entries = sum(
             client_order_id in restart_orderbook.parent_order_ids
             for client_order_id in client_order_ids
@@ -337,9 +332,9 @@ async def _run_stress(args: argparse.Namespace) -> dict[str, Any]:
             for client_order_id in client_order_ids
         )
         retained_coid_locks = len(restart_engine._coid_handler_locks)
-        retained_generation_inflight = len(
-            restart_engine._user_generation_inflight
-        )
+        retained_generation_inflight = user_feed_metrics[
+            "generation_inflight"
+        ]
 
         # A process-restart test must prove the replacement engine's worker
         # pool also shuts down. Measure threads only after releasing it.
@@ -369,9 +364,11 @@ async def _run_stress(args: argparse.Namespace) -> dict[str, Any]:
             "active_generation": active_generation,
             "user_feed_phase": user_feed_phase.value,
             "user_queue_depth": user_queue_depth,
-            "dispatcher_pending": dispatcher_pending,
-            "dispatcher_queues": dispatcher_queues,
-            "dispatcher_active_keys": dispatcher_active,
+            "dispatcher_pending": user_feed_metrics["dispatcher_pending"],
+            "dispatcher_queues": user_feed_metrics["dispatcher_queues"],
+            "dispatcher_active_keys": user_feed_metrics[
+                "dispatcher_active_keys"
+            ],
             "retained_generated_parent_entries": retained_generated_parent_entries,
             "retained_generated_live_orders": retained_generated_live_orders,
             "retained_follow_up_claims": follow_up_claims,

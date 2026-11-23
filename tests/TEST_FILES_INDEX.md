@@ -150,7 +150,7 @@ an explicit user request.
 | [test_transaction_summary_param_mapping.py](regression/test_transaction_summary_param_mapping.py) | 4 | Regression coverage for Coinbase transaction-summary filter forwarding. |
 | [test_triggered_snapshot_commit.py](regression/test_triggered_snapshot_commit.py) | 5 | Regression: TRIGGERED stealth orders must commit on the next bridge tick. |
 | [test_two_sided_fee_accounting.py](regression/test_two_sided_fee_accounting.py) | 6 | Regression: percentage fees must be charged on BOTH sides. |
-| [test_user_channel_patch_dispatch.py](regression/test_user_channel_patch_dispatch.py) | 56 | Regression contracts for Coinbase authenticated user-channel dispatch. |
+| [test_user_channel_patch_dispatch.py](regression/test_user_channel_patch_dispatch.py) | 57 | Regression contracts for Coinbase authenticated user-channel dispatch. |
 
 ## tests/e2e (2 files)
 

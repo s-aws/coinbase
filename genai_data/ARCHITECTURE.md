@@ -7,6 +7,8 @@ remain the evidence for runtime behavior.
 
 The runtime is centered on a single `OrderEngine` instance (`core/order_engine.py`) with supporting subsystems:
 
+- `core/user_feed_processor.py`: authenticated connection-generation state,
+  ordered envelope reduction, bounded keyed dispatch, and feed metrics.
 - `dashboard_server.py`: operator command surface and state broadcast over WebSocket.
 - `bridges/stealth_order_bridge.py` +
   `bridges/stealth_event_deadline_scheduler.py`: ordered stealth condition
@@ -22,8 +24,8 @@ The runtime is centered on a single `OrderEngine` instance (`core/order_engine.p
 1. **Ingress Layer**
 - Public Coinbase ticker/heartbeat envelopes flow through
   `OrderEngine.on_message`; authenticated user/futures-balance/heartbeat
-  envelopes flow through `OrderEngine.on_user_message` on a separate
-  `WSUserClient` connection.
+  envelopes enter through `OrderEngine.on_user_message` on a separate
+  `WSUserClient` connection and are owned by its `UserFeedProcessor`.
 - Dashboard websocket commands flow into `dashboard_server.handle_client_message`.
 2. **Domain Layer**
 - `OrderEngine` handles parent/child lifecycle, follow-up creation, partial-fill state, and ownership classification.
@@ -151,19 +153,24 @@ Primary lock boundaries:
 - `RuntimeController` state lock + inflight lock: lifecycle state and drain accounting.
 - `OrderEngine._ticker_ingress_lock`: serialized ticker enqueue and explicit
   full-queue recovery across concurrent websocket producers.
-- `OrderEngine._user_reducer_lock`: serializes private-envelope reduction
+- `UserFeedProcessor._user_reducer_lock`: serializes private-envelope reduction
   against connection-generation changes; `_user_feed_lock` protects only the
   authenticated stream phase, generation, connection sequence, and bootstrap
   accumulator state. A per-generation in-flight condition prevents a new
   generation from hydrating while an admitted old-generation lifecycle is
   still executing.
-- `OrderEngine._user_order_dispatcher`: keyed FIFO completion for the full
+- `UserFeedProcessor`'s keyed dispatcher: FIFO completion for the full
   live lifecycle of one `client_order_id`, while unrelated COIDs may execute
   concurrently. All live rows in one Coinbase envelope are admitted atomically;
   pending work is bounded by `queue_maxsize`, and admission failure
   desynchronizes the private generation instead of partially accepting it.
   The narrower `_coid_handler_locks` remain limited to parent assurance plus
   delta ingestion and are not the lifecycle ordering boundary.
+
+`OrderEngine` retains thin private-name delegates for existing integrations,
+but the processor is the only implementation and state owner. Its
+`snapshot_metrics()` result is exposed through `OrderEngine.get_user_feed_metrics()`
+and included under dashboard `engine_status.user_feed`.
 - `StealthOrderManager._orders_cache_lock`: short structural snapshots and
   insert/clear operations for the local stealth cache; it is separate from the
   database creation lock.

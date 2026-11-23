@@ -435,10 +435,7 @@ async def _run_stress(args: argparse.Namespace) -> dict[str, Any]:
         await asyncio.sleep(args.idle_window_seconds)
         idle_cpu_seconds = time.process_time() - idle_cpu_started
 
-        with engine._user_order_dispatcher._lock:
-            dispatcher_pending = engine._user_order_dispatcher._pending_count
-            dispatcher_queues = len(engine._user_order_dispatcher._queues)
-            dispatcher_active = len(engine._user_order_dispatcher._active_keys)
+        user_feed_metrics = engine.get_user_feed_metrics()
         with orderbook._follow_up_ledger._lock:
             follow_up_claims = sum(
                 len(slots)
@@ -491,11 +488,13 @@ async def _run_stress(args: argparse.Namespace) -> dict[str, Any]:
             "retained_coid_locks": len(engine._coid_handler_locks),
             "retained_progress_records": progress_records,
             "retained_progress_locks": progress_locks,
-            "dispatcher_pending": dispatcher_pending,
-            "dispatcher_queues": dispatcher_queues,
-            "dispatcher_active_keys": dispatcher_active,
-            "user_queue_depth": engine.event_queue[ChannelType.USER.value].qsize(),
-            "user_feed_phase": engine._user_feed_phase.value,
+            "dispatcher_pending": user_feed_metrics["dispatcher_pending"],
+            "dispatcher_queues": user_feed_metrics["dispatcher_queues"],
+            "dispatcher_active_keys": user_feed_metrics[
+                "dispatcher_active_keys"
+            ],
+            "user_queue_depth": user_feed_metrics["queue_depth"],
+            "user_feed_phase": user_feed_metrics["phase"],
             "database_counts": database_counts,
             "bytes_sent": dashboard_bytes,
             "dashboard_bytes_per_cancellation": (

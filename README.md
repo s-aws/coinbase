@@ -318,7 +318,8 @@ and verifies terminal cleanup without retained per-order state.
 | Path | Responsibility |
 | --- | --- |
 | `main.py` | Production startup, readiness, reconciliation, and shutdown ordering |
-| `core/order_engine.py` | WebSocket ingestion and parent/child/fill lifecycle |
+| `core/order_engine.py` | WebSocket connections and parent/child/fill lifecycle |
+| `core/user_feed_processor.py` | Authenticated envelope sequencing, reduction, bounded per-order dispatch, and metrics |
 | `core/stealth_order_manager.py` | Canonical stealth lifecycle and exchange mutation logic |
 | `bridges/stealth_order_bridge.py` | Stealth hydration, scheduling, and engine integration |
 | `bridges/stealth_event_deadline_scheduler.py` | Ordered market-event FIFO and derived deadline heap |

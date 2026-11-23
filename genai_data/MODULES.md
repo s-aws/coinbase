@@ -8,7 +8,8 @@ Use it to find the single canonical behavior path before editing.
 
 ## Quick Lookup by Task
 
-- Engine lifecycle and event processing: `core/order_engine.py`
+- Engine lifecycle and order processing: `core/order_engine.py`
+- Authenticated feed sequencing and dispatch: `core/user_feed_processor.py`
 - Stealth order lifecycle/repricing/rearm/Rehide/cancel/move: `core/stealth_order_manager.py`
 - Runtime pause/resume/drain state: `core/runtime_controller.py`
 - Exchange-vs-local reconciliation: `core/startup_reconciler.py`, `core/periodic_reconciler.py`
@@ -52,12 +53,8 @@ Can display cross-venue metrics using `market_intel` and external ws feeds.
 Primary runtime engine.
 Responsibilities:
 - separate public `WSClient` fan-out and single-owner private `WSUserClient`
-  topology; public payload dedup remains isolated from authenticated envelope
-  generation/sequence handling
-- authenticated user-feed phase reduction, paginated bootstrap accumulation,
-  connection-global sequence fencing, fail-closed reconnect, full-envelope
-  retention through one ordered private reducer queue, old-generation
-  lifecycle draining, and atomically admitted bounded keyed live-order FIFO
+  topology; authenticated payloads are delegated to `UserFeedProcessor` and
+  remain isolated from public payload deduplication
 - bounded ticker-ingress recovery with newest-envelope retention, inherited
   per-product continuity-loss counts, and Coinbase envelope-time forwarding
 - parent/child lifecycle updates
@@ -75,6 +72,18 @@ Responsibilities:
   handlers, plus order/position failure isolation inside mixed user events
 - startup-conditional early drain quiesce, preserving fully started fill/event
   workers until stealth bridge shutdown precedes full engine cleanup
+
+### `core/user_feed_processor.py`
+Instance-owned authenticated WebSocket pipeline.
+Responsibilities:
+- connection-generation and sequence fencing with fail-closed reconnect
+- paginated snapshot accumulation and ordered private-envelope reduction
+- old-generation lifecycle draining and stale-generation rejection
+- atomic bounded admission to per-`client_order_id` FIFO lanes
+- coherent feed, queue, dispatcher, bootstrap, and inflight metrics
+
+The processor calls `OrderEngine` for order/position lifecycle behavior; it
+does not own trading policy, persistence, or exchange placement.
 
 ### `core/stealth_order_manager.py`
 Stealth order state machine.

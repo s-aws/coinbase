@@ -10,7 +10,7 @@ import configuration
 import main
 import core.order_engine as order_engine_module
 from core import startup_reconciler
-from core.enums import EngineState
+from core.enums import EngineState, UserFeedPhase
 from core.runtime_controller import RuntimeController
 
 
@@ -883,6 +883,16 @@ def test_run_forever_readiness_publishes_operational_status_once(
     assert published == [{
         "threads_active": 2,
         "event_queue_depth": 0,
+        "user_feed": {
+            "generation": 0,
+            "phase": UserFeedPhase.AWAITING_SNAPSHOT.value,
+            "bootstrap_orders": 0,
+            "generation_inflight": 0,
+            "queue_depth": 0,
+            "dispatcher_pending": 0,
+            "dispatcher_queues": 0,
+            "dispatcher_active_keys": 0,
+        },
         "running": expected_running,
         "engine_state": expected_state.value,
     }]

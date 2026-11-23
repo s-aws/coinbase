@@ -149,12 +149,13 @@ Utility:
 - `get_sdk_client()`
 
 The wrapper accepts either Coinbase SDK `WSClient` or `WSUserClient`. Runtime
-ownership is split in `OrderEngine`: redundant `WSClient` instances subscribe
-only to public channels; exactly one `WSUserClient` subscribes to user order
-data, futures balance summary, and its heartbeat. Authenticated messages retain
-their entire envelope, share one connection-generation sequence watermark, and
-traverse one ordered reducer queue; they do not use the public payload-hash
-dedup path. Public ingress accepts only the configured public role channels.
+connection ownership stays in `OrderEngine`: redundant `WSClient` instances
+subscribe only to public channels, while exactly one `WSUserClient` subscribes
+to user order data, futures balance summary, and its heartbeat. The
+instance-owned `UserFeedProcessor` retains authenticated envelopes, owns their
+connection-generation sequence watermark, and reduces them through one ordered
+queue; they do not use the public payload-hash dedup path. Public ingress
+accepts only the configured public role channels.
 
 Authenticated user order wire kinds are `snapshot`, `update`, and compatibility
 `patch`; each row's `status` remains its independent lifecycle status. Initial
@@ -472,6 +473,9 @@ Dashboard `engine_status` includes the RuntimeController `engine_state` sampled
 when OrderEngine publishes status. `running` means background startup completed
 and RuntimeController currently admits originating work; it would be false in
 a sample taken during STARTING, PAUSED, DRAINING, or STOPPED.
+The nested `user_feed` object reports generation, phase, bootstrap size,
+generation-inflight count, private queue depth, and keyed-dispatcher pending,
+queue, and active-key counts from one processor snapshot.
 `admin_status_response` is the live state authority after the engine stop
 hook's final DRAINING sample.
 

@@ -92,7 +92,7 @@ Do not add a new stealth status unless the transition is backed by persistence, 
 
 ## In-Memory Runtime Structures
 
-### `UserStreamEnvelope` (`core/order_engine.py`)
+### `UserStreamEnvelope` (`core/user_feed_processor.py`)
 
 Immutable private WebSocket transport record containing `channel`, connection
 `generation`, connection-global `sequence_num`, Coinbase `timestamp`, and the

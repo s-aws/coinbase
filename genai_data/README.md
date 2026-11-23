@@ -33,6 +33,8 @@ Agent process files:
 ## System Snapshot
 
 This is a multithreaded Coinbase trading engine with:
+- Instance-owned authenticated feed sequencing and bounded keyed dispatch
+  (`core/user_feed_processor.py`).
 - Parent/child order lifecycle management under a strict flat hierarchy.
 - Stealth orders with condition-based reveal, anchor repricing/rearm, manual Rehide, intentional Cancel, and move-revealed flows.
 - Runtime lifecycle control (`STARTING`, `RUNNING`, transitional `PAUSING`, `PAUSED`, `DRAINING`, `STOPPED`) via `core/runtime_controller.py`.
@@ -60,6 +62,8 @@ A stealth order is a local execution plan, not a normal exchange order. It may s
 - `main.py` - starts dashboard, stealth bridge, order engine, runtime controller, and reconciler.
 - `dashboard_server.py` - WebSocket state hub and operator command surface.
 - `core/order_engine.py` - event ingestion, order lifecycle, follow-up logic.
+- `core/user_feed_processor.py` - private-feed generations, reduction,
+  backpressure, per-order FIFO dispatch, and runtime metrics.
 - `core/stealth_order_manager.py` - stealth lifecycle and reveal/reprice/move logic.
 - `bridges/stealth_order_bridge.py` - evaluation and DB reconciliation loops.
 
