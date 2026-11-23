@@ -127,11 +127,11 @@ Exception: if changes are limited to agent/context files only (`AGENTS.md`, `age
 export COINBASE_API_KEY="..."
 export COINBASE_API_SECRET="..."
 export COINBASE_USE_SANDBOX="true"
-./.venv/bin/python -m pytest tests/external/ -v -m external
+./.venv/bin/python3.14 -m pytest tests/external/ -v -m external
 
 # External websocket smoke (opt-in)
 export COINBASE_ENABLE_WEBSOCKET_EXTERNAL="true"
-./.venv/bin/python -m pytest tests/external/test_coinbase_api.py -v -m websocket --tb=short
+./.venv/bin/python3.14 -m pytest tests/external/test_coinbase_api.py -v -m websocket --tb=short
 ```
 
 ---
@@ -166,7 +166,7 @@ Workflow:
 
 ## Stack Snapshot
 
-- Python 3.13
+- Python 3.14
 - Coinbase Advanced Trade API (REST + WebSocket)
 - PostgreSQL (localhost/test-container patterns)
 - Rich terminal UI (`ui_console.py`)

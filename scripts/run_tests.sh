@@ -2,7 +2,7 @@
 set -euo pipefail
 
 project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-python_bin="${VENV_DIR:-${project_root}/.venv}/bin/python"
+python_bin="${VENV_DIR:-${project_root}/.venv}/bin/python3.14"
 
 [[ -x "${python_bin}" ]] || {
     printf 'Virtual environment not found. Run ./setup.sh first.\n' >&2

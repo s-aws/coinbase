@@ -15,7 +15,7 @@ sequentially; tests share process globals, files, and a test database.
 
 ## Environment
 
-The runtime requires Python 3.13. `tests/pytest.ini` enables strict config and
+The runtime requires Python 3.14. `tests/pytest.ini` enables strict config and
 markers, reports warnings, and treats unhandled thread exceptions as errors.
 `pytest-timeout` supplies the configured 30-second per-test timeout.
 

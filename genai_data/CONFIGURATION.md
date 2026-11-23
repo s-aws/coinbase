@@ -218,28 +218,28 @@ Do not introduce duplicate global settings when a per-order canonical field alre
 
 # Disable reconcilers for local troubleshooting
 export DISABLE_RECONCILER=1
-./.venv/bin/python -m main
+./.venv/bin/python3.14 -m main
 
 # Choose the dashboard listener before process startup (loopback, custom port)
 export DASHBOARD_SERVER_HOST=localhost
 export DASHBOARD_SERVER_PORT=9000
-./.venv/bin/python -m main
+./.venv/bin/python3.14 -m main
 # In another terminal, point the console at the same endpoint
-./.venv/bin/python ui_console.py --host localhost --port 9000
+./.venv/bin/python3.14 ui_console.py --host localhost --port 9000
 
 # Use fibonacci metrics windows (optional)
 export MARKET_METRICS_WINDOWS=fibonacci
-./.venv/bin/python -m main
+./.venv/bin/python3.14 -m main
 
 # Provision and verify the isolated test database endpoint and schema
 ./scripts/test_database.sh start
 COINBASE_DB_HOST=127.0.0.1 COINBASE_DB_PORT=9876 \
 COINBASE_DB_NAME=postgres COINBASE_DB_USER=postgres \
-COINBASE_DB_PASSWORD=postgres ./.venv/bin/python -m database.schema
+COINBASE_DB_PASSWORD=postgres ./.venv/bin/python3.14 -m database.schema
 ./scripts/test_database.sh status
 
 # Read-only live fee diagnostic: raw filtered summaries + public cache/quotes
-./.venv/bin/python genai_tools/check_live_fee_tier.py
+./.venv/bin/python3.14 genai_tools/check_live_fee_tier.py
 ```
 
 ## 8) Configuration Anti-Patterns

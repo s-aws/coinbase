@@ -138,13 +138,13 @@ unless the user explicitly asks for focused validation.
 export COINBASE_API_KEY="..."
 export COINBASE_API_SECRET="..."
 export COINBASE_USE_SANDBOX="true"
-./.venv/bin/python -m pytest tests/external/ -v -m external
+./.venv/bin/python3.14 -m pytest tests/external/ -v -m external
 ```
 
 ### External websocket smoke (explicit opt-in)
 ```bash
 export COINBASE_ENABLE_WEBSOCKET_EXTERNAL="true"
-./.venv/bin/python -m pytest tests/external/test_coinbase_api.py -v -m websocket --tb=short
+./.venv/bin/python3.14 -m pytest tests/external/test_coinbase_api.py -v -m websocket --tb=short
 ```
 
 ## Test Environment Safeguards

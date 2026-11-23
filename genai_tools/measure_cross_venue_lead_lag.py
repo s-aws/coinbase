@@ -7,7 +7,7 @@ worth wiring into reveal logic.
 This is a *measurement-only* tool. It does not touch the engine,
 the database, or any pricing logic. Run it standalone:
 
-    py -3.13 genai_tools/measure_cross_venue_lead_lag.py
+    ./.venv/bin/python3.14 genai_tools/measure_cross_venue_lead_lag.py
 
 Stop with Ctrl+C. Summary stats are printed every ``--interval``
 seconds (default 10).

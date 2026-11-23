@@ -34,7 +34,7 @@
     }
   ],
   "counts": {
-    "commits": 2091,
+    "commits": 2092,
     "edges": 39672,
     "files": 481,
     "git_refs": 11,
@@ -57,10 +57,10 @@
   "fatal_errors": [],
   "index_hashes": {
     "edges.jsonl": "8b6511969e5ec1fd682f9574401f69843f3dd209dfc13f9217b9c4e982910434",
-    "files.jsonl": "a6be4fadfe9bb6a73903e406bb7915e80ed2e4f36df3cc51060bb07faa2718b3",
-    "git_commits.jsonl": "f549db5d8c84ffb8c322798b2c6df04d1d1be6602b1ca358ead83a467fbb2c57",
-    "git_refs.jsonl": "4521677c6bc9b9d35e71a3412598b2c4e50ca868c1123bc8f456ad590daff37c",
-    "path_history.jsonl": "781b142fc8add3f53bd220d276f5b20e758e1bc793abea4d095b6bac53518c79",
+    "files.jsonl": "996f5a60f50407951945692165ae753f0da50fe7d0608e828339fd907918bbef",
+    "git_commits.jsonl": "9448d52680391664b7693ce37249a6dd24528534241aadb73982ccd2a40ca637",
+    "git_refs.jsonl": "baa7192c7054d1c1e6a78ec90e942fdcf4e795076597361b0eb4ec61bd3603d7",
+    "path_history.jsonl": "cb907793b9ad6078d46b8ef4125d8e18f4ed50e6d03d367e622f30156eb01a07",
     "symbols.jsonl": "dfe63b0b4740689f887d807b2ef15f8593060fc98767f11128923501894fe393",
     "tests.jsonl": "c004f1f35e7708fb0a8231d510f6a969f1beb8de1f6242f67ab9d83486cc5282"
   },
@@ -70,13 +70,13 @@
   "represented_path_count": 481,
   "schema_validation": {
     "error_count": 0,
-    "record_count": 52963,
+    "record_count": 52964,
     "validator": "built_in_json_schema_subset"
   },
   "semantic_reference_errors": [],
   "sensitive_output_findings": [],
   "source_edge_ids_missing": [],
-  "source_tree_digest": "fbb9f6044cde16312385537bee606c5438157f741c638c348df50a5c036aa8cb",
+  "source_tree_digest": "90b54903fdfa6d160e38671ee79c18aa2019364ab19e5d4acd7aaf0c8b9ab9a9",
   "status": "pass",
   "unresolved_call_edge_count": 20915
 }

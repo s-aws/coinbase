@@ -34,9 +34,9 @@
 
 ## Local Environment
 
-- `.venv/bin/python` resolves to the system's older Python and does not satisfy
-  the repository's Python 3.13 minimum. Use `.venv/bin/python3.14` in this
-  checkout unless the virtual environment is repaired.
+- `.venv/bin/python3.14` is the supported project interpreter. Setup,
+  validation, stress launchers, and documented commands use that explicit
+  path; the local generic virtual-environment links target the same binary.
 - The installed PostgreSQL package exposes a broken `/usr/bin/pg_config`
   symlink. The validated Python 3.14 environment uses `psycopg2-binary`; no
   tracked dependency declaration was changed.

@@ -4,7 +4,7 @@ Reports breakdown by status, side, product, and age — the data needed
 to decide whether to flip auto_heal=True in main.py.
 
 Usage (from any cwd, after `pip install -e .`):
-    py -3.13 genai_tools/inspect_drifted_orders.py
+    ./.venv/bin/python3.14 genai_tools/inspect_drifted_orders.py
 """
 
 from __future__ import annotations

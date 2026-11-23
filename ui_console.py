@@ -7,10 +7,10 @@ engine changes, no shared locks, no parallel state — read-only render of the
 
 Run from repo root in a separate terminal alongside the engine:
 
-    py -3.13 ui_console.py                       # default: cross-venue ON
-    py -3.13 ui_console.py --host 1.2.3.4        # remote dashboard host
-    py -3.13 ui_console.py --port 9000           # custom dashboard port
-    py -3.13 ui_console.py --no-cross-venue      # disable Binance perp WS
+    ./.venv/bin/python3.14 ui_console.py                       # default: cross-venue ON
+    ./.venv/bin/python3.14 ui_console.py --host 1.2.3.4        # remote dashboard host
+    ./.venv/bin/python3.14 ui_console.py --port 9000           # custom dashboard port
+    ./.venv/bin/python3.14 ui_console.py --no-cross-venue      # disable Binance perp WS
 
 Quit with Ctrl+C. The dashboard view auto-reconnects on disconnect; the
 cross-venue Binance feed reconnects independently with its own backoff.

@@ -98,7 +98,7 @@ repository root is the current directory.
 
 ### 1. Prerequisites
 
-- Python 3.13 or newer (the package requires `>=3.13`).
+- Python 3.14 (the package requires `>=3.14`).
 - PostgreSQL server/client tools (`initdb`, `pg_ctl`, `pg_isready`, `psql`).
 - Coinbase Advanced Trade API credentials authorized for the account and
   products you intend to operate.
@@ -158,7 +158,7 @@ variable explicitly. Verify the resolved target and server identity read-only
 before stateful startup:
 
 ```bash
-./.venv/bin/python - <<'PY'
+./.venv/bin/python3.14 - <<'PY'
 from database.database import PostgresDB
 
 db = PostgresDB()
@@ -178,13 +178,13 @@ After verifying the target, bootstrap or forward-migrate the runtime schema.
 The command is additive and does not delete rows or tables:
 
 ```bash
-./.venv/bin/python -m database.schema
+./.venv/bin/python3.14 -m database.schema
 ```
 
 ### 4. Start the complete engine
 
 ```bash
-./.venv/bin/python -m main
+./.venv/bin/python3.14 -m main
 ```
 
 Use `main`, not `dashboard_server.py`, for trading. `main` owns the required
@@ -245,10 +245,10 @@ Open one of the local HTML files directly in a browser:
 For a terminal client, run:
 
 ```bash
-./.venv/bin/python ui_console.py
+./.venv/bin/python3.14 ui_console.py
 
 # Match a custom server address/port (the console defaults remain localhost:8765).
-./.venv/bin/python ui_console.py --host <reachable-server-address> --port 9000
+./.venv/bin/python3.14 ui_console.py --host <reachable-server-address> --port 9000
 ```
 
 Use `Ctrl+C` in the engine terminal for the ordinary cooperative drain and
