@@ -222,9 +222,8 @@ for parsing rules and Python overrides.
 
 Clients select their endpoints independently; changing the server environment
 does not update browser URLs or console defaults. Most browser pages use the
-page hostname (or `localhost` for local files) and fixed port `8765`;
-`ui_dashboard.html` always uses `ws://localhost:8765`. The span builder and
-investor storyboard instead use the page host/port when served over HTTP(S).
+page hostname (or `localhost` for local files) and fixed port `8765`. The span
+builder instead uses the page host/port when served over HTTP(S).
 For a custom listener, match the client URL to a reachable server address and
 port, or configure a proxy for the page's expected endpoint. A wildcard bind
 such as `0.0.0.0` is not a client destination. The server provides plain `ws`,
@@ -238,7 +237,6 @@ Open one of the local HTML files directly in a browser:
 - `ui_order_span_builder.html` — create a ladder/span of stealth orders with a
   fixed 200 ms batch-send cadence and a configurable price-hold duration,
   including zero seconds. Open it only after the engine reports `RUNNING`.
-- `ui_dashboard.html` — general engine state and order activity.
 - `ui_stealth_repricing_chart.html`, `ui_slide_calibration_chart.html`, and
   `ui_spread_monitor.html` — focused market and strategy views.
 

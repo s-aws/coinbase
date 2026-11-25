@@ -87,7 +87,6 @@ unauthenticated, so bind explicitly to loopback for local-only access.
 - `ui_slide_calibration_chart.html`
 - `ui_stealth_repricing_chart.html`
 - `ui_spread_monitor.html`
-- `ui_dashboard.html`
 - `ui_console.py` (terminal consumer of dashboard state)
 
 ### WebSocket request message types currently handled

@@ -6,7 +6,7 @@ Runs as a separate thread alongside the main trading engine.
 Usage:
     Set DASHBOARD_SERVER_HOST and DASHBOARD_SERVER_PORT before launch.
     python dashboard_server.py  # Standalone dashboard/demo, not the trading engine
-    Then open ui_dashboard.html (its URL must match the listener).
+    Then open a current operator client such as ui_stealth_orders_manager.html.
 
 start_dashboard_server defaults: DASHBOARD_SERVER_HOST -> HOSTNAME -> localhost;
 DASHBOARD_SERVER_PORT -> 8765 (integer). Both are captured at import time.

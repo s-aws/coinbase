@@ -415,6 +415,10 @@ Policy fields:
 - `reveal_pricing_policy`
 - `follow_up_reveal_direction`
 
+`follow_up_reveal_direction` supports `same` and `opposite` and defaults to
+`opposite`. The standalone stealth-manager UI emits only these enum values;
+`above` and `below` are reveal-condition directions, not follow-up policy values.
+
 `anchor_repricing_policy` is optional. Omitting it or sending
 `{"enabled": false}` preserves normal order behavior. When enabled, the current
 stealth-manager and span-builder UIs emit:

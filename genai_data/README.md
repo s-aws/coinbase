@@ -69,7 +69,7 @@ A stealth order is a local execution plan, not a normal exchange order. It may s
 
 ## UI and Ops Entry Points
 
-- Browser UIs: `ui_stealth_orders_manager.html`, `ui_slide_calibration_chart.html`, `ui_stealth_repricing_chart.html`, `ui_order_span_builder.html`, `ui_hotpoint_manager.html`, `ui_dashboard.html`, `ui_spread_monitor.html`.
+- Browser UIs: `ui_stealth_orders_manager.html`, `ui_slide_calibration_chart.html`, `ui_stealth_repricing_chart.html`, `ui_order_span_builder.html`, `ui_hotpoint_manager.html`, `ui_spread_monitor.html`.
 - Terminal UI: `ui_console.py`.
 - Risk utility script: `__dangerous_delete_all_tables__.py` (destructive; use carefully).
 

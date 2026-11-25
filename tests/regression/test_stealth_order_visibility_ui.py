@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from core.enums import StealthOrderStatus
+from core.enums import FollowUpRevealDirection, StealthOrderStatus
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -23,6 +23,29 @@ def _manager_html() -> str:
 def _slice_between(source: str, start: str, end: str) -> str:
     start_index = source.index(start)
     return source[start_index:source.index(end, start_index)]
+
+
+@pytest.mark.regression
+def test_follow_up_reveal_direction_options_match_backend_enum():
+    html = _manager_html()
+    select = re.search(
+        r'<select id="follow_up_reveal_direction">(.*?)</select>',
+        html,
+        re.DOTALL,
+    )
+    assert select is not None
+
+    options = re.findall(
+        r'<option value="([^"]+)"([^>]*)>',
+        select.group(1),
+    )
+    assert [value for value, _attributes in options] == [
+        FollowUpRevealDirection.SAME.value,
+        FollowUpRevealDirection.OPPOSITE.value,
+    ]
+    assert [
+        value for value, attributes in options if "selected" in attributes
+    ] == [FollowUpRevealDirection.OPPOSITE.value]
 
 
 @pytest.mark.regression

@@ -58,13 +58,12 @@ Keep this operator API off untrusted networks.
 Client endpoint selection is independent of server environment variables:
 
 - `ui_console.py`: `--host` and `--port`, defaulting to `localhost` and `8765`.
-- `ui_dashboard.html`: fixed `ws://localhost:8765`.
 - `ui_stealth_orders_manager.html` and `ui_hotpoint_manager.html`: page hostname
   or `localhost`, fixed port `8765`, plain `ws`.
-- Chart, spread, calibration, repricing, and `ui_codex.html` pages: page
+- Chart, spread, calibration, and repricing pages: page
   hostname or `localhost`, fixed port `8765`; HTTPS pages select `wss`.
-- `ui_order_span_builder.html` and `ui_investor_storyboard.html`: page host/port
-  and matching `ws`/`wss` when served, otherwise `ws://localhost:8765`.
+- `ui_order_span_builder.html`: page host/port and matching `ws`/`wss` when
+  served, otherwise `ws://localhost:8765`.
 
 Custom server bindings require matching client URLs or proxy routing. There
 is no shared browser endpoint setting or server-provided HTML hosting. HTTPS
