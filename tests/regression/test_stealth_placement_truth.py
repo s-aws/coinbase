@@ -13,6 +13,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from core.enums import (
+    FollowUpRevealDirection,
     OrderStatus,
     RevealPricingPolicy,
     StealthLifecycleEvent,
@@ -960,6 +961,45 @@ def test_reveal_pricing_policy_schema_migration_is_additive(monkeypatch):
 
 
 @pytest.mark.regression
+def test_follow_up_reveal_direction_schema_migration_is_additive(monkeypatch):
+    from database import order as order_db
+
+    cursor = MagicMock()
+    db_client = MagicMock()
+    db_client.get_cursor.return_value.__enter__.return_value = cursor
+    monkeypatch.setattr(order_db, "DB_CLIENT", db_client)
+
+    order_db.create_stealth_orders_table()
+
+    statements = [call.args[0] for call in cursor.execute.call_args_list]
+    expected_definition = (
+        "follow_up_reveal_direction VARCHAR(32) NOT NULL DEFAULT 'opposite'"
+    )
+    assert any(expected_definition in statement for statement in statements)
+    assert any(
+        "ALTER TABLE stealth_orders ADD COLUMN IF NOT EXISTS "
+        "follow_up_reveal_direction"
+        in statement
+        for statement in statements
+    )
+
+
+@pytest.mark.regression
+def test_follow_up_reveal_direction_is_persisted_on_insert(five_tick_product):
+    db = _ReadOnlyDB([])
+    manager = StealthOrderManager(db_client=None)
+    manager.db_client = db
+    _, order = _triggered_order(five_tick_product)
+    order["follow_up_reveal_direction"] = FollowUpRevealDirection.SAME.value
+
+    assert manager._save_stealth_order_to_db(order) is True
+
+    insert_query, insert_params = db.updates[-1]
+    assert "follow_up_reveal_direction" in insert_query
+    assert FollowUpRevealDirection.SAME.value in insert_params
+
+
+@pytest.mark.regression
 def test_reveal_pricing_policy_write_paths_normalize_and_preserve_absence(
     five_tick_product,
 ):
@@ -1041,6 +1081,50 @@ def test_hydration_missing_reveal_pricing_policy_fails_safe(
     assert (
         manager.in_memory_orders["stored-sid"]["reveal_pricing_policy"]
         == RevealPricingPolicy.CONFIGURED_LIMIT.value
+    )
+
+
+@pytest.mark.regression
+@pytest.mark.parametrize("load_mode", ("startup", "lazy"))
+def test_hydration_restores_follow_up_reveal_direction(
+    five_tick_product,
+    load_mode,
+):
+    row = _stored_row(five_tick_product, price=77115.0)
+    row["follow_up_reveal_direction"] = FollowUpRevealDirection.SAME.value
+    db = _ReadOnlyDB([row])
+    manager = StealthOrderManager(db_client=None)
+    manager.db_client = db
+
+    if load_mode == "startup":
+        assert manager.load_all_active_orders_from_db() == 1
+    else:
+        assert manager._get_stealth_order("stored-sid") is not None
+
+    assert (
+        manager.in_memory_orders["stored-sid"]["follow_up_reveal_direction"]
+        == FollowUpRevealDirection.SAME.value
+    )
+
+
+@pytest.mark.regression
+@pytest.mark.parametrize("load_mode", ("startup", "lazy"))
+def test_hydration_missing_follow_up_reveal_direction_fails_safe(
+    five_tick_product,
+    load_mode,
+):
+    db = _ReadOnlyDB([_stored_row(five_tick_product, price=77115.0)])
+    manager = StealthOrderManager(db_client=None)
+    manager.db_client = db
+
+    if load_mode == "startup":
+        assert manager.load_all_active_orders_from_db() == 1
+    else:
+        assert manager._get_stealth_order("stored-sid") is not None
+
+    assert (
+        manager.in_memory_orders["stored-sid"]["follow_up_reveal_direction"]
+        == FollowUpRevealDirection.OPPOSITE.value
     )
 
 

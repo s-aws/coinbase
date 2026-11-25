@@ -148,6 +148,7 @@ Key columns:
 - size and status fields (`total_size`, `revealed_size`, `remaining_size`, `executed_size`, `status`)
 - condition fields (`reveal_condition_type`, `reveal_condition_json`, hold timestamps)
 - reveal execution policy (`reveal_pricing_policy`; defaults to `configured_limit`)
+- follow-up reveal direction (`follow_up_reveal_direction`; defaults to `opposite`)
 - policy/state JSONB (`anchor_repricing_policy_json`, `anchor_repricing_state_json`, `sizing_strategy_json`)
 - lifecycle fields (`last_lifecycle_event`, `failure_reason`)
 
@@ -163,8 +164,8 @@ Key columns:
 - A manual Rehide uses the same `pending_rearm` with `reprice_reason="rehide"`, unchanged desired configured price, and default `return_to_hidden=true`. It does not advance repricing metrics. The reveal-history audit classifies it as `reveal_event_type="rehide"`, not `reprice`. Existing `reveal_armed_at` also selects fresh placement IDs on later reveals when anchor repricing is disabled.
 > Note: `reveal_pricing_policy` is a first-class `stealth_orders` column and
 > is restored during both startup and lazy hydration.
-> `follow_up_reveal_direction` remains an **in-memory dict key only** and is
-> not a column on `stealth_orders`.
+> `follow_up_reveal_direction` is also a first-class column and is restored
+> during both startup and lazy hydration; legacy rows default to `opposite`.
 
 ### `stealth_order_snapshots`
 Lifecycle/event snapshots with market context.

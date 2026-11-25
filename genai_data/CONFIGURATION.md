@@ -193,10 +193,10 @@ Many important behaviors are configured per order, not globally.
 - `anchor_repricing_policy_json`
 - `anchor_repricing_state_json` (placement/rearm/intent state; not operator policy)
 - `reveal_pricing_policy` (persisted column, default `configured_limit`)
+- `follow_up_reveal_direction` (persisted column, default `opposite`)
 
-`follow_up_reveal_direction` remains an in-memory creation option and resets
-on hydration; it is not a persisted column. Distance-based cancel/re-entry and
-same-side hidden-order retreat policies are absent from this checkout.
+Distance-based cancel/re-entry and same-side hidden-order retreat policies are
+absent from this checkout.
 
 Do not introduce duplicate global settings when a per-order canonical field already exists.
 

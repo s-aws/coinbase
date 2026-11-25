@@ -6930,11 +6930,11 @@ class StealthOrderManager:
                 """INSERT INTO stealth_orders 
                    (stealth_order_id, product_id, side, total_size, remaining_size, 
                     limit_price, status, reveal_condition_type, reveal_condition_json,
-                          reveal_pricing_policy,
+                          reveal_pricing_policy, follow_up_reveal_direction,
                           sizing_strategy_json, reason, notes, parent_order_id,
                           anchor_repricing_policy_json, anchor_repricing_state_json,
                           failure_reason)
-                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                 (order['stealth_order_id'],
                  order['product_id'],
                  order['side'],
@@ -6948,6 +6948,10 @@ class StealthOrderManager:
                      reveal_pricing_policy=order.get('reveal_pricing_policy'),
                      reveal_condition=order.get('reveal_condition_json'),
                  ),
+                 order.get(
+                     'follow_up_reveal_direction',
+                     FollowUpRevealDirection.OPPOSITE.value,
+                 ) or FollowUpRevealDirection.OPPOSITE.value,
                  json.dumps(order.get('sizing_strategy_json', {})),
                  order.get('reason', ''),
                  order.get('notes', ''),
@@ -7106,6 +7110,9 @@ class StealthOrderManager:
                     'reveal_condition_type': row.get('reveal_condition_type', 'time_delay'),
                     'reveal_condition_json': reveal_condition_json,
                     'reveal_pricing_policy': reveal_pricing_policy,
+                    'follow_up_reveal_direction': row.get(
+                        'follow_up_reveal_direction'
+                    ) or FollowUpRevealDirection.OPPOSITE.value,
                     'sizing_strategy_json': _parse_json_container(row.get('sizing_strategy_json'), {}),
                     'reason': row.get('reason', ''),
                     'notes': row.get('notes', ''),
@@ -7211,6 +7218,9 @@ class StealthOrderManager:
                         'reveal_condition_type': condition_type,
                         'reveal_condition_json': reveal_condition_json,
                         'reveal_pricing_policy': reveal_pricing_policy,
+                        'follow_up_reveal_direction': row.get(
+                            'follow_up_reveal_direction'
+                        ) or FollowUpRevealDirection.OPPOSITE.value,
                         'sizing_strategy_json': _parse_json_container(row.get('sizing_strategy_json'), {}),
                         'reason': row.get('reason', ''),
                         'notes': row.get('notes', ''),

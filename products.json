@@ -4,9 +4,9 @@
   ],
   "derivatives": [
     "BIP-20DEC30-CDE",
-    "BIT-27NOV26-CDE",
+    "BIT-24DEC26-CDE",
     "ETP-20DEC30-CDE",
-    "GOL-25NOV26-CDE",
+    "GOL-27JAN27-CDE",
     "NER-20DEC30-CDE",
     "PAU-20DEC30-CDE"
   ],
@@ -28,7 +28,7 @@
       "contract_size": null,
       "expiry": null
     },
-    "BIT-27NOV26-CDE": {
+    "BIT-24DEC26-CDE": {
       "type": "FUTURE",
       "base_currency": null,
       "quote_currency": null,
@@ -37,7 +37,7 @@
       "price_increment": "5",
       "base_min_size": "1",
       "quote_min_size": "0",
-      "display_name": "BTC 27-Nov",
+      "display_name": "BTC 24-Dec",
       "status": "",
       "mid_price": null,
       "trading_disabled": false,
@@ -60,7 +60,7 @@
       "contract_size": null,
       "expiry": null
     },
-    "GOL-25NOV26-CDE": {
+    "GOL-27JAN27-CDE": {
       "type": "FUTURE",
       "base_currency": null,
       "quote_currency": null,
@@ -69,7 +69,7 @@
       "price_increment": "0.1",
       "base_min_size": "1",
       "quote_min_size": "0",
-      "display_name": "GLD 25-Nov",
+      "display_name": "GLD 27-Jan 27",
       "status": "",
       "mid_price": null,
       "trading_disabled": false,

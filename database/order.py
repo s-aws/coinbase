@@ -12,7 +12,7 @@ from logging_service import get_logger
 from database.database import PostgresDB
 from typing import Dict, List, Any, Optional, Sequence
 from core.constants import get_local_now
-from core.enums import StealthLifecycleEvent, StealthOrderStatus
+from core.enums import FollowUpRevealDirection, StealthLifecycleEvent, StealthOrderStatus
 from core.exceptions import DatabaseConnectionError, OrderPersistenceError, DatabaseTransactionError
 from configuration import DEFAULT_MAX_ORDER_REPLACEMENT
 
@@ -135,6 +135,7 @@ def create_stealth_orders_table() -> None:
         - visibility_score: Calculated market visibility metric (0.0-1.0)
         - reveal_condition_type: Type of condition (price, time_delay, spread, etc.)
         - reveal_condition_json: JSONB configuration for the reveal condition
+        - follow_up_reveal_direction: Reveal direction strategy inherited by follow-up orders
         - condition_first_met_at: Timestamp when condition was first detected
         - condition_confirmed_at: Timestamp when condition was fully confirmed
         - sizing_strategy_json: JSONB configuration for reveal sizing
@@ -155,7 +156,7 @@ def create_stealth_orders_table() -> None:
         >>> create_stealth_orders_table()
         stealth_orders table done.
     """
-    create_table_query = """
+    create_table_query = f"""
     CREATE TABLE IF NOT EXISTS stealth_orders (
         id SERIAL PRIMARY KEY,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -179,6 +180,7 @@ def create_stealth_orders_table() -> None:
         reveal_condition_type VARCHAR(32) NOT NULL,
         reveal_condition_json JSONB NOT NULL,
         reveal_pricing_policy VARCHAR(32) NOT NULL DEFAULT 'configured_limit',
+        follow_up_reveal_direction VARCHAR(32) NOT NULL DEFAULT '{FollowUpRevealDirection.OPPOSITE.value}',
         condition_first_met_at TIMESTAMP,
         condition_confirmed_at TIMESTAMP,
         
@@ -211,6 +213,11 @@ def create_stealth_orders_table() -> None:
         cursor.execute(
             "ALTER TABLE stealth_orders ADD COLUMN IF NOT EXISTS reveal_pricing_policy "
             "VARCHAR(32) NOT NULL DEFAULT 'configured_limit'"
+        )
+        cursor.execute(
+            "ALTER TABLE stealth_orders ADD COLUMN IF NOT EXISTS "
+            "follow_up_reveal_direction VARCHAR(32) NOT NULL DEFAULT "
+            f"'{FollowUpRevealDirection.OPPOSITE.value}'"
         )
         print("stealth_orders table done.")
 
