@@ -978,14 +978,15 @@
                                         <option value="A">Absolute Amount</option>
                                     </select>
                                     <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                        Controls only Target Distance and Max Distance.<br>
                                         <b style="color:#888;">Percentage</b>: distances are fractions of the reference price (0.01 = 1%)<br>
-                                        <b style="color:#888;">Absolute</b>: distances are fixed dollar amounts (e.g. 50 = $50)
+                                        <b style="color:#888;">Absolute</b>: distances are fixed quote-unit amounts (e.g. 50 = 50 quote units)
                                     </div>
                                 </div>
                             </div>
                             <div class="form-row">
                                 <div class="form-group">
-                                    <label>Target Distance <span style="color:#51cf66;">●</span></label>
+                                    <label>Target Distance <span style="color:#51cf66;">●</span> <span id="anchor-target-distance-unit">(fraction)</span></label>
                                     <input type="number" id="anchor_target_distance" value="0.01" step="any" min="0">
                                     <div style="font-size: 10px; color: #666; margin-top: 3px;">
                                         Ideal distance from reference. The order is repriced <i>toward</i> this on every tick.<br>
@@ -993,7 +994,7 @@
                                     </div>
                                 </div>
                                 <div class="form-group">
-                                    <label>Max Distance <span style="color:#ff922b;">●</span></label>
+                                    <label>Max Distance <span style="color:#ff922b;">●</span> <span id="anchor-max-distance-unit">(fraction)</span></label>
                                     <input type="number" id="anchor_max_distance" value="0.05" step="any" min="0">
                                     <div style="font-size: 10px; color: #666; margin-top: 3px;">
                                         Drift tolerance. If the market moves and the order exceeds this distance, it is forced back to the boundary.<br>
@@ -1027,11 +1028,11 @@
                             </div>
                             <div class="form-row">
                                 <div class="form-group">
-                                    <label>Min Price Change</label>
+                                    <label>Min Price Change (quote units)</label>
                                     <input type="number" id="anchor_min_price_change" value="0.01" step="any" min="0">
                                     <div style="font-size: 10px; color: #666; margin-top: 3px;">
                                         Minimum absolute price movement required to trigger a reprice. Prevents excessive churn from tiny fluctuations.<br>
-                                        <b style="color:#888;">E.g.</b> 0.01 = skip reprice if new price differs by less than $0.01
+                                        <b style="color:#888;">E.g.</b> 0.01 = skip reprice if the new price differs by less than 0.01 quote units
                                     </div>
                                 </div>
                                 <div class="form-group">
@@ -1071,7 +1072,7 @@
                                     </div>
                                 </div>
                                 <div class="form-group">
-                                    <label>Max Step Per Reprice</label>
+                                    <label>Max Step Per Reprice (quote units)</label>
                                     <input type="number" id="anchor_max_step_per_reprice" value="5" step="any" min="0" disabled>
                                     <div style="font-size: 10px; color: #666; margin-top: 3px;">
                                         Maximum absolute price movement applied per reprice toward the desired price.<br>
@@ -1091,7 +1092,7 @@
 
                             <div class="form-row" style="border-top: 1px dashed #333; padding-top: 8px; margin-top: 8px;">
                                 <div class="form-group">
-                                    <label>Follow-Up Retreat Distance</label>
+                                    <label>Follow-Up Retreat Distance (fraction)</label>
                                     <input type="number" id="anchor_follow_up_retreat_distance" value="0.0005" step="any" min="0">
                                     <div style="font-size: 10px; color: #666; margin-top: 3px;">
                                         After a fill, the next follow-up order is posted slightly AWAY from the anchor price. Always percent-based.<br>
@@ -1200,7 +1201,7 @@
                                 <label>Target Movement</label>
                                 <input type="number" id="target_movement" placeholder="0.002" step="0.0001" value="0.002">
                                 <div style="font-size: 10px; color: #666; margin-top: 4px;">
-                                    Profit target: Enter as decimal (0.002 = 0.2%, 0.05 = 5%)
+                                    Percentage uses a fraction (0.002 = 0.2%); Absolute uses quote units.
                                 </div>
                             </div>
                         </div>
@@ -1235,7 +1236,7 @@
                                 <option value="A">Absolute Amount</option>
                             </select>
                             <div style="font-size: 10px; color: #666; margin-top: 4px;">
-                                Choose how target movement is measured
+                                Independent of the anchor repricing Distance Type.
                             </div>
                         </div>
 
@@ -1464,7 +1465,7 @@
                 </div>
                 <div style="font-size: 12px; color: #aaa;">
                     <strong>Percentage (%):</strong> Enter as decimal (e.g., 0.002 = 0.2%, 0.05 = 5%)<br>
-                    <strong>Absolute Amount:</strong> Fixed dollar/USDC amount to move (e.g., 100 = $100)<br>
+                    <strong>Absolute Amount:</strong> Fixed quote-unit movement (e.g., 100 = 100 quote units)<br>
                     <strong>Max Followups:</strong> Non-negative whole number<br>
                     <strong>Threshold / Hold Duration:</strong> Only editable for price reveal conditions
                 </div>
@@ -1783,6 +1784,13 @@
         function toggleAnchorRepricingFields() {
             const enabled = document.getElementById('enable_anchor_repricing').checked;
             document.getElementById('anchor-repricing-fields').classList.toggle('hidden', !enabled);
+        }
+
+        function updateAnchorDistanceUnitLabels() {
+            const isPercentage = document.getElementById('anchor_distance_type').value === 'P';
+            const unitLabel = isPercentage ? '(fraction)' : '(quote units)';
+            document.getElementById('anchor-target-distance-unit').textContent = unitLabel;
+            document.getElementById('anchor-max-distance-unit').textContent = unitLabel;
         }
 
         function toggleAnchorFixedInterval() {
@@ -3426,6 +3434,7 @@
             toggleAnchorRepricingFields();
             toggleAnchorFixedInterval();
             toggleSlideMode();
+            updateAnchorDistanceUnitLabels();
             
             // Update condition fields based on condition_type
             updateConditionFields();
@@ -3496,6 +3505,7 @@
                     toggleAnchorRepricingFields();
                     toggleAnchorFixedInterval();
                     toggleSlideMode();
+                    updateAnchorDistanceUnitLabels();
                     updateSizingFields();
                     
                     // Restore condition-specific field values
@@ -3555,6 +3565,7 @@
 
         document.getElementById('condition_type').addEventListener('change', updateConditionFields);
         document.getElementById('enable_anchor_repricing').addEventListener('change', toggleAnchorRepricingFields);
+        document.getElementById('anchor_distance_type').addEventListener('change', updateAnchorDistanceUnitLabels);
 
         document.getElementById('create-order-form').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -3951,6 +3962,7 @@
         restoreFormValues();      // Restore last used form values
         toggleAnchorRepricingFields();
         toggleAnchorFixedInterval();
+        updateAnchorDistanceUnitLabels();
         setupAutoSave();          // Setup auto-save on input changes
         updateHistoryDisplay();   // Display saved entries history
         initWebSocket();

@@ -1,7 +1,8 @@
 """Data models - Core dataclasses for orders, positions, products."""
 
+import math
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Any, TypedDict
+from typing import List, Optional, Dict, Any, Mapping, TypedDict
 from datetime import datetime
 
 from core.enums import (
@@ -582,6 +583,85 @@ class RepricingPolicy:
     def disabled(cls) -> 'RepricingPolicy':
         """Canonical \"no repricing\" instance. Equivalent to ``{\"enabled\": False}``."""
         return cls(enabled=False)
+
+    @classmethod
+    def validate_storage_input(cls, raw: Any) -> None:
+        """Validate a caller-supplied policy before normalizing it for storage.
+
+        This is intentionally stricter than :meth:`from_dict`. Hydration must
+        remain tolerant of legacy rows, but a new order must not silently turn
+        an unknown absolute/percentage selector into ``PERCENT``. Missing
+        fields remain valid and receive the same documented defaults as before.
+
+        Raises:
+            ValueError: If the enabled raw policy has an invalid distance type,
+                a supplied non-finite numeric value, a negative unit-bearing
+                value, or ``max_distance < target_distance``.
+        """
+        if raw is None:
+            return
+        if not isinstance(raw, Mapping):
+            raise ValueError("policy must be an object")
+        if not bool(raw.get('enabled')):
+            return
+
+        distance_type_raw = raw.get('distance_type')
+        if distance_type_raw not in (None, ''):
+            normalized_distance_type = str(distance_type_raw).strip().upper()
+            try:
+                RepricingDistanceType(normalized_distance_type)
+            except ValueError as exc:
+                raise ValueError(
+                    "distance_type must be 'P' (percentage) or 'A' (absolute)"
+                ) from exc
+
+        numeric_fields = (
+            'target_distance',
+            'max_distance',
+            'fixed_interval_seconds',
+            'min_price_change',
+            'hysteresis_bps',
+            'min_reprice_interval_seconds',
+            'max_reprices_per_hour',
+            'max_step_per_reprice',
+            'volatility_sensitivity',
+            'max_reprice_window_seconds',
+            'require_minimum_volume',
+            'max_spread_bps',
+            'follow_up_retreat_distance',
+            'follow_up_retreat_jitter',
+        )
+        parsed: Dict[str, float] = {}
+        for field_name in numeric_fields:
+            value = raw.get(field_name)
+            if value in (None, ''):
+                continue
+            try:
+                parsed_value = float(value)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"{field_name} must be a finite number") from exc
+            if not math.isfinite(parsed_value):
+                raise ValueError(f"{field_name} must be a finite number")
+            parsed[field_name] = parsed_value
+
+        nonnegative_fields = (
+            'target_distance',
+            'max_distance',
+            'min_price_change',
+            'hysteresis_bps',
+            'max_step_per_reprice',
+            'follow_up_retreat_distance',
+        )
+        for field_name in nonnegative_fields:
+            if parsed.get(field_name, 0.0) < 0:
+                raise ValueError(f"{field_name} must be zero or greater")
+
+        target_distance = parsed.get('target_distance', 0.0)
+        max_distance = parsed.get('max_distance', target_distance)
+        if max_distance < target_distance:
+            raise ValueError(
+                "max_distance must be greater than or equal to target_distance"
+            )
 
     @classmethod
     def from_dict(cls, raw: Optional[Dict[str, Any]]) -> 'RepricingPolicy':

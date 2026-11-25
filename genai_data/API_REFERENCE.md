@@ -433,27 +433,37 @@ stealth-manager and span-builder UIs emit:
 
 - `enabled`
 - `reference_price_source`: `last_trade`, `midpoint`, or `top_of_book`
-- `distance_type`: `A` absolute or `P` percent
-- `target_distance`
-- `max_distance`
+- `distance_type`: `A` absolute quote units or `P` percentage fraction; this
+  selector applies only to `target_distance` and `max_distance`
+- `target_distance`: fraction of the live reference in `P`, quote units in `A`
+- `max_distance`: fraction of the live reference in `P`, quote units in `A`
 - `update_mode`: `adaptive` or `fixed`
 - `fixed_interval_seconds`
-- `min_price_change`
-- `hysteresis_bps`
+- `min_price_change`: always absolute quote units
+- `hysteresis_bps`: always basis points relative to the current price
 - `min_reprice_interval_seconds`
 - `max_reprices_per_hour`
 - `post_only_required`
 - `slide_mode`
-- `max_step_per_reprice`
-- `follow_up_retreat_distance`
-- `follow_up_retreat_jitter`
+- `max_step_per_reprice`: always absolute quote units
+- `follow_up_retreat_distance`: always a percentage fraction, independent of
+  `distance_type` (`0.0005` = 5 bps)
+- `follow_up_retreat_jitter`: unitless fraction from 0 through 1
 
-The span builder sends a separate policy for every emitted order. For zero-based
-span index `i`, it adds the same nonnegative offset to `target_distance` and
-`max_distance`: `i * price_step` for `A`, or
+New order and import payloads reject an unknown `distance_type`, non-finite
+numeric policy values, negative unit-bearing distances, and
+`max_distance < target_distance`. Legacy persisted policies remain leniently
+hydrated so an old or partial row does not become unloadable.
+
+The span builder sends a materialized policy for every execution unit. For
+zero-based span index `i`, it adds the same nonnegative offset to
+`target_distance` and `max_distance`: `i * price_step` for `A`, or
 `i * (price_step / start_price)` for `P`. The backend remains responsible for
-applying BUY/SELL direction. Percentage spacing therefore scales with the live
-reference price; use `A` for fixed quote-unit spacing.
+applying BUY/SELL direction. Percentage spacing is exact in quote units at the
+configured start price and then scales with the live reference; use `A` for
+fixed quote-unit spacing. In Parent+Children mode, the per-child values are
+derived execution materializations of the root span policy, not independent
+child strategy choices.
 
 ## 4) Internal Runtime Control API
 

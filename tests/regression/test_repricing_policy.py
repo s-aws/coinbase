@@ -196,6 +196,70 @@ def test_manager_normalizer_preserves_valid_policy():
     assert out["max_distance"] == 200.0
 
 
+def test_manager_normalizer_rejects_unknown_distance_type_without_changing_hydration():
+    """New input fails closed while legacy rows retain tolerant hydration."""
+    from core.exceptions import OrderCreationError
+    from core.stealth_order_manager import StealthOrderManager
+
+    raw = {
+        "enabled": True,
+        "target_distance": 0.01,
+        "max_distance": 0.05,
+        "distance_type": "absolute",
+    }
+    mgr = StealthOrderManager.__new__(StealthOrderManager)
+
+    with pytest.raises(OrderCreationError, match="distance_type must be 'P'.*'A'"):
+        mgr._normalize_anchor_repricing_policy(raw)
+
+    assert RepricingPolicy.from_dict(raw).distance_type is RepricingDistanceType.PERCENT
+
+
+@pytest.mark.parametrize(
+    ("field_name", "value", "message"),
+    (
+        ("target_distance", float("nan"), "target_distance must be a finite number"),
+        ("max_distance", float("inf"), "max_distance must be a finite number"),
+        ("target_distance", -0.01, "target_distance must be zero or greater"),
+        ("min_price_change", -1.0, "min_price_change must be zero or greater"),
+        (
+            "follow_up_retreat_distance",
+            -0.001,
+            "follow_up_retreat_distance must be zero or greater",
+        ),
+    ),
+)
+def test_manager_normalizer_rejects_malformed_unit_values(field_name, value, message):
+    from core.exceptions import OrderCreationError
+    from core.stealth_order_manager import StealthOrderManager
+
+    raw = {
+        "enabled": True,
+        "distance_type": "P",
+        "target_distance": 0.01,
+        "max_distance": 0.05,
+        field_name: value,
+    }
+    mgr = StealthOrderManager.__new__(StealthOrderManager)
+
+    with pytest.raises(OrderCreationError, match=message):
+        mgr._normalize_anchor_repricing_policy(raw)
+
+
+def test_manager_normalizer_rejects_max_distance_below_target():
+    from core.exceptions import OrderCreationError
+    from core.stealth_order_manager import StealthOrderManager
+
+    mgr = StealthOrderManager.__new__(StealthOrderManager)
+    with pytest.raises(OrderCreationError, match="max_distance must be greater"):
+        mgr._normalize_anchor_repricing_policy({
+            "enabled": True,
+            "distance_type": "A",
+            "target_distance": 10.0,
+            "max_distance": 5.0,
+        })
+
+
 # ---- static-source guard against duplicate-rule regression -------------------
 #
 # Per ``/memories/duplicated-rule-pattern.md`` (Coinbase repo, 2026-04-27): the

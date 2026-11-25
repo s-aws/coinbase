@@ -94,6 +94,7 @@ from core.enums import (
     StealthOrderStatus,
 )
 from core.exceptions import (
+    OrderCreationError,
     RevealPricingError,
     RevealConditionEvaluationError,
     RevealOrderSliceError,
@@ -618,10 +619,12 @@ class StealthOrderManager:
     ) -> Dict[str, Any]:
         """Normalize anchor-repricing policy for storage.
 
-        Two-step canonicalisation:
-        1. :meth:`RepricingPolicy.from_dict` does field-by-field clamping,
+        Three-step canonicalisation:
+        1. :meth:`RepricingPolicy.validate_storage_input` rejects ambiguous or
+           malformed caller input without changing lenient legacy hydration.
+        2. :meth:`RepricingPolicy.from_dict` does field-by-field clamping,
            enum coercion, and slide-mode coupling.
-        2. The storage gate below collapses semantically meaningless
+        3. The storage gate below collapses semantically meaningless
            configurations (``enabled=True`` but no ``target_distance``) to
            a disabled policy so downstream code can rely on the
            ``enabled`` flag alone.
@@ -631,6 +634,13 @@ class StealthOrderManager:
         :meth:`RepricingPolicy.coerce` directly — they don't need this
         gate because storage already enforced it.
         """
+        try:
+            RepricingPolicy.validate_storage_input(anchor_repricing_policy)
+        except ValueError as exc:
+            raise OrderCreationError(
+                f"Invalid anchor repricing policy: {exc}"
+            ) from exc
+
         policy = RepricingPolicy.from_dict(anchor_repricing_policy)
         if policy.enabled and policy.target_distance <= 0:
             policy = RepricingPolicy.disabled()
@@ -4882,8 +4892,6 @@ class StealthOrderManager:
         # This ensures deterministic IDs when UI provides them, and proper generation for follow-ups
         if not stealth_order_id:
             stealth_order_id = str(uuid.uuid4())
-
-        from core.exceptions import OrderCreationError
 
         normalized_reveal_pricing_policy = self._normalize_reveal_pricing_policy(
             reveal_pricing_policy=reveal_pricing_policy,

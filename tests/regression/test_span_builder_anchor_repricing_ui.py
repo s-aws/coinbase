@@ -134,7 +134,41 @@ def test_span_repricing_offsets_only_distances_with_the_shared_index_helper():
         "function calculateSizes(",
     )
     assert "buildIndexedAnchorRepricingPolicy(baseAnchorPolicy, i, priceStep, startPrice)" in preview
-    assert "formatAnchorRepricingPreview(anchorPolicy)" in preview
+    assert "formatAnchorRepricingPreview(anchorPolicy, startPrice)" in preview
+
+
+@pytest.mark.regression
+def test_anchor_repricing_units_are_explicit_and_percentage_preview_resolves_at_start():
+    span_html = SPAN_BUILDER.read_text(encoding="utf-8")
+    manager_html = (REPO_ROOT / "ui_stealth_orders_manager.html").read_text(
+        encoding="utf-8"
+    )
+
+    for html in (span_html, manager_html):
+        assert 'id="anchor-target-distance-unit">(fraction)</span>' in html
+        assert 'id="anchor-max-distance-unit">(fraction)</span>' in html
+        assert "Min Price Change (quote units)" in html
+        assert "Max Step Per Reprice (quote units)" in html
+        assert "Follow-Up Retreat Distance (fraction)" in html
+
+        unit_labels = _slice_between(
+            html,
+            "function updateAnchorDistanceUnitLabels()",
+            "function toggleAnchorFixedInterval()",
+        )
+        assert "isPercentage ? '(fraction)' : '(quote units)'" in unit_labels
+        assert "anchor-target-distance-unit" in unit_labels
+        assert "anchor-max-distance-unit" in unit_labels
+
+    preview_formatter = _slice_between(
+        span_html,
+        "function formatAnchorRepricingPreview(",
+        "function updatePreview()",
+    )
+    assert "policy.target_distance * referencePrice" in preview_formatter
+    assert "policy.max_distance * referencePrice" in preview_formatter
+    assert "quote units at start" in preview_formatter
+    assert "quote units`" in preview_formatter
 
 
 @pytest.mark.regression
@@ -244,7 +278,8 @@ def test_span_profit_target_type_is_selected_and_forwarded_independently():
     assert 'id="target_movement"' in target_controls
     assert 'id="target_movement_type"' in target_controls
     assert "0.002 = 0.2%" in target_controls
-    assert "300 = $300" in target_controls
+    assert "300 = 300 quote units" in target_controls
+    assert "Independent of the repricing Distance Type above." in target_controls
     assert "anchor_distance_type" not in target_controls
     assert '<option value="P" selected>Percentage (%)</option>' in target_type_select
     assert '<option value="A">Absolute Amount</option>' in target_type_select

@@ -45,6 +45,14 @@ Planning and execution result structures for move-revealed flow.
 Strongly-typed anchor repricing policy with normalization and helper methods.
 Serialized into `stealth_orders.anchor_repricing_policy_json`.
 
+`distance_type` controls only `target_distance` and `max_distance`: `P` stores
+a fraction of the live reference and `A` stores absolute quote units.
+`min_price_change` and `max_step_per_reprice` are always quote units,
+`hysteresis_bps` is always basis points, `follow_up_retreat_distance` is always
+a percentage fraction, and `follow_up_retreat_jitter` is unitless. New storage
+input is strictly validated before normalization; `from_dict()` remains
+lenient for hydration of legacy persisted rows.
+
 ### TypedDicts
 - `MarketData`: current market snapshot for stealth evaluation/repricing.
 - `RepricingState`: mutable per-stealth runtime state persisted in JSONB.
