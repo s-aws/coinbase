@@ -271,19 +271,28 @@ pause either wins first or the already-admitted action drains as existing work.
 
 ### 2. Stealth Lifecycle Flow
 
-1. The bridge reserves the new `stealth_order_id` and owns its per-order lock
+1. Declarative spans are planned server-side before any write. The planner
+   validates and product-normalizes every rung, apportions the effective total
+   size in base increments, derives deterministic `client_order_id` values from
+   `span_id`, and materializes flat Parent+Children linkage or independent
+   roots. The bridge acquires every new-SID action lock in deterministic order
+   and then delegates each rung to the existing single-order creation path.
+   Span persistence is resumable, not atomic: validation failure writes
+   nothing; a runtime failure stops later rungs and returns an explicit partial
+   result; retry verifies matching durable rows and creates only missing rungs.
+2. The bridge reserves the new `stealth_order_id` and owns its per-order lock
    across the manager's complete creation transaction. `create_stealth_order`
    persists root order and in-memory state, emits `CREATED`, and publishes the
    schedule before a ticker can evaluate that SID. The same ownership covers
    follow-up post-create metadata persistence.
-2. The ticker worker publishes a defensive normalized snapshot to the bridge
+3. The ticker worker publishes a defensive normalized snapshot to the bridge
    before dashboard/metrics work. The scheduler preserves websocket arrival
    order and evaluates only active orders for that product. Coinbase's ticker
    event time is preserved (UTC-normalized; host UTC is only the fallback), so
    an engine queue delay does not silently lengthen a configured hold. A
    detected upstream queue loss or out-of-order timestamp breaks continuous
    evidence before a retained/newer ticker can start a new hold.
-3. Fixed time conditions use stable wall-clock deadlines. Price and spread
+4. Fixed time conditions use stable wall-clock deadlines. Price and spread
    conditions use continuous-hold deadlines: a true event starts `PENDING`, any
    later false, unusable, or failed-to-evaluate ordered event emits
    `CONDITION_RESET` and returns to `HIDDEN`, and elapsed time alone cannot
@@ -298,12 +307,12 @@ pause either wins first or the already-admitted action drains as existing work.
    recheck path; they were not redefined by this scheduler change. Activation
    rejects malformed configurations that would fail on every recheck while
    retaining their existing fallback semantics.
-4. `TRIGGERED` is a committed snapshot. Runtime pause can defer placement, but
+5. `TRIGGERED` is a committed snapshot. Runtime pause can defer placement, but
    later market events do not roll it back; reveal admission and inflight
    registration are atomic. Closed admission leaves no recurring trigger retry;
    the admission-open hook schedules one immediate retry per eligible order.
    Running retries use the existing 100 ms cadence with one successor owner.
-5. Anchor deadlines only mark a logical order due. The next live ticker for its
+6. Anchor deadlines only mark a logical order due. The next live ticker for its
    product claims that deadline generation and invokes the existing manager
    repricing path; stale generations are no-ops and anchor repricing REST/DB work
    does not run on the decision worker. The ticker may atomically claim either
@@ -314,18 +323,18 @@ pause either wins first or the already-admitted action drains as existing work.
    per SID, atomically registers admitted anchor work with `RuntimeController`,
    and retains or rebuilds unstarted due work if pause/drain or decision
    readiness loss begins.
-6. Reveal plan resolves submitted price (`configured_limit`, `top_of_book`, or `midpoint`) and post-only policy.
-7. Placement happens via REST. For placement client order IDs that differ from
+7. Reveal plan resolves submitted price (`configured_limit`, `top_of_book`, or `midpoint`) and post-only policy.
+8. Placement happens via REST. For placement client order IDs that differ from
    the stealth root, `StealthOrderManager.reveal_order_slice` pre-inserts the
    `order_parent` row before the REST attempt so a racing WS user-channel event
    does not create an orphan root. If REST raises or Coinbase returns a
    rejected placement, the reveal path records a failed reveal event but
    leaves revealed size, remaining size, and active placement pointers
    unchanged.
-8. Reveal events and lifecycle transitions persist to audit/history tables.
-9. Anchor repricing of a revealed order uses the accepted reveal event as live-placement truth, persists a `pending_rearm` cancel intent, and requests cancellation without placing a replacement. The default `return_to_hidden=true` mode keeps the order `REVEALED` until the matching authenticated `CANCELLED` event returns that placement's size to hidden inventory. The same intent may be superseded with `return_to_hidden=false` when terminal local state must win (for example, an operator cancel during an in-flight rearm); this reuses the acknowledgement path rather than adding another cancel protocol. A fill aborts the rearm, and every non-terminal/ambiguous cancel outcome leaves the intent pending. The existing condition evaluator and reveal path own all later re-entry. Repricing fails closed when one tracked cancellation cannot account for all revealed exposure; multi-live sizing layouts are intentionally unsupported by this minimal path.
-10. The operator Move-revealed flow remains a distinct direct cancel-and-replace action with audit row insertion; it is not the automatic cancel-to-hidden rearm path.
-11. Manual Rehide enters the same persisted rearm/confirmation path without requiring anchor repricing or a price change. It preserves the configured price, condition configuration, sizing, and flat linkage; only one fully accounted zero-fill placement is eligible. The bridge requires startup readiness and atomically admitted runtime work under its existing per-order action lock. A request acknowledgement means pending exchange confirmation, never an optimistic `HIDDEN` status. Confirmation restarts the existing reveal policy; a satisfied condition may reveal again subject to its normal hold/delay and admission rules. Manual rehide does not increment repricing history or reset anchor pacing.
+9. Reveal events and lifecycle transitions persist to audit/history tables.
+10. Anchor repricing of a revealed order uses the accepted reveal event as live-placement truth, persists a `pending_rearm` cancel intent, and requests cancellation without placing a replacement. The default `return_to_hidden=true` mode keeps the order `REVEALED` until the matching authenticated `CANCELLED` event returns that placement's size to hidden inventory. The same intent may be superseded with `return_to_hidden=false` when terminal local state must win (for example, an operator cancel during an in-flight rearm); this reuses the acknowledgement path rather than adding another cancel protocol. A fill aborts the rearm, and every non-terminal/ambiguous cancel outcome leaves the intent pending. The existing condition evaluator and reveal path own all later re-entry. Repricing fails closed when one tracked cancellation cannot account for all revealed exposure; multi-live sizing layouts are intentionally unsupported by this minimal path.
+11. The operator Move-revealed flow remains a distinct direct cancel-and-replace action with audit row insertion; it is not the automatic cancel-to-hidden rearm path.
+12. Manual Rehide enters the same persisted rearm/confirmation path without requiring anchor repricing or a price change. It preserves the configured price, condition configuration, sizing, and flat linkage; only one fully accounted zero-fill placement is eligible. The bridge requires startup readiness and atomically admitted runtime work under its existing per-order action lock. A request acknowledgement means pending exchange confirmation, never an optimistic `HIDDEN` status. Confirmation restarts the existing reveal policy; a satisfied condition may reveal again subject to its normal hold/delay and admission rules. Manual rehide does not increment repricing history or reset anchor pacing.
 
 ### Stealth State and Exchange Truth
 
@@ -398,7 +407,7 @@ endpoint matrix and local-only binding guidance.
 
 `dashboard_server.py` exposes command handlers for:
 - runtime admin (`admin_status`, `admin_pause`, `admin_resume`, `admin_shutdown`)
-- parent CRUD, stealth creation/update/cancel/Rehide/move/reprice and import/export
+- parent CRUD, single/span stealth creation, update/cancel/Rehide/move/reprice, and import/export
 - chart and calibration reads
 - products list refresh
 - move history and premark flows
@@ -431,6 +440,9 @@ Current scope is intentionally narrow and fail-soft:
   placement similarly has an initial gate and no uniform atomic boundary.
 - Pending rearm requires one fully accounted zero-fill placement. Multi-live
   exposure fails closed rather than treating hidden remaining_size as exposure.
+- Span creation uses the existing per-order persistence transaction for each
+  rung. It is resumable through deterministic IDs but is not one cross-rung
+  database transaction; a runtime persistence failure can return `partial`.
 - Cumulative-volume compatibility evaluation expects trade-volume fields that
   the ticker bridge does not supply and retains evaluator-lifetime limitations.
   Its presence in the factory is not evidence of correct live accumulation.

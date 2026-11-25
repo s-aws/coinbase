@@ -29,14 +29,27 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import order as order_module
+from business.stealth_order_span import plan_stealth_order_span
 from order import create_limit_order_span
 
 
 @pytest.fixture(autouse=True)
 def canonical_product_metadata():
+    metadata = {
+        "price_increment": "1",
+        "base_increment": "0.1",
+        "base_min_size": "0",
+        "quote_min_size": "0",
+    }
     with patch(
         "calculation.price_validation.get_product_metadata",
-        return_value={"price_increment": "1"},
+        return_value=metadata,
+    ), patch(
+        "calculation.size_validation.get_product_metadata",
+        return_value=metadata,
+    ), patch(
+        "business.stealth_order_span.get_product_metadata",
+        return_value=metadata,
     ):
         yield
 
@@ -44,7 +57,22 @@ def canonical_product_metadata():
 @pytest.fixture
 def fake_bridge():
     bridge = MagicMock()
-    bridge.create_stealth_order.return_value = "fake-stealth-uuid"
+
+    def create_span(request):
+        plan = plan_stealth_order_span(request)
+        return {
+            **plan.to_dict(),
+            "status": "success",
+            "created_count": len(plan.orders),
+            "existing_count": 0,
+            "failed_count": 0,
+            "orders": [
+                {**order.to_dict(), "status": "created"}
+                for order in plan.orders
+            ],
+        }
+
+    bridge.create_stealth_order_span.side_effect = create_span
     return bridge
 
 
@@ -61,7 +89,7 @@ def test_smoke_default_path_does_not_explode(fake_bridge):
         )
     assert isinstance(result, list) and len(result) == 1
     assert result[0]["success"] is True
-    fake_bridge.create_stealth_order.assert_called_once()
+    fake_bridge.create_stealth_order_span.assert_called_once()
 
 
 def test_no_camouflage_passes_raw_price(fake_bridge):
@@ -76,8 +104,8 @@ def test_no_camouflage_passes_raw_price(fake_bridge):
             max_order_count=1,
             camouflage_round_numbers=False,
         )
-    kwargs = fake_bridge.create_stealth_order.call_args.kwargs
-    assert kwargs["limit_price"] == 42_000.0
+    request = fake_bridge.create_stealth_order_span.call_args.args[0]
+    assert request["start_price"] == 42_000.0
 
 
 @pytest.mark.parametrize(
@@ -92,7 +120,12 @@ def test_off_grid_price_is_normalized_before_bridge_and_response(
     with patch.object(order_module, "get_stealth_order_bridge", return_value=fake_bridge), \
          patch(
              "calculation.price_validation.get_product_metadata",
-             return_value={"price_increment": "5"},
+             return_value={
+                 "price_increment": "5",
+                 "base_increment": "0.1",
+                 "base_min_size": "0",
+                 "quote_min_size": "0",
+             },
          ):
         result = create_limit_order_span(
             product_id="BTC-USDC",
@@ -102,9 +135,9 @@ def test_off_grid_price_is_normalized_before_bridge_and_response(
             max_order_count=1,
         )
 
-    sent_price = fake_bridge.create_stealth_order.call_args.kwargs["limit_price"]
-    assert sent_price == expected_price
+    sent_price = result[0]["success_response"]["price"]
     assert result[0]["success_response"]["price"] == str(expected_price)
+    assert sent_price == str(expected_price)
 
 
 def test_camouflage_actually_shifts_price(fake_bridge):
@@ -123,9 +156,9 @@ def test_camouflage_actually_shifts_price(fake_bridge):
             max_order_count=1,
             camouflage_round_numbers=True,
         )
-    kwargs = fake_bridge.create_stealth_order.call_args.kwargs
+    request = fake_bridge.create_stealth_order_span.call_args.args[0]
     # camouflage moves the price by at least one tick off the magnet.
-    assert kwargs["limit_price"] != 42_000.0
+    assert request["start_price"] != 42_000.0
 
 
 def test_camouflaged_price_echoed_in_response(fake_bridge):
@@ -143,14 +176,14 @@ def test_camouflaged_price_echoed_in_response(fake_bridge):
             max_order_count=1,
             camouflage_round_numbers=True,
         )
-    sent_price = fake_bridge.create_stealth_order.call_args.kwargs["limit_price"]
+    sent_price = fake_bridge.create_stealth_order_span.call_args.args[0]["start_price"]
     assert result[0]["success_response"]["price"] == str(sent_price)
 
 
 def test_bridge_failure_returns_error_dict(fake_bridge):
     """Bridge exceptions must be caught and surfaced as the documented
     ``error_response`` shape, not raised."""
-    fake_bridge.create_stealth_order.side_effect = RuntimeError("boom")
+    fake_bridge.create_stealth_order_span.side_effect = RuntimeError("boom")
     with patch.object(order_module, "get_stealth_order_bridge", return_value=fake_bridge):
         result = create_limit_order_span(
             product_id="BTC-USDC",
@@ -162,6 +195,24 @@ def test_bridge_failure_returns_error_dict(fake_bridge):
     assert result[0]["success"] is False
     assert result[0]["error_response"]["error"] == "ORDER_CREATION_FAILED"
     assert "boom" in result[0]["error_response"]["message"]
+
+
+def test_requested_count_creates_that_many_programmatic_span_results(fake_bridge):
+    with patch.object(order_module, "get_stealth_order_bridge", return_value=fake_bridge):
+        result = create_limit_order_span(
+            product_id="BTC-USDC",
+            side="SELL",
+            order_base_size=0.5,
+            start_price=42_000.0,
+            order_price_difference=10.0,
+            max_order_count=3,
+        )
+
+    assert len(result) == 3
+    assert all(item["success"] is True for item in result)
+    assert [
+        item["success_response"]["price"] for item in result
+    ] == ["42000.0", "42010.0", "42020.0"]
 
 
 def test_no_bridge_raises_runtime_error():

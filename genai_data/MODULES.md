@@ -184,6 +184,10 @@ Responsibilities:
 - per-SID action ownership across complete root/follow-up creation, scheduling,
   reveal/reprice/cancel, condition reset/edit, websocket exchange-ID
   enrichment, and terminal execution updates
+- declarative span coordination: deterministic all-SID lock acquisition,
+  idempotent existing-rung verification, stop-on-first-failure materialization,
+  and explicit success/partial/error results through the canonical single-order
+  creation path
 - terminal fail-closed scheduler stop/readiness clear on worker or schedule
   failure; one diagnostic is logged and an unsafe later resume is paused again
 - reveal event recording
@@ -204,6 +208,11 @@ intrinsic snapshot flag, not its opaque payload, identifies a retained ticker.
 The heap is disposable derived state, never lifecycle truth.
 
 ## `business/` (Business Logic)
+
+- `business/stealth_order_span.py`: side-effect-free declarative span planning,
+  product-grid normalization, exact rung allocation, deterministic
+  `client_order_id` derivation, flat hierarchy construction, and per-rung
+  reveal/anchor policy materialization.
 
 ### Fill and Reconciliation
 - `business/order_progress.py`: per-order cumulative watermark and delta derivation.

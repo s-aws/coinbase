@@ -104,6 +104,12 @@ class OrderType(str, Enum):
     STOP_LIMIT = "STOP_LIMIT"
 
 
+class OrderResponseType(str, Enum):
+    """Legacy programmatic order-response discriminator."""
+
+    ORDER = "ORDER"
+
+
 class TimeInForce(str, Enum):
     """How long an order remains valid.
     
@@ -234,6 +240,39 @@ class FollowUpRevealDirection(str, Enum):
     """
     SAME = "same"
     OPPOSITE = "opposite"
+
+
+class StealthSpanCreationMode(str, Enum):
+    """Hierarchy created by one declarative stealth-order span request."""
+
+    INDEPENDENT_PARENTS = "independent_parents"
+    PARENT_CHILDREN = "parent_children"
+
+
+class StealthSpanSizeDistribution(str, Enum):
+    """Weighting used to divide a span's total size across its rungs."""
+
+    EQUAL = "equal"
+    ASCENDING = "ascending"
+    DESCENDING = "descending"
+    PYRAMID = "pyramid"
+
+
+class StealthSpanResultStatus(str, Enum):
+    """Aggregate outcome of a non-atomic, resumable span creation request."""
+
+    SUCCESS = "success"
+    PARTIAL = "partial"
+    ERROR = "error"
+
+
+class StealthSpanOrderResultStatus(str, Enum):
+    """Outcome for one deterministic rung in a span creation result."""
+
+    CREATED = "created"
+    EXISTING = "existing"
+    FAILED = "failed"
+    NOT_ATTEMPTED = "not_attempted"
 
 
 class FollowUpKind(str, Enum):

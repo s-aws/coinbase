@@ -50,7 +50,13 @@ def test_span_builder_emits_operator_selected_zero_price_hold():
     assert "hold_duration_seconds: holdDuration" in build_condition
     assert "hold_duration_seconds: 2" not in build_condition
     assert "document.getElementById('price_hold_duration_seconds').value = '0';" in html
-    assert html.count("}, i * 200);") == 2
+    create_span = _slice_between(
+        html,
+        "function createOrderSpan()",
+        "function generateUUID()",
+    )
+    assert create_span.count("ws.send(") == 1
+    assert "i * 200" not in html
 
 
 @pytest.mark.regression

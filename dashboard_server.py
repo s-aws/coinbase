@@ -51,6 +51,7 @@ from core.enums import (
     PriceRoundingPolicy,
     RepricingReferenceSource,
     StealthOrderStatus,
+    StealthSpanResultStatus,
 )
 from core.models import RepricingPolicy
 from core.exceptions import WebSocketMessageError, OrderCreationError, CoinbaseAPIError
@@ -71,6 +72,7 @@ from calculation.formatter import safe_float
 _ORIGINATING_MSG_TYPES = frozenset({
     "place_order",
     "create_stealth_order",
+    "create_stealth_order_span",
     "create_parent_order",
     "reprice_now_stealth_order",
     "rehide_stealth_order",
@@ -839,7 +841,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
             if not REST_CLIENT_AVAILABLE:
                 response = {
                     "type": "order_response",
-                    "status": "error",
+                    "status": StealthSpanResultStatus.ERROR.value,
                     "message": "REST client not available",
                 }
                 await _send_dashboard_message(websocket, json.dumps(response))
@@ -948,7 +950,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 logger.error(f"API error during order placement: {str(e)}")
                 response = {
                     "type": "order_response",
-                    "status": "error",
+                    "status": StealthSpanResultStatus.ERROR.value,
                     "message": str(e),
                     "client_order_id": (
                         client_order_id
@@ -1394,6 +1396,89 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 "imported": success_count,
                 "total": len(orders_to_import),
             })
+
+        elif msg_type == "create_stealth_order_span":
+            span = data.get("span")
+            span_id = span.get("span_id") if isinstance(span, dict) else None
+            if not isinstance(span, dict):
+                await _send_dashboard_message(websocket, json.dumps({
+                    "type": "stealth_order_span_result",
+                    "span_id": span_id,
+                    "status": "error",
+                    "requested_count": 0,
+                    "created_count": 0,
+                    "existing_count": 0,
+                    "failed_count": 1,
+                    "orders": [],
+                    "error": "Missing or invalid span data",
+                }))
+                return
+            if not stealth_order_bridge:
+                await _send_dashboard_message(websocket, json.dumps({
+                    "type": "stealth_order_span_result",
+                    "span_id": span_id,
+                    "status": "error",
+                    "requested_count": span.get("order_count", 0),
+                    "created_count": 0,
+                    "existing_count": 0,
+                    "failed_count": 1,
+                    "orders": [],
+                    "error": "Stealth order system not initialized",
+                }))
+                return
+
+            try:
+                result = stealth_order_bridge.create_stealth_order_span(span)
+                response = {
+                    "type": "stealth_order_span_result",
+                    **result,
+                }
+                with state_lock:
+                    for order_result in result.get("orders", []):
+                        client_order_id = order_result.get("client_order_id")
+                        if not client_order_id:
+                            continue
+                        current = stealth_order_bridge.stealth_manager.in_memory_orders.get(
+                            client_order_id
+                        )
+                        if current is not None:
+                            engine_state["stealth_orders"][client_order_id] = (
+                                stealth_order_bridge.stealth_manager._serialize_order_for_json(
+                                    current
+                                )
+                            )
+                add_log_entry(
+                    "INFO"
+                    if result.get("status") == StealthSpanResultStatus.SUCCESS.value
+                    else "WARNING",
+                    "Stealth order span "
+                    f"{result.get('status')}: {result.get('created_count', 0)} created, "
+                    f"{result.get('existing_count', 0)} existing, "
+                    f"{result.get('failed_count', 0)} failed",
+                )
+            except Exception as exc:
+                logger.exception("Failed to create stealth order span")
+                response = {
+                    "type": "stealth_order_span_result",
+                    "span_id": span_id,
+                    "status": StealthSpanResultStatus.ERROR.value,
+                    "requested_count": span.get("order_count", 0),
+                    "created_count": 0,
+                    "existing_count": 0,
+                    "failed_count": 1,
+                    "orders": [],
+                    "error": str(exc),
+                }
+                add_log_entry("ERROR", f"Stealth order span creation failed: {exc}")
+
+            await _send_dashboard_message(
+                websocket,
+                json.dumps(response, cls=CustomJSONEncoder),
+            )
+            # The request receives one aggregate result; all clients then get
+            # one authoritative state refresh instead of N per-rung success
+            # broadcasts from the browser loop.
+            await broadcast_state()
 
         elif msg_type == "create_stealth_order":
             # Create new stealth order

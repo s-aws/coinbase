@@ -166,6 +166,17 @@ recompute hidden descendants immediately. Child `order_parent` target columns
 remain compatibility/audit copies; runtime profitability planning resolves the
 current root row and must not let a stale child copy override it.
 
+### Declarative span plans
+
+`business/stealth_order_span.py` defines immutable `StealthSpanPlan` and
+`StealthSpanOrderSpec` records. A plan contains normalized prices/sizes and
+deterministic per-rung `client_order_id` values; it is not persisted as a new
+table. `StealthSpanCreationMode` and `StealthSpanSizeDistribution` define the
+accepted request values. Aggregate and per-rung result enums distinguish
+`success`/`partial`/`error` and
+`created`/`existing`/`failed`/`not_attempted` without treating a partial batch
+as atomic success.
+
 ### `stealth_orders`
 Primary stealth order state table.
 

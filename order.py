@@ -11,6 +11,7 @@ All orders are created through the unified system via StealthOrderManager:
 - The term "stealth" is internal; externally these are just orders with reveal conditions
 
 Key Functions:
+- create_stealth_order_span(): Creates a declarative, resumable order span
 - create_limit_order_span(): Creates one or more limit orders with reveal conditions
 - get_immediate_reveal_condition(): Returns a reveal condition for immediate placement
 
@@ -56,12 +57,19 @@ Examples:
 """
 import uuid
 from random import uniform as random
-from json import dumps
-from time import sleep
-from configuration import REST_CLIENT, \
-    ORDER_DIRECTION, ORDERBOOK, format_based_on_reference, quantize_to_increment
-from calculation.price_validation import normalize_price_for_product
-from core.enums import PriceRoundingPolicy, RevealConditionType
+import warnings
+
+from configuration import DEFAULT_MAX_ORDER_REPLACEMENT
+from core.enums import (
+    FollowUpRevealDirection,
+    OrderResponseType,
+    RevealConditionType,
+    StealthOrderStatus,
+    StealthSpanCreationMode,
+    StealthSpanOrderResultStatus,
+    StealthSpanSizeDistribution,
+    TargetMovementType,
+)
 
 # Global stealth bridge reference (set by dashboard_server)
 _stealth_order_bridge = None
@@ -85,6 +93,25 @@ def get_stealth_order_bridge():
         StealthOrderBridge instance if available, None otherwise
     """
     return _stealth_order_bridge
+
+
+def create_stealth_order_span(span_request: dict) -> dict:
+    """Create one declarative span through the canonical bridge coordinator.
+
+    ``span_request`` must include a UUID ``span_id``. Retrying the same request
+    is resumable: deterministic per-rung ``client_order_id`` values allow the
+    bridge to return matching rungs as existing and create only missing rungs.
+    The returned aggregate status is ``success``, ``partial``, or ``error``;
+    span creation is deliberately not represented as an atomic transaction.
+    """
+
+    order_bridge = get_stealth_order_bridge()
+    if not order_bridge:
+        raise RuntimeError(
+            "Order system not initialized. "
+            "Ensure dashboard_server has been started."
+        )
+    return order_bridge.create_stealth_order_span(span_request)
 
 def get_immediate_reveal_condition() -> dict:
     """Create a reveal condition for immediate order placement (Time Delay 0).
@@ -168,22 +195,25 @@ def create_limit_order_span(
     Key Features:
     - UNIFIED ORDER SYSTEM: All orders use the same reveal mechanism
     - Automatic reveal condition: If reveal_condition not provided, defaults to 60-second delay (to prevent accidental instant reveals)
-    - Automatic price stepping: each order placed at start_price + (order_index * price_difference)
-    - Size variation: use order_base_size_range to randomize sizes
+    - Automatic price stepping: SELL prices step up; BUY prices step down
+    - Deterministic size allocation: legacy size ranges use their midpoint
     - Adaptive sizing: supports volume-proportional or fixed-size reveals
     
     Args:
-        order_base_size_range: Dictionary with 'start' and optional 'stop' for size range.
-                               If None, uses fixed order_base_size for all orders.
+        order_base_size_range: Dictionary with 'start' and optional 'stop'. The
+                               compatibility adapter uses the range midpoint for
+                               every order. If None, uses order_base_size.
                                Example: {'start': 1.0, 'stop': 5.0}
-        delay_in_secs: Delay in seconds between order placements (default: 0).
+        delay_in_secs: Deprecated and ignored. Span creation is coordinated as
+                       one resumable operation.
         product_id: The product ID (e.g., "BTC-USDC", "MON-USDC").
         side: Order side ("BUY" or "SELL").
         max_order_count: Number of orders to create (minimum 1, default 1).
         order_base_size: Base size for each order if range not specified (default 1).
         order_price_difference: Price difference between consecutive orders (default 0.00001).
         start_price: Starting price for the first order (default 0.00992).
-        post_only: If True, orders will be rejected if they would immediately fill (default False).
+        post_only: Deprecated. Maker/taker behavior is derived from
+                   reveal_pricing_policy.
         reveal_condition: Dictionary specifying when/how order transitions to exchange.
                          If not provided, defaults to immediate reveal.
                          Example for price-based reveal: {
@@ -199,13 +229,9 @@ def create_limit_order_span(
                          }
         sizing_strategy: Strategy for adaptive reveals (default: fixed-size).
                         Example: {'type': 'volume_proportional', 'min_reveal': 0.1}
-        reveal_pricing_policy: Optional reveal pricing policy override for this order.
-                      Supported values: configured_limit, top_of_book, midpoint.
-                         - 'same': Keep the original direction (default)
-                         - 'opposite': Flip the direction (below→above, above→below)
-                         - 'above'/'below': Explicitly set the direction
-        sizing_strategy: Strategy for adaptive reveals (default: fixed-size).
-                        Example: {'type': 'volume_proportional', 'min_reveal': 0.1}
+        reveal_pricing_policy: Optional reveal pricing policy override.
+                               Supported values: configured_limit,
+                               top_of_book, midpoint.
     
     Returns:
         A list of order response dictionaries. Each dict contains:
@@ -249,19 +275,17 @@ def create_limit_order_span(
         ...     }
         ... )
         
-        >>> # Place 3 BUY orders with random sizes and 2-second delay
+        >>> # Place 3 BUY orders using the midpoint of a legacy size range
         >>> orders = create_limit_order_span(
         ...     product_id='ETH-USDC',
         ...     side='BUY',
         ...     start_price=2000.0,
         ...     order_base_size_range={'start': 0.5, 'stop': 2.0},
         ...     order_price_difference=10.0,
-        ...     max_order_count=3,
-        ...     delay_in_secs=2
+        ...     max_order_count=3
         ... )
     """
-    # Auto-generate reveal condition if not provided
-    # Default to 60-second delay instead of immediate (0s) to prevent accidental instant reveals
+    # Default to a delayed reveal to prevent accidental immediate placement.
     if not reveal_condition:
         reveal_condition = {
             "type": RevealConditionType.TIME_DELAY.value,
@@ -295,74 +319,101 @@ def create_limit_order_span(
             # Camouflage is decoration; never fail order creation on it.
             effective_start_price = start_price
     
-    order_bridge = get_stealth_order_bridge()
-    if not order_bridge:
+    # Preserve the legacy midpoint rule for a requested size range. The new
+    # canonical API itself is deterministic and does not define random sizing.
+    if order_base_size_range:
+        start_size = order_base_size_range.get("start", order_base_size)
+        stop_size = order_base_size_range.get("stop", start_size)
+        per_order_size = (start_size + stop_size) / 2
+    else:
+        per_order_size = order_base_size
+
+    if delay_in_secs:
+        warnings.warn(
+            "delay_in_secs is deprecated and ignored; span creation is a single "
+            "server-coordinated operation",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+    if post_only:
+        warnings.warn(
+            "post_only is deprecated; use reveal_pricing_policy to select maker "
+            "or configured-limit reveal behavior",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
+    span_request = {
+        "span_id": str(uuid.uuid4()),
+        "product_id": product_id,
+        "side": side,
+        "order_count": max_order_count,
+        "start_price": effective_start_price,
+        "price_step": order_price_difference,
+        "total_size": per_order_size * max_order_count,
+        "size_distribution": StealthSpanSizeDistribution.EQUAL.value,
+        "creation_mode": StealthSpanCreationMode.INDEPENDENT_PARENTS.value,
+        "reveal_condition": reveal_condition,
+        "reveal_pricing_policy": reveal_pricing_policy,
+        "sizing_strategy": sizing_strategy or {"type": "fixed"},
+        "follow_up_reveal_direction": FollowUpRevealDirection.OPPOSITE.value,
+        "max_order_replacements": DEFAULT_MAX_ORDER_REPLACEMENT,
+        "target_movement": 0.0,
+        "target_movement_type": TargetMovementType.PERCENTAGE.value,
+        "allow_partial_fills": False,
+        "anchor_repricing_policy": {"enabled": False},
+        "enable_hotpoint_replication": False,
+        "notes": (
+            "Legacy create_limit_order_span compatibility request; "
+            f"price diff {order_price_difference}"
+        ),
+    }
+
+    # Preserve the public RuntimeError contract before entering the legacy
+    # response-shaping exception boundary used for actual creation failures.
+    if get_stealth_order_bridge() is None:
         raise RuntimeError(
             "Order system not initialized. "
             "Ensure dashboard_server has been started."
         )
-    
-    # Calculate total size for order
-    if order_base_size_range:
-        # Use midpoint of range for order sizing
-        start_size = order_base_size_range.get("start", order_base_size)
-        stop_size = order_base_size_range.get("stop", start_size)
-        total_size = (start_size + stop_size) / 2 * max_order_count
-    else:
-        total_size = order_base_size * max_order_count
-    
+
     try:
         from datetime import datetime as dt
-
-        price_check = normalize_price_for_product(
-            effective_start_price,
-            product_id=product_id,
-            side=side,
-            policy=PriceRoundingPolicy.SIDE_CONSERVATIVE,
-        )
-        if not price_check:
-            raise ValueError(
-                f"Order rejected at price boundary: {price_check.reason}"
-            )
-        # The bridge independently enforces the same idempotent boundary.
-        # Echo this exact value so callers see the persisted/wire price rather
-        # than their off-grid request.
-        effective_start_price = float(price_check.effective_price)
-
-        sizing_strategy_dict = sizing_strategy or {"type": "fixed"}
-        order_id = order_bridge.create_stealth_order(
-            product_id=product_id,
-            side=side,
-            total_size=total_size,
-            limit_price=effective_start_price,
-            reveal_condition=reveal_condition,
-            sizing_strategy=sizing_strategy_dict,
-            reveal_pricing_policy=reveal_pricing_policy,
-            reason="programmatic_order_placement",
-            notes=f"Order span: {max_order_count} orders with price diff {order_price_difference}"
-        )
-        
-        # Return order with standard structure
-        # client_order_id = order_id (our local tracking UUID)
-        # order_id = None (will be assigned when revealed on exchange)
-        return [
-            {
-                "success": True,
-                "success_response": {
-                    "client_order_id": order_id,              # Local UUID for tracking
-                    "order_id": None,                         # Assigned when revealed on exchange
-                    "product_id": product_id,
-                    "side": side,
-                    "size": str(total_size),
-                    "price": str(effective_start_price),
-                    "status": "HIDDEN",                       # Pending reveal
-                    "type": "ORDER",                          # Standard order type
-                    "created_at": dt.utcnow().isoformat(),
-                    "reveal_condition": reveal_condition,     # Condition controlling reveal
-                    "sizing_strategy": sizing_strategy_dict,  # Strategy for adaptive reveals
-                }
-            }
-        ]
+        result = create_stealth_order_span(span_request)
+        responses = []
+        for order_result in result.get("orders", []):
+            status = order_result.get("status")
+            if status in {
+                StealthSpanOrderResultStatus.CREATED.value,
+                StealthSpanOrderResultStatus.EXISTING.value,
+            }:
+                responses.append({
+                    "success": True,
+                    "success_response": {
+                        "client_order_id": order_result["client_order_id"],
+                        "order_id": None,
+                        "product_id": order_result["product_id"],
+                        "side": order_result["side"],
+                        "size": str(order_result["size"]),
+                        "price": str(order_result["price"]),
+                        "status": StealthOrderStatus.HIDDEN.value,
+                        "type": OrderResponseType.ORDER.value,
+                        "created_at": dt.utcnow().isoformat(),
+                        "reveal_condition": order_result["reveal_condition"],
+                        "sizing_strategy": sizing_strategy or {"type": "fixed"},
+                    },
+                })
+            else:
+                responses.append({
+                    "success": False,
+                    "error_response": {
+                        "error": "ORDER_CREATION_FAILED",
+                        "message": order_result.get("error") or status or "not attempted",
+                    },
+                })
+        if responses:
+            return responses
+        raise RuntimeError(result.get("error") or "span creation returned no order results")
     except Exception as e:
         print(f"ERROR: Failed to create order: {e}")
         return [

@@ -219,6 +219,7 @@ the supplied client ID in `order_ids=[...]` to `REST_CLIENT.cancel_orders`.
 Stealth views/actions:
 - `request_stealth_orders`
 - `create_stealth_order`
+- `create_stealth_order_span`
 - `cancel_stealth_order`
 - `rehide_stealth_order`
 - `update_stealth_target_movement`
@@ -455,8 +456,9 @@ numeric policy values, negative unit-bearing distances, and
 `max_distance < target_distance`. Legacy persisted policies remain leniently
 hydrated so an old or partial row does not become unloadable.
 
-The span builder sends a materialized policy for every execution unit. For
-zero-based span index `i`, it adds the same nonnegative offset to
+The span builder sends one declarative base policy to
+`create_stealth_order_span`; the server planner materializes a policy for every
+execution unit. For zero-based span index `i`, it adds the same nonnegative offset to
 `target_distance` and `max_distance`: `i * price_step` for `A`, or
 `i * (price_step / start_price)` for `P`. The backend remains responsible for
 applying BUY/SELL direction. Percentage spacing is exact in quote units at the
@@ -464,6 +466,61 @@ configured start price and then scales with the live reference; use `A` for
 fixed quote-unit spacing. In Parent+Children mode, the per-child values are
 derived execution materializations of the root span policy, not independent
 child strategy choices.
+
+### `create_stealth_order_span`
+
+Request shape:
+
+```json
+{
+  "type": "create_stealth_order_span",
+  "span": {
+    "span_id": "UUID idempotency key",
+    "product_id": "BTC-USDC",
+    "side": "BUY",
+    "order_count": 4,
+    "start_price": 100,
+    "price_step": 2,
+    "total_size": 8,
+    "size_distribution": "equal",
+    "creation_mode": "parent_children",
+    "reveal_condition": {"type": "price", "price_threshold": 98, "direction": "below", "hold_duration_seconds": 0}
+  }
+}
+```
+
+The remaining span-level fields use the corresponding
+`create_stealth_order` policy names: `reveal_pricing_policy`,
+`sizing_strategy`, `follow_up_reveal_direction`, `max_order_replacements`,
+`target_movement`, `target_movement_type`, `allow_partial_fills`,
+`anchor_repricing_policy`, `enable_hotpoint_replication`, and `notes`.
+`creation_mode` is `independent_parents` or `parent_children`; distribution is
+`equal`, `ascending`, `descending`, or `pyramid`. BUY rungs step downward and
+SELL rungs step upward. Even pyramids retain exactly the requested count (for
+example, four weights are `1,2,2,1`). Prices and sizes are product-normalized
+before the first write; duplicate effective prices and an effective total too
+small to allocate one base increment per rung are rejected.
+
+Each `span_id` deterministically derives its rung `client_order_id` values.
+Retrying an identical request returns matching durable rungs as `existing` and
+creates only missing rungs. Reusing the same `span_id` with different immutable
+fields is a conflict. In Parent+Children mode every child links directly to the
+deterministic rung-zero root; strategy is supplied once at span level and
+per-child values are derived execution materializations.
+
+Response type is `stealth_order_span_result`. It includes `status`
+(`success`, `partial`, or `error`), requested/effective totals, aggregate
+counts, and ordered rung results (`created`, `existing`, `failed`, or
+`not_attempted`). Planning errors create no orders. Runtime creation stops at
+the first failed rung but does not cancel or delete prior successes; retry the
+same request to resume. This is explicitly not an all-or-nothing database
+transaction. The command is originating work and requires `RUNNING` admission.
+
+The Python `order.create_stealth_order_span()` function exposes the same
+contract. Legacy `order.create_limit_order_span()` is a compatibility adapter
+that now creates `max_order_count` independent equal-sized roots through this
+path. Its `delay_in_secs` and `post_only` arguments remain accepted but are
+deprecated; server-coordinated creation does not sleep between rungs.
 
 ## 4) Internal Runtime Control API
 

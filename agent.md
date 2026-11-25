@@ -92,7 +92,7 @@ unauthenticated, so bind explicitly to loopback for local-only access.
 ### WebSocket request message types currently handled
 - `admin_status`, `admin_pause`, `admin_resume`, `admin_shutdown`
 - `place_order`, `cancel_order`
-- `request_stealth_orders`, `create_stealth_order`, `cancel_stealth_order`, `rehide_stealth_order`
+- `request_stealth_orders`, `create_stealth_order`, `create_stealth_order_span`, `cancel_stealth_order`, `rehide_stealth_order`
 - `update_stealth_target_movement`, `update_stealth_price_threshold`
 - `reprice_now_stealth_order`, `move_revealed_stealth_order`
 - `request_slide_calibration_summary`, `request_market_chart_history`

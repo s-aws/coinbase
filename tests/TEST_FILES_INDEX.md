@@ -67,7 +67,7 @@ an explicit user request.
 | [test_order_processing.py](integration/test_order_processing.py) | 13 | Integration tests for complete order processing workflows. |
 | [test_stealth_order_workflow.py](integration/test_stealth_order_workflow.py) | 6 | Integration tests for stealth order workflows. |
 
-## tests/regression (80 files)
+## tests/regression (81 files)
 
 | File | Defined test functions | Module intent |
 | --- | ---: | --- |
@@ -77,7 +77,7 @@ an explicit user request.
 | [test_cancel_followup_stealth_id_passthrough.py](regression/test_cancel_followup_stealth_id_passthrough.py) | 6 | Regression: 2026-05-04 phantom-child / stranded-exposure incident. |
 | [test_configuration_cloudflare_fallback.py](regression/test_configuration_cloudflare_fallback.py) | 3 | Regression coverage for transient malformed Coinbase gateway responses. |
 | [test_core_functionality.py](regression/test_core_functionality.py) | 10 | Regression tests - Critical path tests that must always pass before deployment. |
-| [test_create_limit_order_span_smoke.py](regression/test_create_limit_order_span_smoke.py) | 7 | Smoke tests for order.create_limit_order_span. |
+| [test_create_limit_order_span_smoke.py](regression/test_create_limit_order_span_smoke.py) | 8 | Smoke tests for order.create_limit_order_span. |
 | [test_cross_source_reconciliation.py](regression/test_cross_source_reconciliation.py) | 30 | Regression tests for cross-source reconciliation (Phase 3). |
 | [test_cross_venue_monitor.py](regression/test_cross_venue_monitor.py) | 6 | Regression tests for the ui_console CrossVenueMonitor lifecycle. |
 | [test_dashboard_move_revealed_handler.py](regression/test_dashboard_move_revealed_handler.py) | 6 | Regression tests for the move_revealed_stealth_order dashboard |
@@ -141,7 +141,8 @@ an explicit user request.
 | [test_shutdown_followups.py](regression/test_shutdown_followups.py) | 12 | Regression tests for graceful-shutdown follow-up pieces. |
 | [test_size_validation.py](regression/test_size_validation.py) | 16 | Regression tests for calculation.size_validation. |
 | [test_slide_calibration_summary.py](regression/test_slide_calibration_summary.py) | 12 | Regression: slide-calibration summary aggregates and goal math. |
-| [test_span_builder_anchor_repricing_ui.py](regression/test_span_builder_anchor_repricing_ui.py) | 6 | Regression contracts for optional per-rung span repricing policies. |
+| [test_span_builder_anchor_repricing_ui.py](regression/test_span_builder_anchor_repricing_ui.py) | 8 | Regression contracts for optional per-rung span repricing policies. |
+| [test_stealth_order_span.py](regression/test_stealth_order_span.py) | 10 | Canonical planning, resumable bridge coordination, and dashboard span result contracts. |
 | [test_stealth_move_revealed.py](regression/test_stealth_move_revealed.py) | 24 | Regression test pinning the v1 contract for "move REVEALED stealth order". |
 | [test_stealth_order_visibility_ui.py](regression/test_stealth_order_visibility_ui.py) | 5 | Regression contracts for actionable stealth-order visibility and labels. |
 | [test_stealth_placement_truth.py](regression/test_stealth_placement_truth.py) | 31 | Regression coverage for canonical stealth placement truth. |

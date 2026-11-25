@@ -172,64 +172,36 @@ def test_anchor_repricing_units_are_explicit_and_percentage_preview_resolves_at_
 
 
 @pytest.mark.regression
-def test_every_span_order_gets_a_fresh_policy_before_delayed_send():
+def test_span_builder_sends_one_declarative_policy_for_server_materialization():
     html = SPAN_BUILDER.read_text(encoding="utf-8")
-    assert html.count(
-        "anchor_repricing_policy: buildIndexedAnchorRepricingPolicy("
-    ) == 2
     create_span = _slice_between(
         html,
         "function createOrderSpan()",
-        "function createIndependentParents(",
+        "function generateUUID()",
     )
     assert "anchor_repricing_policy: buildAnchorRepricingPolicy()" in create_span
-
-    independent = _slice_between(
-        html,
-        "function createIndependentParents(",
-        "function createParentWithChildren(",
-    )
-    parent_children = _slice_between(
-        html,
-        "function createParentWithChildren(",
-        "function customizeRevealConditionForPrice(",
-    )
-
-    for creation_path in (independent, parent_children):
-        policy_position = creation_path.index(
-            "anchor_repricing_policy: buildIndexedAnchorRepricingPolicy("
-        )
-        send_position = creation_path.index("setTimeout(() =>")
-        assert policy_position < send_position
-        assert "formData.anchor_repricing_policy," in creation_path
-        assert "formData.price_step," in creation_path
-        assert "formData.start_price" in creation_path
+    assert "type: 'create_stealth_order_span'" in create_span
+    assert "span_id: spanId" in create_span
+    assert "...formData" in create_span
+    assert create_span.count("ws.send(") == 1
+    assert "setTimeout(" not in create_span
+    assert "buildIndexedAnchorRepricingPolicy(" not in create_span
 
 
 @pytest.mark.regression
-def test_parent_children_share_root_threshold_while_independent_parents_do_not():
-    """The two span modes intentionally define different strategies.
-
-    Parent+Children shares one absolute root reveal threshold. Independent
-    Parents adjusts that threshold relative to every standalone rung.
-    """
-
+def test_browser_sends_creation_mode_and_one_root_reveal_definition():
     html = SPAN_BUILDER.read_text(encoding="utf-8")
-    independent = _slice_between(
+    create_span = _slice_between(
         html,
-        "function createIndependentParents(",
-        "function createParentWithChildren(",
-    )
-    parent_children = _slice_between(
-        html,
-        "function createParentWithChildren(",
-        "function customizeRevealConditionForPrice(",
+        "function createOrderSpan()",
+        "function generateUUID()",
     )
 
-    assert "customizeRevealConditionForPrice(" in independent
-    assert "reveal_condition: revealCondition" in independent
-    assert "customizeRevealConditionForPrice(" not in parent_children
-    assert "reveal_condition: baseRevealCondition" in parent_children
+    assert "creation_mode: document.getElementById('creation_mode').value" in create_span
+    assert "reveal_condition: baseRevealCondition" in create_span
+    assert "createIndependentParents" not in html
+    assert "createParentWithChildren" not in html
+    assert "customizeRevealConditionForPrice" not in html
 
 
 @pytest.mark.regression
@@ -288,34 +260,16 @@ def test_span_profit_target_type_is_selected_and_forwarded_independently():
     create_span = _slice_between(
         html,
         "function createOrderSpan()",
-        "function createIndependentParents(",
+        "function generateUUID()",
     )
     assert (
         "target_movement_type: document.getElementById('target_movement_type').value"
         in create_span
     )
 
-    independent = _slice_between(
-        html,
-        "function createIndependentParents(",
-        "function createParentWithChildren(",
-    )
-    parent_children = _slice_between(
-        html,
-        "function createParentWithChildren(",
-        "function customizeRevealConditionForPrice(",
-    )
-    assert html.count(
-        "target_movement_type: formData.target_movement_type"
-    ) == 2
-    for creation_path in (independent, parent_children):
-        assert "target_movement: formData.target_movement" in creation_path
-        target_type_position = creation_path.index(
-            "target_movement_type: formData.target_movement_type"
-        )
-        send_position = creation_path.index("setTimeout(() =>")
-        assert target_type_position < send_position
-        assert "target_movement_type: 'P'" not in creation_path
+    assert "...formData" in create_span
+    assert "target_movement_type: 'P'" not in create_span
+    assert create_span.index("target_movement_type:") < create_span.index("ws.send(")
 
 
 @pytest.mark.regression
@@ -337,7 +291,7 @@ def test_span_profit_target_validation_and_reset_are_type_aware():
     create_span = _slice_between(
         html,
         "function createOrderSpan()",
-        "function createIndependentParents(",
+        "function generateUUID()",
     )
     target_validation = create_span.index(
         "getTargetMovementValidationError(formData)"
@@ -345,7 +299,7 @@ def test_span_profit_target_validation_and_reset_are_type_aware():
     anchor_validation = create_span.index(
         "getAnchorRepricingValidationError("
     )
-    send_dispatch = create_span.index("createIndependentParents(formData")
+    send_dispatch = create_span.index("ws.send(")
     assert target_validation < anchor_validation < send_dispatch
 
     reset = _slice_between(

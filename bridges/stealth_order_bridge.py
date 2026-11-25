@@ -31,6 +31,8 @@ from core.enums import (
     MarketEventMode,
     OrderStatus,
     RevealConditionType,
+    StealthSpanOrderResultStatus,
+    StealthSpanResultStatus,
     StealthOrderStatus,
     StealthWakePurpose,
     TickerPublicationDisposition,
@@ -2356,6 +2358,218 @@ class StealthOrderBridge:
                 stealth_order_id=order_id,
                 **kwargs,
             )
+
+    @staticmethod
+    def _span_values_match(left: Any, right: Any) -> bool:
+        """Compare persisted span values without hiding meaningful drift."""
+
+        if isinstance(left, (int, float, Decimal)) and isinstance(
+            right, (int, float, Decimal)
+        ):
+            try:
+                return math.isclose(float(left), float(right), rel_tol=0.0, abs_tol=1e-12)
+            except (TypeError, ValueError):
+                return False
+        return left == right
+
+    def _span_existing_mismatches(self, spec, existing: Mapping[str, Any]) -> list[str]:
+        """Return immutable request fields that disagree with an existing rung."""
+
+        expected_stealth_fields = {
+            "product_id": spec.product_id,
+            "side": spec.side,
+            "total_size": spec.total_size,
+            "limit_price": spec.limit_price,
+            "reveal_condition_json": spec.reveal_condition,
+            "reveal_pricing_policy": spec.reveal_pricing_policy,
+            "sizing_strategy_json": spec.sizing_strategy,
+            "parent_order_id": spec.parent_order_id,
+            "follow_up_reveal_direction": spec.follow_up_reveal_direction,
+            "notes": spec.notes,
+            "anchor_repricing_policy_json": spec.anchor_repricing_policy,
+        }
+        mismatches = [
+            field_name
+            for field_name, expected in expected_stealth_fields.items()
+            if not self._span_values_match(existing.get(field_name), expected)
+        ]
+
+        # Strategy economics and root-only flags are canonical on order_parent,
+        # not stealth_orders. Verify both durable rows before treating a retry
+        # as idempotently complete.
+        from database.order import get_parent_order
+
+        parent_row = get_parent_order(spec.client_order_id)
+        if not parent_row:
+            mismatches.append("order_parent")
+            return mismatches
+
+        is_child = spec.parent_order_id is not None
+        expected_parent_fields = {
+            "product_id": spec.product_id,
+            "side": spec.side,
+            "size": spec.total_size,
+            "price": spec.limit_price,
+            "parent_order_id": spec.parent_order_id,
+            "target_movement": spec.target_movement,
+            "target_movement_type": spec.target_movement_type,
+            "max_order_replacement": 0 if is_child else spec.max_order_replacements,
+            "allow_partial_fills": False if is_child else spec.allow_partial_fills,
+            "enable_hotpoint_replication": (
+                False if is_child else spec.enable_hotpoint_replication
+            ),
+        }
+        mismatches.extend(
+            f"order_parent.{field_name}"
+            for field_name, expected in expected_parent_fields.items()
+            if not self._span_values_match(parent_row.get(field_name), expected)
+        )
+        return mismatches
+
+    def create_stealth_order_span(self, span_request: Mapping[str, Any]) -> Dict[str, Any]:
+        """Create one validated, deterministic, resumable order span.
+
+        The operation is intentionally non-atomic across database rows. The
+        planner validates every rung first; deterministic client IDs then make
+        a runtime partial failure safe to inspect and resume. All rung action
+        locks are held until materialization stops so an early order cannot be
+        evaluated, revealed, or cancelled midway through the batch.
+        """
+
+        from business.stealth_order_span import plan_stealth_order_span
+
+        plan = plan_stealth_order_span(span_request)
+        results = []
+        created_count = 0
+        existing_count = 0
+        failed_count = 0
+
+        with ExitStack() as stack:
+            for client_order_id in sorted(
+                order.client_order_id for order in plan.orders
+            ):
+                stack.enter_context(self._get_order_action_lock(client_order_id))
+
+            # Resolve and verify every deterministic ID before the first write.
+            # This prevents a changed-payload conflict on a later rung from
+            # creating an earlier missing rung. Profitability is rechecked only
+            # for missing roots; already-created matching rungs remain safely
+            # retryable if fee configuration changes after their creation.
+            existing_ids = set()
+            preflight_failure = None
+            for spec in plan.orders:
+                try:
+                    existing = self.stealth_manager._get_stealth_order(
+                        spec.client_order_id
+                    )
+                    if existing is not None:
+                        if existing.get("status") == StealthOrderStatus.ERROR.value:
+                            raise ValueError(
+                                "deterministic client_order_id already exists in ERROR state"
+                            )
+                        mismatches = self._span_existing_mismatches(spec, existing)
+                        if mismatches:
+                            raise ValueError(
+                                "span_id conflicts with existing order fields: "
+                                + ", ".join(sorted(set(mismatches)))
+                            )
+                        existing_ids.add(spec.client_order_id)
+                        continue
+
+                    if spec.parent_order_id is not None or spec.target_movement <= 0:
+                        continue
+                    infeasible_reason = (
+                        self.stealth_manager._check_target_movement_feasibility(
+                            product_id=spec.product_id,
+                            side=spec.side,
+                            limit_price=spec.limit_price,
+                            order_size=spec.total_size,
+                            target_movement=spec.target_movement,
+                            target_movement_type=spec.target_movement_type,
+                            reveal_pricing_policy=spec.reveal_pricing_policy,
+                        )
+                    )
+                    if infeasible_reason is not None:
+                        raise ValueError(
+                            f"target_movement is below the round-trip fee floor: "
+                            f"{infeasible_reason}"
+                        )
+                except Exception as exc:
+                    preflight_failure = (spec.client_order_id, str(exc))
+                    break
+
+            if preflight_failure is not None:
+                failed_id, failure_message = preflight_failure
+                for spec in plan.orders:
+                    result = spec.to_dict()
+                    if spec.client_order_id in existing_ids:
+                        result["status"] = StealthSpanOrderResultStatus.EXISTING.value
+                        existing_count += 1
+                    elif spec.client_order_id == failed_id:
+                        result["status"] = StealthSpanOrderResultStatus.FAILED.value
+                        result["error"] = failure_message
+                        failed_count += 1
+                    else:
+                        result["status"] = (
+                            StealthSpanOrderResultStatus.NOT_ATTEMPTED.value
+                        )
+                    results.append(result)
+            else:
+                stopped = False
+                for spec in plan.orders:
+                    result = spec.to_dict()
+                    if stopped:
+                        result["status"] = (
+                            StealthSpanOrderResultStatus.NOT_ATTEMPTED.value
+                        )
+                        results.append(result)
+                        continue
+
+                    if spec.client_order_id in existing_ids:
+                        result["status"] = StealthSpanOrderResultStatus.EXISTING.value
+                        existing_count += 1
+                        results.append(result)
+                        continue
+
+                    try:
+                        created_id = self.stealth_manager.create_stealth_order(
+                            **spec.creation_kwargs()
+                        )
+                        if str(created_id) != spec.client_order_id:
+                            raise RuntimeError(
+                                "single-order creation returned an unexpected client_order_id"
+                            )
+                        result["status"] = StealthSpanOrderResultStatus.CREATED.value
+                        created_count += 1
+                    except Exception as exc:
+                        result["status"] = StealthSpanOrderResultStatus.FAILED.value
+                        result["error"] = str(exc)
+                        failed_count += 1
+                        stopped = True
+                    results.append(result)
+
+        if failed_count:
+            aggregate_status = (
+                StealthSpanResultStatus.PARTIAL
+                if created_count or existing_count
+                else StealthSpanResultStatus.ERROR
+            )
+        else:
+            aggregate_status = StealthSpanResultStatus.SUCCESS
+
+        return {
+            "span_id": plan.span_id,
+            "status": aggregate_status.value,
+            "creation_mode": plan.creation_mode.value,
+            "size_distribution": plan.size_distribution.value,
+            "requested_count": len(plan.orders),
+            "requested_total_size": plan.requested_total_size,
+            "effective_total_size": plan.effective_total_size,
+            "created_count": created_count,
+            "existing_count": existing_count,
+            "failed_count": failed_count,
+            "orders": results,
+        }
 
     @contextmanager
     def guard_follow_up_creation(self, original_stealth_order_id: str) -> Iterator[bool]:

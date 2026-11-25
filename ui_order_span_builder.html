@@ -1028,6 +1028,7 @@
         const accordionState = {};
         let productMetadata = {};
         let products = [];
+        let pendingSpanId = null;
 
         // Initialize
         window.addEventListener('DOMContentLoaded', () => {
@@ -1066,6 +1067,11 @@
             ws.addEventListener('close', () => {
                 console.log('Disconnected from server');
                 updateConnectionStatus(false);
+                if (pendingSpanId) {
+                    pendingSpanId = null;
+                    document.getElementById('create-span-btn').disabled = false;
+                    showMessage('Connection closed before span creation was confirmed', 'error');
+                }
                 setTimeout(connectWebSocket, 3000);
             });
             
@@ -1085,6 +1091,17 @@
                     handleOrdersSnapshot(data);
                 } else if (data.type === 'stealth_order_created') {
                     handleOrderCreated(data);
+                } else if (data.type === 'stealth_order_span_result') {
+                    handleSpanResult(data);
+                } else if (data.type === 'admission_rejected' && data.rejected_type === 'create_stealth_order_span') {
+                    pendingSpanId = null;
+                    document.getElementById('create-span-btn').disabled = false;
+                    showMessage(data.message || 'Span creation was rejected', 'error');
+                } else if (data.type === 'state_update' && data.data && data.data.stealth_orders) {
+                    Object.values(data.data.stealth_orders).forEach(order => {
+                        ordersData[order.stealth_order_id] = order;
+                    });
+                    updateOrdersTable();
                 } else if (data.type === 'order_update' || data.type === 'stealth_order_update') {
                     if (data.stealth_order_id) {
                         ordersData[data.stealth_order_id] = data;
@@ -1155,8 +1172,35 @@
             if (data.order) {
                 ordersData[data.stealth_order_id] = data.order;
             }
-            showMessage('Order span created successfully!', 'success');
+            showMessage('Order created successfully!', 'success');
             updateOrdersTable();
+        }
+
+        function handleSpanResult(data) {
+            if (pendingSpanId && data.span_id !== pendingSpanId) {
+                return;
+            }
+            pendingSpanId = null;
+            document.getElementById('create-span-btn').disabled = false;
+
+            const created = Number(data.created_count || 0);
+            const existing = Number(data.existing_count || 0);
+            const requested = Number(data.requested_count || 0);
+            if (data.status === 'success') {
+                showMessage(
+                    `Order span confirmed: ${created} created, ${existing} already existed (${requested} total)`,
+                    'success'
+                );
+                resetForm();
+                return;
+            }
+
+            const failedOrder = (data.orders || []).find(order => order.status === 'failed');
+            const detail = data.error || (failedOrder && failedOrder.error) || 'Unknown creation failure';
+            const prefix = data.status === 'partial'
+                ? `Partial span: ${created} created, ${existing} already existed. `
+                : 'Span creation failed. ';
+            showMessage(`${prefix}${detail}`, 'error');
         }
 
         function updateConnectionStatus(connected) {
@@ -1512,17 +1556,10 @@
                 const triangleSum = (count * (count + 1)) / 2;
                 return sizes.map((_, i) => (totalSize / triangleSum) * (count - i));
             } else if (distribution === 'pyramid') {
-                // 1, 2, 3, ..., n/2, ..., 3, 2, 1
-                const mid = Math.ceil(count / 2);
-                const pyramid = [];
-                for (let i = 0; i < mid; i++) {
-                    pyramid.push(i + 1);
-                }
-                for (let i = mid - 2; i >= 0; i--) {
-                    pyramid.push(pyramid[i]);
-                }
-                const sum = pyramid.slice(0, count).reduce((a, b) => a + b, 0);
-                return pyramid.slice(0, count).map(v => (totalSize / sum) * v);
+                // Exactly count weights for odd and even spans: 4 -> 1,2,2,1.
+                const pyramid = sizes.map((_, i) => Math.min(i + 1, count - i));
+                const sum = pyramid.reduce((a, b) => a + b, 0);
+                return pyramid.map(v => (totalSize / sum) * v);
             }
 
             return sizes;
@@ -1571,11 +1608,10 @@
                 order_count: parseInt(document.getElementById('order_count').value),
                 size_distribution: document.getElementById('size_distribution').value,
                 creation_mode: document.getElementById('creation_mode').value,
-                reveal_type: document.getElementById('reveal_type').value,
                 reveal_pricing_policy: document.getElementById('reveal_pricing_policy').value,
                 target_movement: parseFloat(document.getElementById('target_movement').value),
                 target_movement_type: document.getElementById('target_movement_type').value,
-                max_followups: parseInt(document.getElementById('max_followups').value),
+                max_order_replacements: parseInt(document.getElementById('max_followups').value),
                 notes: document.getElementById('notes').value,
                 allow_partial_fills: document.getElementById('allow_partial_fills').checked,
                 enable_hotpoint_replication: document.getElementById('enable_hotpoint_replication').checked,
@@ -1603,7 +1639,7 @@
                 return;
             }
 
-            // Build reveal condition (will be customized per order if price-based)
+            // The server owns authoritative per-rung derivation and validation.
             const baseRevealCondition = buildRevealCondition();
             
             if (!baseRevealCondition) {
@@ -1611,183 +1647,31 @@
                 return;
             }
 
-            // Calculate sizes for each order
-            const sizes = calculateSizes(formData.order_count, formData.total_size, formData.size_distribution);
-
             if (!ws || ws.readyState !== WebSocket.OPEN) {
                 showMessage('Not connected to server', 'error');
                 return;
             }
 
             try {
-                if (formData.creation_mode === 'independent_parents') {
-                    createIndependentParents(formData, baseRevealCondition, sizes);
-                } else {
-                    createParentWithChildren(formData, baseRevealCondition, sizes);
-                }
-                resetForm();
+                const spanId = generateUUID();
+                pendingSpanId = spanId;
+                document.getElementById('create-span-btn').disabled = true;
+                ws.send(JSON.stringify({
+                    type: 'create_stealth_order_span',
+                    span: {
+                        span_id: spanId,
+                        ...formData,
+                        reveal_condition: baseRevealCondition,
+                        sizing_strategy: { type: 'fixed' },
+                        follow_up_reveal_direction: 'opposite'
+                    }
+                }));
+                showMessage(`Creating ${formData.order_count}-order span...`, 'info');
             } catch (error) {
+                pendingSpanId = null;
+                document.getElementById('create-span-btn').disabled = false;
                 showMessage(`Error: ${error.message}`, 'error');
             }
-        }
-
-        function createIndependentParents(formData, baseRevealCondition, sizes) {
-            let createdCount = 0;
-
-            // Determine price direction based on side
-            const priceDirection = formData.side === 'BUY' ? -1 : 1;
-
-            // Create multiple independent parent orders, each with its own reveal condition
-            for (let i = 0; i < formData.order_count; i++) {
-                const price = formData.start_price + (formData.price_step * i * priceDirection);
-                const size = sizes[i];
-
-                // Customize reveal condition for this specific order
-                const revealCondition = customizeRevealConditionForPrice(
-                    baseRevealCondition,
-                    price,
-                    formData.side
-                );
-
-                const order = {
-                    stealth_order_id: generateUUID(),  // Each order gets unique UUID
-                    product_id: formData.product_id,
-                    side: formData.side,
-                    total_size: size,
-                    limit_price: price,
-                    reveal_condition: revealCondition,
-                    reveal_pricing_policy: formData.reveal_pricing_policy,
-                    sizing_strategy: {
-                        type: 'fixed'
-                    },
-                    follow_up_reveal_direction: 'opposite',
-                    max_order_replacements: formData.max_followups,
-                    target_movement: formData.target_movement,
-                    target_movement_type: formData.target_movement_type,
-                    notes: formData.notes ? `[SPAN #${i + 1}] ${formData.notes}` : `[SPAN #${i + 1}/${formData.order_count}]`,
-                    allow_partial_fills: formData.allow_partial_fills,
-                    enable_hotpoint_replication: formData.enable_hotpoint_replication,
-                    anchor_repricing_policy: buildIndexedAnchorRepricingPolicy(
-                        formData.anchor_repricing_policy,
-                        i,
-                        formData.price_step,
-                        formData.start_price
-                    )
-                };
-
-                // Send order creation request with a slight delay to ensure order
-                setTimeout(() => {
-                    if (ws && ws.readyState === WebSocket.OPEN) {
-                        ws.send(JSON.stringify({
-                            type: "create_stealth_order",
-                            order: order
-                        }));
-                        createdCount++;
-                    }
-                }, i * 200);
-            }
-
-            showMessage(`Creating order span: ${formData.order_count} independent orders...`, 'info');
-            
-            // Show completion after all orders sent
-            setTimeout(() => {
-                showMessage(`Order span creation initiated (${createdCount}/${formData.order_count} orders)`, 'success');
-            }, formData.order_count * 200 + 500);
-        }
-
-        function createParentWithChildren(formData, baseRevealCondition, sizes) {
-            let createdCount = 0;
-            const parentOrderId = generateUUID();
-
-            // Determine price direction based on side
-            const priceDirection = formData.side === 'BUY' ? -1 : 1;
-
-            // Create multiple orders: one parent, rest as children
-            for (let i = 0; i < formData.order_count; i++) {
-                const price = formData.start_price + (formData.price_step * i * priceDirection);
-                const size = sizes[i];
-
-                const order = {
-                    product_id: formData.product_id,
-                    side: formData.side,
-                    total_size: size,
-                    limit_price: price,
-                    reveal_condition: baseRevealCondition,
-                    reveal_pricing_policy: formData.reveal_pricing_policy,
-                    sizing_strategy: {
-                        type: 'fixed'
-                    },
-                    follow_up_reveal_direction: 'opposite',
-                    max_order_replacements: formData.max_followups,
-                    target_movement: formData.target_movement,
-                    target_movement_type: formData.target_movement_type,
-                    notes: i === 0 
-                        ? `[SPAN] ${formData.notes} (Order 1/${formData.order_count})` 
-                        : `[SPAN] Child of span (Order ${i + 1}/${formData.order_count})`,
-                    allow_partial_fills: formData.allow_partial_fills,
-                    enable_hotpoint_replication: formData.enable_hotpoint_replication,
-                    anchor_repricing_policy: buildIndexedAnchorRepricingPolicy(
-                        formData.anchor_repricing_policy,
-                        i,
-                        formData.price_step,
-                        formData.start_price
-                    )
-                };
-
-                // First order becomes parent, others reference it
-                if (i > 0) {
-                    order.parent_order_id = parentOrderId;
-                } else {
-                    order.stealth_order_id = parentOrderId;
-                }
-
-                // Send order creation request with a slight delay to ensure order
-                setTimeout(() => {
-                    if (ws && ws.readyState === WebSocket.OPEN) {
-                        ws.send(JSON.stringify({
-                            type: "create_stealth_order",
-                            order: order
-                        }));
-                        createdCount++;
-                    }
-                }, i * 200);
-            }
-
-            showMessage(`Creating order span: parent + ${formData.order_count - 1} children...`, 'info');
-            
-            // Show completion after all orders sent
-            setTimeout(() => {
-                showMessage(`Order span creation initiated (${createdCount}/${formData.order_count} orders)`, 'success');
-            }, formData.order_count * 200 + 500);
-        }
-
-        function customizeRevealConditionForPrice(baseCondition, price, side) {
-            // Clone the base condition
-            const condition = JSON.parse(JSON.stringify(baseCondition));
-
-            // If it's a price-based condition, adjust the threshold relative to this order's price
-            if (condition.type === 'price') {
-                const userThreshold = document.getElementById('price_threshold').value 
-                    ? parseFloat(document.getElementById('price_threshold').value)
-                    : null;
-                const startPrice = parseFloat(document.getElementById('start_price').value) || 0;
-
-                if (userThreshold) {
-                    // Calculate the offset from the start price
-                    const offset = userThreshold - startPrice;
-                    // Apply same offset to this order's price
-                    condition.price_threshold = price + offset;
-                    
-                    // Also ensure the direction makes sense for the side
-                    if (side === 'BUY' && condition.direction !== 'below') {
-                        condition.direction = 'below';
-                    } else if (side === 'SELL' && condition.direction !== 'above') {
-                        condition.direction = 'above';
-                    }
-                }
-            }
-
-            return condition;
         }
 
         function generateUUID() {
