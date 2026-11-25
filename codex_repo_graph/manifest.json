@@ -11,16 +11,16 @@
     "opaque_identifiers_and_literal_payloads"
   ],
   "excluded_git_ref_count": 0,
-  "graph_digest": "2545e92d0e7ec759b74b24ad8dedc34bf933d0b2a1470bdc218a0f5f31934924",
+  "graph_digest": "9bb1df0ff9d051c553b43b24f6103af9daad6f7c193da5fcb745e65eb76b85ae",
   "graph_format_version": "2.0.0",
   "graph_schema_version": "1.2.0",
-  "history_snapshot_head": "aa59a90de8bca0f08b61336abef99cbe776385d9",
+  "history_snapshot_head": "5d35e4ad39be6a9076744bc97dc81e23ea9a5a81",
   "index_hashes": {
     "edges.jsonl": "cf9b2c9c600f317951622aaf22e8189da38b90be41b2ea6036cb8bd11105a712",
-    "files.jsonl": "4f612bd4f79ef13d282ec29e1c44ffaed79c04d9f722497d761108d0ff185528",
-    "git_commits.jsonl": "d9aff8fa4859ba02fc5d4523cd00959b8440f25b0a71642b874eb75275d26519",
-    "git_refs.jsonl": "8967eedd8470ec8e2808bdd181f33a9882ccdec1fd4020f4be7363b8314a083a",
-    "path_history.jsonl": "9513efb7fc5033425936411fa09001e9237329552ccaa0331f54989ee438205c",
+    "files.jsonl": "6f5e598a43680b74159ebee2b96d50923c3d1d093bfd7c9f36260b5473daaccb",
+    "git_commits.jsonl": "39d426b5087cf5015ea7bb2985d1afef48ecb86a47d38b930793dba848fc5a89",
+    "git_refs.jsonl": "54f351bf46ead90c77b809b2e4342317ae9be11440a9f6a6ceb10b4f1d86da0f",
+    "path_history.jsonl": "8c594e31412274939e8e0d02939b0cb35789a02460f1fb741ab838780e9b456e",
     "symbols.jsonl": "c68610fc2399ea2ac48b27c81d1479cd7039daf5515e8872613693af6ab197f1",
     "tests.jsonl": "d7357d9e09ac5a7c04fba671a5eb36a1ac8e95aa63ee4807e68ede8ca417a19f"
   },
@@ -37,7 +37,7 @@
     "runtime_flows.jsonl": "7d20ef8461d000674ca88a2e3ba11b0da20d443bfadf2eddf737c85462ed581d",
     "task_routes.jsonl": "4a6359e9b52eb6307def40ed0a22c75c4d40e245e72039ccf95e32147999ebfe"
   },
-  "source_tree_digest": "7e15e1c3cd7da512be36b850b63146e9e9e39f0647ff3c63e3295f1abd512373",
+  "source_tree_digest": "37413162c59cdbbe9fe34a672578dbfc477d5aa5151ac5648c76814969a67574",
   "tool_hashes": {
     "ENTRYPOINT.md": "792ab6980775ecb5fe5ee18905a3be1015a304789120a86de22e505f98e6c914",
     "build_graph.py": "e7fe36ef005c2dd68f0cdcb7877a55d37064c5f0a6ba65c5b248736f3e84d2b4",
