@@ -28,6 +28,15 @@ Partial-fill children deliberately bypass `max_order_replacement`: their
 budget is accumulated fill carry. Normal full-fill/cancel replacements use the
 separate root replacement-cap gate. Do not merge or duplicate these budgets.
 
+Full-fill and partial-fill price-condition follow-ups delegate to the same
+stealth-manager derivation path. The source execution unit supplies the
+percentage distance between its logical target and effective threshold; the
+root supplies the current strategy and follow-up-direction policy. The manager
+first applies retreat and side-conservative tick normalization to the new
+target, then mirrors that percentage above or below the final target. Neither
+OrderEngine path may set the new threshold directly to its preliminary
+`start_price`.
+
 ## Intentional stop and lifecycle ordering
 
 A source stealth order with durable operator-stop intent cannot create a new

@@ -84,7 +84,6 @@ from configuration import (
 from core.constants import get_local_now
 from core.enums import (
     ChannelType,
-    Direction,
     EngineState,
     EventSourceChannel,
     EventStreamType,
@@ -1401,43 +1400,15 @@ class OrderEngine:
                 follow_up_price = float(order_template["start_price"])
                 follow_up_size = float(units_to_create * min_order_size)
 
-                follow_up_reveal_condition = dict(original_stealth_order.get("reveal_condition_json", {}))
-                direction_choice = original_stealth_order.get(
-                    "follow_up_reveal_direction",
-                    FollowUpRevealDirection.OPPOSITE.value,
-                )
-
-                if follow_up_reveal_condition.get("type") == "price":
-                    follow_up_reveal_condition["price_threshold"] = float(follow_up_price)
-                    if direction_choice == FollowUpRevealDirection.OPPOSITE.value:
-                        if "direction" in follow_up_reveal_condition:
-                            follow_up_reveal_condition["direction"] = (
-                                Direction.ABOVE.value
-                                if follow_up_reveal_condition.get("direction") == Direction.BELOW.value
-                                else Direction.BELOW.value
-                            )
-
-                parent_order_data = self.db_module.get_parent_order(parent_client_order_id)
-                parent_target_movement = parent_order_data.get("target_movement") if parent_order_data else None
-                parent_target_movement_type = (
-                    parent_order_data.get("target_movement_type", TargetMovementType.PERCENTAGE.value)
-                    if parent_order_data
-                    else TargetMovementType.PERCENTAGE.value
-                )
-
                 stealth_follow_up_id = self.stealth_order_bridge.create_follow_up_stealth_order(
                     original_stealth_order_id=original_stealth_order["stealth_order_id"],
                     side=order_template["side"],
                     total_size=follow_up_size,
                     limit_price=follow_up_price,
-                    reveal_condition=follow_up_reveal_condition,
-                    follow_up_reveal_direction=direction_choice,
                     reveal_pricing_policy=None,
                     notes=(
                         f"Auto partial-fill follow-up ({units_to_create} x {min_order_size})"
                     ),
-                    target_movement=parent_target_movement,
-                    target_movement_type=parent_target_movement_type,
                 )
 
                 if stealth_follow_up_id is None:
@@ -4080,7 +4051,7 @@ class OrderEngine:
         return False
 
     def resolve_parent_target_movement(self, parent_client_order_id: str) -> dict:
-        """Get configured profit target for a parent order.
+        """Get the current root profit target from canonical persistence.
         
         Args:
             parent_client_order_id: Parent order ID.
@@ -4089,8 +4060,45 @@ class OrderEngine:
             Dict with 'type' and 'movement' keys, or None if parent not found.
         """
         with self.orderbook_lock:
-            parent = self.orderbook.parent_order_ids.get(parent_client_order_id, {})
-            target_movement = deepcopy(parent.get("target_movement"))
+            actual_parent_id = parent_client_order_id
+            if self._is_child_order_unlocked(parent_client_order_id):
+                actual_parent_id = self._get_parent_of_child_unlocked(
+                    parent_client_order_id
+                )
+            parent = self.orderbook.parent_order_ids.get(actual_parent_id, {})
+            cached_target = deepcopy(parent.get("target_movement"))
+
+        target_movement = None
+        root_row = None
+        root_row_loaded = False
+        try:
+            root_row = self.db_module.get_parent_order(actual_parent_id)
+        except Exception as exc:
+            self.log_message(
+                "warning",
+                self.build_event_log_payload(
+                    "parent_target_movement_lookup_failed",
+                    parent_client_order_id=actual_parent_id,
+                    error=str(exc),
+                ),
+            )
+        else:
+            root_row_loaded = True
+            if not isinstance(root_row, dict):
+                root_row = None
+            if root_row is not None:
+                movement = safe_float(
+                    root_row.get("target_movement"), default=0.0
+                )
+                movement_type = root_row.get("target_movement_type")
+                target_movement = (
+                    {"movement": movement, "type": str(movement_type)}
+                    if movement > 0 and movement_type
+                    else None
+                )
+
+        if not root_row_loaded or root_row is None:
+            target_movement = cached_target
 
         if not target_movement:
             return target_movement
@@ -4100,7 +4108,7 @@ class OrderEngine:
 
         product_id = None
         with self.orderbook_lock:
-            parent_order = self.orderbook.order.get(parent_client_order_id, {})
+            parent_order = self.orderbook.order.get(actual_parent_id, {})
             if isinstance(parent_order, dict):
                 product_id = parent_order.get("product_id")
 
@@ -4428,12 +4436,6 @@ class OrderEngine:
                     "delay_seconds": 0  # Immediate reveal on cancel follow-up
                 }
                 
-                # Get target_movement from parent order (source of truth)
-                from database.order import get_parent_order
-                parent_order_data = get_parent_order(parent_client_order_id)
-                parent_target_movement = parent_order_data.get("target_movement") if parent_order_data else None
-                parent_target_movement_type = parent_order_data.get("target_movement_type", TargetMovementType.PERCENTAGE.value) if parent_order_data else TargetMovementType.PERCENTAGE.value
-                
                 # Cancellation follow-ups consume the root's replacement
                 # budget. Claim through the existing atomic gate immediately
                 # before creation so concurrent terminal events cannot exceed
@@ -4467,11 +4469,9 @@ class OrderEngine:
                     total_size=order_template["order_base_size"],
                     limit_price=follow_up_price,
                     reveal_condition=reveal_condition,
-                    follow_up_reveal_direction="same",
+                    follow_up_reveal_direction=FollowUpRevealDirection.SAME.value,
                     reveal_pricing_policy=None,  # Inherit from original
                     notes=f"Auto follow-up from cancelled order",
-                    target_movement=parent_target_movement,
-                    target_movement_type=parent_target_movement_type
                 )
 
                 # Defensive: if the follow-up creator returned None the
@@ -4987,59 +4987,13 @@ class OrderEngine:
                         "source": "synthetic_follow_up_seed",
                     })
                     
-                    # Build the reveal condition for the follow-up using configurable direction
-                    follow_up_reveal_condition = dict(original_stealth_order.get("reveal_condition_json", {}))
-                    direction_choice = original_stealth_order.get("follow_up_reveal_direction", FollowUpRevealDirection.OPPOSITE.value)
-                    
-                    if follow_up_reveal_condition.get("type") == "price":
-                        # Set threshold to the ACTUAL price where we plan to place the new order
-                        # Use float conversion to ensure numeric precision
-                        follow_up_reveal_condition["price_threshold"] = float(follow_up_price)
-                        
-                        if direction_choice == FollowUpRevealDirection.OPPOSITE.value:
-                            # Flip direction (below â†’ above, above â†’ below)
-                            if "direction" in follow_up_reveal_condition:
-                                follow_up_reveal_condition["direction"] = Direction.ABOVE.value if follow_up_reveal_condition.get("direction") == Direction.BELOW.value else Direction.BELOW.value
-                        elif direction_choice == FollowUpRevealDirection.SAME.value:
-                            # Keep original direction unchanged
-                            pass
-                        # else: Unknown direction choice, keep original
-                    
-                    # Use parent order's target_movement (source of truth)
-                    from database.order import get_parent_order
-                    parent_order_data = get_parent_order(parent_client_order_id)
-                    parent_target_movement = parent_order_data.get("target_movement") if parent_order_data else None
-                    parent_target_movement_type = parent_order_data.get("target_movement_type", TargetMovementType.PERCENTAGE.value) if parent_order_data else TargetMovementType.PERCENTAGE.value
-                    
-                    # Debug: Log the exact reveal condition being set
-                    self.log_message(
-                        "info",
-                        {
-                            "event": "stealth_follow_up_condition_set",
-                            "follow_up_price": follow_up_price,
-                            "fill_price": fill_price,
-                            "threshold": follow_up_reveal_condition.get("price_threshold"),
-                            "direction": follow_up_reveal_condition.get("direction"),
-                            "hold_duration_seconds": follow_up_reveal_condition.get("hold_duration_seconds"),
-                            "market_cache_price": (
-                                self.stealth_order_bridge.stealth_manager
-                                ._get_current_market_data(product_id)
-                                .get("price")
-                            ),
-                        }
-                    )
-                    
                     stealth_follow_up_id = self.stealth_order_bridge.create_follow_up_stealth_order(
                         original_stealth_order_id=original_stealth_order["stealth_order_id"],
                         side=order_template["side"],
                         total_size=adjusted_follow_up_size,
                         limit_price=follow_up_price,
-                        reveal_condition=follow_up_reveal_condition,
-                        follow_up_reveal_direction=direction_choice,
                         reveal_pricing_policy=None,  # Inherit from original
                         notes=f"Auto follow-up from stealth order reveal",
-                        target_movement=parent_target_movement,
-                        target_movement_type=parent_target_movement_type
                     )
 
                     if stealth_follow_up_id is None:
@@ -5060,6 +5014,10 @@ class OrderEngine:
                         root_parent_client_order_id,
                         bypass_replacement_cap=True,
                     )
+                    created_follow_up = (
+                        self.stealth_order_bridge.stealth_manager
+                        .in_memory_orders.get(stealth_follow_up_id, {})
+                    )
                     
                     self.log_message(
                         "order",
@@ -5068,14 +5026,18 @@ class OrderEngine:
                             "stealth_follow_up_id": stealth_follow_up_id,
                             "parent_stealth_id": original_stealth_order["stealth_order_id"],
                             "parent_target_movement": {
-                                "movement": parent_target_movement,
-                                "type": parent_target_movement_type
-                            } if parent_target_movement else None,
+                                "movement": created_follow_up.get("target_movement"),
+                                "type": created_follow_up.get("target_movement_type"),
+                            } if created_follow_up.get("target_movement") else None,
                             "product_id": product_id,
                             "side": order_template["side"],
                             "follow_up_size": adjusted_follow_up_size,
-                            "reveal_condition": follow_up_reveal_condition,
-                            "follow_up_reveal_direction": direction_choice,
+                            "reveal_condition": created_follow_up.get(
+                                "reveal_condition_json"
+                            ),
+                            "follow_up_reveal_direction": created_follow_up.get(
+                                "follow_up_reveal_direction"
+                            ),
                         }
                     )
                     

@@ -139,6 +139,25 @@ Key columns:
 - `externally_created` (durable ownership marker for shared-account replay;
   terminal external runtime caches may be evicted only after this is persisted)
 
+### Parent/child strategy authority
+
+Children are independent execution units, not independent strategy
+definitions. A flat-linked child owns its limit/size, lifecycle state, fills,
+condition timing, active placement identifiers, and repricing history. The
+root owns the strategy definition, including profit target, reveal-condition
+template, reveal pricing/sizing policy, follow-up direction, replacement
+budget, partial-fill policy, and hotpoint opt-in.
+
+Parent+Children spans intentionally materialize the same absolute initial
+price threshold on every member; Independent Parents instead adjust each
+standalone root's threshold relative to its own rung. A price-based follow-up
+stores an execution-specific condition derived from the root strategy and the
+filled child's target. Its `_follow_up_reveal_derivation` metadata records the
+original basis target and generation so a later root threshold edit can
+recompute hidden descendants immediately. Child `order_parent` target columns
+remain compatibility/audit copies; runtime profitability planning resolves the
+current root row and must not let a stale child copy override it.
+
 ### `stealth_orders`
 Primary stealth order state table.
 

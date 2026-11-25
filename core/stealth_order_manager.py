@@ -62,6 +62,7 @@ Example: evaluate and reveal from scheduler loop
 
 import uuid
 import json
+import math
 import time
 from copy import deepcopy
 from dataclasses import replace
@@ -78,6 +79,7 @@ from configuration import (
 from calculation.price_validation import normalize_price_for_product
 from business.placement_response import classify_placement_response
 from core.enums import (
+    Direction,
     FollowUpRevealDirection,
     OrderPlacementOutcome,
     OrderSide,
@@ -121,6 +123,15 @@ _REVEAL_CONDITION_PRICE_FIELDS_BY_TYPE: Dict[str, Tuple[str, ...]] = {
     RevealConditionType.PRICE_THRESHOLD.value: ("price_threshold",),
     RevealConditionType.CUMULATIVE_VOLUME.value: ("price_level",),
 }
+
+# A follow-up condition is an execution-specific materialization of its root
+# strategy, not a new strategy definition.  Persist the minimum derivation
+# context inside the existing condition JSON so a later root-threshold edit can
+# immediately recompute hidden descendants without introducing another table or
+# violating the flat parent/child hierarchy.
+_FOLLOW_UP_REVEAL_DERIVATION_KEY = "_follow_up_reveal_derivation"
+_DERIVATION_BASIS_TARGET_KEY = "basis_target_price"
+_DERIVATION_GENERATION_KEY = "generation"
 
 
 def _parse_json_container(value: Any, default: Any) -> Any:
@@ -326,6 +337,15 @@ class StealthOrderManager:
             self.logger.error(message)
         else:
             self.logger.info(message)
+
+    def _get_creation_lock(self) -> Any:
+        """Return the creation/strategy transaction lock, lazily for recovery."""
+
+        lock = getattr(self, "_creation_lock", None)
+        if lock is None:
+            lock = RLock()
+            self._creation_lock = lock
+        return lock
 
     # ------------------------------------------------------------------
     # Scheduler integration and market snapshot ownership
@@ -637,6 +657,260 @@ class StealthOrderManager:
         state: RepricingState = dict(anchor_repricing_state or {})  # type: ignore[assignment]
         state.setdefault("reprice_history", [])
         return state
+
+    def _resolve_root_strategy_order(
+        self,
+        order: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Return the root strategy definition for one execution unit.
+
+        Children own lifecycle and placement state, but strategy definitions
+        are read from the flat-hierarchy root.  A missing root falls back to
+        the supplied order for legacy/orphan recovery; it never reparents the
+        child or invents an intermediate hierarchy level.
+        """
+
+        root_id = resolve_stealth_chain_root(order)
+        if root_id == order.get("stealth_order_id"):
+            return order
+        root_order = self._get_stealth_order(root_id)
+        if root_order:
+            return root_order
+        self.log_callback(
+            "warning",
+            {
+                "event": "stealth_root_strategy_fallback",
+                "stealth_order_id": order.get("stealth_order_id"),
+                "root_stealth_order_id": root_id,
+            },
+        )
+        return order
+
+    @staticmethod
+    def _flip_price_direction(direction: str) -> str:
+        return (
+            Direction.ABOVE.value
+            if direction == Direction.BELOW.value
+            else Direction.BELOW.value
+        )
+
+    @staticmethod
+    def _coerce_follow_up_direction(value: Any) -> FollowUpRevealDirection:
+        try:
+            return FollowUpRevealDirection(str(value))
+        except (TypeError, ValueError):
+            return FollowUpRevealDirection.OPPOSITE
+
+    @staticmethod
+    def _threshold_at_percentage_distance(
+        target_price: float,
+        distance: float,
+        direction: str,
+    ) -> float:
+        multiplier = (
+            1.0 + distance
+            if direction == Direction.ABOVE.value
+            else 1.0 - distance
+        )
+        threshold = target_price * multiplier
+        if not math.isfinite(threshold) or threshold <= 0:
+            raise ValueError(
+                "Derived price threshold must be finite and greater than zero"
+            )
+        return threshold
+
+    def _derive_follow_up_reveal_condition(
+        self,
+        *,
+        source_order: Dict[str, Any],
+        strategy_order: Dict[str, Any],
+        final_target_price: float,
+        direction_choice: FollowUpRevealDirection,
+    ) -> Dict[str, Any]:
+        """Materialize one child condition from root strategy + source execution.
+
+        Price conditions preserve the source execution unit's percentage
+        distance from threshold, mirror the direction when configured, and use
+        the follow-up's *final normalized* target.  Other condition types are
+        copied from the current root strategy without child-specific changes.
+        """
+
+        strategy_condition = deepcopy(
+            strategy_order.get("reveal_condition_json") or {}
+        )
+        source_condition = source_order.get("reveal_condition_json") or {}
+        if (
+            strategy_condition.get("type")
+            != RevealConditionType.PRICE_THRESHOLD.value
+            or source_condition.get("type")
+            != RevealConditionType.PRICE_THRESHOLD.value
+        ):
+            return strategy_condition
+
+        source_target = safe_float(source_order.get("limit_price"), default=None)
+        source_threshold = safe_float(
+            source_condition.get("price_threshold"), default=None
+        )
+        if (
+            source_target is None
+            or source_target <= 0
+            or source_threshold is None
+            or source_threshold <= 0
+        ):
+            raise ValueError(
+                "Price follow-up requires positive source target and threshold"
+            )
+
+        distance = abs((source_threshold / source_target) - 1.0)
+        source_direction = str(
+            source_condition.get("direction") or Direction.BELOW.value
+        )
+        if source_direction not in {
+            Direction.ABOVE.value,
+            Direction.BELOW.value,
+        }:
+            raise ValueError(
+                f"Unsupported source price direction: {source_direction!r}"
+            )
+        derived_direction = source_direction
+        if direction_choice is FollowUpRevealDirection.OPPOSITE:
+            derived_direction = self._flip_price_direction(source_direction)
+
+        final_target = float(final_target_price)
+        strategy_condition["direction"] = derived_direction
+        strategy_condition["price_threshold"] = (
+            self._threshold_at_percentage_distance(
+                final_target,
+                distance,
+                derived_direction,
+            )
+        )
+
+        previous_derivation = source_condition.get(
+            _FOLLOW_UP_REVEAL_DERIVATION_KEY
+        )
+        if not isinstance(previous_derivation, Mapping):
+            previous_derivation = {}
+        basis_target = safe_float(
+            previous_derivation.get(_DERIVATION_BASIS_TARGET_KEY),
+            default=source_target,
+        )
+        previous_generation = int(
+            previous_derivation.get(_DERIVATION_GENERATION_KEY, 0) or 0
+        )
+        strategy_condition[_FOLLOW_UP_REVEAL_DERIVATION_KEY] = {
+            _DERIVATION_BASIS_TARGET_KEY: float(basis_target),
+            _DERIVATION_GENERATION_KEY: previous_generation + 1,
+        }
+        return strategy_condition
+
+    def _materialize_child_price_condition(
+        self,
+        *,
+        root_order: Dict[str, Any],
+        child_order: Dict[str, Any],
+    ) -> Optional[Dict[str, Any]]:
+        """Recompute a hidden child's condition after a root strategy edit."""
+
+        root_condition = deepcopy(root_order.get("reveal_condition_json") or {})
+        if (
+            root_condition.get("type")
+            != RevealConditionType.PRICE_THRESHOLD.value
+        ):
+            return None
+
+        child_condition = child_order.get("reveal_condition_json") or {}
+        derivation = child_condition.get(_FOLLOW_UP_REVEAL_DERIVATION_KEY)
+        if not isinstance(derivation, Mapping):
+            if child_order.get("reason") == "follow_up_replacement":
+                # Legacy follow-ups predate durable derivation context.  Their
+                # source target cannot be reconstructed safely from flat root
+                # linkage, so preserve them instead of guessing.
+                self.log_callback(
+                    "warning",
+                    {
+                        "event": "legacy_follow_up_strategy_edit_not_propagated",
+                        "stealth_order_id": child_order.get("stealth_order_id"),
+                        "root_stealth_order_id": root_order.get(
+                            "stealth_order_id"
+                        ),
+                    },
+                )
+                return None
+            # An initial Parent+Children span member shares the root's absolute
+            # condition by design.
+            return root_condition
+
+        basis_target = safe_float(
+            derivation.get(_DERIVATION_BASIS_TARGET_KEY), default=None
+        )
+        child_target = safe_float(child_order.get("limit_price"), default=None)
+        root_threshold = safe_float(
+            root_condition.get("price_threshold"), default=None
+        )
+        generation = int(
+            derivation.get(_DERIVATION_GENERATION_KEY, 0) or 0
+        )
+        if (
+            basis_target is None
+            or basis_target <= 0
+            or child_target is None
+            or child_target <= 0
+            or root_threshold is None
+            or root_threshold <= 0
+            or generation <= 0
+        ):
+            raise ValueError("Invalid persisted follow-up reveal derivation")
+
+        distance = abs((root_threshold / basis_target) - 1.0)
+        direction = str(
+            root_condition.get("direction") or Direction.BELOW.value
+        )
+        if direction not in {Direction.ABOVE.value, Direction.BELOW.value}:
+            raise ValueError(
+                f"Unsupported root price direction: {direction!r}"
+            )
+        direction_choice = self._coerce_follow_up_direction(
+            root_order.get("follow_up_reveal_direction")
+        )
+        if (
+            direction_choice is FollowUpRevealDirection.OPPOSITE
+            and generation % 2 == 1
+        ):
+            direction = self._flip_price_direction(direction)
+
+        root_condition["direction"] = direction
+        root_condition["price_threshold"] = (
+            self._threshold_at_percentage_distance(
+                float(child_target),
+                distance,
+                direction,
+            )
+        )
+        root_condition[_FOLLOW_UP_REVEAL_DERIVATION_KEY] = dict(derivation)
+        return root_condition
+
+    def strategy_condition_order_ids(
+        self,
+        root_stealth_order_id: str,
+    ) -> Tuple[str, ...]:
+        """Snapshot root plus editable hidden descendants for lock ordering."""
+
+        root_order = self._get_stealth_order(root_stealth_order_id)
+        if not root_order or root_order.get("parent_order_id"):
+            return ()
+        editable_statuses = {
+            StealthOrderStatus.HIDDEN.value,
+            StealthOrderStatus.PENDING.value,
+        }
+        with self._get_orders_cache_lock():
+            child_ids = [
+                str(order_id)
+                for order_id, order in self.in_memory_orders.items()
+                if order.get("parent_order_id") == root_stealth_order_id
+                and order.get("status") in editable_statuses
+            ]
+        return tuple(sorted({str(root_stealth_order_id), *child_ids}))
 
     @staticmethod
     def is_operator_cancel_requested(order: Mapping[str, Any]) -> bool:
@@ -3841,17 +4115,23 @@ class StealthOrderManager:
         """Resolve canonical (target_movement, target_movement_type, source).
 
         Lookup precedence:
-        1. ``order_parent`` row (canonical) — keyed by ``stealth_order_id``.
-        2. In-memory stealth ``order`` dict (fallback if DB lookup fails).
-        3. ``unavailable`` — caller decides whether to skip the gate.
+        1. Root ``order_parent`` row (canonical for the whole flat chain).
+        2. Root in-memory stealth dict (fallback if DB lookup fails).
+        3. Child row/dict only when the root itself is unavailable (legacy
+           orphan recovery, never an override of a present root definition).
+        4. ``unavailable`` — caller decides whether to skip the gate.
         """
+        root_id = resolve_stealth_chain_root(order)
         try:
-            parent_row = get_parent_order(stealth_order_id)
+            parent_row = get_parent_order(root_id)
         except Exception as exc:
             self.logger.warning(
                 f"Failed to fetch order_parent for target_movement lookup "
-                f"({stealth_order_id}): {exc}"
+                f"({root_id}): {exc}"
             )
+            parent_row = None
+
+        if parent_row is not None and not isinstance(parent_row, Mapping):
             parent_row = None
 
         if parent_row is not None:
@@ -3859,8 +4139,35 @@ class StealthOrderManager:
             tm_type = parent_row.get("target_movement_type")
             if tm > 0 and tm_type:
                 return tm, str(tm_type), "order_parent"
+            # A present root row with an empty target is authoritative.  Do not
+            # resurrect a stale target copied onto a child at creation time.
+            return None, None, "order_parent"
 
-        # Fallback: stealth_orders dict (rarely populated for root orders)
+        root_order = self._get_stealth_order(root_id)
+        if root_order is not None:
+            tm = safe_float(root_order.get("target_movement"), default=0.0)
+            tm_type = root_order.get("target_movement_type")
+            if tm > 0 and tm_type:
+                return tm, str(tm_type), "stealth_root"
+
+        if root_id != stealth_order_id:
+            try:
+                legacy_child_row = get_parent_order(stealth_order_id)
+            except Exception:
+                legacy_child_row = None
+            if legacy_child_row is not None and not isinstance(
+                legacy_child_row, Mapping
+            ):
+                legacy_child_row = None
+            if legacy_child_row is not None:
+                tm = safe_float(
+                    legacy_child_row.get("target_movement"), default=0.0
+                )
+                tm_type = legacy_child_row.get("target_movement_type")
+                if tm > 0 and tm_type:
+                    return tm, str(tm_type), "legacy_child_order_parent"
+
+        # Final fallback for a legacy/orphan in-memory order.
         tm = safe_float(order.get("target_movement"), default=0.0)
         tm_type = order.get("target_movement_type")
         if tm > 0 and tm_type:
@@ -4713,7 +5020,7 @@ class StealthOrderManager:
             ),
             "reject_existing": True,
         }
-        with self._creation_lock:
+        with self._get_creation_lock():
             if stealth_order_id in self.in_memory_orders:
                 raise OrderCreationError(
                     "Stealth order client_order_id already exists in memory",
@@ -6495,24 +6802,14 @@ class StealthOrderManager:
 
         return True
 
-    def update_price_condition(
+    def _persist_price_condition_for_order(
         self,
-        stealth_order_id: str,
-        *,
-        price_threshold: float,
-        hold_duration_seconds: Optional[int] = None,
+        order: Dict[str, Any],
+        reveal_condition: Dict[str, Any],
     ) -> bool:
-        """Persist and publish one authoritative price-condition edit.
+        """Persist one already-materialized price condition fail-closed."""
 
-        An in-progress continuous hold is reset because changing either the
-        threshold or duration changes the claim being timed. A committed
-        TRIGGERED snapshot is not rolled back. Database persistence completes
-        before lifecycle publication or scheduler invalidation.
-        """
-
-        order = self._get_stealth_order(stealth_order_id)
-        if not order:
-            return False
+        stealth_order_id = str(order["stealth_order_id"])
         anchor_state = self._normalize_anchor_repricing_state(
             order.get("anchor_repricing_state_json")
         )
@@ -6534,15 +6831,12 @@ class StealthOrderManager:
         previous_updated_at = order.get("updated_at")
         had_anchor_state = "anchor_repricing_state_json" in order
         previous_anchor_state = order.get("anchor_repricing_state_json")
-        reveal_condition = dict(previous_condition)
-        reveal_condition["price_threshold"] = float(price_threshold)
-        if hold_duration_seconds is not None:
-            reveal_condition["hold_duration_seconds"] = int(
-                hold_duration_seconds
-            )
-        order["reveal_condition_json"] = reveal_condition
+        materialized_condition = deepcopy(reveal_condition)
+        order["reveal_condition_json"] = materialized_condition
         order["updated_at"] = datetime.utcnow()
-        if reveal_condition["price_threshold"] != previous_condition.get("price_threshold"):
+        if materialized_condition.get("price_threshold") != previous_condition.get(
+            "price_threshold"
+        ):
             # Persist the edited threshold and cache invalidation together.
             # A hold-duration-only edit must not change the saved price offset.
             anchor_state.pop("reveal_condition_price_offsets", None)
@@ -6572,6 +6866,82 @@ class StealthOrderManager:
             raise
 
         self._notify_schedule_invalidated(stealth_order_id)
+        return True
+
+    def update_price_condition(
+        self,
+        stealth_order_id: str,
+        *,
+        price_threshold: float,
+        hold_duration_seconds: Optional[int] = None,
+    ) -> bool:
+        """Serialize a root strategy edit against child creation."""
+
+        with self._get_creation_lock():
+            return self._update_price_condition_locked(
+                stealth_order_id,
+                price_threshold=price_threshold,
+                hold_duration_seconds=hold_duration_seconds,
+            )
+
+    def _update_price_condition_locked(
+        self,
+        stealth_order_id: str,
+        *,
+        price_threshold: float,
+        hold_duration_seconds: Optional[int] = None,
+    ) -> bool:
+        """Persist one root strategy edit and materialize it on hidden children.
+
+        Parent+Children span members intentionally share the root's absolute
+        initial threshold. Follow-up children retain their execution-specific
+        percentage inversion, recomputed from durable derivation metadata. An
+        in-progress continuous hold is reset for every affected execution unit;
+        committed TRIGGERED snapshots are not rolled back.
+        """
+
+        root_order = self._get_stealth_order(stealth_order_id)
+        if not root_order or root_order.get("parent_order_id"):
+            return False
+        if root_order.get("reveal_condition_type") != (
+            RevealConditionType.PRICE_THRESHOLD.value
+        ):
+            return False
+
+        root_condition = deepcopy(root_order.get("reveal_condition_json") or {})
+        root_condition["price_threshold"] = float(price_threshold)
+        if hold_duration_seconds is not None:
+            root_condition["hold_duration_seconds"] = int(
+                hold_duration_seconds
+            )
+        if not self._persist_price_condition_for_order(
+            root_order,
+            root_condition,
+        ):
+            return False
+
+        editable_ids = self.strategy_condition_order_ids(stealth_order_id)
+        for child_id in editable_ids:
+            if child_id == stealth_order_id:
+                continue
+            child_order = self._get_stealth_order(child_id)
+            if not child_order:
+                continue
+            child_condition = self._materialize_child_price_condition(
+                root_order=root_order,
+                child_order=child_order,
+            )
+            if child_condition is None:
+                continue
+            if not self._persist_price_condition_for_order(
+                child_order,
+                child_condition,
+            ):
+                get_runtime_controller().request_pause()
+                raise StealthOrderPersistenceError(
+                    "Failed to propagate root price-condition update to "
+                    f"{child_id}"
+                )
         return True
 
     def sync_price_condition_to_cache(
@@ -6670,6 +7040,37 @@ class StealthOrderManager:
         target_movement_type: str = "P",
         follow_up_stealth_order_id: Optional[str] = None,
     ) -> Optional[str]:
+        """Serialize root-strategy resolution with follow-up persistence."""
+
+        with self._get_creation_lock():
+            return self._create_follow_up_stealth_order_locked(
+                original_stealth_order_id=original_stealth_order_id,
+                side=side,
+                total_size=total_size,
+                limit_price=limit_price,
+                reveal_condition=reveal_condition,
+                follow_up_reveal_direction=follow_up_reveal_direction,
+                reveal_pricing_policy=reveal_pricing_policy,
+                notes=notes,
+                target_movement=target_movement,
+                target_movement_type=target_movement_type,
+                follow_up_stealth_order_id=follow_up_stealth_order_id,
+            )
+
+    def _create_follow_up_stealth_order_locked(
+        self,
+        original_stealth_order_id: str,
+        side: str,
+        total_size: float,
+        limit_price: float,
+        reveal_condition: Optional[Dict[str, Any]] = None,
+        follow_up_reveal_direction: Optional[str] = None,
+        reveal_pricing_policy: Optional[str] = None,
+        notes: str = "",
+        target_movement: Optional[float] = None,
+        target_movement_type: str = "P",
+        follow_up_stealth_order_id: Optional[str] = None,
+    ) -> Optional[str]:
         """Create a follow-up stealth order with same conditions as original.
         
         Used when a revealed stealth order fills and needs to be replaced on opposite side.
@@ -6697,10 +7098,16 @@ class StealthOrderManager:
         original_order = self._get_stealth_order(original_stealth_order_id)
         if not original_order or self.is_operator_cancel_requested(original_order):
             return None
-        
-        # Use provided reveal condition or inherit from original
-        follow_up_condition = reveal_condition if reveal_condition is not None else original_order.get("reveal_condition_json", {})
-        inherited_pricing_policy = original_order.get("reveal_pricing_policy") or "configured_limit"
+
+        strategy_order = self._resolve_root_strategy_order(original_order)
+        effective_direction = self._coerce_follow_up_direction(
+            follow_up_reveal_direction
+            if follow_up_reveal_direction is not None
+            else strategy_order.get("follow_up_reveal_direction")
+        )
+        inherited_pricing_policy = (
+            strategy_order.get("reveal_pricing_policy") or "configured_limit"
+        )
         effective_pricing_policy = reveal_pricing_policy or inherited_pricing_policy
         # Inherit anchor-repricing policy unless explicitly opted out. Build via
         # ``RepricingPolicy`` so the inheritance check uses the dataclass field
@@ -6713,9 +7120,7 @@ class StealthOrderManager:
         else:
             anchor_repricing_policy = RepricingPolicy.disabled().to_dict()
         
-        # Use provided target movement or inherit from original. Resolve via the
-        # canonical resolver so root stealth orders (which keep target_movement on
-        # the order_parent row, not the in-memory dict) are handled correctly.
+        # Use provided target movement or inherit from the canonical root.
         if target_movement is not None:
             follow_up_target_movement = target_movement
             follow_up_target_movement_type = target_movement_type
@@ -6737,11 +7142,10 @@ class StealthOrderManager:
             follow_up_stealth_order_id or str(uuid.uuid4())
         )
 
-        # Apply post-fill retreat if configured. The inherited policy
-        # owns the decision; helper returns ``limit_price`` unchanged
-        # when retreat is disabled (distance == 0). Tick-align the
-        # result via the same chokepoint used at reveal time so the
-        # follow-up posts on a valid price grid.
+        # Apply post-fill retreat if configured, then normalize the resulting
+        # target through the same side-conservative boundary used by
+        # create_stealth_order. Reveal-threshold derivation happens only after
+        # this point so it cannot use a preliminary target.
         retreat_policy = RepricingPolicy.from_dict(anchor_repricing_policy)
         anchored_limit_price = retreat_policy.compute_follow_up_price(
             anchor_price=float(limit_price),
@@ -6749,12 +7153,39 @@ class StealthOrderManager:
             follow_up_client_order_id=follow_up_stealth_order_id,
         )
         retreat_applied = anchored_limit_price != float(limit_price)
-        if retreat_applied:
-            anchored_limit_price = self._quantize_reprice_price(
-                product_id=original_order["product_id"],
+        product_id = original_order["product_id"]
+        # ``create_stealth_order`` remains the authoritative price-boundary
+        # gate.  Pre-normalize here when metadata is available so percentage
+        # threshold derivation sees the exact target that will be persisted.
+        # Keeping the historical metadata-missing pass-through matters for
+        # callers that replace ``create_stealth_order`` with another creation
+        # boundary (including transaction wrappers and contract tests); the
+        # real creation path will still reject missing metadata fail-closed.
+        if get_product_metadata(str(product_id)).get("price_increment"):
+            normalized_target = normalize_price_for_product(
+                anchored_limit_price,
+                product_id=product_id,
                 side=side,
-                price=anchored_limit_price,
-                boundary_enforced=False,
+                policy=PriceRoundingPolicy.SIDE_CONSERVATIVE,
+            )
+            if (
+                not normalized_target.ok
+                or normalized_target.effective_price is None
+            ):
+                raise ValueError(
+                    normalized_target.reason
+                    or "Follow-up target price normalization failed"
+                )
+            anchored_limit_price = float(normalized_target.effective_price)
+
+        if reveal_condition is not None:
+            follow_up_condition = deepcopy(reveal_condition)
+        else:
+            follow_up_condition = self._derive_follow_up_reveal_condition(
+                source_order=original_order,
+                strategy_order=strategy_order,
+                final_target_price=anchored_limit_price,
+                direction_choice=effective_direction,
             )
         # Audit trail: stuff the actual retreat values used into the
         # notes string. This is the only structured channel that
@@ -6776,9 +7207,9 @@ class StealthOrderManager:
             total_size=total_size,
             limit_price=anchored_limit_price,
             reveal_condition=follow_up_condition,
-            sizing_strategy=original_order.get("sizing_strategy_json", {}),
+            sizing_strategy=strategy_order.get("sizing_strategy_json", {}),
             parent_order_id=resolve_stealth_chain_root(original_order),
-            follow_up_reveal_direction=follow_up_reveal_direction or original_order.get("follow_up_reveal_direction", FollowUpRevealDirection.OPPOSITE.value),
+            follow_up_reveal_direction=effective_direction.value,
             reveal_pricing_policy=effective_pricing_policy,
             reason="follow_up_replacement",
             notes=f"Follow-up to {original_stealth_order_id[:8]}... {notes}{retreat_audit}",
@@ -6809,6 +7240,7 @@ class StealthOrderManager:
                     "retreat_distance":        retreat_policy.follow_up_retreat_distance,
                     "retreat_jitter":          retreat_policy.follow_up_retreat_jitter,
                     "jitter_seed":             follow_up_stealth_order_id,
+                    "reveal_condition":        deepcopy(follow_up_condition),
                 }
                 self._update_stealth_order(follow_up_order)
         

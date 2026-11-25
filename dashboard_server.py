@@ -1894,21 +1894,42 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
 
                 hold_duration_persisted = hold_secs is not None
 
+                affected_conditions = {}
+                manager = stealth_order_bridge.stealth_manager
+                affected_snapshot = getattr(
+                    manager,
+                    "strategy_condition_order_ids",
+                    None,
+                )
+                affected_ids = (
+                    affected_snapshot(stealth_order_id)
+                    if callable(affected_snapshot)
+                    else (stealth_order_id,)
+                )
+                if not isinstance(affected_ids, (list, tuple, set)):
+                    affected_ids = (stealth_order_id,)
+                for affected_id in affected_ids:
+                    affected_order = manager.in_memory_orders.get(affected_id)
+                    if not isinstance(affected_order, dict):
+                        continue
+                    affected_conditions[affected_id] = deepcopy(
+                        affected_order.get("reveal_condition_json") or {}
+                    )
+
                 # Sync state payload cache
                 with state_lock:
-                    if stealth_order_id in engine_state["stealth_orders"]:
-                        state_order = engine_state["stealth_orders"][stealth_order_id]
-                        reveal_json = state_order.get("reveal_condition_json") or {}
-                        reveal_json["price_threshold"] = threshold
-                        if hold_secs is not None and hold_duration_persisted:
-                            reveal_json["hold_duration_seconds"] = hold_secs
-                        state_order["reveal_condition_json"] = reveal_json
+                    for affected_id, reveal_json in affected_conditions.items():
+                        if affected_id in engine_state["stealth_orders"]:
+                            engine_state["stealth_orders"][affected_id][
+                                "reveal_condition_json"
+                            ] = deepcopy(reveal_json)
 
                 response = {
                     "type": "stealth_threshold_updated",
                     "stealth_order_id": stealth_order_id,
                     "price_threshold": threshold,
                     "hold_duration_seconds": hold_secs if hold_duration_persisted else None,
+                    "affected_conditions": affected_conditions,
                 }
 
                 add_log_entry("INFO", f"Stealth threshold updated: {stealth_order_id} -> {threshold}" + (f", hold={hold_secs}s" if hold_secs is not None else ""))

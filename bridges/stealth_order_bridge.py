@@ -13,7 +13,7 @@ import math
 import threading
 import time
 import uuid
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from typing import Dict, Any, Iterator, Mapping, Optional, Tuple
@@ -1787,9 +1787,25 @@ class StealthOrderBridge:
         price_threshold: float,
         hold_duration_seconds: Optional[int] = None,
     ) -> bool:
-        """Serialize persistence, hold reset, and schedule publication."""
+        """Serialize a root strategy edit across affected execution units."""
 
-        with self._get_order_action_lock(stealth_order_id):
+        affected_snapshot = getattr(
+            self.stealth_manager,
+            "strategy_condition_order_ids",
+            None,
+        )
+        affected_ids = (
+            affected_snapshot(stealth_order_id)
+            if callable(affected_snapshot)
+            else ()
+        )
+        if not isinstance(affected_ids, (list, tuple, set)) or not affected_ids:
+            affected_ids = (str(stealth_order_id),)
+        # This is the only multi-order action-lock acquisition. Sorting makes
+        # the order deterministic if two operator edits race on the same root.
+        with ExitStack() as locks:
+            for affected_id in sorted(set(affected_ids)):
+                locks.enter_context(self._get_order_action_lock(affected_id))
             updated = self.stealth_manager.update_price_condition(
                 stealth_order_id,
                 price_threshold=price_threshold,

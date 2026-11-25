@@ -173,6 +173,32 @@ def test_every_span_order_gets_a_fresh_policy_before_delayed_send():
 
 
 @pytest.mark.regression
+def test_parent_children_share_root_threshold_while_independent_parents_do_not():
+    """The two span modes intentionally define different strategies.
+
+    Parent+Children shares one absolute root reveal threshold. Independent
+    Parents adjusts that threshold relative to every standalone rung.
+    """
+
+    html = SPAN_BUILDER.read_text(encoding="utf-8")
+    independent = _slice_between(
+        html,
+        "function createIndependentParents(",
+        "function createParentWithChildren(",
+    )
+    parent_children = _slice_between(
+        html,
+        "function createParentWithChildren(",
+        "function customizeRevealConditionForPrice(",
+    )
+
+    assert "customizeRevealConditionForPrice(" in independent
+    assert "reveal_condition: revealCondition" in independent
+    assert "customizeRevealConditionForPrice(" not in parent_children
+    assert "reveal_condition: baseRevealCondition" in parent_children
+
+
+@pytest.mark.regression
 def test_disabled_repricing_bypasses_validation_and_reset_restores_opt_in_state():
     html = SPAN_BUILDER.read_text(encoding="utf-8")
     validation = _slice_between(

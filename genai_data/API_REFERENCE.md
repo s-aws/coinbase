@@ -299,6 +299,14 @@ Stealth responses:
 - `stealth_orders_cleared`
 - `stealth_orders_clear_result`
 
+`update_stealth_price_threshold` accepts only a root price strategy. The
+manager serializes the edit across that root and its editable `HIDDEN`/
+`PENDING` children: initial Parent+Children members keep the shared absolute
+threshold, while derived follow-ups preserve their child-relative percentage
+inversion. `stealth_threshold_updated` includes `affected_conditions`, keyed by
+`stealth_order_id`, so clients can replace every materialized condition
+immediately. A committed `TRIGGERED` snapshot is not rewritten.
+
 Move/product/analytics responses:
 - `move_history_list`
 - `order_moved`

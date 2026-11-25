@@ -52,6 +52,8 @@ A stealth order is a local execution plan, not a normal exchange order. It may s
 
 - Internal tracking uses `client_order_id`; `order_id` is exchange-facing only.
 - Child orders always link to the original parent (flat hierarchy).
+- Children are independent execution units, not independent strategy
+  definitions; editable strategy authority remains at the flat-chain root.
 - Stealth local state must match live exchange reality: hidden/pending/triggered orders have no active Coinbase placement; revealed orders may have one until cancellation, fill, move/reprice, or reconciliation accounts for it. Intentional local CANCELLED is an automation stop and may retain pending exchange exposure.
 - Use enums from `core/enums.py`, not ad hoc strings.
 - Respect thread-safety boundaries and existing lock ownership.

@@ -2001,14 +2001,23 @@
                         const stealthOrderId = data.stealth_order_id;
                         const threshold = data.price_threshold;
                         const holdDuration = data.hold_duration_seconds;
+                        const affectedConditions = data.affected_conditions || {};
 
-                        if (ordersData[stealthOrderId]) {
+                        Object.entries(affectedConditions).forEach(([orderId, condition]) => {
+                            if (ordersData[orderId]) {
+                                ordersData[orderId].reveal_condition_json = condition;
+                            }
+                        });
+
+                        if (ordersData[stealthOrderId] && !affectedConditions[stealthOrderId]) {
                             const revealJson = ordersData[stealthOrderId].reveal_condition_json || {};
                             revealJson.price_threshold = threshold;
                             if (holdDuration !== null && holdDuration !== undefined) {
                                 revealJson.hold_duration_seconds = holdDuration;
                             }
                             ordersData[stealthOrderId].reveal_condition_json = revealJson;
+                        }
+                        if (ordersData[stealthOrderId]) {
                             const holdMsg = holdDuration !== null && holdDuration !== undefined
                                 ? `, hold=${holdDuration}s` : '';
                             showMessage(`Threshold updated to ${threshold}${holdMsg}`, 'success');
