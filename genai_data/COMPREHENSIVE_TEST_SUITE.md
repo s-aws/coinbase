@@ -14,7 +14,7 @@ with a simple, repeatable execution policy.
 
 - `tests/unit/`: 38 test files
 - `tests/integration/`: 7 test files
-- `tests/regression/`: 82 test files
+- `tests/regression/`: 83 test files
 - `tests/e2e/`: 2 test files
 - `tests/external/`: 1 test file
 - `tests/` root: 2 test files
@@ -72,8 +72,10 @@ test cases unless the user explicitly requests them.
 - cross-source reconciliation and ownership partitioning
 - DB cursor thread-safety guarantees
 - DB production-guard behavior for pytest and direct test-shaped scripts
-- guarded runtime database target confirmation, connected-identity validation,
-  complete schema creation, and idempotency
+- guarded runtime database identity/fresh-state validation, complete schema
+  creation, and idempotency
+- clean-worktree release validation, foreground deployment composition, and
+  stable `PAUSED` dashboard-health proof
 - confirmed rearm/Rehide, operator stop/withdrawal, guarded deletion, UI
   visibility, and per-condition threshold offsets
 

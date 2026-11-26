@@ -3,10 +3,12 @@
 ## Status
 
 - Last updated (ET): 2026-11-26.
-- Objective baseline: `prod` and `origin/prod` at ownership commit `4651848d`.
-- Active operator-approved objective: none. The runtime-database rollout is
-  complete; deployment-checklist automation is the next feature proposed for
-  operator review, not an approved implementation objective.
+- Repository baseline: local `prod` is at `f8b63706`; `origin/prod` remains at
+  `4651848d`, so local is two commits ahead before the current uncommitted
+  automation worktree.
+- Active operator-approved objective: the safe, non-destructive release/runtime
+  automation for `tests/DEPLOYMENT_CHECKLIST.md` is implemented and validated in
+  the current worktree; operator review and commit remain pending.
 - Completed implementation sequence: follow-up reveal-direction persistence,
   parent/child strategy authority, percentage-relative follow-up threshold
   inversion, programmatic span consistency, deterministic span planning, and
@@ -18,8 +20,24 @@
   development/reset utility and is never a deployment command. Deployment will
   not run over an existing instance; it uses the guarded additive bootstrap on
   a fresh database explicitly prepared by the operator.
-- Next proposed feature: automate the safe, non-destructive portions of
-  `tests/DEPLOYMENT_CHECKLIST.md`. No automation implementation is approved yet.
+- The automation reuses `scripts/run_tests.sh`, `database.schema`, and
+  `python -m main` rather than introduce parallel validation, schema, or engine
+  paths.
+
+## Completed Automation Checklist
+
+1. `scripts/validate_release.sh` provides the clean-worktree complete-suite,
+   graph, diff, and final-cleanliness release gate.
+2. `scripts/bootstrap_runtime_database.sh` accepts no confirmation argument;
+   it derives the target from all five required `COINBASE_DB_*` values and
+   rejects unknown tables or trading rows while permitting candle/tick data.
+3. `scripts/deploy_runtime.sh` serializes supported launchers, probes for an
+   existing dashboard before and after validation, bootstraps the database,
+   forces paused canonical startup, proves stable dashboard health, and owns
+   the child in the foreground with graceful signal forwarding.
+4. Regression coverage, living documentation, setup guidance, and curated and
+   generated repository-graph records are updated. Destructive reset, resume,
+   order activity, Git push, and daemonization remain manual or excluded.
 
 ## Completed Rollout Checklist
 
@@ -32,29 +50,37 @@
 
 ## Validation and Maintenance
 
-- Full local non-external suite for the ownership/schema worktree, including
-  the bootstrap script: 1,919 passed, 17 skipped, 11 deselected, exit 0 on
-  Python 3.14.
-- Bootstrap shell syntax validation: pass.
-- Fresh-target proof: all 12 trading tables contained zero rows before
-  bootstrap; only `market_candle_1m` and `market_tick` retained operator-created
-  telemetry/backfill data.
-- Guarded additive bootstrap: pass; connected identity was database `coinbase`,
-  user `postgres`, server `127.0.0.1:5432`, and all 12 required tables verified.
-- Live startup: `STARTING -> PAUSED`; dashboard authority reported admission
-  closed, no stop in progress, no pending startup pause, and zero in-flight
-  work. Startup reconciliation found no exchange/DB order drift, parent/child
-  hydration was empty and in sync, and authenticated user snapshots contained
-  zero open orders. All 12 trading tables remained empty after startup.
+- Full local non-external suite after the final executable/test changes: 1,932
+  passed, 17 skipped, 11 external deselected, exit 0 on Python 3.14. The new
+  database success/failure cases use isolated per-test schemas and never clear
+  the suite's shared state.
+- Bash syntax for all deployment scripts and Python compilation for the schema
+  and healthcheck modules: pass. Final diff check: pass.
+- The clean-worktree release wrapper was not invoked against this intentionally
+  dirty implementation worktree. Its exact underlying full-suite, graph, and
+  diff gates were run directly, and its composition/exclusion contracts are
+  covered by regression tests.
+- Repository graph rebuild after the final executable/test changes: pass with
+  466 files, 7,598 symbols, 1,616 tests, 40,822 edges, zero parse findings, and
+  zero fatal errors. A final rebuild/check follows this handoff-only update.
+- Historical fresh-target proof at rollout time: all 12 trading tables contained
+  zero rows before bootstrap; only `market_candle_1m` and `market_tick` retained
+  operator-created telemetry/backfill data.
+- Historical guarded additive bootstrap: pass; connected identity was database
+  `coinbase`, user `postgres`, server `127.0.0.1:5432`, and all 12 required
+  tables verified.
+- Historical live startup: `STARTING -> PAUSED`; dashboard authority reported
+  admission closed, no stop in progress, no pending startup pause, and zero
+  in-flight work. Startup reconciliation found no exchange/DB order drift,
+  parent/child hydration was empty and in sync, and authenticated user snapshots
+  contained zero open orders. All 12 trading tables remained empty after startup.
 - The missed-fill audit classified 148 recent REST fills across 106 orders as
   unowned pre-wipe/off-engine history, so it did not backfill them. This is not
   current local order state and will age out of the audit window.
-- No destructive database command, order placement/cancellation, or delegated
-  agent was used. The engine remains running in `PAUSED` with admission closed.
-- Repository graph check after this closeout update: pass with zero fatal
-  errors and zero mismatches; final diff check: pass. The full local suite was
-  not repeated because this final change is limited to agent context plus
-  generated graph evidence.
+- No production database bootstrap/deployment, destructive database command,
+  order placement/cancellation, or delegated agent was used for this feature.
+  The pre-existing engine session was left running and untouched; later runtime
+  activity means its database must not be assumed fresh for a future launch.
 
 ## Local Environment
 
@@ -75,9 +101,14 @@ establish SDK endpoint routing. Behavioral fixes or live validation require a
 separate operator-approved objective.
 
 The guarded bootstrap requires all five explicit `COINBASE_DB_*` variables and
-an exact `HOST:PORT/DATABASE` confirmation. `main.py` does not provision the
-full schema. A live start must keep `ENGINE_START_PAUSED` enabled until startup
-reconciliation and readiness evidence have been reviewed.
+derives the target solely from them. It verifies identity and fresh trading
+state before schema work; duplicate target confirmation is intentionally
+absent. `main.py` does not provision the full schema. Deployment forces
+`ENGINE_START_PAUSED` until reconciliation and readiness evidence are reviewed.
+The wrapper's lock serializes supported launchers and its repeated dashboard
+probe narrows startup overlap, but it cannot fence a concurrent direct/manual
+`python -m main` process or an independent database writer. Those bypasses
+remain unsupported operational races.
 
 ## Durable Architecture Recommendation
 

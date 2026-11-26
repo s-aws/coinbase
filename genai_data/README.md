@@ -62,12 +62,17 @@ A stealth order is a local execution plan, not a normal exchange order. It may s
 ## Main Runtime Entry Points
 
 - `main.py` - starts dashboard, stealth bridge, order engine, runtime controller, and reconciler.
+- `scripts/validate_release.sh` - clean-worktree full-suite, graph, and diff
+  gate with no live/runtime mutation.
+- `scripts/deploy_runtime.sh` - foreground deployment owner that validates the
+  release, bootstraps a fresh trading database, launches `main` paused, and
+  proves dashboard health before waiting on the engine.
 - `scripts/bootstrap_runtime_database.sh` - guarded operator entry point for
-  runtime target confirmation, read-only identity validation, and schema
-  deployment before `main.py`.
+  read-only runtime identity/fresh-state validation and database-only schema
+  deployment before `main.py`; market telemetry may remain.
 - `database/schema.py` - canonical additive runtime-schema implementation and
-  required-table verification shared by deployment, test provisioning, and
-  destructive reset recreation.
+  fresh-state/required-table verification shared by deployment, test
+  provisioning, and destructive reset recreation.
 - `dashboard_server.py` - WebSocket state hub and operator command surface.
 - `core/order_engine.py` - event ingestion, order lifecycle, follow-up logic.
 - `core/user_feed_processor.py` - private-feed generations, reduction,

@@ -137,13 +137,15 @@ Per-`client_order_id` watermark records for:
 `database/order.py` owns the canonical table definitions and forward
 migrations. `database/schema.py` owns the single ordered additive bootstrap:
 `SCHEMA_INITIALIZERS` defines dependency order and `REQUIRED_TABLES` exposes
-the required trading-table set; `verify_database_schema()` confirms it exists.
-Guarded deployment enters through `scripts/bootstrap_runtime_database.sh`,
-while isolated test provisioning and destructive reset recreation invoke the
-same schema implementation directly. `main.py` assumes that step already
-succeeded.
+the required trading-table set; `verify_database_schema()` confirms it exists,
+and `verify_fresh_runtime_database()` rejects unknown public tables or existing
+trading rows. Foreground deployment enters through `scripts/deploy_runtime.sh`,
+which composes the database-only `scripts/bootstrap_runtime_database.sh`; test
+provisioning and destructive reset recreation invoke the same schema
+implementation directly. `main.py` assumes that step already succeeded.
 Lazy analytics tables (`market_tick` and `market_candle_1m`) are outside the
-required set.
+required set and are the only additional public tables allowed by fresh
+deployment.
 
 ### `order_parent`
 Stores strategy roots, linked logical children, and distinct exchange-placement

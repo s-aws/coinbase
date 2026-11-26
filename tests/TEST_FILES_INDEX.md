@@ -67,7 +67,7 @@ an explicit user request.
 | [test_order_processing.py](integration/test_order_processing.py) | 13 | Integration tests for complete order processing workflows. |
 | [test_stealth_order_workflow.py](integration/test_stealth_order_workflow.py) | 6 | Integration tests for stealth order workflows. |
 
-## tests/regression (82 files)
+## tests/regression (83 files)
 
 | File | Defined test functions | Module intent |
 | --- | ---: | --- |
@@ -83,8 +83,9 @@ an explicit user request.
 | [test_dashboard_move_revealed_handler.py](regression/test_dashboard_move_revealed_handler.py) | 6 | Regression tests for the move_revealed_stealth_order dashboard |
 | [test_dashboard_rehide.py](regression/test_dashboard_rehide.py) | 6 | Manual Rehide uses the bridge and reports intent, never inferred exchange truth. |
 | [test_dashboard_startup_admission.py](regression/test_dashboard_startup_admission.py) | 9 | Dashboard admission remains fail-closed through runtime startup. |
-| [test_database_schema_bootstrap.py](regression/test_database_schema_bootstrap.py) | 6 | Complete database-only schema provisioning plus guarded runtime deployment target validation. |
+| [test_database_schema_bootstrap.py](regression/test_database_schema_bootstrap.py) | 9 | Complete schema provisioning plus guarded fresh-runtime deployment validation. |
 | [test_db_cursor_thread_safety.py](regression/test_db_cursor_thread_safety.py) | 2 | Regression: PostgresDB.get_cursor() must serialize cursor access across threads. |
+| [test_deployment_automation.py](regression/test_deployment_automation.py) | 6 | Release/deployment composition, exclusions, and stable paused-health contracts. |
 | [test_exception_kwargs_signature.py](regression/test_exception_kwargs_signature.py) | 11 | Regression: every exception class accepts the kwargs that real call sites use. |
 | [test_fee_manager_lifecycle.py](regression/test_fee_manager_lifecycle.py) | 5 | Fee refresh publication remains stop-dominant during engine startup. |
 | [test_fee_multiplier_by_product_type.py](regression/test_fee_multiplier_by_product_type.py) | 6 | Regression: fee schedule and cushion must both be product-type aware. |

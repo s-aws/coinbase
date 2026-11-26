@@ -18,9 +18,10 @@ The runtime is centered on a single `OrderEngine` instance (`core/order_engine.p
 - `calculation/fee_manager.py`: dynamic maker/taker fee telemetry and adaptive factors.
 
 `main.py` wires these together and installs graceful shutdown hooks. It assumes
-the guarded `scripts/bootstrap_runtime_database.sh` deployment entry point has
-already run the additive `database.schema` implementation successfully and
-does not run full schema DDL during process startup.
+the database-only `scripts/bootstrap_runtime_database.sh` step (normally
+composed by `scripts/deploy_runtime.sh`) has already run the additive
+`database.schema` implementation successfully and does not run full schema DDL
+during process startup.
 
 ## Runtime Layers
 
@@ -39,12 +40,15 @@ does not run full schema DDL during process startup.
 3. **Persistence Layer**
 - `database/order.py` owns canonical table definitions, forward migrations,
   and the trading write/read API.
-- `database/schema.py` is the single ordered additive bootstrap for required
-  runtime tables, shared by deployment, test provisioning, and destructive
-  reset recreation.
-- `scripts/bootstrap_runtime_database.sh` is the operator-facing deployment
-  boundary: mandatory explicit variables, exact target confirmation, read-only
-  database/user identity validation, bootstrap, and required-table verification.
+- `database/schema.py` is the single ordered additive bootstrap plus
+  fresh-state/required-table verifier, shared by deployment, test provisioning,
+  and destructive reset recreation.
+- `scripts/bootstrap_runtime_database.sh` is the database-only deployment
+  boundary: mandatory explicit variables, read-only database/user/fresh-state
+  validation, bootstrap, and required-table verification.
+- `scripts/deploy_runtime.sh` composes the clean release gate, database
+  bootstrap, canonical paused runtime, and dashboard health proof while
+  remaining foreground-owned for an external supervisor.
 - `database/database.py::PostgresDB` serializes cursor/transaction access with an RLock.
 
 4. **Audit/Reconciliation Layer**
@@ -424,17 +428,24 @@ Canonical required-table definitions live in `database/order.py`:
 - `partial_fill_progress`
 
 `database/schema.py::initialize_database_schema()` invokes those definitions
-in dependency order, `verify_database_schema()` checks the required set, and
-`REQUIRED_TABLES` exposes their names. Supported deployment enters through
-`scripts/bootstrap_runtime_database.sh` before `main`; the destructive reset
-uses the same initialization and verification path after dropping public
-tables. Direct reset-script execution then preserves its existing best-effort
-candle backfill.
+in dependency order, `verify_database_schema()` checks the required set,
+`verify_fresh_runtime_database()` rejects unknown public tables or existing
+trading rows, and `REQUIRED_TABLES` exposes canonical names. Fresh deployment
+enters through foreground `scripts/deploy_runtime.sh`: clean release validation,
+database-only bootstrap, canonical paused `main` launch, and live dashboard
+health proof. `scripts/bootstrap_runtime_database.sh` remains the database-only
+entry point. The destructive reset uses the same initialization and required
+table verification after dropping public tables, but is never called by
+deployment automation. Direct reset-script execution then preserves its
+existing best-effort candle backfill.
 
 Analytics support tables are created lazily by their telemetry paths rather
 than included in the required runtime bootstrap:
 - `market_tick` (live recorder)
 - `market_candle_1m` (historical candle fallback)
+
+Those two tables are the only non-runtime public tables allowed by the fresh
+deployment guard, and their existing rows do not make a trading target stale.
 
 ## Dashboard and Operator Interface
 

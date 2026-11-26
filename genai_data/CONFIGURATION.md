@@ -32,25 +32,38 @@ Both test guards block accidental localhost production-port use unless
 
 #### Runtime schema deployment contract
 
-Set every runtime `COINBASE_DB_*` variable and verify the resolved target with
-a read-only query before any stateful command. Then run the single supported
-guarded runtime-database bootstrap before starting the engine:
+Set every runtime `COINBASE_DB_*` variable explicitly. The guarded database
+entry point derives its target only from those variables, verifies connected
+database/user identity and fresh trading state read-only, then applies the
+canonical schema:
 
 ```bash
-runtime_db_target="${COINBASE_DB_HOST}:${COINBASE_DB_PORT}/${COINBASE_DB_NAME}"
-./scripts/bootstrap_runtime_database.sh --confirm-target "${runtime_db_target}"
+./scripts/bootstrap_runtime_database.sh
 ```
 
 `scripts/bootstrap_runtime_database.sh` requires all five runtime database
-variables, refuses a mismatched target confirmation, validates the connected
-database and user with a read-only query, invokes `database.schema`, and
-verifies the required table set. `database/schema.py` owns the ordered,
-idempotent implementation shared by deployment, test provisioning, and the
-post-drop phase of the destructive reset utility. It creates missing tables
-and runs their forward migrations; it does not drop tables or rows or initialize
-live Coinbase runtime configuration. Direct `python -m main` startup
-deliberately performs no full schema bootstrap and therefore assumes this
-deployment step already succeeded.
+variables and accepts no duplicate target-confirmation argument. Required
+runtime tables may be absent or already provisioned for a retry, but every
+existing required table must be empty. Only `market_candle_1m` and
+`market_tick` may coexist as additional public tables; their telemetry data is
+allowed. Unknown tables or trading rows fail closed. `database/schema.py` owns
+the ordered, idempotent implementation and fresh-state verifier shared by
+deployment, test provisioning, and reset recreation. Direct `python -m main`
+startup deliberately performs no full schema bootstrap.
+
+The complete safe deployment path is:
+
+```bash
+./scripts/deploy_runtime.sh
+```
+
+It first runs `scripts/validate_release.sh`, invokes the guarded database
+bootstrap, forces `ENGINE_START_PAUSED=true`, starts the canonical `python -m
+main` entry point, and waits for live `admin_status` proof of stable `PAUSED`
+health with admission closed and zero in-flight work. It rejects a true
+`DISABLE_RECONCILER`, an already responding engine, and overlapping deployment
+launchers. The script remains in the foreground; a service/container
+supervisor must own it for durable operation.
 
 `__dangerous_delete_all_tables__.py` is not an alternate migration command. It
 irreversibly drops the target's public tables before invoking the canonical
@@ -109,10 +122,22 @@ pages selecting `wss` require TLS termination outside this plain listener.
     and worker startup, then publishes `PAUSED` instead of `RUNNING`.
   - set an explicit false value to opt into entering `RUNNING` automatically
     after startup readiness completes.
+  - `scripts/deploy_runtime.sh` rejects an explicit false value; supported
+    deployment always reaches stable `PAUSED` before operator review.
   - an invalid nonempty value aborts before the dashboard is exposed.
 
 - `DISABLE_RECONCILER`
   - values like `1`, `true`, `yes`, `on` disable both startup and periodic reconciliation in `main.py`.
+  - `scripts/deploy_runtime.sh` rejects this bypass; deployment reconciliation
+    cannot be disabled.
+
+- `DEPLOYMENT_HEALTHCHECK_URL`
+  - dashboard WebSocket URL used only by deployment automation.
+  - defaults to `ws://127.0.0.1:${DASHBOARD_SERVER_PORT:-8765}`.
+
+- `DEPLOYMENT_HEALTH_TIMEOUT_SECONDS`
+  - finite positive time allowed for startup to reach stable `PAUSED` health.
+  - defaults to `60`.
 
 - `MARKET_METRICS_WINDOWS`
   - controls metrics window preset in `business/market_metrics.py`.
@@ -245,12 +270,14 @@ Do not introduce duplicate global settings when a per-order canonical field alre
 # Required complete local non-external gate for every non-agent-file change
 ./scripts/run_tests.sh
 
-# Required runtime database step after setting COINBASE_DB_*
-runtime_db_target="${COINBASE_DB_HOST}:${COINBASE_DB_PORT}/${COINBASE_DB_NAME}"
-./scripts/bootstrap_runtime_database.sh --confirm-target "${runtime_db_target}"
+# Automated clean-worktree release gate
+./scripts/validate_release.sh
 
-# Start only after the schema bootstrap succeeds
-./.venv/bin/python3.14 -m main
+# Database-only preparation after setting all COINBASE_DB_* values
+./scripts/bootstrap_runtime_database.sh
+
+# Complete foreground deployment after setting DB/API variables
+./scripts/deploy_runtime.sh
 
 # Disable reconcilers for local troubleshooting
 export DISABLE_RECONCILER=1

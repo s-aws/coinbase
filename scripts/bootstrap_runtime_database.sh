@@ -7,8 +7,7 @@ python_bin="${VENV_DIR:-${project_root}/.venv}/bin/python3.14"
 usage() {
     cat <<'EOF'
 Usage:
-  ./scripts/bootstrap_runtime_database.sh \
-    --confirm-target HOST:PORT/DATABASE
+  ./scripts/bootstrap_runtime_database.sh
 
 Required environment variables:
   COINBASE_DB_HOST
@@ -17,10 +16,10 @@ Required environment variables:
   COINBASE_DB_USER
   COINBASE_DB_PASSWORD
 
-The confirmation value must exactly match the configured host, port, and
-database. The script verifies the connected database identity read-only,
-applies the canonical additive schema bootstrap, and verifies every required
-runtime table. It does not start the trading engine.
+The script verifies the environment-selected database identity and fresh
+trading state read-only, applies the canonical additive schema bootstrap, and
+verifies every required runtime table. Existing market-candle/tick telemetry
+is allowed. It does not start the trading engine.
 EOF
 }
 
@@ -34,10 +33,12 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
     exit 0
 fi
 
-[[ "$#" -eq 2 && "$1" == "--confirm-target" ]] || {
+[[ "$#" -eq 0 ]] || {
     usage >&2
-    fail "an exact --confirm-target value is required"
+    fail "this command does not accept arguments; configure COINBASE_DB_* explicitly"
 }
+
+cd "${project_root}"
 
 required_variables=(
     COINBASE_DB_HOST
@@ -69,19 +70,15 @@ db_port_decimal=$((10#${COINBASE_DB_PORT}))
 }
 
 configured_target="${COINBASE_DB_HOST}:${COINBASE_DB_PORT}/${COINBASE_DB_NAME}"
-confirmed_target="$2"
-[[ "${confirmed_target}" == "${configured_target}" ]] || {
-    fail "target confirmation mismatch; configured target is ${configured_target}"
-}
-
 printf 'Configured runtime database: %s (user=%s)\n' \
     "${configured_target}" "${COINBASE_DB_USER}"
-printf 'Verifying connected database identity read-only...\n'
+printf 'Verifying connected identity and fresh trading state read-only...\n'
 
 "${python_bin}" - <<'PY'
 import os
 
 from database.database import PostgresDB
+from database.schema import verify_fresh_runtime_database
 
 db = PostgresDB()
 try:
@@ -114,6 +111,12 @@ try:
         f"database={identity['database']} "
         f"user={identity['database_user']} "
         f"server={server_address}:{identity['server_port']}"
+    )
+    existing_runtime_tables = verify_fresh_runtime_database(db)
+    print(
+        "Fresh trading-state check: "
+        f"{len(existing_runtime_tables)} existing runtime table(s), "
+        "0 trading rows; market telemetry tables permitted"
     )
 finally:
     db.disconnect()

@@ -66,5 +66,6 @@ COINBASE_DB_PASSWORD="${COINBASE_TEST_DB_PASSWORD:-postgres}" \
 
 printf '\nSetup complete.\n'
 printf 'Run tests: %s/scripts/run_tests.sh\n' "${project_root}"
-printf 'After setting COINBASE_DB_*, bootstrap the runtime database: %s/scripts/bootstrap_runtime_database.sh --confirm-target HOST:PORT/DATABASE\n' "${project_root}"
-printf 'Then start the engine: %s/bin/python3.14 -m main\n' "${venv_dir}"
+printf 'Validate a clean release: %s/scripts/validate_release.sh\n' "${project_root}"
+printf 'After setting runtime DB/API variables, deploy paused: %s/scripts/deploy_runtime.sh\n' "${project_root}"
+printf 'Database-only preparation: %s/scripts/bootstrap_runtime_database.sh\n' "${project_root}"

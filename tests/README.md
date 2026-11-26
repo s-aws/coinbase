@@ -9,6 +9,10 @@ regression tests. Run it from the repository root on Linux:
 ./scripts/run_tests.sh
 ```
 
+For a committed clean worktree, `./scripts/validate_release.sh` wraps that same
+suite with repository-graph, diff, and final cleanliness checks. It does not
+run external tests or deploy the runtime.
+
 `AGENTS.md` and `agent.md` control the execution policy. Focused test files,
 name filters, and single cases require an explicit user request. Run the suite
 sequentially; tests share process globals, files, and a test database.
@@ -46,7 +50,7 @@ fencing and database-backed process restart recovery.
 | --- | ---: | --- |
 | `unit/` | 38 | Component logic, concurrency primitives, graph contracts |
 | `integration/` | 7 | Cross-module workflows and bridge wiring |
-| `regression/` | 82 | Lifecycle, persistence, deployment, UI, ID, and race boundaries |
+| `regression/` | 83 | Lifecycle, persistence, deployment, UI, ID, and race boundaries |
 | `e2e/` | 2 | In-process trading/user-message workflows |
 | `external/` | 1 | Opt-in Coinbase contracts and network smoke |
 | `tests/` root | 2 | Exception and lot-tracking integration checks |

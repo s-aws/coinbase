@@ -28,7 +28,7 @@ repository does not provide a parallel test runner.
 
 - `tests/unit/`: 38 test files
 - `tests/integration/`: 7 test files
-- `tests/regression/`: 82 test files
+- `tests/regression/`: 83 test files
 - `tests/e2e/`: 2 test files
 - `tests/external/`: 1 test file
 - `tests/` root: 2 test files
@@ -76,6 +76,8 @@ Examples include:
   (`tests/regression/test_user_channel_patch_dispatch.py`)
 - dashboard handler contracts
 - missed-fill reconciliation behavior
+- fresh-database enforcement, release validation, foreground paused deployment,
+  and authoritative dashboard-health contracts
 
 ### E2E
 Top-level user-message and workflow tests.
@@ -156,6 +158,11 @@ export COINBASE_ENABLE_WEBSOCKET_EXTERNAL="true"
 - runs the same additive `database.schema` implementation used by guarded
   runtime deployment and destructive reset recreation before test collection
 - refuses localhost:5432 connections unless `ALLOW_PROD_DB=1`
+
+`scripts/validate_release.sh` is the automated clean-worktree wrapper around
+the complete suite, graph check, and final Git/diff checks. It performs no live
+deployment. `tests/regression/test_deployment_automation.py` pins the excluded
+destructive/resume/push behavior and the stable `PAUSED` health contract.
 
 `database/database.py` also refuses test-shaped direct script processes from connecting to localhost `5432` unless `ALLOW_PROD_DB=1`. This covers root-level scripts such as `test_*.py` that do not load `tests/conftest.py`.
 

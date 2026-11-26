@@ -14,9 +14,11 @@ Use it to find the single canonical behavior path before editing.
 - Runtime pause/resume/drain state: `core/runtime_controller.py`
 - Exchange-vs-local reconciliation: `core/startup_reconciler.py`, `core/periodic_reconciler.py`
 - Parent/child and stealth DB definitions/persistence: `database/order.py`
-- Guarded runtime database deployment entry point:
+- Automated release/runtime deployment entry points:
+  `scripts/validate_release.sh`, `scripts/deploy_runtime.sh`
+- Guarded database-only deployment entry point:
   `scripts/bootstrap_runtime_database.sh`
-- Runtime schema implementation/reset orchestration: `database/schema.py`
+- Runtime schema/fresh-state/reset orchestration: `database/schema.py`
 - Dashboard request handlers/state broadcast: `dashboard_server.py`
 - Fill ledger + reconciliation: `business/fill_ledger.py`, `business/fill_reconciler.py`
 - Per-snapshot fill progress deltas: `business/order_progress.py`
@@ -37,9 +39,10 @@ Bootstraps:
 - periodic reconciler
 - post-worker readiness publication
 
-It deliberately does not create or migrate the full database schema. Run the
-guarded `scripts/bootstrap_runtime_database.sh` entry point against the
-explicitly confirmed target before starting `main`.
+It deliberately does not create or migrate the full database schema. Normal
+deployment enters through `scripts/deploy_runtime.sh`, which validates the
+release, bootstraps a fresh trading database, launches this module paused, and
+verifies dashboard health while remaining attached to the process.
 
 ### `dashboard_server.py`
 WebSocket server for operator commands and state broadcasts.
@@ -288,15 +291,30 @@ functions for core trading tables.
 
 ### `database/schema.py`
 Single ordered additive bootstrap for all required runtime trading tables.
-It also owns required-table verification. Guarded deployment, isolated test
-provisioning, and destructive reset recreation use this path so initializer
-coverage cannot drift between entry points.
+It also owns fresh-deployment and required-table verification. Guarded
+deployment, isolated test provisioning, and destructive reset recreation use
+this path so initializer coverage cannot drift between entry points.
+
+### `scripts/validate_release.sh`
+Read-only release gate for a clean worktree. Runs the complete local
+non-external suite, graph check, and final Git/diff checks without contacting
+Coinbase or the runtime database.
+
+### `scripts/deploy_runtime.sh`
+Foreground runtime deployment owner. Rejects disabled reconciliation and an
+existing dashboard, runs release validation and database bootstrap, forces
+paused startup through `python -m main`, verifies stable `PAUSED` admin status,
+then waits on the engine for an external supervisor.
 
 ### `scripts/bootstrap_runtime_database.sh`
 Operator-facing runtime schema deployment entry point. Requires explicit
-`COINBASE_DB_*` values and exact target confirmation, validates connected
-database/user identity read-only, delegates schema work to `database.schema`,
-and never starts the trading engine.
+`COINBASE_DB_*` values, validates connected database/user identity and fresh
+trading state read-only, permits only existing candle/tick telemetry, delegates
+schema work to `database.schema`, and never starts the trading engine.
+
+### `scripts/runtime_healthcheck.py`
+Dashboard `admin_status` poller used by deployment. A healthy result requires
+`PAUSED`, admission closed, no stop transition, and zero in-flight work.
 
 ### Dashboard and Analytics helpers
 - `database/order_dashboard_helpers.py`

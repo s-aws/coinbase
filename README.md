@@ -102,8 +102,9 @@ repository root is the current directory.
 - PostgreSQL server/client tools (`initdb`, `pg_ctl`, `pg_isready`, `psql`).
 - Coinbase Advanced Trade API credentials authorized for the account and
   products you intend to operate.
-- A PostgreSQL database for the engine. It may be empty; the supported schema
-  bootstrap below creates or forward-migrates the required tables.
+- A fresh PostgreSQL trading database for the engine. Runtime tables may be
+  absent or empty; preserved `market_candle_1m`/`market_tick` telemetry is
+  allowed.
 - The configured dashboard TCP port available (`8765` by default).
 
 Do not use `__dangerous_delete_all_tables__.py` as an installation step. It
@@ -157,63 +158,45 @@ startup refresh rewrites the tracked `products.json` file and may leave the
 working tree dirty.
 
 The database defaults are `127.0.0.1:5432/postgres` with user/password
-`postgres`/`postgres`, so production setup should always set every database
-variable explicitly. Verify the resolved target and server identity read-only
-before stateful startup:
+`postgres`/`postgres`, so deployment requires every database variable
+explicitly. The guarded bootstrap derives its target from those variables and
+performs the identity/fresh-state check itself:
 
 ```bash
-./.venv/bin/python3.14 - <<'PY'
-from database.database import PostgresDB
-
-db = PostgresDB()
-print(f"configured={db.host}:{db.port}/{db.database} user={db.user}")
-try:
-    print(db.execute_query(
-        "SELECT current_database() AS database, "
-        "inet_server_addr()::text AS server_address, "
-        "inet_server_port() AS server_port"
-    )[0])
-finally:
-    db.disconnect()
-PY
+./scripts/bootstrap_runtime_database.sh
 ```
 
-After verifying the target, bootstrap or forward-migrate the runtime schema.
-This is a required deployment step for both fresh and existing databases. Use
-the guarded runtime-database entry point, confirming the exact configured
-host, port, and database:
+The script refuses missing variables, unknown public tables, or existing
+trading rows; telemetry tables are allowed. It invokes the additive and
+idempotent `database.schema` implementation and verifies every required table.
+It does not delete rows/tables, contact Coinbase, or start the engine.
+`main.py` deliberately does not perform full schema DDL.
+
+### 4. Validate and deploy the complete engine
 
 ```bash
-runtime_db_target="${COINBASE_DB_HOST}:${COINBASE_DB_PORT}/${COINBASE_DB_NAME}"
-./scripts/bootstrap_runtime_database.sh --confirm-target "${runtime_db_target}"
+./scripts/deploy_runtime.sh
 ```
 
-The script refuses defaults or missing database variables, checks that the
-confirmation matches the configured target, verifies the connected database
-and user with a read-only query, invokes the additive and idempotent
-`database.schema` implementation, and verifies all required tables. It does
-not delete rows or tables, contact Coinbase, or start the engine. Run it after
-setting `COINBASE_DB_*` and before every deployment's first `main` startup.
-`main.py` deliberately does not perform full schema DDL, so a direct launch
-against an unbootstrapped database is unsupported.
+`deploy_runtime.sh` first invokes `validate_release.sh`, which requires a clean
+worktree, runs the complete local non-external suite, checks the repository
+graph and final diff, and proves the worktree stayed clean. The deployment then
+performs the guarded database bootstrap, forces paused startup, launches the
+canonical `python -m main` path, and verifies live `admin_status` health before
+remaining attached to the engine. Run the launcher under a foreground process
+supervisor for durability. It never resets data, resumes trading, places orders,
+pushes Git state, or daemonizes itself.
 
-### 4. Start the complete engine
-
-```bash
-./.venv/bin/python3.14 -m main
-```
-
-After the schema bootstrap succeeds, use `main`, not `dashboard_server.py`,
-for trading. `main` owns the required ordering: passive database hydration,
+`main` still owns the required runtime ordering: passive database hydration,
 startup reconciliation, stealth decision activation, background workers, and
-readiness publication. Running
-`dashboard_server.py` directly starts only its standalone dashboard/demo path.
+readiness publication. Running `dashboard_server.py` directly starts only its
+standalone dashboard/demo path.
 
 Expected state progression is:
 
 1. `STARTING` while local state is hydrated, reconciled, and workers start.
-2. `PAUSED` after readiness, unless `ENGINE_START_PAUSED=false` was explicitly
-   set before launch.
+2. `PAUSED` after readiness; the supported deployment launcher rejects an
+   explicit false `ENGINE_START_PAUSED` value.
 3. `RUNNING` only after an operator resumes the engine.
 
 Wait for `Trading engine startup complete (PAUSED)` before opening the primary
@@ -344,8 +327,10 @@ and verifies terminal cleanup without retained per-order state.
 | `bridges/stealth_event_deadline_scheduler.py` | Ordered market-event FIFO and derived deadline heap |
 | `calculation/` | Price, size, fee, and profitability calculations |
 | `database/order.py` | Canonical trading schema and persistence helpers |
-| `database/schema.py` | Canonical ordered additive schema implementation and required-table verification |
-| `scripts/bootstrap_runtime_database.sh` | Guarded runtime target confirmation, identity check, and schema deployment entry point |
+| `database/schema.py` | Canonical ordered additive schema, fresh-state, and required-table verification |
+| `scripts/validate_release.sh` | Clean-worktree full-suite, graph, and diff release gate |
+| `scripts/bootstrap_runtime_database.sh` | Guarded runtime identity/fresh-state check and schema deployment entry point |
+| `scripts/deploy_runtime.sh` | Foreground paused launcher with live dashboard health verification |
 | `dashboard_server.py` | Operator WebSocket command and state contract |
 
 Deeper architecture, configuration, and message-contract references are

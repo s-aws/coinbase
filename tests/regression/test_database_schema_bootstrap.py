@@ -6,13 +6,18 @@ import sys
 import uuid
 from pathlib import Path
 
+import pytest
+from psycopg2 import sql
+
 from core.enums import OrderSide, OrderStatus, TargetMovementType
 from database.database import PostgresDB
 from database.order import update_order_parent_execution_statuses
 from database.schema import (
+    ALLOWED_DEPLOYMENT_TABLES,
     REQUIRED_TABLES,
     initialize_database_schema,
     verify_database_schema,
+    verify_fresh_runtime_database,
 )
 
 
@@ -27,6 +32,29 @@ RUNTIME_DATABASE_VARIABLES = (
     "COINBASE_DB_USER",
     "COINBASE_DB_PASSWORD",
 )
+
+
+@pytest.fixture
+def fresh_runtime_schema(monkeypatch):
+    """Route new connections into an empty schema without clearing shared state."""
+
+    schema_name = f"deployment_fresh_{uuid.uuid4().hex}"
+    admin_db = PostgresDB()
+    try:
+        with admin_db.get_cursor() as cursor:
+            cursor.execute(
+                sql.SQL("CREATE SCHEMA {}").format(sql.Identifier(schema_name))
+            )
+        monkeypatch.setenv("PGOPTIONS", f"-c search_path={schema_name}")
+        yield schema_name
+    finally:
+        with admin_db.get_cursor() as cursor:
+            cursor.execute(
+                sql.SQL("DROP SCHEMA IF EXISTS {} CASCADE").format(
+                    sql.Identifier(schema_name)
+                )
+            )
+        admin_db.disconnect()
 
 
 def test_database_schema_bootstrap_is_complete_and_idempotent():
@@ -107,11 +135,7 @@ def test_runtime_database_bootstrap_requires_explicit_environment():
         environment.pop(variable_name, None)
 
     result = subprocess.run(
-        [
-            str(RUNTIME_BOOTSTRAP_SCRIPT),
-            "--confirm-target",
-            "unconfigured-target",
-        ],
+        [str(RUNTIME_BOOTSTRAP_SCRIPT)],
         cwd=PROJECT_ROOT,
         env=environment,
         text=True,
@@ -127,7 +151,7 @@ def test_runtime_database_bootstrap_requires_explicit_environment():
     )
 
 
-def test_runtime_database_bootstrap_rejects_wrong_confirmation_before_connect():
+def test_runtime_database_bootstrap_rejects_arguments_before_connect():
     environment = os.environ.copy()
     environment["COINBASE_DB_HOST"] = "invalid.example.test"
     environment["COINBASE_DB_PORT"] = "6543"
@@ -150,11 +174,13 @@ def test_runtime_database_bootstrap_rejects_wrong_confirmation_before_connect():
     )
 
     assert result.returncode != 0
-    assert "target confirmation mismatch" in result.stderr
-    assert "invalid.example.test:6543/wrong_confirmation_guard" in result.stderr
+    assert "does not accept arguments" in result.stderr
+    assert "Connected database identity" not in result.stdout
 
 
-def test_runtime_database_bootstrap_verifies_target_and_required_schema():
+def test_runtime_database_bootstrap_verifies_target_and_required_schema(
+    fresh_runtime_schema,
+):
     environment = os.environ.copy()
     configured_target = (
         f"{environment['COINBASE_DB_HOST']}:"
@@ -163,11 +189,7 @@ def test_runtime_database_bootstrap_verifies_target_and_required_schema():
     )
 
     result = subprocess.run(
-        [
-            str(RUNTIME_BOOTSTRAP_SCRIPT),
-            "--confirm-target",
-            configured_target,
-        ],
+        [str(RUNTIME_BOOTSTRAP_SCRIPT)],
         cwd=PROJECT_ROOT,
         env=environment,
         text=True,
@@ -179,11 +201,78 @@ def test_runtime_database_bootstrap_verifies_target_and_required_schema():
     assert result.returncode == 0, result.stderr
     assert f"Configured runtime database: {configured_target}" in result.stdout
     assert "Connected database identity:" in result.stdout
+    assert "Fresh trading-state check:" in result.stdout
     assert "12 required tables verified" in result.stdout
     assert (
         f"Runtime database schema bootstrap complete for {configured_target}."
         in result.stdout
     )
+
+
+def test_fresh_runtime_verifier_allows_empty_runtime_and_telemetry_tables(
+    fresh_runtime_schema,
+):
+    runtime_db = PostgresDB()
+    try:
+        with runtime_db.get_cursor() as cursor:
+            for table_name in (*REQUIRED_TABLES, *ALLOWED_DEPLOYMENT_TABLES):
+                cursor.execute(
+                    sql.SQL("CREATE TABLE {} (id INTEGER)").format(
+                        sql.Identifier(table_name)
+                    )
+                )
+            for table_name in ALLOWED_DEPLOYMENT_TABLES:
+                cursor.execute(
+                    sql.SQL("INSERT INTO {} (id) VALUES (1)").format(
+                        sql.Identifier(table_name)
+                    )
+                )
+
+        counts = verify_fresh_runtime_database(runtime_db)
+    finally:
+        runtime_db.disconnect()
+
+    assert set(counts) == set(REQUIRED_TABLES)
+    assert set(ALLOWED_DEPLOYMENT_TABLES) == {
+        "market_candle_1m",
+        "market_tick",
+    }
+    assert all(row_count == 0 for row_count in counts.values())
+
+
+def test_fresh_runtime_verifier_rejects_existing_trading_state(
+    fresh_runtime_schema,
+):
+    runtime_db = PostgresDB()
+    try:
+        with runtime_db.get_cursor() as cursor:
+            cursor.execute("CREATE TABLE order_parent (id INTEGER)")
+            cursor.execute("INSERT INTO order_parent (id) VALUES (1)")
+
+        with pytest.raises(RuntimeError, match="order_parent=1"):
+            verify_fresh_runtime_database(runtime_db)
+    finally:
+        runtime_db.disconnect()
+
+
+def test_fresh_runtime_verifier_rejects_unknown_public_table(
+    fresh_runtime_schema,
+):
+    runtime_db = PostgresDB()
+    table_name = f"deployment_unknown_{uuid.uuid4().hex}"
+
+    try:
+        with runtime_db.get_cursor() as cursor:
+            cursor.execute(
+                sql.SQL("CREATE TABLE {} (id INTEGER)").format(
+                    sql.Identifier(table_name)
+                )
+            )
+
+        with pytest.raises(RuntimeError, match="unsupported public tables"):
+            verify_fresh_runtime_database(runtime_db)
+    finally:
+        runtime_db.disconnect()
 
 
 def test_guarded_execution_status_update_keeps_exact_and_logical_truth():
