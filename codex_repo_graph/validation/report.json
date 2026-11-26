@@ -38,13 +38,13 @@
     }
   ],
   "counts": {
-    "commits": 2101,
-    "edges": 40564,
+    "commits": 2102,
+    "edges": 40565,
     "files": 462,
     "git_refs": 11,
     "path_history": 1508,
     "semantic_records": 178,
-    "symbols": 7557,
+    "symbols": 7558,
     "tests": 1607
   },
   "dangling_edge_ids": [],
@@ -60,12 +60,12 @@
   "explicit_exclusions": [],
   "fatal_errors": [],
   "index_hashes": {
-    "edges.jsonl": "1202d458c64bf22e14c167c949c9c5b4357ace18b0efe1d36e2fd2df420f89b5",
-    "files.jsonl": "57d37950841ed3191783f2834827e0ebc8c7fe5275c103795054e5382eeb7bb5",
-    "git_commits.jsonl": "c63cff4adca9def09280275f94251473523d83d671af09bfa4ccbd711f929ea1",
-    "git_refs.jsonl": "023e5fce2927e55fa5e9be87d4f47430d141791766474720448fb21dd25f5a8b",
-    "path_history.jsonl": "b80bc702eafaf20a7d9cc8a4322003b0efd3aad2081b553931d18b6ed24f3043",
-    "symbols.jsonl": "75ad2338eb679971c0f8caeb5f4fc51dfcbf35a2330c11a32a90f98c8dbb4a42",
+    "edges.jsonl": "df2085dfc0618dfa343bdfbb2eaf467c065cd778154d5205295aee72d914b4c7",
+    "files.jsonl": "5c186c5101ce9c38d6d0261745261021356bed684916d7cb0eb29e00915ff3de",
+    "git_commits.jsonl": "8e6bd47161c3e0d618e5ff54df73625123420ed081157ae7364df2dc84699b8a",
+    "git_refs.jsonl": "6e1bffcc5cea6df361d6d80f62416196c568b49c2480432be091ab38d54101ee",
+    "path_history.jsonl": "899e37119d8a0cf675ae77eb8f0368024fce53347df0bea069c764217163bd14",
+    "symbols.jsonl": "023cebc185323e58d4897a6b0e5ef25c1ad92939523da3ecdf7032bfa680dfb5",
     "tests.jsonl": "76a94424b6b914bd5687a95cb9d1ef73a5c1a414ac959421f302192e110f6835"
   },
   "index_invariant_errors": [],
@@ -74,13 +74,13 @@
   "represented_path_count": 462,
   "schema_validation": {
     "error_count": 0,
-    "record_count": 53988,
+    "record_count": 53991,
     "validator": "built_in_json_schema_subset"
   },
   "semantic_reference_errors": [],
   "sensitive_output_findings": [],
   "source_edge_ids_missing": [],
-  "source_tree_digest": "792f0067fc11c0f28b53b65a479f76914e3999d74a29e9c359080f359ecb75c4",
+  "source_tree_digest": "96069431e14be5851d54c05c4728d744ea5c0ebf90e92e6c97b20026cc859d48",
   "status": "pass",
   "unresolved_call_edge_count": 21463
 }

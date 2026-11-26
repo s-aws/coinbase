@@ -11,23 +11,23 @@
     "opaque_identifiers_and_literal_payloads"
   ],
   "excluded_git_ref_count": 0,
-  "graph_digest": "0d061c4f8b3a775fb7df258f458cf072205cea6b643a663f74271f652f917a8f",
+  "graph_digest": "934bcd71be7bd5366b29cd668fb6fa61422dddd3c1ce7962daa912c66fd0c08a",
   "graph_format_version": "2.0.0",
   "graph_schema_version": "1.2.0",
-  "history_snapshot_head": "16bfee015331ce1faae746938dbd3f734cac24e5",
+  "history_snapshot_head": "4651848d9f936d02cb66b1b48c5d514051881266",
   "index_hashes": {
-    "edges.jsonl": "1202d458c64bf22e14c167c949c9c5b4357ace18b0efe1d36e2fd2df420f89b5",
-    "files.jsonl": "57d37950841ed3191783f2834827e0ebc8c7fe5275c103795054e5382eeb7bb5",
-    "git_commits.jsonl": "c63cff4adca9def09280275f94251473523d83d671af09bfa4ccbd711f929ea1",
-    "git_refs.jsonl": "023e5fce2927e55fa5e9be87d4f47430d141791766474720448fb21dd25f5a8b",
-    "path_history.jsonl": "b80bc702eafaf20a7d9cc8a4322003b0efd3aad2081b553931d18b6ed24f3043",
-    "symbols.jsonl": "75ad2338eb679971c0f8caeb5f4fc51dfcbf35a2330c11a32a90f98c8dbb4a42",
+    "edges.jsonl": "df2085dfc0618dfa343bdfbb2eaf467c065cd778154d5205295aee72d914b4c7",
+    "files.jsonl": "5c186c5101ce9c38d6d0261745261021356bed684916d7cb0eb29e00915ff3de",
+    "git_commits.jsonl": "8e6bd47161c3e0d618e5ff54df73625123420ed081157ae7364df2dc84699b8a",
+    "git_refs.jsonl": "6e1bffcc5cea6df361d6d80f62416196c568b49c2480432be091ab38d54101ee",
+    "path_history.jsonl": "899e37119d8a0cf675ae77eb8f0368024fce53347df0bea069c764217163bd14",
+    "symbols.jsonl": "023cebc185323e58d4897a6b0e5ef25c1ad92939523da3ecdf7032bfa680dfb5",
     "tests.jsonl": "76a94424b6b914bd5687a95cb9d1ef73a5c1a414ac959421f302192e110f6835"
   },
   "indexed_file_count": 462,
   "metadata_only_file_count": 9,
   "semantic_hashes": {
-    "claims.jsonl": "6fc9f099bb21459558ffbf13f47f91a4060b5731c671e92a8673832978ae0131",
+    "claims.jsonl": "f44e1bd16304ebc4d127073ead8251580093ddbfc83693af65b1d0fabd0b409c",
     "components.jsonl": "b6ae989eacef22668dc018b770f07af01177c44e7865322f1221ae7cecf54cde",
     "concurrency.jsonl": "ae91740f6241685be4503abbda428bc5b9e2f7ad323eaeddb0e5f68ae321fac9",
     "hazards.jsonl": "5559cc69de8c15ebfaa1afd69849229a497b9df9cfb02cef5dba40c2bc85e9ab",
@@ -37,7 +37,7 @@
     "runtime_flows.jsonl": "7bf5d2a0a9397dcd24515a02147bef4894e1a73b3344ebccf7fad97a586ae34f",
     "task_routes.jsonl": "632c305919e33a668965679e869ab174fbb6f1d3a8428cf4927592ed16e2a0f3"
   },
-  "source_tree_digest": "792f0067fc11c0f28b53b65a479f76914e3999d74a29e9c359080f359ecb75c4",
+  "source_tree_digest": "96069431e14be5851d54c05c4728d744ea5c0ebf90e92e6c97b20026cc859d48",
   "tool_hashes": {
     "ENTRYPOINT.md": "792ab6980775ecb5fe5ee18905a3be1015a304789120a86de22e505f98e6c914",
     "build_graph.py": "e7fe36ef005c2dd68f0cdcb7877a55d37064c5f0a6ba65c5b248736f3e84d2b4",

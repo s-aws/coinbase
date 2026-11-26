@@ -2,35 +2,48 @@
 
 ## Status
 
-- Last updated (ET): 2026-11-23.
-- Checkout baseline: `prod` at `0c0f7307`.
-- Active operator-approved objective: none.
-- Completed objective: extracted authenticated private-feed generation,
-  sequencing, reduction, bounded per-order dispatch, and operational metrics
-  into the instance-owned `core/user_feed_processor.py`. `OrderEngine` retains
-  thin compatibility delegates and remains the owner of trading policy and
-  order lifecycle behavior. The operator also approved the accompanying
-  `products.json` rollover in the same implementation commit.
+- Last updated (ET): 2026-11-26.
+- Objective baseline: `prod` and `origin/prod` at ownership commit `4651848d`.
+- Active operator-approved objective: close the runtime-database rollout by
+  tracking the guarded bootstrap entry point, refreshing this handoff, and
+  deploying only to an operator-prepared fresh database before observing a
+  paused startup and reconciliation cycle.
+- Completed implementation sequence: follow-up reveal-direction persistence,
+  parent/child strategy authority, percentage-relative follow-up threshold
+  inversion, programmatic span consistency, deterministic span planning, and
+  durable execution-ownership status projection are committed through
+  `4651848d`.
 - Retention policy: current documentation and handoff only; remove superseded
   material instead of archiving it.
-- Order lifecycle behavior is intended to remain unchanged. Dashboard
-  `engine_status` now includes the nested `user_feed` metrics snapshot, and the
-  configured derivative product catalog was refreshed.
+- Deployment boundary: `__dangerous_delete_all_tables__.py` is an operator-only
+  development/reset utility and is never a deployment command. Deployment will
+  not run over an existing instance; it uses the guarded additive bootstrap on
+  a fresh database explicitly prepared by the operator.
+- After rollout closeout, the next feature to raise for review is automation of
+  `tests/DEPLOYMENT_CHECKLIST.md`. No automation implementation is approved yet.
+
+## Active Checklist
+
+1. Track and commit `scripts/bootstrap_runtime_database.sh`: complete in the
+   closeout change that contains this handoff.
+2. Refresh the durable handoff: complete in this file.
+3. Verify a fresh operator-prepared target read-only, run the guarded additive
+   bootstrap, start the engine paused, and observe startup/reconciliation:
+   pending operator preparation and live execution evidence.
 
 ## Validation and Maintenance
 
-- Full local non-external suite: 1,869 passed, 17 skipped, 11 deselected,
-  exit 0 on Python 3.14.8 via `.venv/bin/python3.14`.
-- Exchange-free cancellation-pipeline stress: pass; 300 measured
-  cancellations, zero dispatcher residue, zero resource-limit violations.
-- Exchange-free user recovery stress: pass; 100 reconnect cycles, 100 stale
-  messages dropped, zero generation/dispatcher residue, zero resource-limit
-  violations.
-- `git diff --check`: pass.
-- Graph evidence uses current source and current documentation only. Rebuild
-  and run `build_graph.py --check` after editing this file or other sources.
-- No external tests, live engine, exchange mutations, or delegated agents were
-  run. No open subagent handoff remains.
+- Full local non-external suite for the ownership/schema worktree, including
+  the bootstrap script: 1,919 passed, 17 skipped, 11 deselected, exit 0 on
+  Python 3.14.
+- Bootstrap shell syntax validation: pass.
+- Repository graph check before this handoff refresh: pass with zero fatal
+  errors and zero mismatches; rebuild and recheck before committing.
+- No external tests, live engine, exchange mutations, destructive database
+  command, or delegated agent was used for this rollout closeout.
+- Remaining required checks: read-only proof that the chosen deployment target
+  is fresh, guarded schema bootstrap, paused startup/reconciliation observation,
+  final graph check, and final worktree review.
 
 ## Local Environment
 
@@ -49,6 +62,11 @@ races, legacy direct cancel evidence, compatibility volume evaluation, and
 single-placement zero-fill rearm limits. External-test sandbox settings do not
 establish SDK endpoint routing. Behavioral fixes or live validation require a
 separate operator-approved objective.
+
+The guarded bootstrap requires all five explicit `COINBASE_DB_*` variables and
+an exact `HOST:PORT/DATABASE` confirmation. `main.py` does not provision the
+full schema. A live start must keep `ENGINE_START_PAUSED` enabled until startup
+reconciliation and readiness evidence have been reviewed.
 
 ## Durable Architecture Recommendation
 
