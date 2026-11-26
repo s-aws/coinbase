@@ -599,9 +599,10 @@ class OrderStateEvent(str, Enum):
     - EXPIRED:   Order expired (e.g. GTD time-in-force elapsed)
 
     Integration:
-        Dispatched from StateManager AFTER its internal lock is released so that
-        subscribers never hold StateManager._lock, preventing any lock-ordering
-        deadlock. See data/order_inventory.py and integration/order_state_hooks.py.
+        Reserved for OrderStateHookRegistry publishers. No production publisher
+        is currently wired; any future owner must dispatch after releasing its
+        lifecycle locks. See data/order_inventory.py and
+        integration/order_state_hooks.py.
     """
     OPENED    = "OPENED"
     FILLED    = "FILLED"

@@ -1,4 +1,4 @@
-"""Inventory, state, and lifecycle types must not depend on month substrings."""
+"""Inventory and lifecycle types must not depend on month substrings."""
 
 import sys
 from types import ModuleType, SimpleNamespace
@@ -7,9 +7,10 @@ from unittest.mock import Mock
 import pytest
 
 from calculation.formatter import safe_float
+from calculation.resolver import normalize_product_type
 from core.enums import OrderSide, OrderStatus, ProductType, StealthLifecycleEvent, StealthOrderStatus
 from core.models import Product
-from data import order_inventory, state_manager
+from data import order_inventory
 
 
 pytestmark = pytest.mark.regression
@@ -22,7 +23,6 @@ def test_unlisted_cde_contract_is_future_for_every_month(month):
 
     assert product_id not in order_inventory.DERIVATIVES_PRODUCT_IDS
     assert order_inventory._infer_product_type(product_id) is ProductType.FUTURE
-    assert state_manager.StateManager()._infer_product_type(product_id) == ProductType.FUTURE.value
 
 
 @pytest.mark.parametrize("month", "DEC JAN FEB MAR APR".split())
@@ -30,7 +30,6 @@ def test_month_substring_in_spot_symbol_is_not_a_futures_indicator(month):
     product_id = f"SYNTH{month}-USD"
 
     assert order_inventory._infer_product_type(product_id) is ProductType.SPOT
-    assert state_manager.StateManager()._infer_product_type(product_id) == ProductType.SPOT.value
 
 
 @pytest.mark.parametrize(
@@ -44,12 +43,10 @@ def test_month_substring_in_spot_symbol_is_not_a_futures_indicator(month):
 def test_explicit_product_list_precedence_is_preserved(
     monkeypatch, product_id, spot_ids, future_ids, expected
 ):
-    for module in (order_inventory, state_manager):
-        monkeypatch.setattr(module, "SPOT_PRODUCT_IDS", spot_ids)
-        monkeypatch.setattr(module, "DERIVATIVES_PRODUCT_IDS", future_ids)
+    monkeypatch.setattr(order_inventory, "SPOT_PRODUCT_IDS", spot_ids)
+    monkeypatch.setattr(order_inventory, "DERIVATIVES_PRODUCT_IDS", future_ids)
 
     assert order_inventory._infer_product_type(product_id) is expected
-    assert state_manager.StateManager()._infer_product_type(product_id) == expected.value
 
 
 @pytest.mark.parametrize("use_product_model", [False, True], ids=["dict", "Product"])
@@ -60,7 +57,7 @@ def test_explicit_product_list_precedence_is_preserved(
         ("SYNTH-28JUN99-CDE", ProductType.SPOT),
     ],
 )
-def test_state_fallback_honors_supplied_product_metadata(
+def test_canonical_resolver_honors_supplied_product_metadata(
     product_id, expected, use_product_model
 ):
     metadata = {"product_type": expected.value}
@@ -72,9 +69,12 @@ def test_state_fallback_honors_supplied_product_metadata(
             quote_increment="0.01",
             price_increment="0.01",
         )
-    state = state_manager.StateManager(product_config={product_id: metadata})
+    resolved = normalize_product_type(
+        {"product_id": product_id},
+        products={product_id: metadata},
+    )
 
-    assert state._infer_product_type(product_id) == expected.value
+    assert resolved == expected.value
 
 
 def test_inventory_rebuild_restores_unlisted_future_multiplier_and_stealth_type(monkeypatch):

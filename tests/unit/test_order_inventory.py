@@ -8,16 +8,13 @@ Tests cover:
 4. OrderInventory (stealth side) — on_stealth_transition, status mapping,
    failure_reason tracking, get_stealth_* query methods
 5. OrderInventory.rebuild_from_database — restart resilience via mock DB rows
-6. StateManager integration — hooks dispatched OUTSIDE lock; confirmed via threading
-7. Deadlock safety — no nested acquisition between StateManager._lock and
-   OrderInventory._lock
-8. Singleton lifecycle — get/reset global functions
+6. Lock safety and concurrent access
+7. Singleton lifecycle — get/reset global functions
 
 Run:
     pytest tests/unit/test_order_inventory.py -v
 
 Design contract being tested:
-- Hooks called OUTSIDE StateManager._lock (verified by checking lock state in callback)
 - Hook exceptions never propagate to caller
 - OrderInventory._lock is an RLock (leaf lock — never held while calling external code)
 - rebuild_from_database does not acquire _lock (startup-thread only)
@@ -676,106 +673,7 @@ class TestOrderInventoryRebuildFromDatabase:
 
 
 # ===========================================================================
-# 6. StateManager integration — hooks dispatched OUTSIDE lock
-# ===========================================================================
-
-class TestStateManagerHookDispatch:
-    """Verify that StateManager dispatches hooks AFTER releasing _lock.
-
-    This is the core deadlock-safety guarantee: if the hook callback tries to
-    acquire any other lock, StateManager._lock must already be released.
-    We verify this by inspecting the lock state inside the callback.
-    """
-
-    def test_add_active_order_dispatches_opened_hook(self):
-        from data.state_manager import StateManager
-
-        registry = get_global_order_state_hook_registry()
-        received: List[Order] = []
-        registry.register_on_opened(lambda o: received.append(o))
-
-        state = StateManager()
-        order = _make_order()
-        state.add_active_order(order)
-
-        assert len(received) == 1
-        assert received[0].client_order_id == order.client_order_id
-
-    def test_mark_order_filled_dispatches_closed_hook(self):
-        from data.state_manager import StateManager
-
-        registry = get_global_order_state_hook_registry()
-        events: List[OrderStateEvent] = []
-        registry.register_on_closed(lambda o, e: events.append(e))
-
-        state = StateManager()
-        order = _make_order()
-        state.add_active_order(order)
-        state.mark_order_filled(order)
-
-        assert OrderStateEvent.FILLED in events
-
-    def test_mark_order_cancelled_dispatches_closed_hook(self):
-        from data.state_manager import StateManager
-
-        registry = get_global_order_state_hook_registry()
-        events: List[OrderStateEvent] = []
-        registry.register_on_closed(lambda o, e: events.append(e))
-
-        state = StateManager()
-        order = _make_order()
-        state.add_active_order(order)
-        state.mark_order_cancelled(order)
-
-        assert OrderStateEvent.CANCELLED in events
-
-    def test_hook_exception_does_not_crash_state_manager(self):
-        """A broken hook must never prevent StateManager from recording the order."""
-        from data.state_manager import StateManager
-
-        registry = get_global_order_state_hook_registry()
-        registry.register_on_opened(lambda o: 1 / 0)  # ZeroDivisionError
-
-        state = StateManager()
-        order = _make_order()
-        state.add_active_order(order)  # Must not raise
-
-        # Order should still be tracked internally
-        assert state.get_order(order.client_order_id) is not None
-
-    def test_hook_called_outside_state_manager_lock(self):
-        """Verify StateManager._lock is NOT held when the hook callback fires.
-
-        We check this by attempting to acquire the lock inside the callback.
-        If the hook is called while the lock is held (non-recursive Lock), the
-        second acquire would deadlock. We use a threading.Event + timeout to
-        detect that case.
-        """
-        from data.state_manager import StateManager
-
-        state = StateManager()
-        lock_was_free = threading.Event()
-
-        def check_lock(order):
-            # Try to acquire StateManager's internal _lock from within the hook.
-            # If called inside the lock, this would block (non-recursive Lock).
-            acquired = state._lock.acquire(blocking=False)
-            if acquired:
-                state._lock.release()
-                lock_was_free.set()
-
-        registry = get_global_order_state_hook_registry()
-        registry.register_on_opened(check_lock)
-
-        state.add_active_order(_make_order())
-
-        assert lock_was_free.is_set(), (
-            "StateManager._lock was held during hook dispatch — potential deadlock!"
-        )
-
-
-# ===========================================================================
-# 7. Deadlock safety — no nested acquisition
+# 6. Lock safety and concurrent access
 # ===========================================================================
 
 class TestDeadlockSafety:
@@ -841,7 +739,7 @@ class TestDeadlockSafety:
 
 
 # ===========================================================================
-# 8. Global singleton wiring end-to-end
+# 7. Global singleton wiring end-to-end
 # ===========================================================================
 
 class TestEndToEndWiring:

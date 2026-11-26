@@ -1,25 +1,16 @@
-"""Order State Hook Registry — exchange-visible order lifecycle notifications.
+"""Standalone exchange-visible order lifecycle hook registry.
 
-This module provides a pluggable hook system that fires when an order transitions
-between exchange-visible states (OPENED → FILLED / CANCELLED / EXPIRED).
+The registry can notify subscribers when an order enters or leaves the working
+exchange state. It is retained with ``data.order_inventory`` pending a separate
+architecture review; ``main.py`` does not currently register a production
+publisher or inventory subscriber, so this module is not lifecycle authority.
 
-The hooks are the integration seam between StateManager (which owns the authoritative
-in-memory order state) and any consumer that needs to react to order transitions,
-such as OrderInventory for aggregate counting, risk managers for exposure limits, or
-dashboard WebSocket broadcast.
-
-Design constraints (deadlock safety)
--------------------------------------
-StateManager holds ``self._lock`` (threading.Lock, NON-recursive) while mutating
-its internal collections. **Hook dispatch is intentionally done AFTER the lock is
-released** (see StateManager._dispatch_order_state_opened / _dispatch_order_state_closed).
-This guarantees:
-
-1. Hooks can safely acquire their own locks (e.g. OrderInventory._lock) without
-   creating a lock-ordering violation.
-2. Hooks can perform I/O (DB writes) without holding StateManager._lock, preventing
-   long-hold-period stalls.
-3. No callback can call back into StateManager while the lock is still held.
+Design constraints
+------------------
+Registration is protected by the registry's own ``RLock``. Dispatch snapshots
+callbacks under that lock and invokes them after releasing it. Any future
+authoritative publisher must also release its lifecycle/state locks before
+dispatch so subscriber locks or I/O cannot extend a critical section.
 
 Hook signature contract
 -----------------------
@@ -30,11 +21,12 @@ Hook signature contract
     Called once when an order exits the working state for any terminal reason.
     ``event`` identifies why (FILLED, CANCELLED, EXPIRED).
 
-Both hook types are non-blocking: exceptions are caught and logged so a misbehaving
-subscriber never disrupts trading execution.
+Callbacks run synchronously in the dispatching thread. Exceptions are caught and
+logged so one subscriber does not suppress later subscribers, but a slow callback
+can still delay its caller.
 
-Example — wiring OrderInventory at startup
-------------------------------------------
+Illustrative OrderInventory wiring (not present in ``main.py``)
+---------------------------------------------------------------
     >>> from integration.order_state_hooks import get_global_order_state_hook_registry
     >>> from data.order_inventory import get_global_order_inventory
     >>>
@@ -57,7 +49,7 @@ Extending
 Add new hook types (e.g. on_amended) by following the exact pattern below:
 1. Add the new event value to ``core.enums.OrderStateEvent``
 2. Add ``_on_amended_hooks`` list and ``register_on_amended`` / ``call_on_amended``
-3. Call ``call_on_amended`` from StateManager after lock release
+3. Dispatch from the authoritative lifecycle owner after releasing its locks
 """
 
 import threading
@@ -97,8 +89,8 @@ class OrderStateHookRegistry:
 
         Hook signature: ``callback(order: Order) -> None``
 
-        The ``order`` object reflects the state at the moment the transition was
-        detected by StateManager. Do NOT modify the order in-place.
+        The ``order`` object reflects the state supplied by the publisher. Do
+        not modify it in-place.
 
         Args:
             callback: Function with signature (order: Order) -> None.
@@ -132,14 +124,14 @@ class OrderStateHookRegistry:
             self._on_closed_hooks.append(callback)
 
     # ------------------------------------------------------------------
-    # Dispatch (called by StateManager after its lock is released)
+    # Dispatch (the publisher must not hold lifecycle/state locks)
     # ------------------------------------------------------------------
 
     def call_on_opened(self, order: Order) -> None:
         """Dispatch all on_opened hooks for the given order.
 
-        Non-blocking: exceptions in subscribers are caught and logged.
-        Must be called OUTSIDE StateManager._lock to avoid deadlock.
+        Synchronous: exceptions in subscribers are caught and logged. The
+        publisher must call this outside its lifecycle/state locks.
 
         Args:
             order: The Order that became working on the exchange.
@@ -159,8 +151,8 @@ class OrderStateHookRegistry:
     def call_on_closed(self, order: Order, event: OrderStateEvent) -> None:
         """Dispatch all on_closed hooks for the given order and termination event.
 
-        Non-blocking: exceptions in subscribers are caught and logged.
-        Must be called OUTSIDE StateManager._lock to avoid deadlock.
+        Synchronous: exceptions in subscribers are caught and logged. The
+        publisher must call this outside its lifecycle/state locks.
 
         Args:
             order: The Order that exited the working state.

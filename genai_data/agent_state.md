@@ -7,10 +7,11 @@
   `eadb567a` committed the deployment process, `79d50e29` tracked its four
   initially omitted scripts/tests, and `8e8bd8ad` completed the required
   repository-graph closeout.
-- Active operator-approved objective: review the current modular-monolith
-  boundaries and make recommendations. Each recommendation requires its own
-  focused evidence search, blast-radius evaluation, and operator discussion
-  before implementation; no runtime-code change is authorized by this review.
+- Active operator-approved objective: review the retained `OrderInventory` and
+  hook registries separately after the completed removal of the abandoned
+  `StateManager` and generic repository path. No inventory wiring, deletion, or
+  other runtime-behavior change is authorized without its own focused evidence
+  search, blast-radius evaluation, and operator approval.
 - Completed implementation sequence: follow-up reveal-direction persistence,
   parent/child strategy authority, percentage-relative follow-up threshold
   inversion, programmatic span consistency, deterministic span planning, and
@@ -50,12 +51,34 @@
    bootstrap, start the engine paused, and observe startup/reconciliation:
    complete against `127.0.0.1:5432/coinbase`.
 
+## Modular Monolith Boundary Checklist
+
+Item 1 is complete. Every later item requires a focused source/test search,
+blast-radius evaluation, context discussion, and separate operator approval
+before code changes.
+
+1. Remove the abandoned `StateManager` and generic repository implementation:
+   complete and validated; canonical product-type coverage is retained.
+2. Review `OrderInventory` and its hook registries separately: next.
+3. Declare and enforce the in-process module dependency map.
+4. Make `main.py` the sole explicit composition root and make configuration
+   imports passive.
+5. Add an Execution Core command/query facade while retaining lifecycle and
+   transactional writes under one owner.
+6. Extract public market-data ownership into an in-process component.
+7. Separate operator WebSocket transport from application commands and read
+   projections.
+8. Isolate reconciliation and historical auditing behind injected readers and
+   explicit repair commands.
+9. Reassess process boundaries and durable messaging only after the in-process
+   contracts and failure semantics are stable.
+
 ## Validation and Maintenance
 
-- Full local non-external suite after the final executable/test changes: 1,932
-  passed, 17 skipped, 11 external deselected, exit 0 on Python 3.14. The new
-  database success/failure cases use isolated per-test schemas and never clear
-  the suite's shared state.
+- Full local non-external suite after the StateManager/repository removal: 1,927
+  passed, 17 skipped, 11 external deselected, exit 0 on Python 3.14. Database
+  success/failure cases use isolated per-test schemas and never clear the suite's
+  shared state.
 - Bash syntax for all deployment scripts and Python compilation for the schema
   and healthcheck modules: pass. Final diff check: pass.
 - The clean-worktree release wrapper passed after the graph closeout at

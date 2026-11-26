@@ -9,9 +9,8 @@ sys.path.insert(0, str(project_root))
 
 # Import to verify imports work
 from business.move_manager import MoveManager
-from core.order_engine import OrderEngine
-from data.repositories.postgres_order_repository import PostgresOrderRepository
 from core.enums import OrderStatus
+from core.order_engine import OrderEngine
 
 print("=" * 80)
 print("ENUM REPLACEMENT VERIFICATION")
@@ -26,7 +25,6 @@ print(f"  - OrderStatus.CANCELLED.value = '{OrderStatus.CANCELLED.value}'")
 
 print("\n✓ MoveManager imported successfully")
 print("✓ OrderEngine imported successfully")
-print("✓ PostgresOrderRepository imported successfully")
 
 print("\n" + "=" * 80)
 print("VERIFICATION COMPLETE")

@@ -12,6 +12,10 @@ database state so they survive process restarts:
 
 Both structures are held by the **OrderInventory** class (single entry point).
 
+This component is not currently instantiated, rebuilt, or registered by
+``main.py``. It remains a candidate reporting/read-model component pending a
+focused ownership and wiring review; it is not authoritative runtime state.
+
 NOTIONAL CALCULATION (CRITICAL FOR FUTURES)
 --------------------------------------------
 **SPOT ORDERS:**
@@ -28,24 +32,25 @@ NOTIONAL CALCULATION (CRITICAL FOR FUTURES)
 OrderInventoryEntry.get_notional() computes this automatically. For SPOT products
 (contract_size=1.0), this simplifies to: total_size × avg_price.
 
-Restart resilience
-------------------
-On startup call ``OrderInventory.rebuild_from_database(db_client)`` once before
-wiring the hooks. This loads:
+Intended restart resilience
+---------------------------
+If the component is activated in the future, call
+``OrderInventory.rebuild_from_database(db_client)`` once before wiring hooks.
+This loads:
   - Working exchange orders from ``order_parent WHERE status IN ('OPEN','PENDING')``
   - All stealth orders from ``stealth_orders``, including terminal history
   - Last lifecycle failure information from ``stealth_orders.last_lifecycle_event``
     and ``stealth_orders.failure_reason`` columns (added by migration in database/order.py)
 
-After rebuild, subsequent hook calls keep the in-memory state in sync.
+After rebuild, subsequent hook calls would keep the in-memory view in sync.
 
 Deadlock safety
 ---------------
 ``OrderInventory._lock`` is a ``threading.RLock()``.  It is a leaf lock — nothing
-called while holding ``_lock`` acquires any other application lock.  The call chain
-is always:
+called while holding ``_lock`` acquires any other application lock. A future
+publisher must use this lock order:
 
-  StateManager._lock  (released)
+  Authoritative producer lock  (released)
        ↓ hook dispatch (OUTSIDE lock)
   OrderInventory._lock  (brief, data-only mutation)
 
@@ -63,8 +68,8 @@ All public methods that read or write inventory state acquire ``_lock``.
 ``rebuild_from_database`` is expected to be called from the startup thread before
 other threads begin dispatching hooks, so it does NOT acquire ``_lock``.
 
-Example — startup wiring
---------------------------
+Illustrative wiring (not present in ``main.py``)
+------------------------------------------------
     >>> from data.order_inventory import get_global_order_inventory
     >>> from integration.order_state_hooks import get_global_order_state_hook_registry
     >>> from integration.stealth_lifecycle_hooks import get_global_stealth_lifecycle_hook_registry

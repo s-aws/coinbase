@@ -273,12 +273,13 @@ latter subsystem and cancel/re-entry distance policy are absent here.
   same schedule and multiplier within each quote.
 - `calculation/price_camouflage.py`: deterministic round-number price nudging.
 
-## `data/` (State and Repository Abstractions)
+## `data/` (Candidate Read Models)
 
-- `data/state_manager.py`: DI-oriented state manager abstraction.
-- `data/order_inventory.py`: aggregate order/stealth inventory with lifecycle hook integration.
-- `data/repositories/order_repository.py`: repository interface.
-- `data/repositories/postgres_order_repository.py`: PostgreSQL repository implementation.
+- `data/order_inventory.py`: aggregate order/stealth inventory candidate. It
+  has independent tests but is not instantiated, rebuilt, or registered by
+  `main.py`; treat it as non-authoritative pending focused architecture review.
+- Production in-memory order state remains in `core/orderbook.py`; canonical
+  trading persistence remains in `database/order.py`.
 
 ## `database/` (Schema and SQL Helpers)
 
