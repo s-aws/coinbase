@@ -49,7 +49,7 @@ and never treat it as design authority. See `agent.md` section
 
 ## Current references
 
-The living references were reconciled with prod on 2026-10-09. The overview
+The living references were reconciled with prod on 2026-11-26. The overview
 also routes to enum, exception, partial-fill, move/rearm, and fee references.
 Only current references and the current handoff are retained in this checkout.
 Do not create archives of superseded documentation or completed handoffs.

@@ -1,6 +1,6 @@
 # Testing Strategy
 
-Reconciled with the `prod` checkout on 2026-11-22. Current source and tests
+Reconciled with the `prod` checkout on 2026-11-26. Current source and tests
 remain the evidence for runtime behavior.
 
 This project uses pytest with one simple default gate: the complete local
@@ -28,7 +28,7 @@ repository does not provide a parallel test runner.
 
 - `tests/unit/`: 38 test files
 - `tests/integration/`: 7 test files
-- `tests/regression/`: 80 test files
+- `tests/regression/`: 82 test files
 - `tests/e2e/`: 2 test files
 - `tests/external/`: 1 test file
 - `tests/` root: 2 test files
@@ -153,7 +153,8 @@ export COINBASE_ENABLE_WEBSOCKET_EXTERNAL="true"
 - replaces runtime `COINBASE_DB_*` values with the isolated
   `COINBASE_TEST_DB_*` target (default port `9876`)
 - starts `scripts/test_database.sh` unless `COINBASE_TEST_DB_AUTOSTART=0`
-- runs the additive `database.schema` bootstrap before test collection
+- runs the same additive `database.schema` implementation used by guarded
+  runtime deployment and destructive reset recreation before test collection
 - refuses localhost:5432 connections unless `ALLOW_PROD_DB=1`
 
 `database/database.py` also refuses test-shaped direct script processes from connecting to localhost `5432` unless `ALLOW_PROD_DB=1`. This covers root-level scripts such as `test_*.py` that do not load `tests/conftest.py`.
@@ -207,4 +208,4 @@ For cancellation/rearm changes, prove that:
 
 ---
 
-Last reconciled with checkout: 2026-10-09
+Last reconciled with checkout: 2026-11-26

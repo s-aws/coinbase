@@ -1,6 +1,6 @@
 # Test Suite
 
-Reconciled with the checkout on 2026-11-22. The required gate for every
+Reconciled with the checkout on 2026-11-26. The required gate for every
 non-agent-file change is the complete local non-external suite, including
 regression tests. Run it from the repository root on Linux:
 
@@ -46,7 +46,7 @@ fencing and database-backed process restart recovery.
 | --- | ---: | --- |
 | `unit/` | 38 | Component logic, concurrency primitives, graph contracts |
 | `integration/` | 7 | Cross-module workflows and bridge wiring |
-| `regression/` | 80 | Lifecycle, persistence, UI, ID, and race boundaries |
+| `regression/` | 82 | Lifecycle, persistence, deployment, UI, ID, and race boundaries |
 | `e2e/` | 2 | In-process trading/user-message workflows |
 | `external/` | 1 | Opt-in Coinbase contracts and network smoke |
 | `tests/` root | 2 | Exception and lot-tracking integration checks |

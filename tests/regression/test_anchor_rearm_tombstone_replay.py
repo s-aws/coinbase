@@ -131,12 +131,24 @@ def test_exact_cancel_tombstone_blocks_stale_nonterminal_parent_replay(
         "stealth-1": OrderStatus.OPEN.value,
     }
 
-    def update_parent_status(client_order_id, status):
-        parent_statuses[str(client_order_id)] = status
-        return 1
+    def update_parent_status(
+        placement_client_order_id,
+        placement_status,
+        *,
+        logical_status,
+        expected_execution_owner_client_order_id,
+    ):
+        parent_statuses[str(placement_client_order_id)] = placement_status
+        parent_statuses[
+            str(expected_execution_owner_client_order_id)
+        ] = logical_status
+        return {
+            "placement_updated": True,
+            "execution_owner_updated": True,
+        }
 
     monkeypatch.setattr(
-        "core.stealth_order_manager.update_order_parent_status",
+        "core.stealth_order_manager.update_order_parent_execution_statuses",
         update_parent_status,
     )
 

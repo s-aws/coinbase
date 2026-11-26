@@ -1,6 +1,6 @@
 # System Architecture
 
-Reconciled with the `prod` checkout on 2026-10-09. Current source and tests
+Reconciled with the `prod` checkout on 2026-11-26. Current source and tests
 remain the evidence for runtime behavior.
 
 ## Overview
@@ -17,7 +17,10 @@ The runtime is centered on a single `OrderEngine` instance (`core/order_engine.p
 - `core/startup_reconciler.py` + `core/periodic_reconciler.py`: exchange-vs-local drift audits.
 - `calculation/fee_manager.py`: dynamic maker/taker fee telemetry and adaptive factors.
 
-`main.py` wires these together and installs graceful shutdown hooks.
+`main.py` wires these together and installs graceful shutdown hooks. It assumes
+the guarded `scripts/bootstrap_runtime_database.sh` deployment entry point has
+already run the additive `database.schema` implementation successfully and
+does not run full schema DDL during process startup.
 
 ## Runtime Layers
 
@@ -28,11 +31,20 @@ The runtime is centered on a single `OrderEngine` instance (`core/order_engine.p
   `WSUserClient` connection and are owned by its `UserFeedProcessor`.
 - Dashboard websocket commands flow into `dashboard_server.handle_client_message`.
 2. **Domain Layer**
-- `OrderEngine` handles parent/child lifecycle, follow-up creation, partial-fill state, and ownership classification.
+- `OrderEngine` handles flat parent/child cache hydration, placement-to-execution
+  status projection, follow-up creation, partial-fill state, and ownership
+  classification.
 - `StealthOrderManager` handles stealth creation, condition checks, reveal, repricing/rearm, manual Rehide, intentional cancellation, and move-revealed execution.
 
 3. **Persistence Layer**
-- `database/order.py` is canonical schema + write/read API.
+- `database/order.py` owns canonical table definitions, forward migrations,
+  and the trading write/read API.
+- `database/schema.py` is the single ordered additive bootstrap for required
+  runtime tables, shared by deployment, test provisioning, and destructive
+  reset recreation.
+- `scripts/bootstrap_runtime_database.sh` is the operator-facing deployment
+  boundary: mandatory explicit variables, exact target confirmation, read-only
+  database/user identity validation, bootstrap, and required-table verification.
 - `database/database.py::PostgresDB` serializes cursor/transaction access with an RLock.
 
 4. **Audit/Reconciliation Layer**
@@ -55,6 +67,13 @@ The runtime is centered on a single `OrderEngine` instance (`core/order_engine.p
 - dashboard status monitor loop
 - fee manager refresh loop (hourly)
 - market tick retention sweeper (if recorder initialized)
+
+Parent/child reconciliation reads the flat `order_parent` table once per cycle.
+It builds roots and linked rows in two passes, validates that every link points
+directly to a retained root, and atomically replaces both disjoint maps only
+after the complete snapshot succeeds. Lazy hydration uses the same row
+classifier and root-entry shape. Neither path queries `stealth_orders` per root
+or recalculates persisted replacement counters from lineage size.
 
 `RuntimeController` is constructed in non-admitting `STARTING`. Stop hooks and
 the default-on `ENGINE_START_PAUSED` latch are installed before any operator
@@ -148,7 +167,8 @@ after deduplication, and retained with the selected overflow envelope.
 
 Primary lock boundaries:
 - `OrderEngine.orderbook_lock`: guards in-memory order/parent/child mutations.
-- `OrderEngine._coid_handler_locks[client_order_id]`: serializes ensure-parent-row + delta processing per COID.
+- `OrderEngine._coid_handler_locks[client_order_id]`: serializes ensure-parent-row,
+  guarded status projection, and delta processing per COID.
 - `PostgresDB._cursor_lock`: serializes cursor/commit/rollback on shared connection.
 - `RuntimeController` state lock + inflight lock: lifecycle state and drain accounting.
 - `OrderEngine._ticker_ingress_lock`: serialized ticker enqueue and explicit
@@ -325,9 +345,12 @@ pause either wins first or the already-admitted action drains as existing work.
    readiness loss begins.
 7. Reveal plan resolves submitted price (`configured_limit`, `top_of_book`, or `midpoint`) and post-only policy.
 8. Placement happens via REST. For placement client order IDs that differ from
-   the stealth root, `StealthOrderManager.reveal_order_slice` pre-inserts the
-   `order_parent` row before the REST attempt so a racing WS user-channel event
-   does not create an orphan root. If REST raises or Coinbase returns a
+   the owning logical `stealth_order_id`, `StealthOrderManager.reveal_order_slice`
+   pre-inserts an `order_parent` row linked to the original strategy root before
+   the REST attempt and records that SID in
+   `execution_owner_client_order_id`, so a racing WS user-channel event has
+   durable ownership before the accepted-placement index exists. If REST raises
+   or Coinbase returns a
    rejected placement, the reveal path records a failed reveal event but
    leaves revealed size, remaining size, and active placement pointers
    unchanged.
@@ -343,6 +366,17 @@ Stealth status is operational state, not display-only metadata:
 - Follow-up admission is serialized with intentional cancellation under the source SID action lock, followed by the existing new-SID creation lock. The shared stop predicate also guards hotpoint origination; fill ledger/progress/execution recording continues. A fill can change the factual outcome to `EXECUTED` without removing the durable stop. Existing children are not retroactively cancelled. The first committed action wins the cancellation/creation race.
 - `HIDDEN`, `PENDING`, and `TRIGGERED` mean no live Coinbase placement should exist for that stealth order.
 - `REVEALED` means a placement was submitted and may still be resting on the exchange. The active placement is tracked in `anchor_repricing_state_json.active_placement_client_order_id` and `active_exchange_order_id` when known.
+- Every logical stealth `order_parent` row owns itself through
+  `execution_owner_client_order_id`; each distinct reveal/move placement names
+  its logical SID. External/unowned compatibility rows may leave it NULL.
+  User-order status projection resolves this durable relation and updates the
+  exact placement plus its validated owner in one database statement. The owner
+  must exist, own itself, share the same flat strategy root, and agree with the
+  accepted-placement index when that runtime evidence is available. A missing
+  index does not block a pre-REST race. A failed guard retains exact placement
+  truth where possible, pauses the runtime, and suppresses normal, partial-fill,
+  and hotpoint origination while factual fill/audit ingestion continues. Rearm
+  uses the same operation with distinct placement/logical statuses.
 - `anchor_repricing_state_json.pending_rearm` identifies one persisted cancellation awaiting authenticated exchange truth. It records both the internal placement `client_order_id` and source exchange `order_id`; `return_to_hidden` selects rearm (`true`, also the legacy default when absent) versus terminal cancellation (`false`). The matching placement `client_order_id` on an authenticated terminal event is the idempotency boundary.
 - `ERROR` means exchange placement was rejected or acceptance could not be
   proven. It is terminal, excluded from active evaluation, and is never
@@ -375,7 +409,7 @@ Missed-fill audit:
 
 ## Persistence Architecture
 
-Canonical tables (created in `database/order.py`):
+Canonical required-table definitions live in `database/order.py`:
 - `order_parent`
 - `stealth_orders`
 - `stealth_order_snapshots`
@@ -389,7 +423,16 @@ Canonical tables (created in `database/order.py`):
 - `conditional_orders`
 - `partial_fill_progress`
 
-Analytics support tables:
+`database/schema.py::initialize_database_schema()` invokes those definitions
+in dependency order, `verify_database_schema()` checks the required set, and
+`REQUIRED_TABLES` exposes their names. Supported deployment enters through
+`scripts/bootstrap_runtime_database.sh` before `main`; the destructive reset
+uses the same initialization and verification path after dropping public
+tables. Direct reset-script execution then preserves its existing best-effort
+candle backfill.
+
+Analytics support tables are created lazily by their telemetry paths rather
+than included in the required runtime bootstrap:
 - `market_tick` (live recorder)
 - `market_candle_1m` (historical candle fallback)
 
@@ -476,4 +519,4 @@ When adding a feature:
 
 ---
 
-Last reconciled with checkout: 2026-10-09
+Last reconciled with checkout: 2026-11-26

@@ -20,10 +20,18 @@ def _build_engine():
         "FUTURE": {"BUY": 0.0012, "SELL": 0.0012},
         "SPOT": {"BUY": 0.004, "SELL": 0.004},
     }
+    orderbook.profit = orderbook.profit_target
     orderbook.get_position_side = Mock(return_value=None)
 
     db_module = Mock()
     db_module.insert_order_parent = Mock(return_value=1)
+    db_module.get_parent_order = Mock(return_value=None)
+    db_module.update_order_parent_execution_statuses = Mock(return_value={
+        "placement_updated": True,
+        "execution_owner_required": False,
+        "execution_owner_valid": False,
+        "execution_owner_updated": False,
+    })
 
     subscription = Mock()
     subscription.channels = ["user"]
@@ -68,6 +76,11 @@ def test_user_event_flow_uses_client_order_id_for_stealth_correlation(project_ro
         sample_order["client_order_id"],
         sample_order["order_id"],
     )
-    stealth_manager.find_stealth_order_by_placed_order_id.assert_called_once_with(
-        sample_order["client_order_id"]
+    ownership_lookups = (
+        stealth_manager.find_stealth_order_by_placed_order_id.call_args_list
+    )
+    assert len(ownership_lookups) == 2
+    assert all(
+        lookup.args == (sample_order["client_order_id"],)
+        for lookup in ownership_lookups
     )

@@ -772,6 +772,12 @@ class TestTerminalStatusEvictsOrderbookEntry:
         )
         engine.db_module = SimpleNamespace(
             update_order_parent_status=lambda **kw: None,
+            update_order_parent_execution_statuses=lambda *a, **k: {
+                "placement_updated": True,
+                "execution_owner_required": False,
+                "execution_owner_valid": False,
+                "execution_owner_updated": False,
+            },
             get_parent_order=lambda *_a, **_k: None,
         )
 

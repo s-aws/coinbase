@@ -1,11 +1,11 @@
 # Data Models Reference
 
-Reconciled with the `prod` checkout on 2026-10-09. Current source and tests
+Reconciled with the `prod` checkout on 2026-11-26. Current source and tests
 remain the evidence for runtime behavior.
 
 This document is a current navigation reference. `core/models.py`,
-`core/enums.py`, and `database/order.py` are the
-evidence for the current runtime and persistence surface.
+`core/enums.py`, `database/order.py`, and `database/schema.py` are the evidence
+for the current runtime and persistence surface.
 
 ## Core Typed Models (`core/models.py`)
 
@@ -111,8 +111,8 @@ reducer queue, so stale generations can be rejected before state mutation.
 ### `OrderBook` (`core/orderbook.py`)
 Primary mutable structures:
 - orders map (`client_order_id -> order payload`)
-- parent map (`root_client_order_id -> parent entry`)
-- child-to-parent map
+- parent map (`root_client_order_id -> parent entry`; roots only)
+- child-to-parent map (every linked row; disjoint from the parent map)
 - position map
 - follow-up claim ledger
 
@@ -132,20 +132,43 @@ Per-`client_order_id` watermark records for:
 - logs
 - market_metrics
 
-## Database Schema (Canonical: `database/order.py`)
+## Database Schema
+
+`database/order.py` owns the canonical table definitions and forward
+migrations. `database/schema.py` owns the single ordered additive bootstrap:
+`SCHEMA_INITIALIZERS` defines dependency order and `REQUIRED_TABLES` exposes
+the required trading-table set; `verify_database_schema()` confirms it exists.
+Guarded deployment enters through `scripts/bootstrap_runtime_database.sh`,
+while isolated test provisioning and destructive reset recreation invoke the
+same schema implementation directly. `main.py` assumes that step already
+succeeded.
+Lazy analytics tables (`market_tick` and `market_candle_1m`) are outside the
+required set.
 
 ### `order_parent`
-Stores both parent and child placement rows under flat hierarchy.
+Stores strategy roots, linked logical children, and distinct exchange-placement
+rows under one flat hierarchy.
 
 Key columns:
 - `client_order_id` (unique)
 - `parent_order_id` (root parent link for children)
+- `execution_owner_client_order_id` (nullable lifecycle-projection owner;
+  logical stealth rows own themselves and distinct placements name their SID)
 - `product_id`, `side`, `size`, `price`, `status`
 - `target_movement`, `target_movement_type`
 - `max_order_replacement`, `current_order_replacement`
 - `allow_partial_fills`
 - `externally_created` (durable ownership marker for shared-account replay;
   terminal external runtime caches may be evicted only after this is persisted)
+
+`get_parent_orders()` returns every row despite its legacy name. Startup and
+periodic cache hydration classify the returned rows solely from the persisted
+`parent_order_id`: a row with no link is a root; a linked row is a child and
+must point directly to a retained root. The two in-memory maps are mutually
+exclusive. Missing, self, nested, or excluded-root links reject the complete
+snapshot so the last known-good maps remain installed. Hydration copies the
+root's persisted replacement counters and never derives replacement budget
+consumption from child count.
 
 ### Parent/child strategy authority
 
@@ -155,6 +178,19 @@ condition timing, active placement identifiers, and repricing history. The
 root owns the strategy definition, including profit target, reveal-condition
 template, reveal pricing/sizing policy, follow-up direction, replacement
 budget, partial-fill policy, and hotpoint opt-in.
+
+Exchange lifecycle projection follows a separate ownership rule. Every new
+logical stealth row stores its own SID as `execution_owner_client_order_id`;
+every distinct reveal/move placement stores the SID it executes for. The
+guarded status write always targets the exact placement and targets the owner
+only when that row exists, owns itself, shares the placement's flat strategy
+root, and agrees with optional accepted-placement index evidence. The shared
+strategy root receives a status only when it is the persisted execution owner;
+flat `parent_order_id` linkage is never an ownership fallback. External or
+compatibility rows with no owner remain exact-row-only. Invalid owner evidence
+keeps exact truth where possible, pauses runtime admission, and suppresses
+strategy origination. The same statement accepts different placement and
+logical statuses for zero-fill rearm.
 
 Parent+Children spans intentionally materialize the same absolute initial
 price threshold on every member; Independent Parents instead adjust each
@@ -288,4 +324,4 @@ See `ORDER_ID_HANDLING.md` for strict usage rules.
 
 ---
 
-Last reconciled with checkout: 2026-10-09
+Last reconciled with checkout: 2026-11-26

@@ -29,7 +29,7 @@ Contract pinned by this module:
 """
 import json
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 
@@ -63,6 +63,12 @@ def _build_engine():
     # genuinely unknown (the bug condition).
     db_module.get_parent_order = Mock(return_value=None)
     db_module.update_order_parent_status = Mock(return_value=True)
+    db_module.update_order_parent_execution_statuses = Mock(return_value={
+        "placement_updated": True,
+        "execution_owner_required": False,
+        "execution_owner_valid": False,
+        "execution_owner_updated": False,
+    })
 
     subscription = Mock()
     subscription.channels = ["user"]
@@ -293,6 +299,7 @@ def test_parent_reconciliation_keeps_only_active_external_provenance():
         {
             "id": 1,
             "client_order_id": "active-external",
+            "parent_order_id": None,
             "target_movement": 0.004,
             "target_movement_type": "P",
             "max_order_replacement": 0,
@@ -304,6 +311,7 @@ def test_parent_reconciliation_keeps_only_active_external_provenance():
         {
             "id": 2,
             "client_order_id": "terminal-external",
+            "parent_order_id": None,
             "target_movement": 0.004,
             "target_movement_type": "P",
             "max_order_replacement": 0,
@@ -314,11 +322,7 @@ def test_parent_reconciliation_keeps_only_active_external_provenance():
         },
     ]
 
-    with patch(
-        "database.order.get_stealth_children_for_parent",
-        return_value=[],
-    ):
-        parents, children = engine.build_parent_child_order_ids_snapshot()
+    parents, children = engine.build_parent_child_order_ids_snapshot()
 
     assert children == {}
     assert set(parents) == {"active-external"}

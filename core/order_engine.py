@@ -1047,7 +1047,34 @@ class OrderEngine:
                 status_to=OrderStatus.OPEN.value,
             )
 
-    def _process_ws_order_delta(self, normalized_order: dict) -> Optional[OrderSnapshotDelta]:
+    def _process_ws_order_delta(
+        self,
+        normalized_order: dict,
+    ) -> Optional[OrderSnapshotDelta]:
+        """Ingest factual progress and permit configured strategy origination."""
+
+        return self._process_ws_order_delta_impl(
+            normalized_order,
+            allow_strategy_origination=True,
+        )
+
+    def _process_ws_order_delta_without_strategy_origination(
+        self,
+        normalized_order: dict,
+    ) -> Optional[OrderSnapshotDelta]:
+        """Ingest factual progress while an ownership guard blocks origination."""
+
+        return self._process_ws_order_delta_impl(
+            normalized_order,
+            allow_strategy_origination=False,
+        )
+
+    def _process_ws_order_delta_impl(
+        self,
+        normalized_order: dict,
+        *,
+        allow_strategy_origination: bool,
+    ) -> Optional[OrderSnapshotDelta]:
         """Single ingestion point for one WS order snapshot.
 
         Replaces the previous parallel ``_record_incremental_fills`` and
@@ -1063,6 +1090,9 @@ class OrderEngine:
         Args:
             normalized_order: Normalised WS order dict produced by the
                 processor bridge for any status.
+            allow_strategy_origination: Whether this event may create hotpoint
+                or partial-fill follow-up orders. Factual fill, watermark, and
+                audit persistence still run when this is false.
 
         Returns:
             The :class:`OrderSnapshotDelta` produced by the tracker, or
@@ -1081,7 +1111,8 @@ class OrderEngine:
             # 1b. Hotpoint Auto-Replicate dispatch. Silent no-op for orders
             #     not flagged ``enable_hotpoint_replication=TRUE``. Failures
             #     never propagate back into the WS pipeline.
-            self._maybe_dispatch_hotpoint(delta)
+            if allow_strategy_origination:
+                self._maybe_dispatch_hotpoint(delta)
 
         # 2. Append-only audit row covering EVERY accepted snapshot.
         self._append_order_match_audit(delta, normalized_order)
@@ -1099,7 +1130,11 @@ class OrderEngine:
 
             # 4. Conditionally create partial-fill follow-up(s).
             #    Opt-in is parent-side; carry-vs-min check is delta-side.
-            if delta.is_new_match and not delta.is_terminal:
+            if (
+                allow_strategy_origination
+                and delta.is_new_match
+                and not delta.is_terminal
+            ):
                 self._maybe_create_partial_fill_follow_up(delta, record)
 
         return delta
@@ -3523,6 +3558,8 @@ class OrderEngine:
                 default=0.0,
             )
         )
+        status_projection_attempted = False
+        status_projection_complete = True
 
         # Step 3: Store normalized order in orderbook
         with self.orderbook_lock:
@@ -3536,6 +3573,26 @@ class OrderEngine:
         with coid_lock:
             self._ensure_order_parent_row_exists(normalized_order)
 
+            # Any non-cancellation event that could originate another order
+            # must first persist exact placement status and pass the durable
+            # execution-owner guard. Cancellation is deferred until after its
+            # possible rearm intent consumes cumulative-fill evidence below.
+            # A FILLED row with an outstanding hold keeps the existing wait
+            # behavior and is not projected until Coinbase clears the hold.
+            if (
+                normalized_status != OrderStatus.CANCELLED.value
+                and not (
+                    normalized_status == OrderStatus.FILLED.value
+                    and outstanding_hold_amount > 0
+                )
+            ):
+                status_projection_attempted = True
+                status_projection_complete = (
+                    self._try_persist_execution_unit_order_status(
+                        normalized_order
+                    )
+                )
+
             # Step 3b: Single ingestion point for WS-derived progress.
             # Routes to fill ledger, audit table, watermark persistence and
             # partial-fill follow-up creation in one place â€” see
@@ -3546,7 +3603,12 @@ class OrderEngine:
             progress_before_ingest = self.order_progress_tracker.get_record(
                 client_order_id
             )
-            self._process_ws_order_delta(normalized_order)
+            if status_projection_complete:
+                self._process_ws_order_delta(normalized_order)
+            else:
+                self._process_ws_order_delta_without_strategy_origination(
+                    normalized_order
+                )
             # Terminal payloads can repeat or regress counters. Preserve both
             # sides of ingest because the tracker accepts terminal
             # status regressions before it is finalized below.
@@ -3571,7 +3633,7 @@ class OrderEngine:
         # A revealed anchor reprice is a cancel-to-hidden rearm, not an
         # ordinary terminal cancellation. Consume it after cumulative fill
         # evidence is ingested but before the placement status can propagate
-        # CANCELLED to the logical root.
+        # CANCELLED to its logical execution unit.
         rearm_cancel_status = None
         cancel_projection_consumed = False
         if status == OrderStatus.CANCELLED and self.stealth_order_bridge:
@@ -3606,48 +3668,20 @@ class OrderEngine:
             )
             return
 
-        # Step 4: Process status transitions
-        try:
-            # In the flat hierarchy, both root parents and reveal-placement
-            # children live in the order_parent table. The placement row is
-            # the truth-of-record for what happened on the exchange, so its
-            # status MUST be updated regardless of parent/child classification.
-            # When the COID is a child of a chain root (stealth-managed
-            # placement) we also propagate the status to the root, since the
-            # root row is what dashboards / reports read for the logical order.
-            # A consumed rearm already persisted both rows under its SID lock.
-            if (
-                rearm_cancel_status is None
-                and not cancel_projection_consumed
-            ):
-                if self.is_parent_order(client_order_id):
-                    self.db_module.update_order_parent_status(
-                        client_order_id=client_order_id,
-                        status=status,
-                    )
-                elif self.is_child_order(client_order_id):
-                    # Update the placement row itself.
-                    self.db_module.update_order_parent_status(
-                        client_order_id=client_order_id,
-                        status=status,
-                    )
-                    # Propagate to the chain root so the logical order's status
-                    # (read by dashboards) reflects the placement's lifecycle.
-                    root_client_order_id = self.get_parent_of_child(client_order_id)
-                    if root_client_order_id and root_client_order_id != client_order_id:
-                        self.db_module.update_order_parent_status(
-                            client_order_id=root_client_order_id,
-                            status=status,
-                        )
-        except Exception as e:
-            self.log_message(
-                "error",
-                self.build_event_log_payload(
-                    "database_order_status_update_failed",
-                    error=str(e),
-                    source=self.build_order_log_context(normalized_order),
-                    **self.include_debug_fields(raw_order=normalized_order),
-                ),
+        # Step 4: Process status transitions. A cancellation could only be
+        # persisted after the rearm consumer had the factual fill watermark.
+        # A consumed rearm already wrote placement and logical status under
+        # its SID lock, so the generic projection must not overwrite it.
+        if (
+            not status_projection_attempted
+            and rearm_cancel_status is None
+            and not cancel_projection_consumed
+        ):
+            status_projection_attempted = True
+            status_projection_complete = (
+                self._try_persist_execution_unit_order_status(
+                    normalized_order
+                )
             )
 
         if status == OrderStatus.SNAPSHOT:
@@ -3708,15 +3742,16 @@ class OrderEngine:
         if status == OrderStatus.CANCELLED:
             self._finalize_partial_fill_progress(client_order_id, "CANCELLED")
             if rearm_cancel_status is None:
-                self.handle_cancelled_order(normalized_order)
+                if status_projection_complete:
+                    self.handle_cancelled_order(normalized_order)
             else:
                 self.complete_follow_up_processing(
                     FollowUpKind.CANCELLED,
                     client_order_id,
                 )
-            # The rearm consumer owns the logical root lifecycle. Keep a
+            # The rearm consumer owns the logical execution lifecycle. Keep a
             # distinct child placement's dashboard row truthful, but never
-            # project raw CANCELLED onto a root-backed order after it has
+            # project raw CANCELLED onto an SID-backed order after it has
             # returned to HIDDEN (or already re-revealed).
             if (
                 (
@@ -3743,7 +3778,8 @@ class OrderEngine:
             return
         if status == OrderStatus.FILLED:
             self._finalize_partial_fill_progress(client_order_id, "FINALIZED")
-            self.handle_filled_order(normalized_order)
+            if status_projection_complete:
+                self.handle_filled_order(normalized_order)
             self._update_dashboard_order_status(client_order_id, normalized_order, status)
 
             # Same eviction reason as the CANCELLED branch above.
@@ -3786,9 +3822,237 @@ class OrderEngine:
                 ),
             )
 
-    def _seed_parent_order_cache_from_db(self, client_order_id: str) -> bool:
+    def _resolve_placement_execution_owner_id(
+        self,
+        placement_client_order_id: str,
+    ) -> Optional[str]:
+        """Return accepted-placement evidence for a logical owner.
+
+        The durable ``order_parent.execution_owner_client_order_id`` relation
+        is authoritative for status projection. The accepted-placement index
+        is a runtime cross-check when available; it may legitimately lag a
+        pre-REST websocket event and is never used as a root fallback.
+        """
+
+        if not self.stealth_order_bridge:
+            return None
+        stealth_manager = getattr(
+            self.stealth_order_bridge,
+            "stealth_manager",
+            None,
+        )
+        finder = getattr(
+            stealth_manager,
+            "find_stealth_order_by_placed_order_id",
+            None,
+        )
+        if not callable(finder):
+            return None
+
+        try:
+            owner = finder(placement_client_order_id)
+        except Exception as exc:
+            self.log_message(
+                "warning",
+                self.build_event_log_payload(
+                    "placement_execution_owner_lookup_failed",
+                    client_order_id=placement_client_order_id,
+                    error=str(exc),
+                ),
+            )
+            return None
+        if owner is None:
+            return None
+        if not isinstance(owner, dict):
+            self.log_message(
+                "warning",
+                self.build_event_log_payload(
+                    "placement_execution_owner_invalid",
+                    client_order_id=placement_client_order_id,
+                    reason="owner record is not a dictionary",
+                ),
+            )
+            return None
+
+        raw_owner_id = owner.get("stealth_order_id")
+        owner_id = (
+            raw_owner_id.strip()
+            if isinstance(raw_owner_id, str)
+            else ""
+        )
+        if not owner_id:
+            self.log_message(
+                "warning",
+                self.build_event_log_payload(
+                    "placement_execution_owner_invalid",
+                    client_order_id=placement_client_order_id,
+                    reason="owner record has no stealth_order_id",
+                ),
+            )
+            return None
+        return owner_id
+
+    def _try_persist_execution_unit_order_status(
+        self,
+        normalized_order: Dict[str, Any],
+    ) -> bool:
+        """Persist guarded status, pausing without suppressing factual ingest."""
+
+        client_order_id = str(normalized_order["client_order_id"])
+        status = normalized_order.get("status")
+        try:
+            return self._persist_execution_unit_order_status(
+                client_order_id,
+                status,
+            )
+        except Exception as error:
+            get_runtime_controller().request_pause()
+            self.log_message(
+                "error",
+                self.build_event_log_payload(
+                    "database_order_status_update_failed",
+                    error=str(error),
+                    source=self.build_order_log_context(normalized_order),
+                    note=(
+                        "Runtime paused and strategy origination suppressed; "
+                        "factual fill and audit ingestion continues."
+                    ),
+                    **self.include_debug_fields(raw_order=normalized_order),
+                ),
+            )
+            return False
+
+    def _persist_execution_unit_order_status(
+        self,
+        placement_client_order_id: str,
+        status: Any,
+    ) -> bool:
+        """Persist exact placement truth plus its guarded execution owner."""
+
+        expected_owner_id = self._resolve_placement_execution_owner_id(
+            placement_client_order_id
+        )
+        persisted_status = (
+            status.value if isinstance(status, OrderStatus) else status
+        )
+        result = self.db_module.update_order_parent_execution_statuses(
+            placement_client_order_id,
+            persisted_status,
+            expected_execution_owner_client_order_id=expected_owner_id,
+        )
+        if not isinstance(result, dict):
+            raise OrderProcessingError(
+                "guarded order_parent status update returned an invalid result"
+            )
+
+        placement_updated = result.get("placement_updated") is True
+        owner_required = result.get("execution_owner_required") is True
+        owner_updated = result.get("execution_owner_updated") is True
+        owner_valid = result.get("execution_owner_valid") is True
+        if placement_updated and (
+            not owner_required
+            or (owner_valid and owner_updated)
+        ):
+            return True
+
+        get_runtime_controller().request_pause()
+        self.log_message(
+            "error",
+            self.build_event_log_payload(
+                "placement_execution_owner_guard_failed",
+                client_order_id=placement_client_order_id,
+                expected_execution_owner_client_order_id=expected_owner_id,
+                guard_result=result,
+                note=(
+                    "Exact placement truth was retained when possible; "
+                    "runtime paused and strategy origination suppressed."
+                ),
+            ),
+        )
+        return False
+
+    @staticmethod
+    def _classify_persisted_parent_row(
+        parent_order: Dict[str, Any],
+    ) -> Tuple[str, Optional[str]]:
+        """Normalize one flat order_parent row into identity and root link."""
+
+        raw_client_order_id = parent_order.get("client_order_id")
+        client_order_id = (
+            str(raw_client_order_id).strip()
+            if raw_client_order_id is not None
+            else ""
+        )
+        if not client_order_id:
+            raise OrderProcessingError(
+                "persisted order_parent row has no client_order_id"
+            )
+
+        raw_parent_order_id = parent_order.get("parent_order_id")
+        parent_order_id = (
+            str(raw_parent_order_id).strip()
+            if raw_parent_order_id is not None
+            else ""
+        ) or None
+        if parent_order_id == client_order_id:
+            raise OrderProcessingError(
+                "persisted order_parent row links to itself: "
+                f"{client_order_id}"
+            )
+        return client_order_id, parent_order_id
+
+    @staticmethod
+    def _build_persisted_parent_cache_entry(
+        parent_order: Dict[str, Any],
+        *,
+        orders: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """Build the canonical in-memory entry for one persisted root row."""
+
+        max_replacements = parent_order.get("max_order_replacement")
+        current_replacements = parent_order.get("current_order_replacement")
+        return {
+            "parent_id": parent_order.get("id"),
+            "orders": list(orders or []),
+            "target_movement": {
+                "movement": safe_float(
+                    parent_order.get("target_movement"),
+                    default=0.0,
+                ),
+                "type": (
+                    parent_order.get("target_movement_type")
+                    or TargetMovementType.PERCENTAGE.value
+                ),
+            },
+            "max_order_replacement": int(
+                DEFAULT_MAX_ORDER_REPLACEMENT
+                if max_replacements is None
+                else max_replacements
+            ),
+            "current_order_replacement": int(
+                0 if current_replacements is None else current_replacements
+            ),
+            "allow_partial_fills": bool(
+                parent_order.get("allow_partial_fills", False)
+            ),
+            "externally_created": bool(
+                parent_order.get("externally_created", False)
+            ),
+        }
+
+    def _seed_parent_order_cache_from_db(
+        self,
+        client_order_id: str,
+    ) -> bool:
         """Hydrate in-memory parent metadata for stealth orders already persisted at creation."""
-        if self.is_parent_order(client_order_id) or self.is_child_order(client_order_id):
+        cached_as_parent = self.is_parent_order(client_order_id)
+        cached_as_child = self.is_child_order(client_order_id)
+        if cached_as_parent and cached_as_child:
+            raise OrderProcessingError(
+                "cached order is classified as both root and child: "
+                f"{client_order_id}"
+            )
+        if cached_as_parent or cached_as_child:
             return True
         if not self.db_module or not hasattr(self.db_module, "get_parent_order"):
             return False
@@ -3797,43 +4061,98 @@ class OrderEngine:
         if not parent_order:
             return False
 
-        # If the persisted row is itself a child (parent_order_id set), hydrate
-        # the chain root first and register this COID as a child under it.
+        persisted_client_order_id, db_parent_link = (
+            self._classify_persisted_parent_row(parent_order)
+        )
+        if persisted_client_order_id != str(client_order_id):
+            raise OrderProcessingError(
+                "persisted order_parent lookup returned the wrong row: "
+                f"requested={client_order_id}, returned={persisted_client_order_id}"
+            )
+
+        # If the persisted row is itself a child (parent_order_id set), validate
+        # its direct root and register this COID as a child under it.
         # Otherwise downstream lookups (is_parent_order / status routing)
         # mis-classify it as a root and update the wrong order_parent row.
-        db_parent_link = parent_order.get("parent_order_id")
         if db_parent_link:
-            root_client_order_id = str(db_parent_link)
-            # Recursively seed root metadata (flat hierarchy means one hop,
-            # but the recursion is safe and bounded by is_parent_order short-circuit).
-            if root_client_order_id != client_order_id:
-                self._seed_parent_order_cache_from_db(root_client_order_id)
+            root_client_order_id = db_parent_link
+            root_entry = None
+            with self.orderbook_lock:
+                if root_client_order_id in self.orderbook.child_order_ids:
+                    raise OrderProcessingError(
+                        "persisted hierarchy is not flat: "
+                        f"child={client_order_id}, linked_row={root_client_order_id}"
+                    )
+                root_entry = self.orderbook.parent_order_ids.get(
+                    root_client_order_id
+                )
+
+            if root_entry is None:
+                root_order = self.db_module.get_parent_order(
+                    root_client_order_id
+                )
+                if not root_order:
+                    raise OrderProcessingError(
+                        "persisted child row references a missing strategy root: "
+                        f"child={client_order_id}, root={root_client_order_id}"
+                    )
+                persisted_root_id, nested_parent_id = (
+                    self._classify_persisted_parent_row(root_order)
+                )
+                if persisted_root_id != root_client_order_id:
+                    raise OrderProcessingError(
+                        "persisted strategy-root lookup returned the wrong row: "
+                        f"requested={root_client_order_id}, "
+                        f"returned={persisted_root_id}"
+                    )
+                if nested_parent_id is not None:
+                    raise OrderProcessingError(
+                        "persisted hierarchy is not flat: "
+                        f"child={client_order_id}, "
+                        f"linked_row={root_client_order_id}, "
+                        f"strategy_root={nested_parent_id}"
+                    )
+                root_entry = self._build_persisted_parent_cache_entry(
+                    root_order
+                )
 
             # Register the in-memory child link WITHOUT touching the DB
             # replacement counter â€” the row already reflects its persisted
             # state and re-incrementing here would double-count on every
             # restart / reconcile pass.
             with self.orderbook_lock:
-                root_entry = self.orderbook.parent_order_ids.get(root_client_order_id)
-                if root_entry is not None:
-                    if client_order_id not in root_entry.setdefault("orders", []):
-                        root_entry["orders"].append(client_order_id)
-                self.orderbook.child_order_ids[client_order_id] = root_client_order_id
+                if root_client_order_id in self.orderbook.child_order_ids:
+                    raise OrderProcessingError(
+                        "persisted hierarchy is not flat: "
+                        f"child={client_order_id}, linked_row={root_client_order_id}"
+                    )
+                root_entry = self.orderbook.parent_order_ids.setdefault(
+                    root_client_order_id,
+                    root_entry,
+                )
+                if client_order_id in self.orderbook.parent_order_ids:
+                    raise OrderProcessingError(
+                        "cached order is classified as both root and child: "
+                        f"{client_order_id}"
+                    )
+                if client_order_id not in root_entry.setdefault("orders", []):
+                    root_entry["orders"].append(client_order_id)
+                self.orderbook.child_order_ids[
+                    client_order_id
+                ] = root_client_order_id
             return True
 
         with self.orderbook_lock:
-            self.orderbook.parent_order_ids[client_order_id] = {
-                "orders": list(self.orderbook.parent_order_ids.get(client_order_id, {}).get("orders", [])),
-                "target_movement": {
-                    "movement": safe_float(parent_order.get("target_movement"), default=0.0),
-                    "type": parent_order.get("target_movement_type", "P"),
-                },
-                "max_order_replacement": int(parent_order.get("max_order_replacement") or DEFAULT_MAX_ORDER_REPLACEMENT),
-                "current_order_replacement": int(parent_order.get("current_order_replacement") or 0),
-                "parent_id": parent_order.get("id"),
-                "allow_partial_fills": bool(parent_order.get("allow_partial_fills", False)),
-                "externally_created": bool(parent_order.get("externally_created", False)),
-            }
+            existing_orders = self.orderbook.parent_order_ids.get(
+                client_order_id,
+                {},
+            ).get("orders", [])
+            self.orderbook.parent_order_ids[client_order_id] = (
+                self._build_persisted_parent_cache_entry(
+                    parent_order,
+                    orders=existing_orders,
+                )
+            )
         return True
 
     def _get_coid_handler_lock(self, client_order_id: str) -> threading.Lock:
@@ -5062,22 +5381,33 @@ class OrderEngine:
             raise
 
     def build_parent_child_order_ids_snapshot(self) -> tuple:
-        """Query database and build parent/child order mapping snapshot.
-        
-        Since all orders are stealth orders, all children are stealth children
-        stored in the stealth_orders table with parent_order_id set.
-        
+        """Build a validated flat hierarchy from persisted order_parent rows.
+
+        Root rows and linked rows are mutually exclusive in the returned
+        caches. The persisted replacement counters are copied as-is; hydration
+        never derives strategy budget consumption from the number of children.
+
         Returns:
             Tuple (parent_order_ids_dict, child_order_ids_dict).
         """
-        from database.order import get_stealth_children_for_parent
-        
-        parent_order_ids = {}
-        child_order_ids = {}
+        parent_order_ids: Dict[str, Dict[str, Any]] = {}
+        child_order_ids: Dict[str, str] = {}
+        rows_by_client_order_id: Dict[str, Dict[str, Any]] = {}
+        links_by_client_order_id: Dict[str, Optional[str]] = {}
+        excluded_client_order_ids = set()
 
-        parent_orders = self.db_module.get_parent_orders()
+        for parent in self.db_module.get_parent_orders():
+            client_order_id, parent_order_id = (
+                self._classify_persisted_parent_row(parent)
+            )
+            if client_order_id in rows_by_client_order_id:
+                raise OrderProcessingError(
+                    "duplicate persisted order_parent client_order_id: "
+                    f"{client_order_id}"
+                )
+            rows_by_client_order_id[client_order_id] = parent
+            links_by_client_order_id[client_order_id] = parent_order_id
 
-        for parent in parent_orders:
             # Terminal external rows remain durable audit/FK history, but they
             # own no follow-up lineage and must not be reloaded into the
             # process-local parent cache after terminal cleanup.
@@ -5091,29 +5421,64 @@ class OrderEngine:
                     OrderStatus.EXPIRED.value,
                 }
             ):
+                excluded_client_order_ids.add(client_order_id)
+
+        # First pass: only rows with no persisted parent link are strategy
+        # roots. Linked rows must never also appear in parent_order_ids.
+        for client_order_id, parent in rows_by_client_order_id.items():
+            if client_order_id in excluded_client_order_ids:
                 continue
+            if links_by_client_order_id[client_order_id] is None:
+                parent_order_ids[client_order_id] = (
+                    self._build_persisted_parent_cache_entry(parent)
+                )
 
-            parent_client_order_id = parent["client_order_id"]
+        # Second pass: every linked row must point directly to a retained root.
+        # Reject the entire snapshot on corruption so load_parent_child_order_ids
+        # keeps the last known-good pair of maps.
+        for child_client_order_id, root_client_order_id in (
+            links_by_client_order_id.items()
+        ):
+            if (
+                child_client_order_id in excluded_client_order_ids
+                or root_client_order_id is None
+            ):
+                continue
+            if root_client_order_id not in rows_by_client_order_id:
+                raise OrderProcessingError(
+                    "persisted child row references a missing strategy root: "
+                    f"child={child_client_order_id}, root={root_client_order_id}"
+                )
+            if root_client_order_id in excluded_client_order_ids:
+                raise OrderProcessingError(
+                    "persisted child row references an excluded strategy root: "
+                    f"child={child_client_order_id}, root={root_client_order_id}"
+                )
+            nested_parent_id = links_by_client_order_id[root_client_order_id]
+            if nested_parent_id is not None:
+                raise OrderProcessingError(
+                    "persisted hierarchy is not flat: "
+                    f"child={child_client_order_id}, "
+                    f"linked_row={root_client_order_id}, "
+                    f"strategy_root={nested_parent_id}"
+                )
+            if root_client_order_id not in parent_order_ids:
+                raise OrderProcessingError(
+                    "persisted child row has no retained strategy root: "
+                    f"child={child_client_order_id}, root={root_client_order_id}"
+                )
 
-            parent_order_ids[parent_client_order_id] = {
-                "parent_id": parent["id"],
-                "orders": [],
-                "target_movement": {
-                    "movement": float(parent["target_movement"]),
-                    "type": parent.get("target_movement_type", TargetMovementType.PERCENTAGE.value),
-                },
-                "max_order_replacement": int(parent["max_order_replacement"]),
-                "current_order_replacement": int(parent["current_order_replacement"]),
-                "allow_partial_fills": bool(parent.get("allow_partial_fills", False)),
-                "externally_created": bool(parent.get("externally_created", False)),
-            }
+            parent_order_ids[root_client_order_id]["orders"].append(
+                child_client_order_id
+            )
+            child_order_ids[child_client_order_id] = root_client_order_id
 
-            # All children are stealth children (stored in stealth_orders table)
-            stealth_children = get_stealth_children_for_parent(parent_client_order_id)
-            for stealth_child in stealth_children:
-                stealth_child_id = stealth_child["client_order_id"]  # This is stealth_order_id
-                parent_order_ids[parent_client_order_id]["orders"].append(stealth_child_id)
-                child_order_ids[stealth_child_id] = parent_client_order_id
+        overlap = set(parent_order_ids).intersection(child_order_ids)
+        if overlap:
+            raise OrderProcessingError(
+                "persisted rows were classified as both roots and children: "
+                f"{sorted(overlap)}"
+            )
 
         return parent_order_ids, child_order_ids
 

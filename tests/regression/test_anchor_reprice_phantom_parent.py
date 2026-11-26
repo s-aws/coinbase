@@ -8,7 +8,7 @@ restoring the order to ``HIDDEN``.
 """
 
 from datetime import datetime
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -74,6 +74,13 @@ def _manager_for(order: dict) -> StealthOrderManager:
     manager._record_reveal_event = MagicMock(return_value=True)
     manager._dispatch_lifecycle_event = MagicMock()
     return manager
+
+
+def _parent_projection_result(*, owner_updated: bool = True) -> dict:
+    return {
+        "placement_updated": True,
+        "execution_owner_updated": owner_updated,
+    }
 
 
 @pytest.mark.regression
@@ -253,9 +260,11 @@ def test_cancel_ack_restores_hidden_inventory_and_is_idempotent(monkeypatch):
     manager = _manager_for(order)
     manager.db_client = object()
     manager._update_stealth_order = MagicMock(return_value=True)
-    update_parent_status = MagicMock(return_value=1)
+    update_parent_status = MagicMock(
+        return_value=_parent_projection_result()
+    )
     monkeypatch.setattr(
-        "core.stealth_order_manager.update_order_parent_status",
+        "core.stealth_order_manager.update_order_parent_execution_statuses",
         update_parent_status,
     )
 
@@ -278,10 +287,12 @@ def test_cancel_ack_restores_hidden_inventory_and_is_idempotent(monkeypatch):
     assert state["active_exchange_order_id"] is None
     assert state["reveal_armed_at"]
     assert order["revealed_orders"][0]["cancelled_for_reprice"] is True
-    assert update_parent_status.call_args_list == [
-        call("placement-1", "CANCELLED"),
-        call("stealth-1", "PENDING"),
-    ]
+    update_parent_status.assert_called_once_with(
+        "placement-1",
+        "CANCELLED",
+        logical_status="PENDING",
+        expected_execution_owner_client_order_id="stealth-1",
+    )
 
     # A replayed terminal event cannot restore the same quantity twice.
     assert manager.consume_anchor_rearm_cancellation(
@@ -308,9 +319,11 @@ def test_cancel_ack_retains_rearm_if_parent_projection_is_incomplete(
     manager = _manager_for(order)
     manager.db_client = object()
     manager._update_stealth_order = MagicMock(return_value=True)
-    update_parent_status = MagicMock(side_effect=(1, 0))
+    update_parent_status = MagicMock(
+        return_value=_parent_projection_result(owner_updated=False)
+    )
     monkeypatch.setattr(
-        "core.stealth_order_manager.update_order_parent_status",
+        "core.stealth_order_manager.update_order_parent_execution_statuses",
         update_parent_status,
     )
     controller = RuntimeController()
@@ -350,9 +363,11 @@ def test_root_backed_placement_can_rearm_into_fresh_child_cycle(monkeypatch):
     manager._placed_order_index["stealth-1"] = order
     manager.db_client = object()
     manager._update_stealth_order = MagicMock(return_value=True)
-    update_parent_status = MagicMock(return_value=1)
+    update_parent_status = MagicMock(
+        return_value=_parent_projection_result()
+    )
     monkeypatch.setattr(
-        "core.stealth_order_manager.update_order_parent_status",
+        "core.stealth_order_manager.update_order_parent_execution_statuses",
         update_parent_status,
     )
 
@@ -363,7 +378,12 @@ def test_root_backed_placement_can_rearm_into_fresh_child_cycle(monkeypatch):
 
     assert result is StealthOrderStatus.HIDDEN
     assert order["remaining_size"] == 25.0
-    update_parent_status.assert_called_once_with("stealth-1", "PENDING")
+    update_parent_status.assert_called_once_with(
+        "stealth-1",
+        "CANCELLED",
+        logical_status="PENDING",
+        expected_execution_owner_client_order_id="stealth-1",
+    )
     assert manager._placement_client_order_id_for_order(order) != "stealth-1"
 
 
@@ -440,9 +460,11 @@ def test_filled_event_retains_pending_when_parent_projection_is_incomplete(
     manager = _manager_for(order)
     manager.db_client = object()
     manager._update_stealth_order = MagicMock(return_value=True)
-    update_parent_status = MagicMock(side_effect=(1, 0))
+    update_parent_status = MagicMock(
+        return_value=_parent_projection_result(owner_updated=False)
+    )
     monkeypatch.setattr(
-        "core.stealth_order_manager.update_order_parent_status",
+        "core.stealth_order_manager.update_order_parent_execution_statuses",
         update_parent_status,
     )
 
@@ -456,11 +478,11 @@ def test_filled_event_retains_pending_when_parent_projection_is_incomplete(
     assert order["status"] == StealthOrderStatus.REVEALED.value
     assert order["executed_size"] == 0.0
     assert "pending_rearm" in order["anchor_repricing_state_json"]
-    update_parent_status.assert_has_calls(
-        [
-            call("placement-1", "FILLED"),
-            call("stealth-1", "FILLED"),
-        ]
+    update_parent_status.assert_called_once_with(
+        "placement-1",
+        "FILLED",
+        logical_status="FILLED",
+        expected_execution_owner_client_order_id="stealth-1",
     )
     manager._update_stealth_order.assert_not_called()
 
@@ -702,15 +724,27 @@ def test_operator_cancel_persists_rearm_supersession_before_rest(monkeypatch):
     rest_client.cancel_orders.side_effect = lambda **_kwargs: operations.append(
         ("cancel",)
     )
-    update_parent_status = MagicMock(
-        side_effect=lambda client_order_id, status: (
-            operations.append(("parent", client_order_id, status)) or 1
-        )
-    )
+
+    def update_parent_status(
+        placement_client_order_id,
+        placement_status,
+        *,
+        logical_status,
+        expected_execution_owner_client_order_id,
+    ):
+        operations.append((
+            "parent_atomic",
+            placement_client_order_id,
+            placement_status,
+            expected_execution_owner_client_order_id,
+            logical_status,
+        ))
+        return _parent_projection_result()
+
     manager._update_stealth_order = MagicMock(side_effect=persist)
     monkeypatch.setattr("configuration.REST_CLIENT", rest_client)
     monkeypatch.setattr(
-        "core.stealth_order_manager.update_order_parent_status",
+        "core.stealth_order_manager.update_order_parent_execution_statuses",
         update_parent_status,
     )
 
@@ -728,8 +762,13 @@ def test_operator_cancel_persists_rearm_supersession_before_rest(monkeypatch):
     assert operations == [
         ("persist", StealthOrderStatus.CANCELLED.value, True),
         ("cancel",),
-        ("parent", "placement-1", "CANCELLED"),
-        ("parent", "stealth-1", "CANCELLED"),
+        (
+            "parent_atomic",
+            "placement-1",
+            "CANCELLED",
+            "stealth-1",
+            "CANCELLED",
+        ),
         ("persist", StealthOrderStatus.CANCELLED.value, False),
     ]
     event = order["revealed_orders"][0]
@@ -758,9 +797,11 @@ def test_operator_cancel_with_fill_evidence_stops_without_generic_follow_up(
     manager = _manager_for(order)
     manager.db_client = object()
     manager._update_stealth_order = MagicMock(return_value=True)
-    update_parent_status = MagicMock(return_value=1)
+    update_parent_status = MagicMock(
+        return_value=_parent_projection_result()
+    )
     monkeypatch.setattr(
-        "core.stealth_order_manager.update_order_parent_status",
+        "core.stealth_order_manager.update_order_parent_execution_statuses",
         update_parent_status,
     )
     controller = RuntimeController()
@@ -785,10 +826,12 @@ def test_operator_cancel_with_fill_evidence_stops_without_generic_follow_up(
     event = order["revealed_orders"][0]
     assert event["rearm_aborted_for_fill"] is True
     assert event["operator_cancel_consumed"] is True
-    assert update_parent_status.call_args_list == [
-        call("placement-1", "CANCELLED"),
-        call("stealth-1", "CANCELLED"),
-    ]
+    update_parent_status.assert_called_once_with(
+        "placement-1",
+        "CANCELLED",
+        logical_status="CANCELLED",
+        expected_execution_owner_client_order_id="stealth-1",
+    )
     assert controller.state is EngineState.PAUSED
 
 

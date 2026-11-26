@@ -1,6 +1,6 @@
 # Order ID Handling
 
-Reconciled with the `prod` checkout on 2026-10-09. These are the internal ID
+Reconciled with the `prod` checkout on 2026-11-26. These are the internal ID
 rules and current implementation boundaries.
 
 ## Critical Rule
@@ -26,6 +26,8 @@ Source:
 
 Used for:
 - `order_parent.client_order_id` and parent-child linkage (`parent_order_id`).
+- lifecycle projection ownership
+  (`order_parent.execution_owner_client_order_id`).
 - in-memory orderbook keys (`OrderBook._orders`, parent/child maps).
 - follow-up claims and replacement-slot accounting.
 - partial-fill progress (`partial_fill_progress.client_order_id`).
@@ -59,6 +61,9 @@ Reason:
 ## Stealth-Specific ID Rules
 
 - Root stealth order id is also the root `client_order_id` for hierarchy purposes.
+- Each logical stealth row persists its own SID as
+  `execution_owner_client_order_id`; a distinct placement persists the logical
+  SID it executes for before its REST attempt.
 - Revealed placements can mint fresh placement `client_order_id` values.
 - Exchange `order_id` for revealed placement is supplemental and may arrive later.
 - Move-revealed keeps the same stealth root but replaces placement identifiers.
@@ -103,6 +108,9 @@ That would break idempotency and reprocessing safety.
 - Parent and child lineage is always keyed by `client_order_id`.
 - Child `parent_order_id` points to original root parent `client_order_id`.
 - Never reparent children to children.
+- `parent_order_id` proves strategy membership, not placement lifecycle
+  ownership. Status projection uses `execution_owner_client_order_id`; the
+  accepted-placement index is an optional runtime cross-check.
 - Test-shaped strings such as `test_order_6` do not satisfy the project UUID
   contract and can break UUID-typed joins to stealth tables. Do not assume
   low-level VARCHAR storage validates that contract or repairs polluted rows.
@@ -145,4 +153,4 @@ That would break idempotency and reprocessing safety.
 
 ---
 
-Last reconciled with checkout: 2026-10-09
+Last reconciled with checkout: 2026-11-26

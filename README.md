@@ -107,7 +107,11 @@ repository root is the current directory.
 - The configured dashboard TCP port available (`8765` by default).
 
 Do not use `__dangerous_delete_all_tables__.py` as an installation step. It
-permanently drops every table in the target database before recreating schema.
+permanently drops every table in the target database before invoking the same
+schema bootstrap used by normal deployment and tests. After schema recreation,
+direct script execution preserves the existing best-effort Coinbase candle
+backfill; API failures can leave that optional history incomplete even though
+the required runtime schema was recreated successfully.
 
 ### 2. Install the runtime
 
@@ -175,11 +179,23 @@ PY
 ```
 
 After verifying the target, bootstrap or forward-migrate the runtime schema.
-The command is additive and does not delete rows or tables:
+This is a required deployment step for both fresh and existing databases. Use
+the guarded runtime-database entry point, confirming the exact configured
+host, port, and database:
 
 ```bash
-./.venv/bin/python3.14 -m database.schema
+runtime_db_target="${COINBASE_DB_HOST}:${COINBASE_DB_PORT}/${COINBASE_DB_NAME}"
+./scripts/bootstrap_runtime_database.sh --confirm-target "${runtime_db_target}"
 ```
+
+The script refuses defaults or missing database variables, checks that the
+confirmation matches the configured target, verifies the connected database
+and user with a read-only query, invokes the additive and idempotent
+`database.schema` implementation, and verifies all required tables. It does
+not delete rows or tables, contact Coinbase, or start the engine. Run it after
+setting `COINBASE_DB_*` and before every deployment's first `main` startup.
+`main.py` deliberately does not perform full schema DDL, so a direct launch
+against an unbootstrapped database is unsupported.
 
 ### 4. Start the complete engine
 
@@ -187,9 +203,10 @@ The command is additive and does not delete rows or tables:
 ./.venv/bin/python3.14 -m main
 ```
 
-Use `main`, not `dashboard_server.py`, for trading. `main` owns the required
-ordering: passive database hydration, startup reconciliation, stealth decision
-activation, background workers, and readiness publication. Running
+After the schema bootstrap succeeds, use `main`, not `dashboard_server.py`,
+for trading. `main` owns the required ordering: passive database hydration,
+startup reconciliation, stealth decision activation, background workers, and
+readiness publication. Running
 `dashboard_server.py` directly starts only its standalone dashboard/demo path.
 
 Expected state progression is:
@@ -274,6 +291,10 @@ isolated test endpoint.
 External Coinbase tests are credential-gated and opt-in; they are not part of
 the default validation command.
 
+Use the Linux [deployment checklist](tests/DEPLOYMENT_CHECKLIST.md) for the
+complete pre-start ordering. Deployment and live/external validation remain
+separate operator-authorized actions.
+
 For a repeatable Linux resource check of the dashboard cancellation hot path:
 
 ```bash
@@ -323,6 +344,8 @@ and verifies terminal cleanup without retained per-order state.
 | `bridges/stealth_event_deadline_scheduler.py` | Ordered market-event FIFO and derived deadline heap |
 | `calculation/` | Price, size, fee, and profitability calculations |
 | `database/order.py` | Canonical trading schema and persistence helpers |
+| `database/schema.py` | Canonical ordered additive schema implementation and required-table verification |
+| `scripts/bootstrap_runtime_database.sh` | Guarded runtime target confirmation, identity check, and schema deployment entry point |
 | `dashboard_server.py` | Operator WebSocket command and state contract |
 
 Deeper architecture, configuration, and message-contract references are

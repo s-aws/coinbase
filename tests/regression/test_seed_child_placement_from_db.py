@@ -15,11 +15,8 @@ Bug: the original implementation of ``_seed_parent_order_cache_from_db``
 ignored the persisted ``parent_order_id`` and seeded EVERY hydrated row as
 a ROOT in ``orderbook.parent_order_ids``. Consequences:
 
-  1. ``is_parent_order(placement_coid)`` returned True, so status updates
-     ran ``UPDATE order_parent SET status=... WHERE client_order_id=<placement>``
-     â€” the chain ROOT row never received status updates and stayed PENDING
-     forever even after the placement filled (observed: stealth row 61
-     stuck at PENDING while placement row 62 went FILLED).
+  1. A linked placement could be simultaneously treated as a strategy root
+     and as a child after periodic reconciliation.
 
   2. Any subsequent ``register_child_order(stealth_followup, placement)``
      would create an in-memory grandchild because ``placement`` was treated
@@ -34,8 +31,10 @@ Contract pinned by this module:
      ``current_order_replacement`` (the persisted value already reflects
      reality; re-incrementing on every WS event / reconcile pass would
      double-count).
-  C. Status updates for a child placement update both the placement row
-     AND propagate to the chain root row.
+  C. Batch and lazy hydration produce the same mutually-exclusive maps from
+     ``order_parent.parent_order_id`` without an N+1 stealth_orders query.
+  D. Status updates use durable execution ownership, with the accepted
+     placement index as a cross-check rather than an ownership fallback.
 """
 
 from __future__ import annotations
@@ -46,6 +45,7 @@ import pytest
 
 from configuration import OrderBook
 from core.enums import FollowUpKind, OrderStatus, StealthOrderStatus
+from core.exceptions import OrderProcessingError
 from core.order_engine import OrderEngine
 
 
@@ -68,6 +68,14 @@ def _build_engine():
     db_module.insert_order_parent = Mock(return_value=1)
     db_module.get_parent_order = Mock(return_value=None)
     db_module.update_order_parent_status = Mock(return_value=True)
+    db_module.update_order_parent_execution_statuses = Mock(
+        return_value={
+            "placement_updated": True,
+            "execution_owner_required": False,
+            "execution_owner_valid": False,
+            "execution_owner_updated": False,
+        }
+    )
     db_module.increment_order_parent_replacement_count = Mock(return_value=1)
 
     subscription = Mock()
@@ -176,20 +184,174 @@ def test_seed_from_db_does_not_reincrement_root_replacement_counter():
         "Hydrating a persisted child re-incremented the root counter. "
         "On every WS event / reconcile pass this would silently double-count."
     )
+    assert root_entry["max_order_replacement"] == 0
     # And we MUST NOT have written an INCREMENT to the DB (that's the
     # observable side-effect of the duplicated-rule footgun).
     engine.db_module.increment_order_parent_replacement_count.assert_not_called()
 
 
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-# Contract C: status updates on a child propagate to the chain root.
+# Contract C: batch hydration classifies flat rows exactly once.
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 @pytest.mark.regression
-def test_status_update_propagates_from_child_placement_to_chain_root():
-    """When the placement is a child of a stealth root, ``process_user_order``
-    must update both the placement's order_parent row AND the chain root's
-    row, so the dashboard's view of the logical order reflects reality.
-    """
+def test_batch_and_lazy_hydration_build_the_same_disjoint_flat_maps():
+    engine = _build_engine()
+    root = "root-coid"
+    placement = "placement-coid"
+
+    def fake_get_parent_order(coid):
+        if coid == placement:
+            return _child_row(placement, root)
+        if coid == root:
+            return _root_row(root)
+        return None
+
+    engine.db_module.get_parent_order = Mock(side_effect=fake_get_parent_order)
+    engine.db_module.get_parent_orders = Mock(
+        return_value=[_child_row(placement, root), _root_row(root)]
+    )
+
+    assert engine._seed_parent_order_cache_from_db(placement) is True
+    lazy_parents = engine.orderbook.parent_order_ids
+    lazy_children = engine.orderbook.child_order_ids
+
+    batch_parents, batch_children = (
+        engine.build_parent_child_order_ids_snapshot()
+    )
+
+    assert batch_parents == lazy_parents
+    assert batch_children == lazy_children == {placement: root}
+    assert set(batch_parents).isdisjoint(batch_children)
+    assert batch_parents[root]["orders"] == [placement]
+    assert batch_parents[root]["current_order_replacement"] == 1
+    assert batch_parents[root]["max_order_replacement"] == 0
+
+
+@pytest.mark.regression
+@pytest.mark.parametrize(
+    "rows",
+    (
+        [_child_row("orphan", "missing-root")],
+        [
+            _root_row("root"),
+            _child_row("child", "root"),
+            _child_row("grandchild", "child"),
+        ],
+        [_child_row("self-linked", "self-linked")],
+    ),
+    ids=("missing-root", "nested-link", "self-link"),
+)
+def test_invalid_batch_linkage_retains_last_known_good_maps(rows):
+    engine = _build_engine()
+    old_parents = {"known-root": {"orders": []}}
+    old_children = {"known-child": "known-root"}
+    engine.orderbook.parent_order_ids = old_parents
+    engine.orderbook.child_order_ids = old_children
+    engine.db_module.get_parent_orders = Mock(return_value=rows)
+
+    assert engine.load_parent_child_order_ids() is False
+    assert engine.orderbook.parent_order_ids is old_parents
+    assert engine.orderbook.child_order_ids is old_children
+    engine.orderbook.atomic_replace_links.assert_not_called()
+
+
+@pytest.mark.regression
+@pytest.mark.parametrize("invalid_root", (None, _child_row("linked", "root")))
+def test_invalid_lazy_linkage_does_not_partially_mutate_maps(invalid_root):
+    engine = _build_engine()
+    child = "child"
+    linked = "linked"
+
+    def fake_get_parent_order(coid):
+        if coid == child:
+            return _child_row(child, linked)
+        if coid == linked:
+            return invalid_root
+        return None
+
+    engine.db_module.get_parent_order = Mock(side_effect=fake_get_parent_order)
+
+    with pytest.raises(OrderProcessingError):
+        engine._seed_parent_order_cache_from_db(child)
+
+    assert engine.orderbook.parent_order_ids == {}
+    assert engine.orderbook.child_order_ids == {}
+
+
+# Contract D: exchange status follows durable execution ownership.
+def _placement_order(client_order_id: str, status=OrderStatus.OPEN.value):
+    return {
+        "client_order_id": client_order_id,
+        "order_id": "exchange-uuid",
+        "product_id": "BIP-20DEC30-CDE",
+        "order_side": "SELL",
+        "side": "SELL",
+        "status": status,
+        "limit_price": "76330.00",
+        "outstanding_hold_amount": "0",
+        "filled_size": "0",
+    }
+
+
+def _attach_indexed_owner(engine, owner):
+    manager = Mock()
+    manager.find_stealth_order_by_placed_order_id.return_value = owner
+    bridge = Mock()
+    bridge.stealth_manager = manager
+    bridge.is_anchor_rearm_placement_tombstoned.return_value = False
+    engine.stealth_order_bridge = bridge
+    return manager
+
+
+def _guard_result(placement, owner):
+    return {
+        "placement_client_order_id": placement,
+        "execution_owner_client_order_id": owner,
+        "execution_owner_required": owner is not None,
+        "execution_owner_conflict": False,
+        "execution_owner_valid": owner is not None,
+        "placement_updated": True,
+        "execution_owner_updated": owner is not None,
+    }
+
+
+@pytest.mark.regression
+def test_distinct_placement_status_updates_child_execution_owner_not_strategy_root():
+    engine = _build_engine()
+    root = "stealth-root-coid"
+    logical_child = "logical-child-coid"
+    placement = "placement-coid"
+
+    def fake_get_parent_order(coid):
+        if coid == placement:
+            return _child_row(placement, root)
+        if coid == root:
+            return _root_row(root)
+        return None
+
+    engine.db_module.get_parent_order = Mock(side_effect=fake_get_parent_order)
+    _attach_indexed_owner(
+        engine,
+        {
+            "stealth_order_id": logical_child,
+            "parent_order_id": root,
+        },
+    )
+    engine.db_module.update_order_parent_execution_statuses.return_value = (
+        _guard_result(placement, logical_child)
+    )
+
+    engine.process_user_order(_placement_order(placement))
+
+    engine.db_module.update_order_parent_execution_statuses.assert_called_once_with(
+        placement,
+        OrderStatus.OPEN.value,
+        expected_execution_owner_client_order_id=logical_child,
+    )
+
+
+@pytest.mark.regression
+def test_distinct_root_owned_placement_status_updates_strategy_root():
     engine = _build_engine()
     root = "stealth-root-coid"
     placement = "placement-coid"
@@ -202,38 +364,141 @@ def test_status_update_propagates_from_child_placement_to_chain_root():
         return None
 
     engine.db_module.get_parent_order = Mock(side_effect=fake_get_parent_order)
+    _attach_indexed_owner(
+        engine,
+        {"stealth_order_id": root, "parent_order_id": None},
+    )
+    engine.db_module.update_order_parent_execution_statuses.return_value = (
+        _guard_result(placement, root)
+    )
 
-    placement_order = {
-        "client_order_id": placement,
-        "order_id": "exchange-uuid",
-        "product_id": "BIP-20DEC30-CDE",
-        "order_side": "SELL",
-        "side": "SELL",
-        "status": OrderStatus.OPEN.value,
-        "limit_price": "76330.00",
-        "outstanding_hold_amount": "0",
-        "filled_size": "0",
-    }
+    engine.process_user_order(_placement_order(placement))
 
-    engine.process_user_order(placement_order)
-
-    # Both rows must have received the OPEN status update.
-    update_calls = engine.db_module.update_order_parent_status.call_args_list
-    targets = {
-        call.kwargs.get("client_order_id") or call.args[0]
-        for call in update_calls
-    }
-    assert placement in targets, "placement row was not updated"
-    assert root in targets, (
-        f"chain root {root} did not receive the status update â€” this is the "
-        "observable symptom of the 2026-04-29 stealth-status-stuck-at-PENDING "
-        f"bug. update_order_parent_status calls: {update_calls}"
+    engine.db_module.update_order_parent_execution_statuses.assert_called_once_with(
+        placement,
+        OrderStatus.OPEN.value,
+        expected_execution_owner_client_order_id=root,
     )
 
 
 @pytest.mark.regression
+def test_child_sid_backed_placement_updates_once_without_root_projection():
+    engine = _build_engine()
+    root = "stealth-root-coid"
+    logical_child = "logical-child-coid"
+
+    def fake_get_parent_order(coid):
+        if coid == logical_child:
+            return _child_row(logical_child, root)
+        if coid == root:
+            return _root_row(root)
+        return None
+
+    engine.db_module.get_parent_order = Mock(side_effect=fake_get_parent_order)
+    _attach_indexed_owner(
+        engine,
+        {
+            "stealth_order_id": logical_child,
+            "parent_order_id": root,
+        },
+    )
+    engine.db_module.update_order_parent_execution_statuses.return_value = (
+        _guard_result(logical_child, logical_child)
+    )
+
+    engine.process_user_order(_placement_order(logical_child))
+
+    engine.db_module.update_order_parent_execution_statuses.assert_called_once_with(
+        logical_child,
+        OrderStatus.OPEN.value,
+        expected_execution_owner_client_order_id=logical_child,
+    )
+
+
+@pytest.mark.regression
+def test_durable_owner_projects_before_accepted_index_is_available():
+    engine = _build_engine()
+    root = "stealth-root-coid"
+    placement = "placement-coid"
+
+    def fake_get_parent_order(coid):
+        if coid == placement:
+            return _child_row(placement, root)
+        if coid == root:
+            return _root_row(root)
+        return None
+
+    engine.db_module.get_parent_order = Mock(side_effect=fake_get_parent_order)
+    _attach_indexed_owner(engine, None)
+    logical_child = "logical-child-coid"
+    engine.db_module.update_order_parent_execution_statuses.return_value = (
+        _guard_result(placement, logical_child)
+    )
+
+    engine.process_user_order(_placement_order(placement))
+
+    engine.db_module.update_order_parent_execution_statuses.assert_called_once_with(
+        placement,
+        OrderStatus.OPEN.value,
+        expected_execution_owner_client_order_id=None,
+    )
+
+
+@pytest.mark.regression
+def test_owner_evidence_conflict_pauses_and_suppresses_origination(monkeypatch):
+    engine = _build_engine()
+    root = "stealth-root-coid"
+    logical_child = "logical-child-coid"
+    placement = "placement-coid"
+
+    def fake_get_parent_order(coid):
+        if coid == placement:
+            return _child_row(placement, root)
+        if coid == root:
+            return _root_row(root)
+        return None
+
+    engine.db_module.get_parent_order = Mock(side_effect=fake_get_parent_order)
+    _attach_indexed_owner(
+        engine,
+        {
+            "stealth_order_id": logical_child,
+            "parent_order_id": root,
+        },
+    )
+    engine.db_module.update_order_parent_execution_statuses.return_value = {
+        "placement_client_order_id": placement,
+        "execution_owner_client_order_id": root,
+        "expected_execution_owner_client_order_id": logical_child,
+        "execution_owner_required": True,
+        "execution_owner_conflict": True,
+        "execution_owner_valid": False,
+        "placement_updated": True,
+        "execution_owner_updated": False,
+    }
+    engine._process_ws_order_delta_without_strategy_origination = Mock(
+        return_value=None
+    )
+    controller = Mock()
+    monkeypatch.setattr(
+        "core.order_engine.get_runtime_controller",
+        lambda: controller,
+    )
+
+    engine.process_user_order(_placement_order(placement))
+
+    controller.request_pause.assert_called_once_with()
+    factual_ingest = (
+        engine._process_ws_order_delta_without_strategy_origination
+    )
+    factual_ingest.assert_called_once()
+    delta_call = factual_ingest.call_args
+    assert delta_call.args[0]["client_order_id"] == placement
+
+
+@pytest.mark.regression
 def test_consumed_rearm_cancel_bypasses_generic_status_and_follow_up():
-    """The manager owns both DB rows while its SID lock is held."""
+    """The manager owns placement and logical rows while its SID lock is held."""
     engine = _build_engine()
     root = "stealth-root-coid"
     placement = "placement-coid"
@@ -275,8 +540,8 @@ def test_consumed_rearm_cancel_bypasses_generic_status_and_follow_up():
         cumulative_filled_size=0.0,
         number_of_fills=0,
     )
-    # The bridge consumer completed placement/root persistence before returning.
-    engine.db_module.update_order_parent_status.assert_not_called()
+    # The bridge consumer completed placement/logical persistence before returning.
+    engine.db_module.update_order_parent_execution_statuses.assert_not_called()
     engine.handle_cancelled_order.assert_not_called()
     engine._update_dashboard_order_status.assert_called_once()
     dashboard_args = engine._update_dashboard_order_status.call_args.args
@@ -299,15 +564,6 @@ def test_operator_cancel_tombstone_skips_raw_projection_but_retries_follow_up():
         "max_order_replacement": 0,
     }
     engine.orderbook.child_order_ids[placement] = root
-    root_status = {root: OrderStatus.OPEN.value}
-
-    def update_parent_status(*, client_order_id, status):
-        root_status[client_order_id] = status
-        return True
-
-    engine.db_module.update_order_parent_status = Mock(
-        side_effect=update_parent_status
-    )
     engine.stealth_order_bridge = Mock()
     engine.stealth_order_bridge.consume_anchor_rearm_cancellation.return_value = (
         None
@@ -331,13 +587,12 @@ def test_operator_cancel_tombstone_skips_raw_projection_but_retries_follow_up():
     }
 
     # First post-consumption dispatch and a later duplicate both retain the
-    # newer logical-root OPEN projection, while generic follow-up processing
+    # newer logical-order OPEN projection, while generic follow-up processing
     # remains available to finish or retry idempotently.
     engine.process_user_order(dict(cancelled_order))
     engine.process_user_order(dict(cancelled_order))
 
-    assert root_status[root] == OrderStatus.OPEN.value
-    engine.db_module.update_order_parent_status.assert_not_called()
+    engine.db_module.update_order_parent_execution_statuses.assert_not_called()
     assert engine.handle_cancelled_order.call_count == 2
     assert (
         engine.stealth_order_bridge
@@ -348,7 +603,7 @@ def test_operator_cancel_tombstone_skips_raw_projection_but_retries_follow_up():
 
 @pytest.mark.regression
 def test_root_backed_rearm_cancel_does_not_project_raw_cancel_to_dashboard():
-    """The logical root may already be HIDDEN or re-revealed on return."""
+    """The logical SID may already be HIDDEN or re-revealed on return."""
     engine = _build_engine()
     root = "stealth-root-coid"
     engine.db_module.get_parent_order = Mock(return_value=_root_row(root))
@@ -374,7 +629,7 @@ def test_root_backed_rearm_cancel_does_not_project_raw_cancel_to_dashboard():
         }
     )
 
-    engine.db_module.update_order_parent_status.assert_not_called()
+    engine.db_module.update_order_parent_execution_statuses.assert_not_called()
     engine.handle_cancelled_order.assert_not_called()
     engine._update_dashboard_order_status.assert_not_called()
 

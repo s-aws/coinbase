@@ -1,6 +1,6 @@
 # Comprehensive Test Suite
 
-Reconciled with the `prod` checkout on 2026-10-09. Current source and tests
+Reconciled with the `prod` checkout on 2026-11-26. Current source and tests
 remain the evidence for runtime behavior.
 
 ## Overview
@@ -10,11 +10,11 @@ non-external validation gate. The suite is designed to protect
 concurrency safety, ID discipline, and stealth/follow-up lifecycle behavior
 with a simple, repeatable execution policy.
 
-## Current Inventory (2026-10-09)
+## Current Inventory (2026-11-26)
 
 - `tests/unit/`: 38 test files
 - `tests/integration/`: 7 test files
-- `tests/regression/`: 78 test files
+- `tests/regression/`: 82 test files
 - `tests/e2e/`: 2 test files
 - `tests/external/`: 1 test file
 - `tests/` root: 2 test files
@@ -35,8 +35,8 @@ not collected cases or measured coverage.
 For every non-agent-file change, run the complete local non-external suite. It
 includes the mandatory regression tests and must exit `0` before handoff:
 
-```powershell
-pytest -c tests/pytest.ini tests -m "not external" -v --tb=short
+```bash
+./scripts/run_tests.sh
 ```
 
 Run this suite sequentially. This repository does not provide a
@@ -72,6 +72,8 @@ test cases unless the user explicitly requests them.
 - cross-source reconciliation and ownership partitioning
 - DB cursor thread-safety guarantees
 - DB production-guard behavior for pytest and direct test-shaped scripts
+- guarded runtime database target confirmation, connected-identity validation,
+  complete schema creation, and idempotency
 - confirmed rearm/Rehide, operator stop/withdrawal, guarded deletion, UI
   visibility, and per-condition threshold offsets
 
@@ -132,4 +134,4 @@ When adding code:
 
 ---
 
-Last reconciled with checkout: 2026-10-09
+Last reconciled with checkout: 2026-11-26

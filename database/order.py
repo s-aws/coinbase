@@ -11,10 +11,9 @@ import json
 from logging_service import get_logger
 from database.database import PostgresDB
 from typing import Dict, List, Any, Optional, Sequence
-from core.constants import get_local_now
+from core.constants import DEFAULT_MAX_ORDER_REPLACEMENT, get_local_now
 from core.enums import FollowUpRevealDirection, StealthLifecycleEvent, StealthOrderStatus
 from core.exceptions import DatabaseConnectionError, OrderPersistenceError, DatabaseTransactionError
-from configuration import DEFAULT_MAX_ORDER_REPLACEMENT
 
 logger = get_logger("OrderDB")
 DB_CLIENT: PostgresDB = PostgresDB()
@@ -53,6 +52,8 @@ def create_order_parent_table() -> None:
         - price: Limit price for the order
         - status: Order status ('PENDING', 'OPEN', 'FILLED', 'CANCELLED', etc.)
         - parent_order_id: UUID of parent if this is a follow-up order
+        - execution_owner_client_order_id: Logical stealth execution unit that
+          owns lifecycle projection for this row; NULL for unowned rows
         - externally_created: Whether the placement originated outside this engine
         - created_at: Timestamp when record was inserted
     
@@ -80,6 +81,7 @@ def create_order_parent_table() -> None:
         price NUMERIC NOT NULL,
         status VARCHAR(20) NOT NULL,
         parent_order_id VARCHAR(40),
+        execution_owner_client_order_id VARCHAR(40),
         allow_partial_fills BOOLEAN NOT NULL DEFAULT FALSE,
         externally_created BOOLEAN NOT NULL DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -108,6 +110,10 @@ def create_order_parent_table() -> None:
         cursor.execute(
             "ALTER TABLE order_parent ADD COLUMN IF NOT EXISTS "
             "externally_created BOOLEAN NOT NULL DEFAULT FALSE"
+        )
+        cursor.execute(
+            "ALTER TABLE order_parent ADD COLUMN IF NOT EXISTS "
+            "execution_owner_client_order_id VARCHAR(40)"
         )
         print("order_parent table done.")
 
@@ -662,6 +668,7 @@ def insert_order_parent(
     current_order_replacement: int = 0,
     status: str = "pending",
     parent_order_id: Optional[str] = None,
+    execution_owner_client_order_id: Optional[str] = None,
     allow_partial_fills: bool = False,
     enable_hotpoint_replication: bool = False,
     auto_placed_by_hotpoint: bool = False,
@@ -687,6 +694,9 @@ def insert_order_parent(
         current_order_replacement: Current count of replacements created (default 0).
         status: Order status (default 'pending').
         parent_order_id: Optional parent order UUID (for child/follow-up orders).
+        execution_owner_client_order_id: Logical stealth order whose execution
+            lifecycle this row represents. Logical rows own themselves;
+            distinct exchange-placement rows name their logical owner.
         externally_created: Whether this row originated outside this engine.
     
     Returns:
@@ -723,12 +733,13 @@ def insert_order_parent(
         max_order_replacement,
         current_order_replacement,
         parent_order_id,
+        execution_owner_client_order_id,
         allow_partial_fills,
         enable_hotpoint_replication,
         auto_placed_by_hotpoint,
         externally_created
     )
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     RETURNING id
     """
     params = (
@@ -743,6 +754,7 @@ def insert_order_parent(
         int(max_order_replacement),
         int(current_order_replacement),
         parent_order_id,
+        execution_owner_client_order_id,
         bool(allow_partial_fills),
         bool(enable_hotpoint_replication),
         bool(auto_placed_by_hotpoint),
@@ -867,13 +879,17 @@ def update_order_parent_price(client_order_id: str, price: float) -> bool:
 
 
 def get_parent_orders() -> List[Dict[str, Any]]:
-    """Retrieve all parent orders from the database.
-    
+    """Retrieve every row in the flat ``order_parent`` tracking table.
+
+    Despite the legacy function name, the table contains both strategy roots
+    and linked logical/placement rows. Callers must classify each row from its
+    persisted ``parent_order_id`` instead of assuming every result is a root.
+
     Args:
         None
-    
+
     Returns:
-        List of all parent order dicts, or empty list if none exist.
+        List of all flat tracking rows, or empty list if none exist.
     """
     query = "SELECT * FROM order_parent"
     return DB_CLIENT.execute_query(query)
@@ -1042,6 +1058,206 @@ def update_order_parent_status(
         logger.info(f"Parent order status updated: {client_order_id} -> {status}")
     else:
         logger.warning(f"No parent order found to update status: {client_order_id}")
+    return result
+
+
+def update_order_parent_execution_statuses(
+    placement_client_order_id: str,
+    placement_status: str,
+    *,
+    logical_status: Optional[str] = None,
+    expected_execution_owner_client_order_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Atomically persist placement truth and guarded execution ownership.
+
+    ``parent_order_id`` expresses flat strategy membership; it does not prove
+    which logical stealth order owns a distinct exchange placement. The
+    persisted ``execution_owner_client_order_id`` carries that second
+    relationship. This statement always updates the exact placement row when
+    it exists, but updates the logical owner only when all guards agree:
+
+    - the owner row exists and identifies itself as a logical execution unit;
+    - placement and owner belong to the same flat strategy root; and
+    - optional accepted-placement evidence names the same owner.
+
+    The two statuses may differ for zero-fill rearm: a distinct placement is
+    CANCELLED while its logical execution row returns to PENDING. When the
+    placement and logical owner share one row, the logical status is the final
+    row state and the reveal-event audit retains the exchange cancellation.
+
+    Returns a structured result even when the placement row is missing. A
+    caller can therefore persist factual exchange progress, pause strategy
+    origination, and report the exact failed guard without guessing from row
+    counts.
+    """
+
+    effective_logical_status = logical_status or placement_status
+    expected_owner_id = (
+        expected_execution_owner_client_order_id.strip()
+        if isinstance(expected_execution_owner_client_order_id, str)
+        else None
+    ) or None
+    query = """
+    WITH input AS (
+        SELECT
+            %s::VARCHAR AS placement_client_order_id,
+            %s::VARCHAR AS placement_status,
+            %s::VARCHAR AS logical_status,
+            %s::VARCHAR AS expected_owner_id
+    ),
+    source AS (
+        SELECT
+            tracked.client_order_id,
+            tracked.parent_order_id,
+            NULLIF(BTRIM(tracked.execution_owner_client_order_id), '') AS owner_id
+        FROM order_parent AS tracked
+        JOIN input
+          ON input.placement_client_order_id = tracked.client_order_id
+    ),
+    owner AS (
+        SELECT
+            tracked.client_order_id,
+            tracked.parent_order_id,
+            NULLIF(BTRIM(tracked.execution_owner_client_order_id), '') AS owner_id
+        FROM order_parent AS tracked
+        JOIN source
+          ON source.owner_id = tracked.client_order_id
+    ),
+    decision AS (
+        SELECT
+            source.client_order_id AS placement_client_order_id,
+            source.owner_id AS execution_owner_client_order_id,
+            input.expected_owner_id,
+            (
+                source.owner_id IS NOT NULL
+                OR input.expected_owner_id IS NOT NULL
+            ) AS execution_owner_required,
+            (
+                input.expected_owner_id IS NOT NULL
+                AND source.owner_id IS DISTINCT FROM input.expected_owner_id
+            ) AS execution_owner_conflict,
+            CASE
+                WHEN source.owner_id IS NULL THEN FALSE
+                WHEN input.expected_owner_id IS NOT NULL
+                 AND source.owner_id <> input.expected_owner_id THEN FALSE
+                WHEN owner.client_order_id IS NULL THEN FALSE
+                WHEN owner.owner_id IS DISTINCT FROM owner.client_order_id THEN FALSE
+                WHEN COALESCE(source.parent_order_id, source.client_order_id)
+                   <> COALESCE(owner.parent_order_id, owner.client_order_id)
+                    THEN FALSE
+                ELSE TRUE
+            END AS execution_owner_valid,
+            owner.client_order_id IS NOT NULL AS execution_owner_found,
+            owner.owner_id IS NOT DISTINCT FROM owner.client_order_id
+                AS execution_owner_self_owned,
+            COALESCE(source.parent_order_id, source.client_order_id)
+                IS NOT DISTINCT FROM
+            COALESCE(owner.parent_order_id, owner.client_order_id)
+                AS execution_owner_same_strategy
+        FROM source
+        CROSS JOIN input
+        LEFT JOIN owner ON TRUE
+    ),
+    requested_updates AS (
+        SELECT
+            decision.placement_client_order_id AS client_order_id,
+            CASE
+                WHEN decision.execution_owner_valid
+                 AND decision.execution_owner_client_order_id =
+                     decision.placement_client_order_id
+                    THEN input.logical_status
+                ELSE input.placement_status
+            END AS status
+        FROM decision
+        CROSS JOIN input
+
+        UNION ALL
+
+        SELECT
+            decision.execution_owner_client_order_id AS client_order_id,
+            input.logical_status AS status
+        FROM decision
+        CROSS JOIN input
+        WHERE decision.execution_owner_valid
+          AND decision.execution_owner_client_order_id <>
+              decision.placement_client_order_id
+    ),
+    updated AS (
+        UPDATE order_parent AS tracked
+           SET status = requested_updates.status
+          FROM requested_updates
+         WHERE tracked.client_order_id = requested_updates.client_order_id
+        RETURNING tracked.client_order_id
+    )
+    SELECT
+        decision.placement_client_order_id,
+        decision.execution_owner_client_order_id,
+        decision.expected_owner_id AS expected_execution_owner_client_order_id,
+        decision.execution_owner_required,
+        decision.execution_owner_conflict,
+        decision.execution_owner_valid,
+        decision.execution_owner_found,
+        decision.execution_owner_self_owned,
+        decision.execution_owner_same_strategy,
+        EXISTS (
+            SELECT 1
+              FROM updated
+             WHERE updated.client_order_id =
+                   decision.placement_client_order_id
+        ) AS placement_updated,
+        EXISTS (
+            SELECT 1
+              FROM updated
+             WHERE updated.client_order_id =
+                   decision.execution_owner_client_order_id
+        ) AS execution_owner_updated
+    FROM decision
+    """
+    rows = DB_CLIENT.execute_query(
+        query,
+        (
+            placement_client_order_id,
+            placement_status,
+            effective_logical_status,
+            expected_owner_id,
+        ),
+    )
+    if not rows:
+        logger.error(
+            "No order_parent placement found for guarded status update: %s",
+            placement_client_order_id,
+        )
+        return {
+            "placement_client_order_id": placement_client_order_id,
+            "execution_owner_client_order_id": None,
+            "expected_execution_owner_client_order_id": expected_owner_id,
+            "execution_owner_required": expected_owner_id is not None,
+            "execution_owner_conflict": False,
+            "execution_owner_valid": False,
+            "execution_owner_found": False,
+            "execution_owner_self_owned": False,
+            "execution_owner_same_strategy": False,
+            "placement_updated": False,
+            "execution_owner_updated": False,
+        }
+
+    result = rows[0]
+    if result["placement_updated"]:
+        logger.info(
+            "Placement status updated: %s -> %s",
+            placement_client_order_id,
+            placement_status,
+        )
+    if (
+        result["execution_owner_updated"]
+        and result["execution_owner_client_order_id"]
+        != placement_client_order_id
+    ):
+        logger.info(
+            "Execution-owner status updated: %s -> %s",
+            result["execution_owner_client_order_id"],
+            effective_logical_status,
+        )
     return result
 
 

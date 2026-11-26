@@ -31,6 +31,8 @@ def test_stealth_revealed_order_preserves_target_movement():
     orderbook.profit_target = {"FUTURE": {"BUY": 0.0012, "SELL": 0.0012}, "SPOT": {"BUY": 0.004, "SELL": 0.004}}
     
     db_module = Mock()
+    db_module.get_parent_order = Mock(return_value=None)
+    db_module.insert_order_parent = Mock(return_value=1)
     subscription = Mock()
     subscription.channels = []  # Mock subscription channels
     
@@ -152,8 +154,11 @@ def test_process_user_order_backfills_stealth_exchange_order_id_before_hold_retu
     orderbook.should_replace = {"FILLED": True, "CANCELLED": True}
     orderbook.default_max_order_replacement = 11
     orderbook.profit_target = {"FUTURE": {"BUY": 0.0012, "SELL": 0.0012}, "SPOT": {"BUY": 0.004, "SELL": 0.004}}
+    orderbook.profit = orderbook.profit_target
 
     db_module = Mock()
+    db_module.get_parent_order = Mock(return_value=None)
+    db_module.insert_order_parent = Mock(return_value=1)
     subscription = Mock()
     subscription.channels = []
 
@@ -176,7 +181,8 @@ def test_process_user_order_backfills_stealth_exchange_order_id_before_hold_retu
         "client_order_id": str(uuid.uuid4()),
         "order_id": str(uuid.uuid4()),
         "product_id": "BIP-20DEC30-CDE",
-        "side": "SELL",
+        "order_side": "SELL",
+        "avg_price": "100.00",
         "status": OrderStatus.FILLED.value,
         "outstanding_hold_amount": "10.5",
     }

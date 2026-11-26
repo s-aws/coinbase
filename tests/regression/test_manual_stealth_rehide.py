@@ -3,7 +3,7 @@
 from contextlib import contextmanager
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock
 from uuid import UUID
 
 import pytest
@@ -204,8 +204,14 @@ def test_manual_cancel_ack_preserves_price_policies_and_reprice_budget(rehide_ca
     order["anchor_repricing_state_json"]["reveal_condition_price_offsets"] = {"price_threshold": 1000.0}
     original = deepcopy(order)
     manager.db_client = object()
-    parent_status = MagicMock(return_value=1)
-    monkeypatch.setattr("core.stealth_order_manager.update_order_parent_status", parent_status)
+    parent_status = MagicMock(return_value={
+        "placement_updated": True,
+        "execution_owner_updated": True,
+    })
+    monkeypatch.setattr(
+        "core.stealth_order_manager.update_order_parent_execution_statuses",
+        parent_status,
+    )
     assert manager.rehide_revealed_order(SID) is True
 
     assert manager.consume_anchor_rearm_cancellation(
@@ -228,7 +234,12 @@ def test_manual_cancel_ack_preserves_price_policies_and_reprice_budget(rehide_ca
     assert order["revealed_size"] == 0.0
     assert order["condition_first_met_at"] is None
     assert order["condition_confirmed_at"] is None
-    assert parent_status.call_args_list == [call(PLACEMENT_ID, "CANCELLED"), call(ROOT_ID, "PENDING")]
+    parent_status.assert_called_once_with(
+        PLACEMENT_ID,
+        "CANCELLED",
+        logical_status="PENDING",
+        expected_execution_owner_client_order_id=SID,
+    )
     assert manager.is_anchor_rearm_placement_tombstoned(PLACEMENT_ID) is True
     persisted_count = manager._update_stealth_order.call_count
     assert manager.consume_anchor_rearm_cancellation(PLACEMENT_ID) is StealthOrderStatus.HIDDEN

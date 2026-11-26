@@ -1,10 +1,11 @@
-"""Drop all tables from the PostgreSQL database and recreate them.
+"""Drop all public PostgreSQL tables and recreate the canonical runtime schema.
 
 WARNING: This is a destructive operation. All data in the database will be permanently deleted.
 CRITICAL: Agents cannot run this script. It should only be executed manually by a developer with direct access to the database.
 
-Utility script to completely reset the database by dropping all tables from the public schema
-and then recreating all required tables with proper schema.
+Utility script to completely reset the database by dropping all tables from the
+public schema and then invoking the same additive schema bootstrap used by
+deployment and tests.
 
 Useful for resetting the database during development or testing.
 
@@ -23,26 +24,24 @@ Example:
     Creating tables...
     order_parent table done.
     ...
-    All tables recreated successfully!
+    All required runtime tables recreated successfully!
+
+After required schema recreation succeeds, direct script execution preserves
+the existing reset workflow by requesting the default market-candle backfill.
+That backfill is best-effort: individual Coinbase/API failures are logged by
+the backfill utility and can leave candle history incomplete.
 """
 
 from database.database import PostgresDB
-from database.order import (
-    create_order_parent_table,
-    create_stealth_orders_table,
-    create_stealth_order_lifecycle_history_table,
-    create_stealth_order_snapshots_table,
-    create_stealth_order_reveal_history_table,
-    create_order_moves_table,
-    create_stealth_order_moves_table,
-    create_fill_ledger_table,
-    create_conditional_orders_table,
-    create_order_event_stream_table,
-    create_partial_fill_progress_table,
-    create_order_match_audit_table,
+from database.schema import (
+    REQUIRED_TABLES,
+    initialize_database_schema,
+    verify_database_schema,
 )
-from psycopg2 import sql
 from genai_tools import backfill_candles
+from psycopg2 import sql
+
+
 def main() -> None:
     """Delete all tables from the public schema and recreate them.
     
@@ -56,8 +55,9 @@ def main() -> None:
     1. Query information_schema.pg_tables for public schema tables
     2. Display list of tables to be deleted
     3. Drop each table safely with CASCADE option
-    4. Recreate all required tables in proper dependency order
-    5. Display confirmation for each operation
+    4. Recreate all required runtime tables through ``database.schema``
+    5. Verify the canonical required-table set exists
+    6. Display confirmation for each operation
     
     Returns:
         None
@@ -80,7 +80,7 @@ def main() -> None:
         Creating tables...
         order_parent table done.
         ...
-        All tables created successfully!
+        All required runtime tables recreated successfully!
     """
     db = PostgresDB()
     
@@ -124,25 +124,24 @@ def main() -> None:
                 print(f"\n⚠ Warning: {len(failed_drops)} table(s) failed to drop:")
                 for table_name, error in failed_drops:
                     print(f"  - {table_name}: {error}")
+                raise RuntimeError(
+                    "Database reset aborted because one or more tables "
+                    "could not be dropped"
+                )
             else:
                 print(f"\n✓ All {dropped_count} tables deleted successfully!")
         
-        # Recreate all required tables
-        print("\nCreating tables...")
+        # Reuse the single additive deployment/test schema path. Keeping the
+        # ordered initializer list in database.schema prevents this destructive
+        # utility from drifting when a new required table or migration is added.
+        print("\nCreating required runtime tables...")
         try:
-            create_order_parent_table()
-            create_stealth_orders_table()
-            create_stealth_order_lifecycle_history_table()
-            create_stealth_order_snapshots_table()
-            create_stealth_order_reveal_history_table()
-            create_order_moves_table()
-            create_stealth_order_moves_table()
-            create_fill_ledger_table()
-            create_conditional_orders_table()
-            create_order_event_stream_table()
-            create_partial_fill_progress_table()
-            create_order_match_audit_table()
-            print("\n✓ All tables recreated successfully!")
+            initialize_database_schema()
+            verify_database_schema(db)
+            print(
+                "\n✓ All required runtime tables recreated successfully "
+                f"({len(REQUIRED_TABLES)} verified)!"
+            )
         except Exception as e:
             print(f"\n✗ Error creating tables: {type(e).__name__}: {e}")
             raise

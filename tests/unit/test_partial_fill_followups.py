@@ -55,6 +55,12 @@ def _build_engine_for_partial_fill_tests() -> OrderEngine:
         "target_movement_type": "P",
         "allow_partial_fills": True,
     }
+    db_module.update_order_parent_execution_statuses.return_value = {
+        "placement_updated": True,
+        "execution_owner_required": False,
+        "execution_owner_valid": False,
+        "execution_owner_updated": False,
+    }
 
     subscription = Mock()
     subscription.channels = []
@@ -589,6 +595,10 @@ def test_partial_fill_concurrent_duplicate_events_create_followup_once():
 
 def test_process_user_order_update_routes_through_tracker():
     engine = _build_engine_for_partial_fill_tests()
+    engine.orderbook.parent_order_ids["child-update-1"] = {
+        "orders": [],
+        "allow_partial_fills": True,
+    }
 
     engine._process_ws_order_delta = Mock(return_value=None)
     engine._update_dashboard_order_status = Mock()

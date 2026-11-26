@@ -107,6 +107,7 @@ from core.runtime_controller import INFLIGHT_REST_PLACE, get_runtime_controller
 from database.order import (
     get_parent_order,
     insert_order_parent,
+    update_order_parent_execution_statuses,
     update_order_parent_price,
     update_order_parent_status,
 )
@@ -2536,7 +2537,7 @@ class StealthOrderManager:
                 if not self._persist_anchor_rearm_parent_statuses(
                     order,
                     placement_client_order_id,
-                    root_status=OrderStatus.CANCELLED,
+                    logical_status=OrderStatus.CANCELLED,
                 ):
                     order.clear()
                     order.update(previous_order)
@@ -2776,7 +2777,7 @@ class StealthOrderManager:
             parent_statuses_persisted = self._persist_anchor_rearm_parent_statuses(
                 order,
                 placement_client_order_id,
-                root_status=OrderStatus.CANCELLED,
+                logical_status=OrderStatus.CANCELLED,
             )
             if not parent_statuses_persisted:
                 order.clear()
@@ -2834,7 +2835,7 @@ class StealthOrderManager:
                 )
                 return current_status
 
-            root_status = (
+            logical_status = (
                 OrderStatus.FILLED
                 if current_status is StealthOrderStatus.EXECUTED
                 else OrderStatus.CANCELLED
@@ -2845,7 +2846,7 @@ class StealthOrderManager:
             if not self._persist_anchor_rearm_parent_statuses(
                 order,
                 placement_client_order_id,
-                root_status=root_status,
+                logical_status=logical_status,
             ):
                 return current_status
 
@@ -3033,7 +3034,7 @@ class StealthOrderManager:
         parent_statuses_persisted = self._persist_anchor_rearm_parent_statuses(
             order,
             placement_client_order_id,
-            root_status=OrderStatus.PENDING,
+            logical_status=OrderStatus.PENDING,
         )
         if not parent_statuses_persisted:
             order.clear()
@@ -3102,47 +3103,45 @@ class StealthOrderManager:
         order: Dict[str, Any],
         placement_client_order_id: str,
         *,
-        root_status: OrderStatus,
+        logical_status: OrderStatus,
         placement_status: OrderStatus = OrderStatus.CANCELLED,
     ) -> bool:
-        """Persist placement and root truth before consuming recovery state."""
+        """Persist placement and logical execution truth before rearming."""
 
         if not getattr(self, "db_client", None):
             return True
-        root_client_order_id = None
+        logical_client_order_id = None
         try:
-            root_client_order_id = resolve_stealth_chain_root(order)
-            if placement_client_order_id == root_client_order_id:
-                # Legacy/root-backed placements share one row with logical
-                # state; the reveal event retains the cancellation audit.
-                root_updated = update_order_parent_status(
-                    root_client_order_id,
-                    root_status.value,
-                )
-                placement_updated = root_updated
-            else:
-                placement_updated = update_order_parent_status(
-                    placement_client_order_id,
-                    placement_status.value,
-                )
-                root_updated = update_order_parent_status(
-                    root_client_order_id,
-                    root_status.value,
-                )
+            logical_client_order_id = str(order["stealth_order_id"])
+            update_result = update_order_parent_execution_statuses(
+                placement_client_order_id,
+                placement_status.value,
+                logical_status=logical_status.value,
+                expected_execution_owner_client_order_id=(
+                    logical_client_order_id
+                ),
+            )
+            placement_updated = bool(
+                update_result.get("placement_updated")
+            )
+            logical_updated = bool(
+                update_result.get("execution_owner_updated")
+            )
         except Exception as error:
-            placement_updated = 0
-            root_updated = 0
+            placement_updated = False
+            logical_updated = False
+            update_result = None
             self.log_callback(
                 "error",
                 {
                     "event": "stealth_anchor_rearm_parent_status_failed",
                     "stealth_order_id": order.get("stealth_order_id"),
                     "placement_client_order_id": placement_client_order_id,
-                    "root_client_order_id": root_client_order_id,
+                    "logical_client_order_id": logical_client_order_id,
                     "error": str(error),
                 },
             )
-        if placement_updated > 0 and root_updated > 0:
+        if placement_updated and logical_updated:
             return True
 
         get_runtime_controller().request_pause()
@@ -3152,9 +3151,10 @@ class StealthOrderManager:
                 "event": "stealth_anchor_rearm_parent_status_incomplete",
                 "stealth_order_id": order.get("stealth_order_id"),
                 "placement_client_order_id": placement_client_order_id,
-                "root_client_order_id": root_client_order_id,
+                "logical_client_order_id": logical_client_order_id,
                 "placement_rows_updated": placement_updated,
-                "root_rows_updated": root_updated,
+                "logical_rows_updated": logical_updated,
+                "guard_result": update_result,
                 "note": "Runtime paused before reveal scheduling.",
             },
         )
@@ -3495,6 +3495,7 @@ class StealthOrderManager:
                     current_order_replacement=0,
                     status=OrderStatus.PENDING.value,
                     parent_order_id=plan.root_parent_client_order_id,
+                    execution_owner_client_order_id=sid,
                     allow_partial_fills=bool(order.get("allow_partial_fills", False)),
                 )
                 placement_parent_inserted = placement_parent_id is not None
@@ -5020,6 +5021,7 @@ class StealthOrderManager:
             "current_order_replacement": 0,
             "status": StealthOrderStatus.PENDING.value,
             "parent_order_id": parent_order_id,
+            "execution_owner_client_order_id": stealth_order_id,
             "allow_partial_fills": (
                 False if parent_order_id else allow_partial_fills
             ),
@@ -5882,6 +5884,7 @@ class StealthOrderManager:
                     current_order_replacement=0,
                     status=OrderStatus.PENDING.value,
                     parent_order_id=root_parent_for_placement,
+                    execution_owner_client_order_id=stealth_order_id,
                     allow_partial_fills=bool(order.get("allow_partial_fills", False)),
                 )
                 if placement_parent_id is None:
@@ -6357,7 +6360,7 @@ class StealthOrderManager:
             if not self._persist_anchor_rearm_parent_statuses(
                 order,
                 str(placed_order_id),
-                root_status=OrderStatus.FILLED,
+                logical_status=OrderStatus.FILLED,
                 placement_status=OrderStatus.FILLED,
             ):
                 order.clear()

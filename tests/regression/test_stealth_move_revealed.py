@@ -704,17 +704,20 @@ class TestStealthOrderMovesAuditTable:
         )
 
     @pytest.mark.regression
-    def test_table_creation_is_wired_into_recreation_script(self):
-        """The danger-script must (re)create stealth_order_moves so a
-        fresh dev DB has the table without manual migration."""
+    def test_recreation_script_uses_canonical_schema_bootstrap(self):
+        """Destructive reset must reuse the additive deployment schema path."""
         repo_root = Path(__file__).resolve().parents[2]
         src = (repo_root / "__dangerous_delete_all_tables__.py").read_text(
             encoding="utf-8"
         )
-        assert "create_stealth_order_moves_table" in src, (
-            "create_stealth_order_moves_table is not invoked by "
-            "__dangerous_delete_all_tables__.py; new dev DBs will be "
-            "missing the audit table."
+        assert "from database.schema import (" in src
+        assert "initialize_database_schema()" in src
+        assert "verify_database_schema(db)" in src
+        assert "REQUIRED_TABLES" in src
+        assert "create_stealth_order_moves_table" not in src
+        assert "from genai_tools import backfill_candles" in src
+        assert src.index("main()", src.index('if __name__ == "__main__":')) < src.index(
+            "backfill_candles.main()"
         )
 
     def _build_executor_fixture(self):

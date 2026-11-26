@@ -1,6 +1,6 @@
 # Modules Reference
 
-Reconciled with the `prod` checkout on 2026-10-09. Current source and tests
+Reconciled with the `prod` checkout on 2026-11-26. Current source and tests
 remain the evidence for runtime behavior.
 
 This file maps current code ownership by module.
@@ -13,7 +13,10 @@ Use it to find the single canonical behavior path before editing.
 - Stealth order lifecycle/repricing/rearm/Rehide/cancel/move: `core/stealth_order_manager.py`
 - Runtime pause/resume/drain state: `core/runtime_controller.py`
 - Exchange-vs-local reconciliation: `core/startup_reconciler.py`, `core/periodic_reconciler.py`
-- Parent/child and stealth DB schema: `database/order.py`
+- Parent/child and stealth DB definitions/persistence: `database/order.py`
+- Guarded runtime database deployment entry point:
+  `scripts/bootstrap_runtime_database.sh`
+- Runtime schema implementation/reset orchestration: `database/schema.py`
 - Dashboard request handlers/state broadcast: `dashboard_server.py`
 - Fill ledger + reconciliation: `business/fill_ledger.py`, `business/fill_reconciler.py`
 - Per-snapshot fill progress deltas: `business/order_progress.py`
@@ -33,6 +36,10 @@ Bootstraps:
 - startup reconciliation
 - periodic reconciler
 - post-worker readiness publication
+
+It deliberately does not create or migrate the full database schema. Run the
+guarded `scripts/bootstrap_runtime_database.sh` entry point against the
+explicitly confirmed target before starting `main`.
 
 ### `dashboard_server.py`
 WebSocket server for operator commands and state broadcasts.
@@ -57,7 +64,11 @@ Responsibilities:
   remain isolated from public payload deduplication
 - bounded ticker-ingress recovery with newest-envelope retention, inherited
   per-product continuity-loss counts, and Coinbase envelope-time forwarding
-- parent/child lifecycle updates
+- one-query flat parent/child hydration with disjoint root/child maps, direct-root
+  validation, and last-known-good retention on invalid snapshots
+- atomic exact-placement plus durable execution-owner status projection, with
+  lineage/self-ownership guards and accepted-index cross-checking; failed guards
+  pause and suppress origination without suppressing factual fill/audit ingest
 - follow-up creation (filled/cancelled and partial-fill paths)
 - fill progress delta ingestion and persistence fan-out
 - ownership classification (`local`, `external`, `unknown`)
@@ -184,6 +195,10 @@ Responsibilities:
 - per-SID action ownership across complete root/follow-up creation, scheduling,
   reveal/reprice/cancel, condition reset/edit, websocket exchange-ID
   enrichment, and terminal execution updates
+- accepted-placement ownership indexing before fallible local finalization and
+  restoration from persisted accepted reveal events during hydration
+- self-ownership persistence for every logical stealth row and SID ownership on
+  each distinct reveal/move placement before its REST attempt
 - declarative span coordination: deterministic all-SID lock acquisition,
   idempotent existing-rung verification, stop-on-first-failure materialization,
   and explicit success/partial/error results through the canonical single-order
@@ -268,7 +283,20 @@ latter subsystem and cancel/re-entry distance policy are absent here.
 `PostgresDB` connection manager with serialized cursor access.
 
 ### `database/order.py`
-Canonical schema and write/read functions for core trading tables.
+Canonical table definitions, idempotent forward migrations, and write/read
+functions for core trading tables.
+
+### `database/schema.py`
+Single ordered additive bootstrap for all required runtime trading tables.
+It also owns required-table verification. Guarded deployment, isolated test
+provisioning, and destructive reset recreation use this path so initializer
+coverage cannot drift between entry points.
+
+### `scripts/bootstrap_runtime_database.sh`
+Operator-facing runtime schema deployment entry point. Requires explicit
+`COINBASE_DB_*` values and exact target confirmation, validates connected
+database/user identity read-only, delegates schema work to `database.schema`,
+and never starts the trading engine.
 
 ### Dashboard and Analytics helpers
 - `database/order_dashboard_helpers.py`
@@ -321,4 +349,4 @@ Canonical schema and write/read functions for core trading tables.
 
 ---
 
-Last reconciled with checkout: 2026-10-09
+Last reconciled with checkout: 2026-11-26

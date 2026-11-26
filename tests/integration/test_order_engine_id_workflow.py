@@ -19,10 +19,18 @@ def _build_engine():
         "FUTURE": {"BUY": 0.0012, "SELL": 0.0012},
         "SPOT": {"BUY": 0.004, "SELL": 0.004},
     }
+    orderbook.profit = orderbook.profit_target
     orderbook.get_position_side = Mock(return_value=None)
 
     db_module = Mock()
     db_module.insert_order_parent = Mock(return_value=1)
+    db_module.get_parent_order = Mock(return_value=None)
+    db_module.update_order_parent_execution_statuses = Mock(return_value={
+        "placement_updated": True,
+        "execution_owner_required": False,
+        "execution_owner_valid": False,
+        "execution_owner_updated": False,
+    })
 
     subscription = Mock()
     subscription.channels = ["user"]
@@ -142,7 +150,8 @@ def test_process_user_order_syncs_exchange_order_id_before_fill_handling():
         "client_order_id": "660e8400-e29b-41d4-a716-446655440000",
         "order_id": "exchange-abc-123",
         "product_id": "BIP-20DEC30-CDE",
-        "side": "SELL",
+        "order_side": "SELL",
+        "avg_price": "100.00",
         "status": OrderStatus.FILLED.value,
         "outstanding_hold_amount": "0",
     }

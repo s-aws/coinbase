@@ -1,6 +1,6 @@
 # Test Files Index
 
-Generated from the current checkout on 2026-11-22. Module summaries
+Generated from the current checkout on 2026-11-26. Module summaries
 describe test intent, not measured coverage. Case counts vary with parametrization.
 Run the complete gate from [README.md](README.md); focused selections require
 an explicit user request.
@@ -67,7 +67,7 @@ an explicit user request.
 | [test_order_processing.py](integration/test_order_processing.py) | 13 | Integration tests for complete order processing workflows. |
 | [test_stealth_order_workflow.py](integration/test_stealth_order_workflow.py) | 6 | Integration tests for stealth order workflows. |
 
-## tests/regression (81 files)
+## tests/regression (82 files)
 
 | File | Defined test functions | Module intent |
 | --- | ---: | --- |
@@ -83,7 +83,7 @@ an explicit user request.
 | [test_dashboard_move_revealed_handler.py](regression/test_dashboard_move_revealed_handler.py) | 6 | Regression tests for the move_revealed_stealth_order dashboard |
 | [test_dashboard_rehide.py](regression/test_dashboard_rehide.py) | 6 | Manual Rehide uses the bridge and reports intent, never inferred exchange truth. |
 | [test_dashboard_startup_admission.py](regression/test_dashboard_startup_admission.py) | 9 | Dashboard admission remains fail-closed through runtime startup. |
-| [test_database_schema_bootstrap.py](regression/test_database_schema_bootstrap.py) | 1 | Fresh isolated PostgreSQL schema bootstrap is complete and idempotent. |
+| [test_database_schema_bootstrap.py](regression/test_database_schema_bootstrap.py) | 6 | Complete database-only schema provisioning plus guarded runtime deployment target validation. |
 | [test_db_cursor_thread_safety.py](regression/test_db_cursor_thread_safety.py) | 2 | Regression: PostgresDB.get_cursor() must serialize cursor access across threads. |
 | [test_exception_kwargs_signature.py](regression/test_exception_kwargs_signature.py) | 11 | Regression: every exception class accepts the kwargs that real call sites use. |
 | [test_fee_manager_lifecycle.py](regression/test_fee_manager_lifecycle.py) | 5 | Fee refresh publication remains stop-dominant during engine startup. |
@@ -114,6 +114,7 @@ an explicit user request.
 | [test_operator_cancel_followups.py](regression/test_operator_cancel_followups.py) | 9 | An accepted project cancel stops new automation, not exchange accounting. |
 | [test_operator_cancel_lifecycle.py](regression/test_operator_cancel_lifecycle.py) | 15 | Intentional stealth cancellation stops automation without losing venue truth. |
 | [test_order_id_regression.py](regression/test_order_id_regression.py) | 3 | Regression guards for critical order ID and hierarchy behavior. |
+| [test_parent_child_strategy_authority.py](regression/test_parent_child_strategy_authority.py) | 7 | Root-owned strategy definitions remain distinct from child execution ownership. |
 | [test_parent_row_before_ws_delta.py](regression/test_parent_row_before_ws_delta.py) | 6 | Regression: order_parent row must exist BEFORE _process_ws_order_delta. |
 | [test_partial_fill_follow_up_atomic_claim.py](regression/test_partial_fill_follow_up_atomic_claim.py) | 4 | Regression: 2026-04-29 duplicate-buy / over-buy incident. |
 | [test_per_side_mandatory_fee.py](regression/test_per_side_mandatory_fee.py) | 7 | Regression: Coinbase Derivatives per-side mandatory fee schedule. |

@@ -10,7 +10,7 @@ This repo evolves quickly. Use these files for intended design and navigation,
 then verify behavioral claims against the current code, schema, configuration,
 and tests.
 
-The living references were reconciled with the `prod` checkout on 2026-10-09.
+The living references were reconciled with the `prod` checkout on 2026-11-26.
 The checkout retains current references only.
 
 ## Read Order
@@ -62,6 +62,12 @@ A stealth order is a local execution plan, not a normal exchange order. It may s
 ## Main Runtime Entry Points
 
 - `main.py` - starts dashboard, stealth bridge, order engine, runtime controller, and reconciler.
+- `scripts/bootstrap_runtime_database.sh` - guarded operator entry point for
+  runtime target confirmation, read-only identity validation, and schema
+  deployment before `main.py`.
+- `database/schema.py` - canonical additive runtime-schema implementation and
+  required-table verification shared by deployment, test provisioning, and
+  destructive reset recreation.
 - `dashboard_server.py` - WebSocket state hub and operator command surface.
 - `core/order_engine.py` - event ingestion, order lifecycle, follow-up logic.
 - `core/user_feed_processor.py` - private-feed generations, reduction,
@@ -73,7 +79,10 @@ A stealth order is a local execution plan, not a normal exchange order. It may s
 
 - Browser UIs: `ui_stealth_orders_manager.html`, `ui_slide_calibration_chart.html`, `ui_stealth_repricing_chart.html`, `ui_order_span_builder.html`, `ui_hotpoint_manager.html`, `ui_spread_monitor.html`.
 - Terminal UI: `ui_console.py`.
-- Risk utility script: `__dangerous_delete_all_tables__.py` (destructive; use carefully).
+- Risk utility script: `__dangerous_delete_all_tables__.py` (destructive manual
+  reset only). Its recreation phase delegates to `database/schema.py`; it does
+  preserve the existing best-effort Coinbase candle backfill afterward, whose
+  failures may leave optional history incomplete.
 
 ## Quick Troubleshooting Pointers
 
@@ -97,4 +106,4 @@ rebuilt using `codex_repo_graph/ENTRYPOINT.md`.
 
 ---
 
-Last reconciled with checkout: 2026-10-09
+Last reconciled with checkout: 2026-11-26

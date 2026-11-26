@@ -1,6 +1,6 @@
 # Configuration Reference
 
-Reconciled with the `prod` checkout on 2026-10-09. Current source and tests
+Reconciled with the `prod` checkout on 2026-11-26. Current source and tests
 remain the evidence for runtime behavior.
 
 This document describes active configuration sources in the current codebase.
@@ -29,6 +29,36 @@ through `scripts/test_database.sh` unless `COINBASE_TEST_DB_AUTOSTART=0`, then
 runs the non-destructive `database.schema` bootstrap before test collection.
 Both test guards block accidental localhost production-port use unless
 `ALLOW_PROD_DB=1`.
+
+#### Runtime schema deployment contract
+
+Set every runtime `COINBASE_DB_*` variable and verify the resolved target with
+a read-only query before any stateful command. Then run the single supported
+guarded runtime-database bootstrap before starting the engine:
+
+```bash
+runtime_db_target="${COINBASE_DB_HOST}:${COINBASE_DB_PORT}/${COINBASE_DB_NAME}"
+./scripts/bootstrap_runtime_database.sh --confirm-target "${runtime_db_target}"
+```
+
+`scripts/bootstrap_runtime_database.sh` requires all five runtime database
+variables, refuses a mismatched target confirmation, validates the connected
+database and user with a read-only query, invokes `database.schema`, and
+verifies the required table set. `database/schema.py` owns the ordered,
+idempotent implementation shared by deployment, test provisioning, and the
+post-drop phase of the destructive reset utility. It creates missing tables
+and runs their forward migrations; it does not drop tables or rows or initialize
+live Coinbase runtime configuration. Direct `python -m main` startup
+deliberately performs no full schema bootstrap and therefore assumes this
+deployment step already succeeded.
+
+`__dangerous_delete_all_tables__.py` is not an alternate migration command. It
+irreversibly drops the target's public tables before invoking the canonical
+bootstrap and must be run only as an explicitly intended manual reset. The
+`market_tick` and `market_candle_1m` analytics tables remain owned by their
+lazy telemetry paths. After required schema recreation, direct reset-script
+execution preserves the existing best-effort Coinbase candle backfill;
+per-product failures are logged and may leave optional history incomplete.
 
 ### Dashboard WebSocket listener (`dashboard_server.py`)
 
@@ -215,6 +245,13 @@ Do not introduce duplicate global settings when a per-order canonical field alre
 # Required complete local non-external gate for every non-agent-file change
 ./scripts/run_tests.sh
 
+# Required runtime database step after setting COINBASE_DB_*
+runtime_db_target="${COINBASE_DB_HOST}:${COINBASE_DB_PORT}/${COINBASE_DB_NAME}"
+./scripts/bootstrap_runtime_database.sh --confirm-target "${runtime_db_target}"
+
+# Start only after the schema bootstrap succeeds
+./.venv/bin/python3.14 -m main
+
 # Disable reconcilers for local troubleshooting
 export DISABLE_RECONCILER=1
 ./.venv/bin/python3.14 -m main
@@ -249,5 +286,5 @@ COINBASE_DB_PASSWORD=postgres ./.venv/bin/python3.14 -m database.schema
 
 ---
 
-Last reconciled with checkout: 2026-10-09
+Last reconciled with checkout: 2026-11-26
 Dashboard listener and client endpoint reference updated: 2026-11-04

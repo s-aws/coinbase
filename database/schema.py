@@ -1,12 +1,14 @@
-"""Non-destructive database schema bootstrap.
+"""Canonical non-destructive runtime database schema bootstrap.
 
 The table definitions remain owned by :mod:`database.order`.  This module
-provides the single ordered entry point used by Linux setup and test
-provisioning to create or forward-migrate every required table.
+provides the single ordered entry point used by deployment, destructive reset,
+Linux setup, and test provisioning to create or forward-migrate every required
+runtime table.
 """
 
 from collections.abc import Callable
 
+from database.database import PostgresDB
 from database.order import (
     create_conditional_orders_table,
     create_fill_ledger_table,
@@ -44,12 +46,43 @@ REQUIRED_TABLES: tuple[str, ...] = tuple(
 
 
 def initialize_database_schema() -> None:
-    """Create and forward-migrate every required table in dependency order."""
+    """Create and forward-migrate required runtime tables in dependency order."""
 
     for _table_name, initializer in SCHEMA_INITIALIZERS:
         initializer()
 
 
+def verify_database_schema(db: PostgresDB | None = None) -> None:
+    """Raise when any required runtime table is absent from the current schema."""
+
+    owns_connection = db is None
+    schema_db = db if db is not None else PostgresDB()
+    try:
+        rows = schema_db.execute_query(
+            """
+            SELECT tablename
+              FROM pg_catalog.pg_tables
+             WHERE schemaname = current_schema()
+               AND tablename = ANY(%s)
+            """,
+            (list(REQUIRED_TABLES),),
+        )
+        present_tables = {row["tablename"] for row in rows}
+        missing_tables = sorted(set(REQUIRED_TABLES) - present_tables)
+        if missing_tables:
+            raise RuntimeError(
+                "Canonical schema bootstrap did not create required "
+                f"tables: {missing_tables}"
+            )
+    finally:
+        if owns_connection:
+            schema_db.disconnect()
+
+
 if __name__ == "__main__":
     initialize_database_schema()
-    print("Database schema is ready.")
+    verify_database_schema()
+    print(
+        "Database schema is ready "
+        f"({len(REQUIRED_TABLES)} required tables verified)."
+    )
