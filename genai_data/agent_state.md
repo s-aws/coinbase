@@ -3,12 +3,14 @@
 ## Status
 
 - Last updated (ET): 2026-11-26.
-- Repository baseline: local `prod` and `origin/prod` are at `79d50e29`.
-  `eadb567a` committed and pushed the tracked deployment-process change, and
-  `79d50e29` committed and pushed the four initially omitted new scripts/tests.
-- Active operator-approved objective: prepare the graph-only closeout required
-  after those two source-changing commits. The deployment automation itself is
-  committed and pushed; no runtime deployment is authorized by this closeout.
+- Repository baseline: local `prod` and `origin/prod` are at `8e8bd8ad`.
+  `eadb567a` committed the deployment process, `79d50e29` tracked its four
+  initially omitted scripts/tests, and `8e8bd8ad` completed the required
+  repository-graph closeout.
+- Active operator-approved objective: review the current modular-monolith
+  boundaries and make recommendations. Each recommendation requires its own
+  focused evidence search, blast-radius evaluation, and operator discussion
+  before implementation; no runtime-code change is authorized by this review.
 - Completed implementation sequence: follow-up reveal-direction persistence,
   parent/child strategy authority, percentage-relative follow-up threshold
   inversion, programmatic span consistency, deterministic span planning, and
@@ -56,13 +58,10 @@
   the suite's shared state.
 - Bash syntax for all deployment scripts and Python compilation for the schema
   and healthcheck modules: pass. Final diff check: pass.
-- The complete suite passed against the exact source later committed through
-  `79d50e29`. The clean-worktree release wrapper has not yet run successfully
-  on that commit because the graph snapshot still referenced `f8b63706`; this
-  graph-only closeout refreshes it to `79d50e29` so the wrapper can run after the
-  closeout is committed.
-- Repository graph rebuild/check for the graph-only closeout: pass with zero
-  parse findings, fatal errors, or mismatches. Final diff check: pass.
+- The clean-worktree release wrapper passed after the graph closeout at
+  `8e8bd8ad`: 1,932 passed, 17 skipped, and 11 external tests deselected.
+  Repository-graph validation reported zero parse findings, fatal errors, or
+  mismatches, and the final worktree cleanliness check passed.
 - Historical fresh-target proof at rollout time: all 12 trading tables contained
   zero rows before bootstrap; only `market_candle_1m` and `market_tick` retained
   operator-created telemetry/backfill data.
