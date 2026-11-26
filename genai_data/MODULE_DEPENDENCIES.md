@@ -1,0 +1,136 @@
+# Module Dependency Contract
+
+Reconciled with the `prod` checkout on 2026-11-26. Current source and tests
+remain the evidence for runtime behavior.
+
+## Purpose and Authority
+
+`module_boundaries.toml` is the machine-readable in-process dependency
+contract. `tests/regression/test_module_boundaries.py` inspects source syntax
+without importing runtime modules and enforces that contract in the normal
+test gate.
+
+The contract freezes statically observable dependency and capability debt. It
+does **not** claim complete runtime isolation. Python aliasing, monkeypatching,
+objects returned by calls, and arbitrary dynamic dispatch can escape a local
+AST analysis. Those limits are why later checklist work replaces broad object
+and module injection with narrow consumer-owned contracts.
+
+Changing the TOML baseline merely makes a change visible; it does not make a
+new dependency architecturally acceptable. Adding or widening a debt entry
+requires the same focused search, blast-radius review, and operator approval as
+other modular-monolith boundary work.
+
+## Supported Runtime Scope
+
+The contract covers the installed runtime packages plus these supported root
+modules:
+
+- composition: `main.py`, `configuration.py`;
+- operator entry points: `dashboard_server.py`, `engine_console.py`,
+  `main_place_order.py`, `order.py`, `ui_console.py`;
+- shared logging adapter: `logging_service.py`.
+
+Tests, `genai_tools/`, repository-graph tooling, scripts, and unsupported root
+diagnostics are not runtime components. Covered runtime modules are forbidden
+from importing them. Adding a supported root entry point requires explicitly
+adding it to the contract.
+
+## Target Dependency Direction
+
+The current directories are not layers. In particular, `core/` contains both
+low-level domain vocabulary and high-level execution orchestration. The
+contract therefore classifies modules, with exact overrides, into these zones:
+
+| Zone | Intended responsibility | May depend on |
+|---|---|---|
+| composition | construct and wire the process | every zone |
+| operator | inbound commands and read presentation | operator, execution, domain, market data, reconciliation, logging |
+| execution | authoritative trading orchestration | execution, domain, logging |
+| reconciliation | drift detection and explicit repair orchestration | reconciliation, execution, domain, logging |
+| market data | public market ingestion and derived state | market data, domain, logging |
+| persistence | concrete database adapters | persistence, domain, logging |
+| exchange | concrete exchange transports/adapters | exchange, market data, domain, logging |
+| integration | application hook adapters | integration, execution, domain, logging |
+| domain | shared vocabulary and calculation/policy code | domain, logging |
+| logging | shared logging adapter | logging |
+
+These directions describe the target modular monolith. Existing reverse edges
+are exact debt entries rather than broad package exemptions. They are grouped
+by the later checklist item expected to retire them:
+
+- item 4: active `configuration` and composition imports;
+- item 5: direct execution-to-database/exchange/integration/dashboard edges;
+- item 6: market-data persistence and direct venue ownership;
+- item 7: operator transport directly reading persistence;
+- item 8: reconciliation directly constructing persistence access.
+
+Allowed-direction edges may be added without expanding architectural debt.
+Every runtime module must still have one declared zone, and any new reverse
+edge fails the regression contract.
+
+## Frozen Cycles
+
+The runtime import graph currently has one six-module strongly connected
+component:
+
+- `calculation.resolver`;
+- `configuration`;
+- `core.models`;
+- `core.orderbook`;
+- the eager `external` package re-export;
+- `external.coinbase_client`.
+
+It contains the immediately visible `core.models` <-> `calculation.resolver`
+and `configuration` <-> `core.orderbook` subcycles. They are joined because
+`configuration` imports `CoinbaseRestClient` through `external`, whose eager
+package export loads `external.coinbase_client`, which imports `core.models`.
+
+The test compares strongly connected components exactly. A new member or new
+component fails. Removing part or all of this component also fails until its
+stale baseline entry is deliberately removed, keeping debt retirement
+reviewable.
+
+## Capability and Reflection Debt
+
+Imports do not expose the full runtime dependency graph. For example, an
+injected module or engine instance can provide arbitrary methods through
+ordinary attribute access, `getattr`, callbacks, or aliases.
+
+The contract therefore also inventories constructor parameters that are
+unannotated or typed as `Any`, `object`, or `ModuleType` and stored directly on
+an instance. For each such field it freezes the directly visible:
+
+- member names, including literal `getattr`/`hasattr`/`setattr` probes;
+- callable use;
+- non-literal attribute lookup;
+- direct pass/return/assignment escape targets.
+
+It separately freezes dynamic attribute-name lookup, `locals`/`globals`/`vars`,
+dynamic imports/evaluation, `sys.modules`, and direct `__dict__` access. New
+uses fail unless the reviewed contract is deliberately changed.
+
+This is a debt budget, not a type system. A previously escaped object can still
+be aliased and used beyond what local syntax proves. New component boundaries
+must therefore use narrow annotated protocols or facades. New `ModuleType`,
+whole-engine, untyped host, or equivalent broad injection is prohibited unless
+explicitly reviewed as new architectural debt.
+
+## Maintenance Procedure
+
+When a boundary changes:
+
+1. inspect the source and identify whether the change follows an allowed
+   direction or expands debt;
+2. prefer removing the dependency or introducing a narrow consumer-owned
+   contract;
+3. remove stale import, cycle, capability, or reflection entries when debt is
+   retired;
+4. do not add an exception merely to make the test pass;
+5. update this document, `ARCHITECTURE.md`, `MODULES.md`, the repository graph,
+   and the modular-monolith checklist when ownership changes;
+6. run the complete local non-external validation gate.
+
+---
+
+Last reconciled with checkout: 2026-11-26

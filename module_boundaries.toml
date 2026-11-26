@@ -1,0 +1,204 @@
+version = 1
+
+# This is the executable modular-monolith boundary contract.  It freezes
+# currently observable architectural debt; it is not a claim that Python's
+# runtime object graph can be proven statically.  A debt entry may be removed
+# when its source dependency disappears.  Adding or widening one requires an
+# explicit architecture review.
+runtime_packages = [
+    "bridges",
+    "business",
+    "calculation",
+    "core",
+    "database",
+    "external",
+    "integration",
+    "market_intel",
+    "websocket",
+]
+runtime_root_modules = [
+    "configuration",
+    "dashboard_server",
+    "engine_console",
+    "logging_service",
+    "main",
+    "main_place_order",
+    "order",
+    "ui_console",
+]
+
+expected_import_cycles = [
+    [
+        "calculation.resolver",
+        "configuration",
+        "core.models",
+        "core.orderbook",
+        "external",
+        "external.coinbase_client",
+    ],
+]
+
+# Broad means that the constructor parameter is unannotated or is annotated as
+# Any, object, or ModuleType and is stored directly on the instance.  Each row
+# records the statically visible member/call/escape surface.  This catches
+# getattr/hasattr with literal member names as well as ordinary attribute use.
+broad_capability_debt = [
+    "bridges.stealth_order_bridge:StealthOrderBridge.order_engine<-order_engine|members=log_message,process_recovered_terminal_order|call=false|dynamic=false|passes=-",
+    "business.conditional_execution:ConditionalExecutionWrapper.db_client<-db_client|members=-|call=false|dynamic=false|passes=-",
+    "business.fill_ledger:FillLedgerRepository.db_client<-db_client|members=execute_query,execute_update|call=false|dynamic=false|passes=-",
+    "business.fill_reconciler:FillReconciler.db<-db_client|members=execute_query,execute_update|call=false|dynamic=false|passes=-",
+    "business.hotpoint_decay_sweeper:HotpointDecaySweeper._rest_client<-rest_client|members=cancel_orders|call=false|dynamic=false|passes=-",
+    "business.hotpoint_detector:HotpointDetector._clock<-clock|members=-|call=true|dynamic=false|passes=-",
+    "business.order_event_stream:OrderEventStreamPublisher.db_module<-db_module|members=create_order_event_stream_table,create_partial_fill_progress_table,create_stealth_order_lifecycle_history_table,create_stealth_order_reveal_history_table,create_stealth_order_snapshots_table,insert_order_event|call=false|dynamic=false|passes=-",
+    "business.order_progress:OrderProgressTracker._min_order_size_resolver<-min_order_size_resolver|members=-|call=true|dynamic=false|passes=-",
+    "business.order_progress:OrderProgressTracker._parent_resolver<-parent_resolver|members=-|call=true|dynamic=false|passes=-",
+    "business.stealth_reveal_strategy:AdaptiveRevealStrategy._config<-config|members=-|call=false|dynamic=false|passes=<assign>",
+    "calculation.fee_manager:FeeManager.log_callback<-log_callback|members=-|call=true|dynamic=false|passes=-",
+    "calculation.fee_manager:FeeManager.orderbook<-orderbook|members=product|call=false|dynamic=false|passes=-",
+    "calculation.fee_manager:FeeManager.rest_client<-rest_client|members=get_transaction_summary|call=false|dynamic=false|passes=-",
+    "calculation.profit_validator:ProfitValidator.fee_manager<-fee_manager|members=get_profit_validation_fee_quote,get_profit_validation_fee_rate|call=false|dynamic=false|passes=-",
+    "calculation.profit_validator:ProfitValidator.orderbook<-orderbook|members=get_position_side,product|call=false|dynamic=false|passes=-",
+    "core.exceptions:StateInconsistencyError.actual<-actual|members=-|call=false|dynamic=false|passes=-",
+    "core.exceptions:StateInconsistencyError.expected<-expected|members=-|call=false|dynamic=false|passes=-",
+    "core.order_engine:OrderEngine.api_key<-api_key|members=-|call=false|dynamic=false|passes=dict",
+    "core.order_engine:OrderEngine.api_secret<-api_secret|members=-|call=false|dynamic=false|passes=dict",
+    "core.order_engine:OrderEngine.db_module<-db_module|members=DB_CLIENT,adopt_child_to_parent,child_order_exists,get_parent_order,get_parent_orders,insert_order_parent,update_order_parent_execution_statuses|call=false|dynamic=false|passes=<assign>,OrderEventStreamPublisher",
+    "core.order_engine:OrderEngine.max_rotate_seen_events_bucket_seconds<-max_rotate_seen_events_bucket_seconds|members=-|call=false|dynamic=false|passes=EventBridge,self._shutdown_event.wait",
+    "core.order_engine:OrderEngine.max_seen_event_buckets<-max_seen_event_buckets|members=-|call=false|dynamic=false|passes=EventBridge",
+    "core.order_engine:OrderEngine.order_post_only<-order_post_only|members=-|call=false|dynamic=false|passes=-",
+    "core.order_engine:OrderEngine.orderbook<-orderbook|members=atomic_replace_links,child_order_ids,complete_follow_up,db_module,default_max_order_replacement,diagnostic_snapshot,discard_completed_follow_up,order,parent_order_ids,positions,product,profit,release_follow_up,should_replace,try_claim_follow_up|call=false|dynamic=false|passes=FeeManager,MoveManager,ProfitValidator",
+    "core.order_engine:OrderEngine.queue_maxsize<-queue_maxsize|members=-|call=false|dynamic=false|passes=Queue,UserFeedProcessor",
+    "core.order_engine:OrderEngine.stealth_order_bridge<-stealth_order_bridge|members=consume_anchor_rearm_cancellation,create_follow_up_stealth_order,guard_follow_up_creation,is_anchor_rearm_placement_tombstoned,process_due_anchor_repricing,publish_market_continuity_reset,publish_ticker_update,stealth_manager,sync_exchange_order_id_for_placed_order,update_execution|call=false|dynamic=false|passes=-",
+    "core.order_engine:OrderEngine.subscription<-subscription|members=channels,private_channels,product_ids,public_channels|call=false|dynamic=true|passes=-",
+    "core.order_engine:OrderEngine.websocket_thread_maximum<-websocket_thread_maximum|members=-|call=false|dynamic=false|passes=range",
+    "core.stealth_order_manager:StealthOrderManager.db_client<-db_client|members=execute_query,execute_update|call=false|dynamic=false|passes=-",
+    "core.stealth_order_manager:StealthOrderManager.log_callback<-log_callback|members=-|call=true|dynamic=false|passes=-",
+    "core.stealth_order_manager:StealthOrderManager.order_placement_hooks<-order_placement_hooks|members=call_post_submission_hooks,call_pre_submission_hooks|call=false|dynamic=false|passes=-",
+    "core.stealth_order_manager:StealthOrderManager.profit_validator<-profit_validator|members=_resolve_product_context,derive_follow_up_price_from_target,orderbook,validate_order_profitability|call=false|dynamic=false|passes=-",
+    "external.coinbase_websocket:CoinbaseWebSocketClient._client<-sdk_client|members=close,on_close,on_error,on_message,on_open,open,sleep_with_exception_check,subscribe,unsubscribe|call=false|dynamic=false|passes=<return>",
+    "market_intel.cross_venue_aggregator:CrossVenueAggregator._clock<-clock|members=-|call=true|dynamic=false|passes=-",
+]
+
+# Only reflection mechanisms capable of obscuring a dependency are frozen.
+# Literal getattr/hasattr calls on broad constructor dependencies are included
+# in broad_capability_debt above.
+reflection_debt = [
+    "business.hotpoint_decay_sweeper:HotpointDecaySweeper.__init__|dynamic-attribute|getattr(logger, level)|count=1",
+    "business.hotpoint_placer:place_hotpoint_order|dynamic-attribute|getattr(logger, level)|count=1",
+    "business.order_progress:OrderProgressTracker.get_record|direct-reflection|record.__dict__|count=1",
+    "core.order_engine:OrderEngine._configured_event_channels|dynamic-attribute|getattr(self.subscription, attribute)|count=1",
+    "core.order_engine:OrderEngine._get_user_feed_processor|direct-reflection|self.__dict__|count=2",
+    "dashboard_server:handle_client_message|reflection-call|locals|count=9",
+    "logging_service:DashboardHandler.emit|direct-reflection|record.__dict__|count=1",
+    "main:_install_shutdown_signal_handlers|dynamic-attribute|getattr(_signal, _signame)|count=1",
+]
+
+[module_zones]
+"main" = "composition"
+"configuration" = "composition"
+"dashboard_server" = "operator"
+"engine_console" = "operator"
+"main_place_order" = "operator"
+"order" = "operator"
+"ui_console" = "operator"
+"logging_service" = "logging"
+"bridges" = "execution"
+"bridges.*" = "execution"
+"business" = "execution"
+"business.*" = "execution"
+"business.fill_reconciler" = "reconciliation"
+"business.market_metrics" = "market_data"
+"business.market_tick_recorder" = "market_data"
+"business.placement_response" = "domain"
+"business.stealth_condition_evaluator" = "domain"
+"business.stealth_reveal_strategy" = "domain"
+"calculation" = "domain"
+"calculation.*" = "domain"
+"core" = "domain"
+"core.*" = "execution"
+"core.constants" = "domain"
+"core.enums" = "domain"
+"core.exceptions" = "domain"
+"core.models" = "domain"
+"core.periodic_reconciler" = "reconciliation"
+"core.startup_reconciler" = "reconciliation"
+"database" = "persistence"
+"database.*" = "persistence"
+"external" = "exchange"
+"external.*" = "exchange"
+"integration" = "integration"
+"integration.*" = "integration"
+"market_intel" = "market_data"
+"market_intel.*" = "market_data"
+"websocket" = "exchange"
+"websocket.*" = "exchange"
+
+[allowed_zone_dependencies]
+composition = ["composition", "operator", "execution", "domain", "reconciliation", "market_data", "persistence", "exchange", "integration", "logging"]
+operator = ["operator", "execution", "domain", "market_data", "reconciliation", "logging"]
+execution = ["execution", "domain", "logging"]
+reconciliation = ["reconciliation", "execution", "domain", "logging"]
+market_data = ["market_data", "domain", "logging"]
+persistence = ["persistence", "domain", "logging"]
+exchange = ["exchange", "market_data", "domain", "logging"]
+integration = ["integration", "execution", "domain", "logging"]
+domain = ["domain", "logging"]
+logging = ["logging"]
+
+# Exact forbidden edges are grouped by the checklist item expected to retire
+# them.  The regression contract requires equality: removals must delete stale
+# entries, and additions cannot pass unnoticed.
+[import_debt]
+item_4_passive_configuration = [
+    "bridges.stealth_order_bridge -> configuration",
+    "business.move_manager -> configuration",
+    "business.stealth_order_span -> configuration",
+    "calculation.fee_manager -> configuration",
+    "calculation.price_validation -> configuration",
+    "calculation.profit_validator -> configuration",
+    "calculation.size_validation -> configuration",
+    "core.models -> configuration",
+    "core.order_engine -> configuration",
+    "core.orderbook -> configuration",
+    "core.startup_reconciler -> configuration",
+    "core.stealth_order_manager -> configuration",
+    "dashboard_server -> configuration",
+    "order -> configuration",
+]
+item_5_execution_facade = [
+    "bridges.stealth_order_bridge -> database.order",
+    "business.conditional_execution -> database.order",
+    "business.fill_ledger -> database.order",
+    "business.move_manager -> database.order",
+    "business.order_event_stream -> database.order",
+    "core.order_engine -> dashboard_server",
+    "core.order_engine -> database.order",
+    "core.order_engine -> external",
+    "core.order_engine -> integration.fill_event_hooks",
+    "core.order_engine -> integration.order_placement_hooks",
+    "core.order_engine -> integration.stealth_lifecycle_hooks",
+    "core.order_engine -> integration.websocket_hooks",
+    "core.stealth_order_manager -> database.order",
+    "core.stealth_order_manager -> integration.order_placement_hooks",
+    "core.stealth_order_manager -> integration.stealth_lifecycle_hooks",
+]
+item_6_market_data_component = [
+    "business.market_metrics -> database.database",
+    "business.market_tick_recorder -> database.database",
+    "business.market_tick_recorder -> database.order",
+    "core.order_engine -> business.market_metrics",
+    "core.order_engine -> business.market_tick_recorder",
+    "ui_console -> external.binance_perp_ws",
+    "ui_console -> external.bybit_perp_ws",
+    "ui_console -> external.okx_swap_ws",
+]
+item_7_operator_transport = [
+    "dashboard_server -> database.database",
+    "dashboard_server -> database.market_chart_helpers",
+    "dashboard_server -> database.order",
+    "dashboard_server -> database.order_dashboard_helpers",
+    "dashboard_server -> database.slide_calibration_helpers",
+]
+item_8_reconciliation = [
+    "core.startup_reconciler -> database.database",
+]
