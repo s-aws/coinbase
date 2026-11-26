@@ -4,10 +4,9 @@
 
 - Last updated (ET): 2026-11-26.
 - Objective baseline: `prod` and `origin/prod` at ownership commit `4651848d`.
-- Active operator-approved objective: close the runtime-database rollout by
-  tracking the guarded bootstrap entry point, refreshing this handoff, and
-  deploying only to an operator-prepared fresh database before observing a
-  paused startup and reconciliation cycle.
+- Active operator-approved objective: none. The runtime-database rollout is
+  complete; deployment-checklist automation is the next feature proposed for
+  operator review, not an approved implementation objective.
 - Completed implementation sequence: follow-up reveal-direction persistence,
   parent/child strategy authority, percentage-relative follow-up threshold
   inversion, programmatic span consistency, deterministic span planning, and
@@ -19,17 +18,17 @@
   development/reset utility and is never a deployment command. Deployment will
   not run over an existing instance; it uses the guarded additive bootstrap on
   a fresh database explicitly prepared by the operator.
-- After rollout closeout, the next feature to raise for review is automation of
+- Next proposed feature: automate the safe, non-destructive portions of
   `tests/DEPLOYMENT_CHECKLIST.md`. No automation implementation is approved yet.
 
-## Active Checklist
+## Completed Rollout Checklist
 
 1. Track and commit `scripts/bootstrap_runtime_database.sh`: complete in the
    closeout change that contains this handoff.
 2. Refresh the durable handoff: complete in this file.
 3. Verify a fresh operator-prepared target read-only, run the guarded additive
    bootstrap, start the engine paused, and observe startup/reconciliation:
-   pending operator preparation and live execution evidence.
+   complete against `127.0.0.1:5432/coinbase`.
 
 ## Validation and Maintenance
 
@@ -37,13 +36,25 @@
   the bootstrap script: 1,919 passed, 17 skipped, 11 deselected, exit 0 on
   Python 3.14.
 - Bootstrap shell syntax validation: pass.
-- Repository graph check before this handoff refresh: pass with zero fatal
-  errors and zero mismatches; rebuild and recheck before committing.
-- No external tests, live engine, exchange mutations, destructive database
-  command, or delegated agent was used for this rollout closeout.
-- Remaining required checks: read-only proof that the chosen deployment target
-  is fresh, guarded schema bootstrap, paused startup/reconciliation observation,
-  final graph check, and final worktree review.
+- Fresh-target proof: all 12 trading tables contained zero rows before
+  bootstrap; only `market_candle_1m` and `market_tick` retained operator-created
+  telemetry/backfill data.
+- Guarded additive bootstrap: pass; connected identity was database `coinbase`,
+  user `postgres`, server `127.0.0.1:5432`, and all 12 required tables verified.
+- Live startup: `STARTING -> PAUSED`; dashboard authority reported admission
+  closed, no stop in progress, no pending startup pause, and zero in-flight
+  work. Startup reconciliation found no exchange/DB order drift, parent/child
+  hydration was empty and in sync, and authenticated user snapshots contained
+  zero open orders. All 12 trading tables remained empty after startup.
+- The missed-fill audit classified 148 recent REST fills across 106 orders as
+  unowned pre-wipe/off-engine history, so it did not backfill them. This is not
+  current local order state and will age out of the audit window.
+- No destructive database command, order placement/cancellation, or delegated
+  agent was used. The engine remains running in `PAUSED` with admission closed.
+- Repository graph check after this closeout update: pass with zero fatal
+  errors and zero mismatches; final diff check: pass. The full local suite was
+  not repeated because this final change is limited to agent context plus
+  generated graph evidence.
 
 ## Local Environment
 
