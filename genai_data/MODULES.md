@@ -24,6 +24,24 @@ Use it to find the single canonical behavior path before editing.
 - Per-snapshot fill progress deltas: `business/order_progress.py`
 - Size/profit/price calculation helpers: `calculation/*`
 - Cross-venue signal aggregation: `market_intel/*`
+- Enforced module zones and architectural debt budget:
+  `module_boundaries.toml`, explained by `genai_data/MODULE_DEPENDENCIES.md`
+
+## Dependency Ownership Contract
+
+`module_boundaries.toml` is the executable ownership map for supported runtime
+modules. It classifies individual modules rather than treating directories as
+layers, because `core/` and `business/` currently mix multiple architectural
+roles. The regression contract freezes reverse-zone import edges, actual import
+cycles, broad/untyped injected capability surfaces, and dependency-obscuring
+reflection. Later modular-monolith work must reduce those exact debt sets while
+preserving one behavior path and the current lifecycle owner.
+
+The checker does not import application modules and therefore cannot trigger
+`configuration.py` startup side effects. It also does not claim to prove
+arbitrary runtime aliases or callbacks; new cross-component collaboration must
+use a narrow annotated protocol or facade. See `MODULE_DEPENDENCIES.md` for the
+zone matrix and limits.
 
 ## Root Entry Points
 

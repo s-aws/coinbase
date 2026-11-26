@@ -26,6 +26,8 @@ Then read only what the task needs:
 
 - `genai_data/ARCHITECTURE.md` - Runtime architecture, threading, and data flow
 - `genai_data/MODULES.md` - Module ownership and where behavior lives
+- `genai_data/MODULE_DEPENDENCIES.md` - Enforced in-process dependency zones,
+  frozen import/capability debt, and static-analysis limits
 - `genai_data/DATA_MODELS.md` - Dataclasses, enums, and database schema snapshots
 - `genai_data/CONFIGURATION.md` - Environment variables, products config, runtime knobs
 - `genai_data/API_REFERENCE.md` - REST wrapper and dashboard WebSocket message contracts

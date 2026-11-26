@@ -3,15 +3,15 @@
 ## Status
 
 - Last updated (ET): 2026-11-26.
-- Repository baseline before the current uncommitted item-2 work: local `prod`
-  and `origin/prod` are at `50dfc24b`; that commit completed removal of the
-  abandoned `StateManager` and generic repository path.
-- Completed operator-approved objective: remove the superseded `OrderInventory`
-  authority model and dormant `OrderStateHookRegistry` surface while retaining
-  the production `StealthLifecycleHookRegistry` as a synchronous, fail-soft,
-  best-effort audit adapter. Database-backed order records remain durable
-  authority; manager caches and audit/dashboard/event projections are not
-  competing sources of truth.
+- Repository baseline before the current uncommitted item-3 work: local `prod`
+  and `origin/prod` are at `f88d1111`; that commit completed removal of the
+  superseded `OrderInventory` and dormant `OrderStateHookRegistry` surfaces.
+- Completed operator-approved objective: freeze all statically observable
+  module dependency and broad capability debt without changing runtime wiring.
+  `module_boundaries.toml` now classifies every supported runtime module and
+  records exact reverse-zone imports, the current strongly connected import
+  component, broad/untyped constructor capability surfaces, and reflection
+  escape signatures. The regression contract rejects expansion or stale debt.
 - Completed implementation sequence: follow-up reveal-direction persistence,
   parent/child strategy authority, percentage-relative follow-up threshold
   inversion, programmatic span consistency, deterministic span planning, and
@@ -53,7 +53,7 @@
 
 ## Modular Monolith Boundary Checklist
 
-Items 1 and 2 are complete. Every later item requires a focused source/test
+Items 1 through 3 are complete. Every later item requires a focused source/test
 search, blast-radius evaluation, context discussion, and separate operator
 approval before code changes.
 
@@ -62,10 +62,15 @@ approval before code changes.
 2. Remove the superseded `OrderInventory` authority model and dormant
    `OrderStateHookRegistry`; retain and accurately document best-effort stealth
    lifecycle auditing: complete and validated.
-3. Declare and enforce the in-process module dependency map: next; review and
-   blast-radius discussion are required before implementation approval.
+3. Declare and enforce the in-process module dependency map: complete and
+   validated. The source-only contract freezes 43 reverse-zone import edges,
+   one six-module strongly connected import component, 34 broad/untyped
+   constructor capability surfaces, and eight reflection/namespace escape
+   signatures. It explicitly does not claim to prove arbitrary runtime aliases
+   or dynamic dispatch.
 4. Make `main.py` the sole explicit composition root and make configuration
-   imports passive.
+   imports passive: next; focused review and blast-radius discussion are
+   required before implementation approval.
 5. Add an Execution Core command/query facade while retaining lifecycle and
    transactional writes under one owner.
 6. Extract public market-data ownership into an in-process component.
@@ -95,6 +100,11 @@ approval before code changes.
   passed 1,874 tests with 17 skipped and 11 external tests deselected. The lower
   total reflects deletion of obsolete inventory/state-hook tests; retained
   stealth-audit and canonical product-resolution behavior remains covered.
+- Item-3 changed no runtime behavior. Its first complete-suite run correctly
+  exposed that two apparent subcycles were joined through the eager `external`
+  package re-export; the reviewed baseline was corrected to one six-module
+  strongly connected component. The final complete local non-external gate
+  passed 1,878 tests with 17 skipped and 11 external tests deselected.
 - Historical fresh-target proof at rollout time: all 12 trading tables contained
   zero rows before bootstrap; only `market_candle_1m` and `market_tick` retained
   operator-created telemetry/backfill data.

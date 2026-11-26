@@ -67,7 +67,7 @@ an explicit user request.
 | [test_order_processing.py](integration/test_order_processing.py) | 13 | Integration tests for complete order processing workflows. |
 | [test_stealth_order_workflow.py](integration/test_stealth_order_workflow.py) | 6 | Integration tests for stealth order workflows. |
 
-## tests/regression (83 files)
+## tests/regression (84 files)
 
 | File | Defined test functions | Module intent |
 | --- | ---: | --- |
@@ -109,6 +109,7 @@ an explicit user request.
 | [test_market_chart_data.py](regression/test_market_chart_data.py) | 6 | Regression: 1m candle store + chart-history reader. |
 | [test_market_metrics_tracker.py](regression/test_market_metrics_tracker.py) | 17 | Regression tests for business.market_metrics.MarketMetricsTracker. |
 | [test_market_tick_recorder.py](regression/test_market_tick_recorder.py) | 9 | Regression: market-tick recorder throttle, table creation, and retention. |
+| [test_module_boundaries.py](regression/test_module_boundaries.py) | 4 | Source-only module direction, import-cycle, broad capability, and reflection-debt contracts. |
 | [test_nonmanager_price_boundaries.py](regression/test_nonmanager_price_boundaries.py) | 13 | Regression coverage for exchange-bound prices outside the stealth manager. |
 | [test_operator_cancel_dashboard.py](regression/test_operator_cancel_dashboard.py) | 9 | Operator commands retain cancellation truth until exchange confirmation. |
 | [test_operator_cancel_deletion_guards.py](regression/test_operator_cancel_deletion_guards.py) | 3 | Destructive cleanup keeps durable cancellation and parent recovery evidence. |

@@ -19,7 +19,7 @@ Follow root `AGENTS.md` and `ai-context.md`: read this overview, ID rules,
 and current handoff first, then load only task-relevant living references.
 The living reference set is:
 
-- `ARCHITECTURE.md`, `MODULES.md`, `DATA_MODELS.md`
+- `ARCHITECTURE.md`, `MODULES.md`, `MODULE_DEPENDENCIES.md`, `DATA_MODELS.md`
 - `CONFIGURATION.md`, `API_REFERENCE.md`
 - `ORDER_ID_HANDLING.md`, `ENUM_USAGE_GUIDE.md`, `EXCEPTIONS.md`
 - `PARTIAL_FILLS.md`, `MOVE_MECHANISM.md`, `PROFIT_TRACKING_SYSTEM.md`
@@ -97,6 +97,8 @@ A stealth order is a local execution plan, not a normal exchange order. It may s
 - Dashboard request/response mismatch: see `API_REFERENCE.md` message contract tables.
 - Stealth behavior summary: see `ARCHITECTURE.md`, `DATA_MODELS.md`, and `API_REFERENCE.md`.
 - Test triage and required commands: see `TESTING_STRATEGY.md`.
+- Module ownership, allowed dependency direction, and frozen architectural
+  debt: see `MODULE_DEPENDENCIES.md`.
 
 ## Documentation Scope
 

@@ -28,7 +28,7 @@ repository does not provide a parallel test runner.
 
 - `tests/unit/`: 38 test files
 - `tests/integration/`: 7 test files
-- `tests/regression/`: 83 test files
+- `tests/regression/`: 84 test files
 - `tests/e2e/`: 2 test files
 - `tests/external/`: 1 test file
 - `tests/` root: 2 test files
@@ -78,6 +78,9 @@ Examples include:
 - missed-fill reconciliation behavior
 - fresh-database enforcement, release validation, foreground paused deployment,
   and authoritative dashboard-health contracts
+- source-only modular-monolith enforcement for module classification, allowed
+  dependency direction, exact reverse-edge and cycle debt, broad constructor
+  capability surfaces, and dependency-obscuring reflection
 
 ### E2E
 Top-level user-message and workflow tests.

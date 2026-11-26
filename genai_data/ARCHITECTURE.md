@@ -66,6 +66,31 @@ during process startup.
 - Dashboard state broadcast (`state_update`) for HTML and terminal consumers.
 - Analytics endpoints for slide calibration and market chart views.
 
+## Enforced In-Process Boundaries
+
+The directory names above are navigation aids, not enforceable layers:
+`core/`, in particular, contains both shared domain vocabulary and high-level
+runtime orchestration. `module_boundaries.toml` therefore assigns each
+supported runtime module to an explicit composition, operator, execution,
+reconciliation, market-data, persistence, exchange, integration, domain, or
+logging zone. `tests/regression/test_module_boundaries.py` rejects undeclared
+modules, new reverse-zone imports, new import cycles, new broad/untyped
+constructor capability surfaces, and new reflection mechanisms that can hide
+those surfaces.
+
+The contract freezes current debt without changing runtime wiring. It records
+43 reverse-zone import edges, one six-module strongly connected import
+component, broad constructor dependency surfaces, and reflection/namespace
+escape signatures. Existing debt is exact and assigned to modular-monolith
+checklist items 4-8; it is not a package-wide permission for additional
+coupling.
+
+Static inspection cannot prove arbitrary Python aliasing, monkeypatching,
+returned objects, or runtime dispatch. Full component isolation requires the
+narrow protocols/facades and explicit composition planned by later checklist
+items. See `MODULE_DEPENDENCIES.md` for the dependency matrix, debt policy, and
+maintenance procedure.
+
 ## Threading Model
 
 `OrderEngine.start_background_threads()` starts:
@@ -529,6 +554,8 @@ Current scope is intentionally narrow and fail-soft:
 
 When adding a feature:
 - choose one canonical write path and one canonical read path.
+- follow `module_boundaries.toml`; do not add a reverse-zone import, broad
+  injected capability, or reflection exception without architecture review.
 - register new enums in `core/enums.py` instead of adding new literals.
 - update dashboard request/response contracts in `API_REFERENCE.md`.
 - verify UI -> dashboard handler -> bridge -> manager wiring exists for every new dashboard action.
