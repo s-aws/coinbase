@@ -3,12 +3,12 @@
 ## Status
 
 - Last updated (ET): 2026-11-26.
-- Repository baseline: local `prod` is at `f8b63706`; `origin/prod` remains at
-  `4651848d`, so local is two commits ahead before the current uncommitted
-  automation worktree.
-- Active operator-approved objective: the safe, non-destructive release/runtime
-  automation for `tests/DEPLOYMENT_CHECKLIST.md` is implemented and validated in
-  the current worktree; operator review and commit remain pending.
+- Repository baseline: local `prod` and `origin/prod` are at `79d50e29`.
+  `eadb567a` committed and pushed the tracked deployment-process change, and
+  `79d50e29` committed and pushed the four initially omitted new scripts/tests.
+- Active operator-approved objective: prepare the graph-only closeout required
+  after those two source-changing commits. The deployment automation itself is
+  committed and pushed; no runtime deployment is authorized by this closeout.
 - Completed implementation sequence: follow-up reveal-direction persistence,
   parent/child strategy authority, percentage-relative follow-up threshold
   inversion, programmatic span consistency, deterministic span planning, and
@@ -56,13 +56,13 @@
   the suite's shared state.
 - Bash syntax for all deployment scripts and Python compilation for the schema
   and healthcheck modules: pass. Final diff check: pass.
-- The clean-worktree release wrapper was not invoked against this intentionally
-  dirty implementation worktree. Its exact underlying full-suite, graph, and
-  diff gates were run directly, and its composition/exclusion contracts are
-  covered by regression tests.
-- Repository graph rebuild after the final executable/test changes: pass with
-  466 files, 7,598 symbols, 1,616 tests, 40,822 edges, zero parse findings, and
-  zero fatal errors. A final rebuild/check follows this handoff-only update.
+- The complete suite passed against the exact source later committed through
+  `79d50e29`. The clean-worktree release wrapper has not yet run successfully
+  on that commit because the graph snapshot still referenced `f8b63706`; this
+  graph-only closeout refreshes it to `79d50e29` so the wrapper can run after the
+  closeout is committed.
+- Repository graph rebuild/check for the graph-only closeout: pass with zero
+  parse findings, fatal errors, or mismatches. Final diff check: pass.
 - Historical fresh-target proof at rollout time: all 12 trading tables contained
   zero rows before bootstrap; only `market_candle_1m` and `market_tick` retained
   operator-created telemetry/backfill data.
