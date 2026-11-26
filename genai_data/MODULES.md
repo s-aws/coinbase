@@ -273,14 +273,6 @@ latter subsystem and cancel/re-entry distance policy are absent here.
   same schedule and multiplier within each quote.
 - `calculation/price_camouflage.py`: deterministic round-number price nudging.
 
-## `data/` (Candidate Read Models)
-
-- `data/order_inventory.py`: aggregate order/stealth inventory candidate. It
-  has independent tests but is not instantiated, rebuilt, or registered by
-  `main.py`; treat it as non-authoritative pending focused architecture review.
-- Production in-memory order state remains in `core/orderbook.py`; canonical
-  trading persistence remains in `database/order.py`.
-
 ## `database/` (Schema and SQL Helpers)
 
 ### `database/database.py`
@@ -340,13 +332,14 @@ Dashboard `admin_status` poller used by deployment. A healthy result requires
   pricing tier, cost-plus state, and fixed CDE fee scope without reading private
   cache globals or modifying the database.
 
-## `integration/` (Hook Registries)
+## `integration/` (Runtime Adapters and Hook Registries)
 
 - `integration/websocket_hooks.py`
 - `integration/fill_event_hooks.py`
 - `integration/order_placement_hooks.py`
-- `integration/order_state_hooks.py`
-- `integration/stealth_lifecycle_hooks.py`
+- `integration/stealth_lifecycle_hooks.py`: synchronous, fail-soft delivery to
+  the best-effort stealth lifecycle audit subscriber. It is not an order store
+  or a general execution-interception framework.
 
 ## `market_intel/` (Cross-Venue Intelligence)
 

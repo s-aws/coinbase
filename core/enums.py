@@ -508,7 +508,6 @@ class EventSourceChannel(str, Enum):
     FILL_HOOK               = "fill_hook"
     REST_SUBMIT             = "rest_submit"
     PLACEMENT_POST_HOOK     = "placement_post_hook"
-    ORDER_STATE_HOOK        = "order_state_hook"
     STEALTH_LIFECYCLE_HOOK  = "stealth_lifecycle_hook"
     ORDER_ENGINE_OPEN       = "order_engine_open_handler"
     ORDER_ENGINE_TERMINAL   = "order_engine_terminal_handler"
@@ -525,8 +524,6 @@ class EventStreamType(str, Enum):
     ORDER_SUBMITTED               = "order_submitted"
     STEALTH_REVEALED              = "stealth_revealed"
     STEALTH_FOLLOW_UP_CREATED     = "stealth_follow_up_created"
-    INVENTORY_OPENED              = "inventory_opened"
-    INVENTORY_CLOSED              = "inventory_closed"
     PARTIAL_FILL_DETECTED         = "partial_fill_detected"
     PARTIAL_FILL_PROGRESS_UPDATED = "partial_fill_progress_updated"
     PARTIAL_FILL_FOLLOW_UP_QUEUED = "partial_fill_follow_up_queued"
@@ -583,33 +580,6 @@ class RiskManagementType(str, Enum):
     UNKNOWN_RISK_MANAGEMENT_TYPE = "UNKNOWN_RISK_MANAGEMENT_TYPE"
 
 
-# ============================================================================
-# ORDER INVENTORY & LIFECYCLE TRACKING
-# ============================================================================
-
-class OrderStateEvent(str, Enum):
-    """Lifecycle event emitted when an exchange-visible order changes state.
-
-    Used by OrderStateHookRegistry to notify subscribers (e.g. OrderInventory)
-    of working-order transitions. These map directly to exchange-confirmed states.
-
-    - OPENED:    Order is now working on the exchange (OPEN/PENDING from WebSocket)
-    - FILLED:    Order fully filled on the exchange
-    - CANCELLED: Order cancelled (user-initiated or exchange-expired)
-    - EXPIRED:   Order expired (e.g. GTD time-in-force elapsed)
-
-    Integration:
-        Reserved for OrderStateHookRegistry publishers. No production publisher
-        is currently wired; any future owner must dispatch after releasing its
-        lifecycle locks. See data/order_inventory.py and
-        integration/order_state_hooks.py.
-    """
-    OPENED    = "OPENED"
-    FILLED    = "FILLED"
-    CANCELLED = "CANCELLED"
-    EXPIRED   = "EXPIRED"
-
-
 class StealthLifecycleEvent(str, Enum):
     """Fine-grained stealth order state-machine transition events.
 
@@ -634,7 +604,7 @@ class StealthLifecycleEvent(str, Enum):
         called OUTSIDE any internal locks where possible. Subscribers receive a
         context dict with product_id, side, product_type, size, limit_price, reason,
         failure_reason (if applicable), placed_order_id (if applicable).
-        See integration/stealth_lifecycle_hooks.py and data/order_inventory.py.
+        See integration/stealth_lifecycle_hooks.py.
     """
     CREATED            = "CREATED"             # create_stealth_order() persisted
     CONDITION_WATCHING = "CONDITION_WATCHING"  # condition first partially met â†’ PENDING

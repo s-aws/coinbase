@@ -1,29 +1,25 @@
-"""Stealth Order Lifecycle Hook Registry — full play-by-play event notifications.
+"""Stealth-order lifecycle audit callbacks.
 
-This module provides a pluggable hook system that fires at every state-machine
-transition of a stealth order, from initial creation through condition evaluation,
-reveal attempts, failures, and final terminal states.
+This retained registry connects ``StealthOrderManager`` lifecycle dispatch to
+``OrderEventStreamPublisher``. It is an audit adapter, not an authoritative order
+store and not a general before/after execution interception framework.
 
-Why a separate registry from OrderStateHookRegistry?
-------------------------------------------------------
-Exchange-visible orders (tracked by OrderStateHookRegistry) only exist from the
-moment they land on the exchange book. Stealth orders have a rich *pre-exchange*
-lifecycle (hidden, evaluating conditions, reveal attempts, failures) that is
-internal to our system and invisible to the exchange. A dedicated registry allows
-consumers to reason about the complete lifecycle without mixing exchange-visible
-and internal-only events.
+Dispatch and durability contract
+--------------------------------
+Callbacks run synchronously in registration order on the dispatching thread.
+The registry copies its subscriber list while holding its ``RLock`` and releases
+the lock before invoking callbacks. Subscriber exceptions are logged and
+suppressed so audit failures do not interrupt the stealth evaluation loop.
 
-Design constraints (deadlock safety)
--------------------------------------
-StealthOrderManager does not hold a single global lock across its lifecycle
-methods. Hooks are dispatched at the point where data is already persisted so:
+The current audit path is therefore **best effort**. A transition may continue
+when a callback or one of its database writes fails, and the event-stream,
+lifecycle-history, snapshot, and latest-marker writes are not one atomic commit.
+Individual manager call sites determine whether dispatch occurs before or after
+their canonical state write; this registry makes no post-commit guarantee.
 
-1. Hooks execute after the DB write that captured the transition — they observe
-   the committed state, not an intermediate state.
-2. Hook callbacks acquire their own lock (OrderInventory._lock, RLock) which is
-   entirely disjoint from any StealthOrderManager state.
-3. Hooks that do DB I/O (e.g. the event stream publisher) do so on their own
-   connection, completely decoupled from the caller's transaction.
+Canonical order and stealth state must never depend on successful callback
+delivery. Eventual durable delivery requires a separately designed transactional
+outbox with idempotent replay and per-``client_order_id`` ordering.
 
 Hook signature contract
 -----------------------
@@ -47,36 +43,16 @@ additional DB queries. Standard keys:
                                 REVEAL_FAILED events only)
     timestamp         datetime  UTC time of the event
 
-Subscribers are called in registration order. Exceptions are caught and logged;
-they never disrupt the stealth evaluation loop.
-
-Example — wiring OrderInventory and event stream at startup
-------------------------------------------------------------
-    >>> from integration.stealth_lifecycle_hooks import (
-    ...     get_global_stealth_lifecycle_hook_registry
-    ... )
-    >>> from data.order_inventory import get_global_order_inventory
-    >>>
-    >>> lc_hooks = get_global_stealth_lifecycle_hook_registry()
-    >>> inventory = get_global_order_inventory()
-    >>> lc_hooks.register_on_transition(inventory.on_stealth_transition)
-
-Example — custom failure alerting hook
----------------------------------------
-    >>> def alert_on_failure(stealth_order_id, event, context):
-    ...     if event in (StealthLifecycleEvent.REVEAL_FAILED,
-    ...                  StealthLifecycleEvent.PLACEMENT_BLOCKED):
-    ...         send_alert(f"Stealth order {stealth_order_id} failed: "
-    ...                    f"{context.get('failure_reason')}")
-    >>> lc_hooks.register_on_transition(alert_on_failure)
+The production subscriber is registered by ``OrderEngine`` during event-stream
+initialization. Tests may register isolated callbacks directly.
 
 Extending
 ---------
 Add new lifecycle events by:
 1. Adding the value to ``core.enums.StealthLifecycleEvent``
 2. Adding the dispatch call in ``core.stealth_order_manager`` at the transition point
-3. Updating ``data.order_inventory.on_stealth_transition`` to handle the new event
-No changes to this registry class are needed.
+3. Updating audit persistence or projections when the event needs new handling
+No registry-class change is normally needed.
 """
 
 import threading
@@ -147,8 +123,8 @@ class StealthLifecycleHookRegistry:
     ) -> None:
         """Dispatch all registered hooks for the given lifecycle transition.
 
-        Non-blocking: exceptions in subscribers are caught and logged so that a
-        misbehaving subscriber never stalls the stealth evaluation loop.
+        Callbacks execute synchronously. Exceptions in subscribers are caught and
+        logged so a failed audit callback does not abort the evaluation loop.
 
         Args:
             stealth_order_id: UUID string of the stealth order that transitioned.

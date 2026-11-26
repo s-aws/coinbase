@@ -40,6 +40,10 @@ during process startup.
 3. **Persistence Layer**
 - `database/order.py` owns canonical table definitions, forward migrations,
   and the trading write/read API.
+- Database-backed order records are the durable authority. `OrderEngine` and
+  `StealthOrderManager` hold working execution state; dashboard payloads,
+  event-stream rows, and lifecycle audit markers are projections and must not
+  be used as competing sources of order truth.
 - `database/schema.py` is the single ordered additive bootstrap plus
   fresh-state/required-table verifier, shared by deployment, test provisioning,
   and destructive reset recreation.
@@ -54,6 +58,9 @@ during process startup.
 4. **Audit/Reconciliation Layer**
 - Startup and periodic diff against exchange open orders.
 - Historical fills audit against `fill_ledger` and `order_event_stream` ownership evidence.
+- Stealth lifecycle callbacks run synchronously but fail soft. Their event,
+  history, snapshot, and latest-marker writes are currently best effort and
+  non-atomic; durable delivery is deferred to the process-boundary/outbox work.
 
 5. **Presentation Layer**
 - Dashboard state broadcast (`state_update`) for HTML and terminal consumers.

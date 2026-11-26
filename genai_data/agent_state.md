@@ -3,15 +3,15 @@
 ## Status
 
 - Last updated (ET): 2026-11-26.
-- Repository baseline: local `prod` and `origin/prod` are at `8e8bd8ad`.
-  `eadb567a` committed the deployment process, `79d50e29` tracked its four
-  initially omitted scripts/tests, and `8e8bd8ad` completed the required
-  repository-graph closeout.
-- Active operator-approved objective: review the retained `OrderInventory` and
-  hook registries separately after the completed removal of the abandoned
-  `StateManager` and generic repository path. No inventory wiring, deletion, or
-  other runtime-behavior change is authorized without its own focused evidence
-  search, blast-radius evaluation, and operator approval.
+- Repository baseline before the current uncommitted item-2 work: local `prod`
+  and `origin/prod` are at `50dfc24b`; that commit completed removal of the
+  abandoned `StateManager` and generic repository path.
+- Completed operator-approved objective: remove the superseded `OrderInventory`
+  authority model and dormant `OrderStateHookRegistry` surface while retaining
+  the production `StealthLifecycleHookRegistry` as a synchronous, fail-soft,
+  best-effort audit adapter. Database-backed order records remain durable
+  authority; manager caches and audit/dashboard/event projections are not
+  competing sources of truth.
 - Completed implementation sequence: follow-up reveal-direction persistence,
   parent/child strategy authority, percentage-relative follow-up threshold
   inversion, programmatic span consistency, deterministic span planning, and
@@ -53,14 +53,17 @@
 
 ## Modular Monolith Boundary Checklist
 
-Item 1 is complete. Every later item requires a focused source/test search,
-blast-radius evaluation, context discussion, and separate operator approval
-before code changes.
+Items 1 and 2 are complete. Every later item requires a focused source/test
+search, blast-radius evaluation, context discussion, and separate operator
+approval before code changes.
 
 1. Remove the abandoned `StateManager` and generic repository implementation:
    complete and validated; canonical product-type coverage is retained.
-2. Review `OrderInventory` and its hook registries separately: next.
-3. Declare and enforce the in-process module dependency map.
+2. Remove the superseded `OrderInventory` authority model and dormant
+   `OrderStateHookRegistry`; retain and accurately document best-effort stealth
+   lifecycle auditing: complete and validated.
+3. Declare and enforce the in-process module dependency map: next; review and
+   blast-radius discussion are required before implementation approval.
 4. Make `main.py` the sole explicit composition root and make configuration
    imports passive.
 5. Add an Execution Core command/query facade while retaining lifecycle and
@@ -71,7 +74,10 @@ before code changes.
 8. Isolate reconciliation and historical auditing behind injected readers and
    explicit repair commands.
 9. Reassess process boundaries and durable messaging only after the in-process
-   contracts and failure semantics are stable.
+   contracts and failure semantics are stable. This item must explicitly make
+   every stealth lifecycle audit transition eventually durable through an
+   atomic outbox/delivery design with idempotent replay and per-`client_order_id`
+   ordering; current hook delivery remains best effort until then.
 
 ## Validation and Maintenance
 
@@ -85,6 +91,10 @@ before code changes.
   `8e8bd8ad`: 1,932 passed, 17 skipped, and 11 external tests deselected.
   Repository-graph validation reported zero parse findings, fatal errors, or
   mismatches, and the final worktree cleanliness check passed.
+- Item-2 focused coverage passed 64 tests. The complete local non-external gate
+  passed 1,874 tests with 17 skipped and 11 external tests deselected. The lower
+  total reflects deletion of obsolete inventory/state-hook tests; retained
+  stealth-audit and canonical product-resolution behavior remains covered.
 - Historical fresh-target proof at rollout time: all 12 trading tables contained
   zero rows before bootstrap; only `market_candle_1m` and `market_tick` retained
   operator-created telemetry/backfill data.
@@ -162,7 +172,9 @@ the existing lifecycle and identifier invariants.
 6. Before any process split, provide a durable event bus or transactional outbox,
    bounded consumers, dead-letter handling, replay-safe/idempotent handlers,
    per-`client_order_id` ordering, queue-depth/health telemetry, and one declared
-   owner for every state mutation.
+   owner for every state mutation. Stealth lifecycle audit transitions are an
+   explicit durability consumer; their current synchronous fail-soft callback
+   path is accepted only as the interim best-effort implementation.
 7. Prefer multiple processes or systems for independent scaling; Python threads
    remain suitable for I/O concurrency but are not the primary answer to
    CPU-bound scaling.

@@ -201,7 +201,7 @@ def create_stealth_orders_table() -> None:
         reason VARCHAR(255),
         notes TEXT,
 
-        -- Lifecycle inventory tracking (OrderInventory / StealthLifecycleHookRegistry)
+        -- Best-effort lifecycle audit projection (StealthLifecycleHookRegistry)
         last_lifecycle_event VARCHAR(64),
         failure_reason       VARCHAR(512)
     );
@@ -3287,9 +3287,9 @@ def update_stealth_order_lifecycle_event(
     """Persist the most recent StealthLifecycleEvent for a stealth order.
 
     Called by StealthOrderManager (via the stealth lifecycle hook dispatcher)
-    after each transition so the database reflects the current lifecycle state.
-    This enables OrderInventory.rebuild_from_database() to restore the
-    ``last_event`` and ``failure_reason`` fields after a restart.
+    after transitions to retain the latest diagnostic lifecycle marker. The
+    current hook path is fail-soft and therefore best effort; canonical order
+    state does not depend on this projection.
 
     Args:
         stealth_order_id: UUID of the stealth order.

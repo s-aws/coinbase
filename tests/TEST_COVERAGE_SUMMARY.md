@@ -18,7 +18,7 @@ and module summaries are in [TEST_FILES_INDEX.md](TEST_FILES_INDEX.md).
 | Flat hierarchy/follow-up claims/caps | `regression/test_flat_hierarchy_stealth_placement.py`, `regression/test_replacement_slot_atomic_claim.py`, `regression/test_partial_fill_follow_up_atomic_claim.py` |
 | Fills/ownership/reconciliation | `regression/test_cross_source_reconciliation.py`, `unit/test_fill_reconciler.py`, `unit/test_fill_ledger_append_derived.py` |
 | Price/size/fee boundaries | `regression/test_price_normalization.py`, `regression/test_size_validation.py`, `regression/test_two_sided_fee_accounting.py`, `regression/test_filtered_fee_schedules.py` |
-| Product classification | `regression/test_inventory_product_type.py`, `unit/test_product_type_profitability_fix.py` |
+| Product classification | `regression/test_product_type_resolution.py`, `unit/test_product_type_profitability_fix.py` |
 | UI visibility/span repricing | `regression/test_stealth_order_visibility_ui.py`, `regression/test_span_builder_anchor_repricing_ui.py` |
 | Graph freshness/review fingerprints | `unit/test_codex_repo_graph_lifecycle.py`, `unit/test_codex_repo_graph_evidence.py` |
 

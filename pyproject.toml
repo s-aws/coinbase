@@ -1,5 +1,5 @@
 # Project metadata so `pip install -e .` makes every top-level package
-# (bridges, business, calculation, core, data, database, external,
+# (bridges, business, calculation, core, database, external,
 # integration, websocket) importable from any working directory and
 # any Python invocation. After install, no PYTHONPATH or sys.path
 # bootstrap is needed.
@@ -39,7 +39,6 @@ packages = [
     "business",
     "calculation",
     "core",
-    "data",
     "database",
     "external",
     "integration",

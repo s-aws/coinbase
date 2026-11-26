@@ -66,7 +66,7 @@ High-impact enums:
 - `RevealPricingPolicy`, `RevealPriceSource`, `RevealConditionType`
 - `RepricingReferenceSource`, `RepricingDistanceType`, `RepricingUpdateMode`
 - `FollowUpKind`, `StealthMutationKind`, `StealthMoveReason`
-- `OrderStateEvent`, `StealthLifecycleEvent`
+- `StealthLifecycleEvent`
 - `EventStreamType`, `EventSourceChannel`
 - `EngineState`, `WebSocketEventType`, `UserFeedPhase`
 
@@ -146,6 +146,12 @@ implementation directly. `main.py` assumes that step already succeeded.
 Lazy analytics tables (`market_tick` and `market_candle_1m`) are outside the
 required set and are the only additional public tables allowed by fresh
 deployment.
+
+Database-backed order rows are the durable authority. Runtime manager caches
+are working execution state, while dashboard state, event-stream rows,
+lifecycle history/snapshots, and latest lifecycle markers are projections.
+Stealth lifecycle audit delivery is currently synchronous and fail-soft, so
+those audit projections may be incomplete until durable outbox work is added.
 
 ### `order_parent`
 Stores strategy roots, linked logical children, and distinct exchange-placement

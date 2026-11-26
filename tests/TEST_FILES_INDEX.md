@@ -35,7 +35,7 @@ an explicit user request.
 | [test_order_event_stream.py](unit/test_order_event_stream.py) | 8 | Focused tests for OrderEventStreamPublisher stealth lifecycle auditing. |
 | [test_order_helpers.py](unit/test_order_helpers.py) | 21 | Test the resolve_order_size and resolve_order_side helper functions. |
 | [test_order_id_and_followup_rules.py](unit/test_order_id_and_followup_rules.py) | 3 | Unit tests for order ID contracts and stealth follow-up invariants. |
-| [test_order_inventory.py](unit/test_order_inventory.py) | 62 | Unit tests for the Order Inventory feature. |
+| [test_stealth_lifecycle_hooks.py](unit/test_stealth_lifecycle_hooks.py) | 6 | Contracts for the retained best-effort stealth lifecycle audit registry. |
 | [test_order_moves.py](unit/test_order_moves.py) | 25 | Tests for the order move mechanism. |
 | [test_order_progress_tracker.py](unit/test_order_progress_tracker.py) | 11 | Unit tests for business.order_progress.OrderProgressTracker. |
 | [test_orderbook_v2.py](unit/test_orderbook_v2.py) | 56 | Unit tests for the v2 :mod:core.orderbook module. |
@@ -100,7 +100,7 @@ an explicit user request.
 | [test_hotpoint_opt_in_plumbing.py](regression/test_hotpoint_opt_in_plumbing.py) | 3 | Regression: enable_hotpoint_replication is plumbed end-to-end. |
 | [test_hotpoint_placer.py](regression/test_hotpoint_placer.py) | 15 | Tests for business.hotpoint_placer. |
 | [test_hotpoint_rate_limiter.py](regression/test_hotpoint_rate_limiter.py) | 12 | Tests for business.hotpoint_rate_limiter. |
-| [test_inventory_product_type.py](regression/test_inventory_product_type.py) | 6 | Inventory, state, and lifecycle types must not depend on month substrings. |
+| [test_product_type_resolution.py](regression/test_product_type_resolution.py) | 5 | Canonical product-type resolution must not depend on month substrings. |
 | [test_list_fills_param_mapping.py](regression/test_list_fills_param_mapping.py) | 3 | Regression: 2026-04-30 list_fills parameter-name mismatch. |
 | [test_list_orders_param_mapping.py](regression/test_list_orders_param_mapping.py) | 3 | Regression coverage for paginated startup open-order reconciliation. |
 | [test_main_startup_gate.py](regression/test_main_startup_gate.py) | 43 | Fail-closed startup ordering for stealth decision activation. |
