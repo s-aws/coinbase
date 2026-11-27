@@ -3,11 +3,12 @@
 ## Status
 
 - Last updated (ET): 2026-11-26.
-- Repository baseline before the current uncommitted item-4 work: local `prod`
-  and `origin/prod` are at `1a451f1d` (`modernization`).
+- Current committed baseline: local `prod` and `origin/prod` are at `4be8594a`
+  (`modernization`), containing modular-monolith checklist items 1 through 4
+  and the durable design-spec framework.
 - Current operator-approved documentation objective: establish the durable
-  design-spec lifecycle and capture the Execution Core review as a `DRAFT`.
-  No checklist-item-5 source implementation is approved by that draft.
+  design-spec lifecycle and record the accepted Execution Core design. The
+  accepted spec does not itself approve checklist-item-5 source implementation.
 - Completed implementation objective: make `main.py` the sole process
   composition root and make configuration imports passive. One REST adapter,
   one shared `OrderBook`, and explicit consumer readers are now wired in
@@ -76,8 +77,11 @@ approval before code changes.
 5. Add an Execution Core command/query facade while retaining lifecycle and
    transactional writes under one owner. The reviewed proposal and staged blast
    radius are recorded in `design_specs/EXECUTION_CORE.md`; its status is
-   `DRAFT`, its two material design decisions remain open, and no source
-   implementation is yet approved.
+   `ACCEPTED`. Ordinary placement is managed limit-only with immediate reveal
+   for conventional timing; other exchange order types are deferred until their
+   lifecycle is integrated. The dormant `ConditionalExecutionWrapper` and its
+   exclusive persistence surface will be removed rather than ported. No source
+   implementation stage is yet approved.
 6. Extract public market-data ownership into an in-process component.
 7. Separate operator WebSocket transport from application commands and read
    projections.
@@ -117,10 +121,10 @@ approval before code changes.
   catalog-refresh failure-atomicity regression was added. Python compilation
   and `git diff --check` also passed; repository-graph closeout is recorded in
   the staged item-4 change.
-- The durable design-spec policy, index, template, and item-5 Execution Core
-  draft changed documentation and context only. The complete local non-external
-  gate still passed 1,879 tests with 17 skipped and 11 external tests
-  deselected; the draft does not authorize item-5 source work.
+- The durable design-spec policy, index, template, and accepted item-5 Execution
+  Core design changed documentation and context only. The complete local
+  non-external gate still passed 1,879 tests with 17 skipped and 11 external
+  tests deselected; acceptance does not authorize item-5 source work.
 - Historical fresh-target proof at rollout time: all 12 trading tables contained
   zero rows before bootstrap; only `market_candle_1m` and `market_tick` retained
   operator-created telemetry/backfill data.

@@ -32,7 +32,7 @@ applies.
 
 | Spec | Status | Scope | Read when |
 |---|---|---|---|
-| [Execution Core](EXECUTION_CORE.md) | `DRAFT` | Modular-monolith checklist item 5 | Reviewing commands, queries, execution ownership, dependency inversion, or future dashboard/CLI command paths |
+| [Execution Core](EXECUTION_CORE.md) | `ACCEPTED` | Modular-monolith checklist item 5 | Reviewing commands, queries, execution ownership, dependency inversion, or future dashboard/CLI command paths |
 
 Read only the task-relevant spec. Do not bulk-load this directory.
 

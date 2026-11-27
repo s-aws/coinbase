@@ -2,14 +2,14 @@
 
 | Field | Value |
 |---|---|
-| Status | `DRAFT` |
-| Operator approval | Durable-spec process approved; item-5 design decisions pending |
+| Status | `ACCEPTED` |
+| Operator approval | Accepted 2026-11-26; each implementation stage requires separate approval |
 | Checklist or objective | Modular-monolith boundary checklist item 5 |
-| Last evidence review | 2026-11-26, current staged worktree based on `1a451f1d` |
+| Last evidence review | 2026-11-26, current worktree based on `4be8594a` |
 | Implementation | Not started |
 
-> This draft preserves the reviewed proposal. It authorizes no item-5 source
-> implementation and does not establish current runtime behavior.
+> This accepted design records approved intent. It authorizes no item-5 source
+> implementation by itself and does not establish current runtime behavior.
 
 ## Problem
 
@@ -54,13 +54,13 @@ rules.
 The exact import-debt inventory remains authoritative in
 `module_boundaries.toml`; this spec does not copy that list.
 
-## Decision Under Review
+## Accepted Design
 
 Introduce a lightweight in-process application boundary, provisionally named
 `ExecutionCore`, using command/query separation without adopting full CQRS,
 event sourcing, another process, or a network protocol.
 
-If accepted, `ExecutionCore` will:
+`ExecutionCore` will:
 
 - expose typed methods and result objects rather than generic string dispatch;
 - apply shared application admission and validation rules for every transport;
@@ -71,6 +71,14 @@ If accepted, `ExecutionCore` will:
 - contain no SQL, exchange SDK calls, hook-registry lookup, dashboard code, or
   lifecycle state machine; and
 - be constructed in `main.py` from explicit dependencies.
+
+The accepted placement contract requires that the ordinary application
+placement command creates a managed limit order through the existing lifecycle,
+using immediate reveal when no delayed or conditional strategy is requested. It
+does not expose Coinbase's generic raw `create_order` capability. Market, stop,
+bracket, TWAP, scaled, and other exchange order types remain unavailable until a
+later design gives each type explicit local lifecycle, persistence,
+reconciliation, cancellation, and recovery semantics.
 
 The intended relationship is:
 
@@ -106,10 +114,10 @@ parent/child hierarchy, root strategy authority, existing lock ownership,
 single-code-path behavior, and the `client_order_id`/exchange-`order_id`
 boundary remain non-negotiable.
 
-## Proposed Public Contract
+## Public Contract
 
-The final method inventory remains subject to the open placement-path decision.
-The contract should nevertheless follow these rules:
+The exact method inventory will be finalized during an approved implementation
+stage. All methods follow these rules:
 
 - Each command has a typed request and typed success/failure result. Expected
   operational rejection is data, not an unclassified exception.
@@ -123,6 +131,9 @@ The contract should nevertheless follow these rules:
   queries are not smuggled through the active-state facade.
 - Parent database-row CRUD is not proposed as a first-class application
   contract. A persistence row is not independently valid strategy behavior.
+- Ordinary placement is a managed limit-order command. Immediate reveal provides
+  conventional placement timing without bypassing local lifecycle ownership.
+  The facade has no generic or unmanaged exchange-placement escape hatch.
 - Authentication remains a transport-edge responsibility. The application
   boundary must still make it impossible for a transport to bypass admission,
   lifecycle, identifier, or ownership rules.
@@ -151,6 +162,17 @@ The contract should nevertheless follow these rules:
 - Injected projection, hook, persistence, and WebSocket-factory ports required
   to retire all item-5 reverse imports.
 - Migration of the legacy `order.py` compatibility path to the accepted facade.
+- Retirement of `ConditionalExecutionWrapper` and its exclusive
+  `conditional_orders` persistence, configuration, test, and manual-script
+  surfaces. The implementation-stage review must also remove
+  `OrderInterceptionLayer` if it still has no independent production caller;
+  fill-ledger behavior, the managed `ProfitValidator`, and the managed stealth
+  lifecycle remain in scope for preservation.
+- Retirement or migration of the dashboard's raw placement handler when the
+  operator transport adopts the facade. The target contract excludes raw
+  placement; the implementation-stage review must assign the change to item 5
+  or the systematic dashboard extraction in item 7 without leaving two
+  supported behaviors.
 - Focused tests, complete-suite validation, living documentation, boundary-debt
   updates, and repository-graph reconciliation.
 
@@ -158,15 +180,19 @@ The contract should nevertheless follow these rules:
 
 - Extracting a separate process, service, queue, or network API.
 - Full CQRS, event sourcing, or a generic command bus.
-- Rewriting the lifecycle state machines or database schema.
+- Rewriting active lifecycle state machines or active persistence schemas. The
+  deliberate removal of the dormant `conditional_orders` schema is cleanup, not
+  a replacement lifecycle design.
 - Extracting public market-data ownership; that is checklist item 6.
 - Moving dashboard parsing and all read projections; that is checklist item 7.
 - Reconciliation, historical audit repair, or broad database readers; that is
   checklist item 8.
 - Durable lifecycle-audit messaging; that is checklist item 9.
 - Designing the future CLI transport or its authentication mechanism.
+- Supporting market, stop, bracket, TWAP, scaled, or any other exchange order
+  type before that type has an approved managed-lifecycle design.
 
-## Alternatives Rejected by This Draft
+## Rejected Alternatives
 
 - One large facade that absorbs lifecycle state, SQL, exchange calls, and hook
   dispatch: it would become a new god object and split existing ownership.
@@ -213,15 +239,19 @@ Preserve callback ordering and current best-effort audit behavior.
 Primary blast radius: `OrderEngine`, `StealthOrderManager`, `main.py`, dashboard
 publication adapters, integration registries, and their numerous fixtures.
 
-### 5.4 Persistence ports
+### 5.4 Persistence ports and dormant conditional cleanup
 
-Define narrow consumer-owned persistence protocols for the bridge, manager,
-engine, fill ledger, move manager, and event stream. Implement structural
-adapters over the existing database functions and construct them in `main.py`.
+Remove `ConditionalExecutionWrapper` and its exclusive persistence surface
+instead of creating a port for a lifecycle with no production caller. Audit the
+wrapper-only `OrderInterceptionLayer` at the same boundary. Then define narrow
+consumer-owned persistence protocols for the bridge, manager, engine, fill
+ledger, move manager, and event stream. Implement structural adapters over the
+retained database functions and construct them in `main.py`.
 
 Primary blast radius: six execution owners, database adapter wiring, constructor
-fixtures, transaction/failure tests, and item-5 boundary debt. The disposition of
-`ConditionalExecutionWrapper` must be decided before this stage.
+fixtures, transaction/failure tests, the conditional module and schema helpers,
+bootstrap schema expectations, manual utilities, living documentation, and
+item-5 boundary debt.
 
 ### 5.5 WebSocket factory
 
@@ -247,6 +277,13 @@ handler extraction remains item 7.
   `main.py`.
 - Every supported transport reaches the same application behavior; no parallel
   placement, cancellation, or strategy implementation is introduced.
+- The supported ordinary placement contract creates a managed limit order; no
+  facade command forwards arbitrary Coinbase order configuration. The legacy
+  dashboard raw-placement migration is explicitly assigned and cannot remain a
+  second supported behavior after transport extraction.
+- `ConditionalExecutionWrapper`, its exclusive `conditional_orders` schema, and
+  its parallel lifecycle surfaces are removed rather than ported. Future
+  conditional execution extends the managed limit-order lifecycle.
 - Lifecycle and persistence ordering remain with their existing authoritative
   owners.
 - All originating facade commands use a race-free admission contract, with
@@ -260,19 +297,20 @@ handler extraction remains item 7.
 - Living docs, this spec, and curated/generated repository-graph artifacts are
   reconciled with the implemented checkout.
 
-## Open Decisions
+## Resolved Decisions
 
-1. **Ordinary placement path:** Should a future CLI and the dashboard represent a
-   plain order as an immediate-reveal managed order, or retain the raw Coinbase
-   `create_order` path? Recommendation: use immediate reveal and eventually
-   remove the raw path so lifecycle ownership and admission have one code path.
-2. **Dormant conditional execution:** Is `ConditionalExecutionWrapper` an
-   abandoned experiment or a retained future feature? Recommendation: delete it
-   if abandoned rather than add and maintain a persistence port for code with no
-   production caller.
+1. **Ordinary placement path — approved 2026-11-26:** A plain application order
+   is a managed limit order. Immediate reveal supplies conventional placement
+   timing. Generic raw Coinbase placement is not part of the facade, and other
+   exchange order types are deferred until their lifecycle is integrated.
+2. **Dormant conditional execution — approved 2026-11-26:** Remove
+   `ConditionalExecutionWrapper` and its exclusive persistence/configuration
+   surfaces rather than porting an unused parallel lifecycle. Preserve active
+   fill-ledger and profitability behavior. Any future conditional order is a
+   managed limit-order strategy using the established lifecycle.
 
-Either answer changes the supported command contract or stage-5.4 scope, so
-both decisions block `ACCEPTED` status.
+No material design decisions remain open. Discovery during an implementation
+stage may return the spec to review rather than silently widening its scope.
 
 ## Implementation Mapping
 
