@@ -7,16 +7,18 @@
   It contains modular-monolith checklist items 1 through 4, the durable
   design-spec framework, validated Execution Core stage 5.1, and the approved
   operator-surface cleanup.
-- Current operator-approved implementation objective: close out Execution Core
-  stage 5.2. All six dashboard-originating strategy commands now use one typed,
-  atomic application admission/in-flight boundary; deterministic pause,
-  shutdown, drain, exception, and non-nested Rehide coverage passes. Stages
-  5.3-5.6 are not approved for source changes.
-- Accepted but not active: replace the two current prototype pages with one
-  unified TypeScript/Vite operator console. The complete Node/npm prerequisite,
-  locked build, static-delivery, setup, release, and deployment contract is in
-  `design_specs/OPERATOR_CONSOLE.md`; no frontend/build-chain source has been
-  added yet.
+- Completed implementation objective: Operator Console stage 1 protocol
+  normalization. The server, both retained HTML clients, and runtime
+  healthcheck use one strict versioned JSON-RPC contract with explicit
+  dispatch, schema validation, correlation, named notifications, bootstrap,
+  structured errors, and lossless backup version 2. The durable protocol spec
+  is `IMPLEMENTED`; source, complete-suite, living-documentation, and graph
+  evidence are reconciled in this worktree.
+- Accepted but not active: Operator Console stages 2-6. The complete Node/npm
+  prerequisite, locked TypeScript/Vite build, static-delivery, setup, release,
+  and deployment contract remains in `design_specs/OPERATOR_CONSOLE.md`; no
+  frontend build-chain source has been added yet. Stage 2 requires a fresh
+  focused review and operator approval before source changes.
 - Completed implementation objective: make `main.py` the sole process
   composition root and make configuration imports passive. One REST adapter,
   one shared `OrderBook`, and explicit consumer readers are now wired in
@@ -98,7 +100,9 @@ before code changes.
    removed rather than ported in its later approved stage.
 6. Extract public market-data ownership into an in-process component.
 7. Separate operator WebSocket transport from application commands and read
-   projections.
+   projections. The approved console Stage 1 protocol foundation is present,
+   but `dashboard_server.py` still coordinates application handlers and
+   projections; the modular boundary item is not complete.
 8. Isolate reconciliation and historical auditing behind injected readers and
    explicit repair commands.
 9. Reassess process boundaries and durable messaging only after the in-process
@@ -152,6 +156,12 @@ before code changes.
   `git diff --check` passed. Repository-graph build/check reported 454 files,
   7,347 symbols, 1,515 indexed tests, 181 semantic records, no parse findings,
   no fatal errors, and no mismatches.
+- Operator Console stage 1 replaced the ad-hoc dashboard wire variants with one
+  strict JSON-RPC 2.0 contract, migrated both retained pages and the runtime
+  healthcheck, and added a committed method/backup schema. The complete local
+  non-external gate passed 1,859 tests with 17 skipped and 11 external tests
+  deselected. Python compilation, schema smoke checks, and `git diff --check`
+  passed; repository-graph build/check was reconciled in the same change.
 - The approved operator-surface cleanup removed five abandoned HTML pages,
   both obsolete terminal consoles, unused dashboard routes/helpers, and their
   obsolete coverage. The complete local non-external gate passed 1,823 tests
@@ -185,8 +195,11 @@ before code changes.
   validation, stress launchers, and documented commands use that explicit
   path; the local generic virtual-environment links target the same binary.
 - The installed PostgreSQL package exposes a broken `/usr/bin/pg_config`
-  symlink. The validated Python 3.14 environment uses `psycopg2-binary`; no
-  tracked dependency declaration was changed.
+  symlink. The validated Python 3.14 environment uses `psycopg2-binary`, so a
+  local editable reinstall attempts and fails to rebuild declared `psycopg2`
+  from source. Stage 1 adds declared `jsonschema`; it was installed directly
+  into the existing environment for validation without changing the database
+  driver contract.
 
 ## Runtime Boundaries
 

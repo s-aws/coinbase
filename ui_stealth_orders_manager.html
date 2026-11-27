@@ -1845,7 +1845,38 @@
         }
 
         const WS_URL = `ws://${window.location.hostname || 'localhost'}:8765`;
+        const RPC_METHODS = Object.freeze({
+            BOOTSTRAP: 'v1.session.bootstrap',
+            RUNTIME_STATUS: 'v1.runtime.status',
+            RUNTIME_RESUME: 'v1.runtime.resume',
+            STEALTH_LIST: 'v1.stealth.list',
+            STEALTH_EXPORT: 'v1.stealth.export',
+            STEALTH_IMPORT: 'v1.stealth.import',
+            STEALTH_CREATE: 'v1.stealth.create',
+            STEALTH_CANCEL: 'v1.stealth.cancel',
+            STEALTH_REHIDE: 'v1.stealth.rehide',
+            STEALTH_REPRICE_NOW: 'v1.stealth.reprice_now',
+            STEALTH_MOVE_REVEALED: 'v1.stealth.move_revealed',
+            STEALTH_UPDATE_PRICE_CONDITION: 'v1.stealth.update_price_condition',
+            STEALTH_CLEAR_ALL: 'v1.stealth.clear_all',
+            STRATEGY_UPDATE_TARGET: 'v1.strategy.update_target',
+            STRATEGY_UPDATE_PARENT: 'v1.strategy.update_parent',
+        });
+        const RPC_NOTIFICATIONS = Object.freeze({
+            RUNTIME: 'v1.projection.runtime',
+            STEALTH_ORDERS: 'v1.projection.stealth_orders',
+            TICKER: 'v1.market.ticker',
+            SPREAD: 'v1.market.spread_snapshot',
+        });
+        const DEFAULT_RPC_TIMEOUT_MS = 30000;
+        const RPC_TIMEOUT_MS = Object.freeze({
+            [RPC_METHODS.STEALTH_IMPORT]: 120000,
+            [RPC_METHODS.STEALTH_CLEAR_ALL]: 60000,
+            [RPC_METHODS.STEALTH_MOVE_REVEALED]: 60000,
+        });
         let ws = null;
+        let bootstrapReady = false;
+        const pendingRpcRequests = new Map();
         let ordersData = {};
         const pendingRehideRequests = new Map();  // Local request guards, not order state.
         const pendingCancelRequests = new Set();
@@ -1859,6 +1890,230 @@
         let resumeRequestPending = false;
         let liveTickers = {};  // product_id -> { price, bid, ask, mid, ts } from ticker + spread_snapshot
 
+        function newRpcRequestId() {
+            if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+                return window.crypto.randomUUID().toLowerCase();
+            }
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, char => {
+                const random = Math.floor(Math.random() * 16);
+                const value = char === 'x' ? random : ((random & 0x3) | 0x8);
+                return value.toString(16);
+            });
+        }
+
+        function clearPendingRpcRequests() {
+            pendingRpcRequests.forEach(request => clearTimeout(request.timeout));
+            pendingRpcRequests.clear();
+        }
+
+        function sendRpc(method, params = {}) {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                showMessage('Not connected to server', 'error');
+                return null;
+            }
+            if (method !== RPC_METHODS.BOOTSTRAP && !bootstrapReady) {
+                showMessage('Operator session is still bootstrapping', 'error');
+                return null;
+            }
+
+            const id = newRpcRequestId();
+            const timeout = setTimeout(() => {
+                const pending = pendingRpcRequests.get(id);
+                if (!pending) return;
+                pendingRpcRequests.delete(id);
+                handleRpcError(
+                    pending.method,
+                    pending.params,
+                    { message: 'Operator request timed out', data: { reason: 'unavailable' } }
+                );
+            }, RPC_TIMEOUT_MS[method] || DEFAULT_RPC_TIMEOUT_MS);
+            pendingRpcRequests.set(id, { method, params, timeout });
+            try {
+                ws.send(JSON.stringify({ jsonrpc: '2.0', id, method, params }));
+            } catch (error) {
+                clearTimeout(timeout);
+                pendingRpcRequests.delete(id);
+                handleRpcError(method, params, { message: error.message, data: {} });
+                return null;
+            }
+            return id;
+        }
+
+        function applyProducts(products) {
+            const catalog = products || {};
+            allProducts = [...(catalog.derivatives || []), ...(catalog.spot || [])].sort();
+            productMetadata = catalog.metadata || {};
+            productMetadataHandler.setProductMetadata(productMetadata);
+            updateProductDropdown();
+            addProductChangeListener();
+            console.log(`Loaded ${allProducts.length} products from operator bootstrap`);
+        }
+
+        function applyRuntimeProjection(state) {
+            if (!state || typeof state !== 'object') return;
+            if (state.engine_status) {
+                engineStatusData = { ...engineStatusData, ...state.engine_status };
+                updateRegimeMetrics(engineStatusData);
+                updateEngineControls(engineStatusData.engine_state);
+            }
+            if (state.stealth_orders) {
+                applyStealthOrdersProjection({ orders: state.stealth_orders });
+            }
+        }
+
+        function applyRuntimeStatus(status) {
+            if (!status || typeof status !== 'object') return;
+            resumeRequestPending = false;
+            engineStatusData = { ...engineStatusData, ...status };
+            updateEngineControls(status.engine_state);
+        }
+
+        function applyStealthOrdersProjection(projection) {
+            const data = projection || {};
+            ordersData = data.orders || {};
+            pendingRehideRequests.forEach((request, clientOrderId) => {
+                const order = ordersData[clientOrderId];
+                const progressed = !order || order.status !== 'REVEALED'
+                    || Number(order.executed_size) > 0
+                    || (order.anchor_repricing_state_json || {}).active_placement_client_order_id !== request.placementClientOrderId
+                    || Boolean(order.anchor_repricing_state_json && order.anchor_repricing_state_json.pending_rearm);
+                if (request.accepted && progressed) pendingRehideRequests.delete(clientOrderId);
+            });
+            if (data.repricing_stats) {
+                document.getElementById('stat-repricing-active').textContent = data.repricing_stats.active_repricing_count || 0;
+                document.getElementById('stat-repricing-total').textContent = data.repricing_stats.total_reprices_executed || 0;
+            }
+            updateOrdersTable();
+            updateStats();
+        }
+
+        function applyBootstrap(result) {
+            bootstrapReady = true;
+            applyProducts(result.products);
+            applyRuntimeProjection(result.dashboard_state || {});
+            applyRuntimeStatus(result.runtime || {});
+            applyStealthOrdersProjection(result.stealth_orders || {});
+        }
+
+        function handleRpcSuccess(method, params, result) {
+            if (method === RPC_METHODS.BOOTSTRAP) {
+                applyBootstrap(result);
+            } else if (method === RPC_METHODS.RUNTIME_STATUS) {
+                applyRuntimeStatus(result);
+            } else if (method === RPC_METHODS.RUNTIME_RESUME) {
+                applyRuntimeStatus(result);
+                showMessage(
+                    result.changed && result.engine_state === 'RUNNING'
+                        ? 'Engine resumed; new order placement is enabled.'
+                        : `Engine was not resumed (state: ${result.engine_state || 'UNKNOWN'}).`,
+                    result.changed && result.engine_state === 'RUNNING' ? 'success' : 'info'
+                );
+            } else if (method === RPC_METHODS.STEALTH_LIST) {
+                applyStealthOrdersProjection(result);
+            } else if (method === RPC_METHODS.STEALTH_EXPORT) {
+                handleExportResponse(result.document || {});
+            } else if (method === RPC_METHODS.STEALTH_IMPORT) {
+                handleImportResponse(result);
+            } else if (method === RPC_METHODS.STEALTH_CREATE) {
+                showMessage(`Order created: ${result.client_order_id}`, 'success');
+            } else if (method === RPC_METHODS.STEALTH_CANCEL) {
+                pendingCancelRequests.delete(result.client_order_id || params.client_order_id);
+                showMessage(result.message || 'Cancellation accepted; confirmation pending.', 'info');
+                updateOrdersTable();
+            } else if (method === RPC_METHODS.STEALTH_REHIDE) {
+                const clientOrderId = result.client_order_id || params.client_order_id;
+                const request = pendingRehideRequests.get(clientOrderId);
+                if (request) request.accepted = Boolean(result.accepted);
+                showMessage(result.message || 'Rehide accepted; confirmation pending.', 'info');
+                updateOrdersTable();
+            } else if (method === RPC_METHODS.STEALTH_REPRICE_NOW) {
+                const clientOrderId = result.client_order_id || params.client_order_id;
+                showMessage(
+                    result.processed > 0
+                        ? `⟳ Repriced order ${clientOrderId.substring(0, 8)}…`
+                        : `⟳ No reprice needed for ${clientOrderId.substring(0, 8)}…`,
+                    result.processed > 0 ? 'success' : 'info'
+                );
+            } else if (method === RPC_METHODS.STEALTH_MOVE_REVEALED) {
+                const clientOrderId = result.client_order_id || params.client_order_id;
+                const exchangeId = result.new_exchange_order_id
+                    ? ` (ex: ${String(result.new_exchange_order_id).substring(0, 8)}…)`
+                    : '';
+                showMessage(
+                    `→ Moved ${clientOrderId.substring(0, 8)}… → ${result.new_submitted_price}${exchangeId}`,
+                    'success'
+                );
+            } else if (method === RPC_METHODS.STEALTH_UPDATE_PRICE_CONDITION) {
+                const hold = result.hold_duration_seconds;
+                showMessage(
+                    `Threshold updated to ${result.price_threshold}${hold !== null && hold !== undefined ? `, hold=${hold}s` : ''}`,
+                    'success'
+                );
+            } else if (method === RPC_METHODS.STEALTH_CLEAR_ALL) {
+                showMessage(`✅ Cleared ${result.rows_deleted} stealth-order rows`, 'success');
+            } else if (method === RPC_METHODS.STRATEGY_UPDATE_TARGET) {
+                showMessage('Parent target movement updated', 'success');
+            } else if (method === RPC_METHODS.STRATEGY_UPDATE_PARENT) {
+                showMessage('Parent max followups updated', 'success');
+            }
+        }
+
+        function handleRpcError(method, params, error) {
+            const detail = error && error.data ? error.data : {};
+            if (method === RPC_METHODS.BOOTSTRAP) bootstrapReady = false;
+            if (method === RPC_METHODS.RUNTIME_RESUME) resumeRequestPending = false;
+            if (method === RPC_METHODS.STEALTH_CANCEL) {
+                pendingCancelRequests.delete(params.client_order_id);
+                updateOrdersTable();
+            }
+            if (method === RPC_METHODS.STEALTH_REHIDE) {
+                pendingRehideRequests.delete(params.client_order_id);
+                updateOrdersTable();
+            }
+            if (method === RPC_METHODS.STEALTH_MOVE_REVEALED && detail.stage === 'place') {
+                const shortId = (params.client_order_id || '').substring(0, 8);
+                const critical = `CRITICAL: ${shortId}… was cancelled on the exchange but replacement placement failed. ${error.message} Check stealth_order_moves.`;
+                showMessage(critical, 'error');
+                try { alert(critical); } catch (_) { /* non-browser environment */ }
+                return;
+            }
+            showMessage(`Error: ${error.message || 'Unknown operator RPC error'}`, 'error');
+        }
+
+        function handleServerNotification(method, params) {
+            if (method === RPC_NOTIFICATIONS.RUNTIME) {
+                applyRuntimeProjection((params || {}).state || {});
+            } else if (method === RPC_NOTIFICATIONS.STEALTH_ORDERS) {
+                applyStealthOrdersProjection(params || {});
+            } else if (method === RPC_NOTIFICATIONS.TICKER) {
+                const ticker = (params || {}).ticker || {};
+                if (ticker.product_id && isFinite(parseFloat(ticker.price))) {
+                    const slot = liveTickers[ticker.product_id] || {};
+                    slot.price = parseFloat(ticker.price);
+                    slot.ts = Date.now();
+                    liveTickers[ticker.product_id] = slot;
+                    if (ticker.product_id === document.getElementById('product_id').value) recomputeLivePreview();
+                }
+            } else if (method === RPC_NOTIFICATIONS.SPREAD) {
+                const spreads = Array.isArray((params || {}).spreads) ? params.spreads : [];
+                const selected = document.getElementById('product_id').value;
+                let touchedSelected = false;
+                spreads.forEach(spread => {
+                    if (!spread || !spread.product_id) return;
+                    const slot = liveTickers[spread.product_id] || {};
+                    if (isFinite(parseFloat(spread.bid))) slot.bid = parseFloat(spread.bid);
+                    if (isFinite(parseFloat(spread.ask))) slot.ask = parseFloat(spread.ask);
+                    if (isFinite(parseFloat(spread.mid))) slot.mid = parseFloat(spread.mid);
+                    slot.ts = Date.now();
+                    liveTickers[spread.product_id] = slot;
+                    if (spread.product_id === selected) touchedSelected = true;
+                });
+                if (touchedSelected) recomputeLivePreview();
+            } else {
+                showMessage(`Unknown server notification: ${method}`, 'error');
+            }
+        }
+
         function initWebSocket() {
             try {
                 ws = new WebSocket(WS_URL);
@@ -1866,315 +2121,66 @@
                 ws.onopen = () => {
                     console.log("Connected to dashboard server");
                     updateConnectionStatus(true);
-                    // Request initial data
-                    ws.send(JSON.stringify({
-                        type: "request_stealth_orders"
-                    }));
-                    ws.send(JSON.stringify({
-                        type: "admin_status"
-                    }));
+                    bootstrapReady = false;
+                    sendRpc(RPC_METHODS.BOOTSTRAP);
                 };
 
                 ws.onmessage = (event) => {
-                    const data = JSON.parse(event.data);
-                    
-                    if (data.type === "products_list") {
-                        // Receive products from WebSocket on initial connection
-                        allProducts = [...(data.derivatives || []), ...(data.spot || [])].sort();
-                        productMetadata = data.metadata || {};  // Store metadata
-                        productMetadataHandler.setProductMetadata(data.metadata);  // Update shared handler
-                        updateProductDropdown();
-                        addProductChangeListener();  // Add event listener for product selection
-                        console.log(`Loaded ${allProducts.length} products from WebSocket`);
-                    } else if (data.type === "state_update") {
-                        // Initial state or periodic update from server
-                        if (data.data && data.data.engine_status) {
-                            engineStatusData = data.data.engine_status || {};
-                            updateRegimeMetrics(engineStatusData);
-                            updateEngineControls(engineStatusData.engine_state);
+                    let message;
+                    try {
+                        message = JSON.parse(event.data);
+                    } catch (error) {
+                        showMessage(`Invalid server message: ${error.message}`, 'error');
+                        return;
+                    }
+                    if (message.jsonrpc !== '2.0') {
+                        showMessage('Server sent a non-JSON-RPC message', 'error');
+                        return;
+                    }
+                    if (Object.prototype.hasOwnProperty.call(message, 'id')) {
+                        const pending = pendingRpcRequests.get(message.id);
+                        if (!pending) {
+                            console.warn('Ignoring response with unknown correlation id', message.id);
+                            return;
                         }
-                        if (data.data && data.data.stealth_orders) {
-                            ordersData = data.data.stealth_orders || {};
-                            console.log("Received state update with stealth orders:", ordersData);
-                            console.log("Number of orders:", Object.keys(ordersData).length);
-                            if (Object.keys(ordersData).length > 0) {
-                                const firstOrder = Object.values(ordersData)[0];
-                                console.log("Sample order structure:", firstOrder);
-                            }
-                            updateOrdersTable();
-                            updateStats();
-                        }
-                    } else if (data.type === "admin_status_response") {
-                        resumeRequestPending = false;
-                        engineStatusData = {
-                            ...engineStatusData,
-                            engine_state: data.engine_state,
-                            is_admitting: data.is_admitting,
-                            is_stopping: data.is_stopping,
-                        };
-                        updateEngineControls(data.engine_state);
-                    } else if (data.type === "admin_resume_response") {
-                        resumeRequestPending = false;
-                        engineStatusData = {
-                            ...engineStatusData,
-                            engine_state: data.engine_state,
-                        };
-                        updateEngineControls(data.engine_state);
-                        if (data.changed && data.engine_state === "RUNNING") {
-                            showMessage('Engine resumed; new order placement is enabled.', 'success');
+                        clearTimeout(pending.timeout);
+                        pendingRpcRequests.delete(message.id);
+                        const hasError = Object.prototype.hasOwnProperty.call(message, 'error');
+                        const hasResult = Object.prototype.hasOwnProperty.call(message, 'result');
+                        if (hasError === hasResult) {
+                            handleRpcError(
+                                pending.method,
+                                pending.params,
+                                { message: 'Malformed JSON-RPC response', data: { reason: 'indeterminate' } }
+                            );
+                        } else if (hasError) {
+                            handleRpcError(pending.method, pending.params, message.error);
+                        } else if (message.result && typeof message.result === 'object' && !Array.isArray(message.result)) {
+                            handleRpcSuccess(pending.method, pending.params, message.result);
                         } else {
-                            showMessage(
-                                `Engine was not resumed (state: ${data.engine_state || 'UNKNOWN'}).`,
-                                'info'
+                            handleRpcError(
+                                pending.method,
+                                pending.params,
+                                { message: 'JSON-RPC result must be an object', data: { reason: 'indeterminate' } }
                             );
                         }
-                    } else if (data.type === "stealth_orders_snapshot") {
-                        ordersData = data.orders || {};
-                        // The dashboard cache can lag acceptance. Wait for evidence that
-                        // this placement's rehide reached the published lifecycle state.
-                        pendingRehideRequests.forEach((request, sid) => {
-                            const order = ordersData[sid];
-                            const progressed = !order || order.status !== 'REVEALED'
-                                || Number(order.executed_size) > 0
-                                || (order.anchor_repricing_state_json || {}).active_placement_client_order_id !== request.placementClientOrderId
-                                || Boolean(order.anchor_repricing_state_json && order.anchor_repricing_state_json.pending_rearm);
-                            if (request.accepted && progressed) pendingRehideRequests.delete(sid);
-                        });
-                        console.log("Received stealth orders snapshot:", ordersData);
-                        console.log("Number of orders:", Object.keys(ordersData).length);
-                        if (Object.keys(ordersData).length > 0) {
-                            const firstOrder = Object.values(ordersData)[0];
-                            console.log("Sample order structure:", firstOrder);
+                        return;
+                    }
+                    if (message.method) {
+                        if (!message.params || typeof message.params !== 'object' || Array.isArray(message.params)) {
+                            showMessage('JSON-RPC notification params must be an object', 'error');
+                            return;
                         }
-                        
-                        // Handle repricing statistics
-                        if (data.repricing_stats) {
-                            document.getElementById('stat-repricing-active').textContent = data.repricing_stats.active_repricing_count || 0;
-                            document.getElementById('stat-repricing-total').textContent = data.repricing_stats.total_reprices_executed || 0;
-                        }
-                        
-                        updateOrdersTable();
-                        updateStats();
-                    } else if (data.type === "stealth_order_created") {
-                        showMessage(`Order created: ${data.stealth_order_id}`, 'success');
-                        ordersData[data.stealth_order_id] = data.order;
-                        updateOrdersTable();
-                        updateStats();
-                    } else if (data.type === "stealth_order_updated") {
-                        ordersData[data.stealth_order_id] = data.order;
-                        updateOrdersTable();
-                        updateStats();
-                    } else if (data.type === "parent_target_movement_updated") {
-                        // Update all stealth orders with this parent
-                        const parentOrderId = data.parent_order_id;
-                        Object.values(ordersData).forEach(order => {
-                            if (order.stealth_order_id === parentOrderId || order.parent_order_id === parentOrderId) {
-                                order.parent_target_movement = data.target_movement;
-                                order.parent_target_movement_type = data.target_movement_type;
-                                if (order.stealth_order_id === parentOrderId) {
-                                    order.target_movement = data.target_movement;
-                                    order.target_movement_type = data.target_movement_type;
-                                }
-                            }
-                        });
-                        showMessage(`Parent target movement updated to ${data.target_movement}${data.target_movement_type === 'A' ? ' (Abs)' : '%'}`, 'success');
-                        updateOrdersTable();
-                        updateStats();
-                    } else if (data.type === "parent_order_updated") {
-                        const updated = data.order;
-                        if (updated && updated.client_order_id && ordersData[updated.client_order_id]) {
-                            const existing = ordersData[updated.client_order_id];
-                            existing.max_order_replacements = updated.max_order_replacement;
-                            if (updated.target_movement !== undefined) {
-                                existing.target_movement = updated.target_movement;
-                            }
-                            if (updated.target_movement_type !== undefined) {
-                                existing.target_movement_type = updated.target_movement_type;
-                            }
-
-                            Object.values(ordersData).forEach(order => {
-                                if (order.parent_order_id === updated.client_order_id) {
-                                    order.parent_target_movement = updated.target_movement;
-                                    order.parent_target_movement_type = updated.target_movement_type || order.parent_target_movement_type || 'P';
-                                    order.parent_max_order_replacements = updated.max_order_replacement;
-                                }
-                            });
-
-                            showMessage('Parent max followups updated', 'success');
-                            updateOrdersTable();
-                            updateStats();
-                        }
-                    } else if (data.type === "stealth_threshold_updated") {
-                        const stealthOrderId = data.stealth_order_id;
-                        const threshold = data.price_threshold;
-                        const holdDuration = data.hold_duration_seconds;
-                        const affectedConditions = data.affected_conditions || {};
-
-                        Object.entries(affectedConditions).forEach(([orderId, condition]) => {
-                            if (ordersData[orderId]) {
-                                ordersData[orderId].reveal_condition_json = condition;
-                            }
-                        });
-
-                        if (ordersData[stealthOrderId] && !affectedConditions[stealthOrderId]) {
-                            const revealJson = ordersData[stealthOrderId].reveal_condition_json || {};
-                            revealJson.price_threshold = threshold;
-                            if (holdDuration !== null && holdDuration !== undefined) {
-                                revealJson.hold_duration_seconds = holdDuration;
-                            }
-                            ordersData[stealthOrderId].reveal_condition_json = revealJson;
-                        }
-                        if (ordersData[stealthOrderId]) {
-                            const holdMsg = holdDuration !== null && holdDuration !== undefined
-                                ? `, hold=${holdDuration}s` : '';
-                            showMessage(`Threshold updated to ${threshold}${holdMsg}`, 'success');
-                            updateOrdersTable();
-                        }
-                    } else if (data.type === "stealth_order_rehide_result") {
-                        if (data.accepted) {
-                            const request = pendingRehideRequests.get(data.stealth_order_id);
-                            if (request) request.accepted = true;
-                        } else {
-                            pendingRehideRequests.delete(data.stealth_order_id);
-                        }
-                        showMessage(
-                            data.message || (data.accepted ? 'Rehide requested; confirmation pending.' : `Rehide not accepted: ${data.error}`),
-                            data.accepted ? 'info' : 'error'
-                        );
-                        // Acceptance never means HIDDEN. Render only server snapshots.
-                        if (ws && ws.readyState === WebSocket.OPEN) {
-                            ws.send(JSON.stringify({ type: 'request_stealth_orders' }));
-                        }
-                        updateOrdersTable();
-                    } else if (data.type === "admission_rejected") {
-                        if (data.rejected_type === 'rehide_stealth_order') {
-                            pendingRehideRequests.clear();
-                            updateOrdersTable();
-                        }
-                        showMessage(data.message || 'Engine is not accepting this action.', 'error');
-                    } else if (data.type === "reprice_now_result") {
-                        const sid = data.stealth_order_id;
-                        if (data.error) {
-                            showMessage(`Reprice failed: ${data.error}`, 'error');
-                        } else {
-                            showMessage(
-                                data.processed > 0
-                                    ? `\u27f3 Repriced order ${sid.substring(0, 8)}\u2026`
-                                    : `\u27f3 No reprice needed for ${sid.substring(0, 8)}\u2026`,
-                                data.processed > 0 ? 'success' : 'info'
-                            );
-                            // Refresh snapshot to pick up new limit_price in state
-                            if (ws && ws.readyState === WebSocket.OPEN) {
-                                ws.send(JSON.stringify({ type: 'request_stealth_orders' }));
-                            }
-                        }
-                    } else if (data.type === "stealth_order_moved") {
-                        // Move-revealed result. The server echoes the
-                        // failing stage so the UI can highlight the
-                        // operator-action-required case (place_failed_after_cancel
-                        // leaves the stealth order CANCELLED with no
-                        // exchange replacement).
-                        const sid = data.stealth_order_id || '';
-                        const sidShort = sid ? sid.substring(0, 8) + '\u2026' : '?';
-                        if (data.success) {
-                            // Show exchange order id inline so the operator
-                            // can immediately cross-reference on Coinbase
-                            // without having to query the audit table.
-                            const exId = data.new_exchange_order_id
-                                ? ` (ex: ${String(data.new_exchange_order_id).substring(0, 8)}\u2026)`
-                                : '';
-                            showMessage(
-                                `\u2192 Moved ${sidShort} \u2192 ${data.new_submitted_price}${exId}`,
-                                'success'
-                            );
-                            if (ws && ws.readyState === WebSocket.OPEN) {
-                                ws.send(JSON.stringify({ type: 'request_stealth_orders' }));
-                            }
-                        } else if (data.stage === 'place') {
-                            // Critical: cancel succeeded but place failed.
-                            // No exchange order remains. Use a stronger
-                            // alert + persistent error toast.
-                            const msg =
-                                `CRITICAL: stealth order ${sidShort} was CANCELLED on the exchange ` +
-                                `but the replacement place failed: ${data.error}. ` +
-                                `Check stealth_order_moves table and resubmit manually if needed.`;
-                            showMessage(msg, 'error');
-                            // Surface a blocking alert too so the operator notices
-                            // even if they're not watching the toast area.
-                            try { alert(msg); } catch (e) { /* non-browser env */ }
-                            if (ws && ws.readyState === WebSocket.OPEN) {
-                                ws.send(JSON.stringify({ type: 'request_stealth_orders' }));
-                            }
-                        } else {
-                            showMessage(
-                                `Move failed (${data.stage || 'unknown'}): ${data.error}`,
-                                'error'
-                            );
-                        }
-                    } else if (data.type === "stealth_order_cancel_result") {
-                        pendingCancelRequests.delete(data.stealth_order_id);
-                        if (data.order) ordersData[data.stealth_order_id] = data.order;
-                        updateOrdersTable();
-                        updateStats();
-                        showMessage(data.message || data.error || 'Cancellation response received', data.accepted ? 'info' : 'error');
-                        if (ws && ws.readyState === WebSocket.OPEN) {
-                            ws.send(JSON.stringify({type: 'request_stealth_orders'}));
-                        }
-                    } else if (data.type === "stealth_order_cancelled") {
-                        // Legacy notification is not authoritative exchange truth.
-                        if (ws && ws.readyState === WebSocket.OPEN) {
-                            ws.send(JSON.stringify({type: 'request_stealth_orders'}));
-                        }
-                    } else if (data.type === "stealth_orders_clear_result") {
-                        showMessage(data.message, 'error');
-                        if (ws && ws.readyState === WebSocket.OPEN) {
-                            ws.send(JSON.stringify({type: 'request_stealth_orders'}));
-                        }
-                    } else if (data.type === "stealth_orders_cleared") {
-                        ordersData = {};
-                        updateOrdersTable();
-                        updateStats();
-                        showMessage(`✅ Cleared ${data.rows_deleted} stealth orders`, 'success');
-                    } else if (data.type === "ticker") {
-                        // Live last-trade price (per product)
-                        const t = data.data || {};
-                        if (t.product_id && isFinite(parseFloat(t.price))) {
-                            const slot = liveTickers[t.product_id] || {};
-                            slot.price = parseFloat(t.price);
-                            slot.ts = Date.now();
-                            liveTickers[t.product_id] = slot;
-                            if (t.product_id === document.getElementById('product_id').value) {
-                                recomputeLivePreview();
-                            }
-                        }
-                    } else if (data.type === "spread_snapshot") {
-                        // 1-sec averaged bid/ask/mid for many products
-                        const arr = Array.isArray(data.data) ? data.data : [];
-                        const sel = document.getElementById('product_id').value;
-                        let touchedSelected = false;
-                        arr.forEach(s => {
-                            if (!s || !s.product_id) return;
-                            const slot = liveTickers[s.product_id] || {};
-                            if (isFinite(parseFloat(s.bid))) slot.bid = parseFloat(s.bid);
-                            if (isFinite(parseFloat(s.ask))) slot.ask = parseFloat(s.ask);
-                            if (isFinite(parseFloat(s.mid))) slot.mid = parseFloat(s.mid);
-                            slot.ts = Date.now();
-                            liveTickers[s.product_id] = slot;
-                            if (s.product_id === sel) touchedSelected = true;
-                        });
-                        if (touchedSelected) recomputeLivePreview();
-                    } else if (data.type === "export_active_stealth_orders_response") {
-                        handleExportResponse(data);
-                    } else if (data.type === "import_stealth_orders_response") {
-                        handleImportResponse(data);
-                    } else if (data.type === "error") {
-                        // Handle generic error messages from server
-                        showMessage(`Error: ${data.message || 'Unknown error'}`, 'error');
+                        handleServerNotification(message.method, message.params);
+                    } else {
+                        showMessage('Server sent a malformed JSON-RPC notification', 'error');
                     }
                 };
 
                 ws.onclose = () => {
                     console.log("Disconnected from dashboard server");
+                    bootstrapReady = false;
+                    clearPendingRpcRequests();
                     pendingRehideRequests.clear();
                     pendingCancelRequests.clear();
                     updateConnectionStatus(false);
@@ -2194,22 +2200,6 @@
                 console.error("Failed to connect:", error);
                 updateConnectionStatus(false);
             }
-        }
-
-        function loadProductsFromJSON() {
-            // Products are now loaded from WebSocket on connection
-            // This function is kept as fallback for manual loading
-            fetch('products.json')
-                .then(response => response.json())
-                .then(data => {
-                    allProducts = [...data.derivatives, ...data.spot].sort();
-                    updateProductDropdown();
-                    console.log(`Loaded ${allProducts.length} products from products.json`);
-                })
-                .catch(error => {
-                    console.warn("Could not load products.json via fetch, products will load from WebSocket", error);
-                    // Products will be loaded from WebSocket
-                });
         }
 
         function updateConnectionStatus(connected) {
@@ -2265,12 +2255,9 @@
 
             resumeRequestPending = true;
             updateEngineControls(engineState);
-            try {
-                ws.send(JSON.stringify({ type: 'admin_resume' }));
-            } catch (error) {
+            if (!sendRpc(RPC_METHODS.RUNTIME_RESUME)) {
                 resumeRequestPending = false;
                 updateEngineControls(engineState);
-                showMessage(`Failed to send resume request: ${error.message}`, 'error');
             }
         }
 
@@ -2435,7 +2422,7 @@
 
         function isOperatorCancellationRequested(order) {
             const state = order.anchor_repricing_state_json || {};
-            return pendingCancelRequests.has(order.stealth_order_id)
+            return pendingCancelRequests.has(order.client_order_id)
                 || Boolean(state.operator_cancel_requested_at
                     || (state.pending_rearm && state.pending_rearm.return_to_hidden === false));
         }
@@ -2471,17 +2458,17 @@
             // First pass: count children for each parent
             const childCountByParent = {};
             orders.forEach(order => {
-                if (!order.parent_order_id) {
+                if (!order.parent_client_order_id) {
                     // This is a parent
-                    childCountByParent[order.stealth_order_id] = 0;
+                    childCountByParent[order.client_order_id] = 0;
                 }
             });
             
             orders.forEach(order => {
-                if (order.parent_order_id) {
+                if (order.parent_client_order_id) {
                     // This is a child, increment parent's child count
-                    if (childCountByParent[order.parent_order_id] !== undefined) {
-                        childCountByParent[order.parent_order_id]++;
+                    if (childCountByParent[order.parent_client_order_id] !== undefined) {
+                        childCountByParent[order.parent_client_order_id]++;
                     }
                 }
             });
@@ -2489,17 +2476,17 @@
             // Sort by Parent->Child count (descending), then by Product ID (ascending)
             orders.sort((a, b) => {
                 // Primary sort: by parent/child relationship
-                // Orders without parent_order_id (parents) come first, then orders with parent_order_id
-                const aHasParent = a.parent_order_id ? 1 : 0;
-                const bHasParent = b.parent_order_id ? 1 : 0;
+                // Orders without parent_client_order_id (parents) come first, then orders with parent_client_order_id
+                const aHasParent = a.parent_client_order_id ? 1 : 0;
+                const bHasParent = b.parent_client_order_id ? 1 : 0;
                 if (aHasParent !== bHasParent) {
                     return aHasParent - bHasParent;
                 }
                 
                 // If both are parents, sort by child count (descending) then product_id
                 if (aHasParent === 0 && bHasParent === 0) {
-                    const aChildCount = childCountByParent[a.stealth_order_id] || 0;
-                    const bChildCount = childCountByParent[b.stealth_order_id] || 0;
+                    const aChildCount = childCountByParent[a.client_order_id] || 0;
+                    const bChildCount = childCountByParent[b.client_order_id] || 0;
                     
                     if (aChildCount !== bChildCount) {
                         return bChildCount - aChildCount; // Descending (more children first)
@@ -2509,10 +2496,10 @@
                     return a.product_id.localeCompare(b.product_id);
                 }
                 
-                // If both are children, group by parent_order_id, then sort by created_at descending
+                // If both are children, group by parent_client_order_id, then sort by created_at descending
                 if (aHasParent === 1 && bHasParent === 1) {
-                    if (a.parent_order_id !== b.parent_order_id) {
-                        return a.parent_order_id.localeCompare(b.parent_order_id);
+                    if (a.parent_client_order_id !== b.parent_client_order_id) {
+                        return a.parent_client_order_id.localeCompare(b.parent_client_order_id);
                     }
                     
                     const dateA = new Date(a.created_at || 0);
@@ -2525,14 +2512,14 @@
             updateProductDropdown();
 
             // Group orders: parents with their children
-            const parentOrders = orders.filter(o => !o.parent_order_id);
+            const parentOrders = orders.filter(o => !o.parent_client_order_id);
             const childOrdersByParent = {};
             
-            orders.filter(o => o.parent_order_id).forEach(childOrder => {
-                if (!childOrdersByParent[childOrder.parent_order_id]) {
-                    childOrdersByParent[childOrder.parent_order_id] = [];
+            orders.filter(o => o.parent_client_order_id).forEach(childOrder => {
+                if (!childOrdersByParent[childOrder.parent_client_order_id]) {
+                    childOrdersByParent[childOrder.parent_client_order_id] = [];
                 }
-                childOrdersByParent[childOrder.parent_order_id].push(childOrder);
+                childOrdersByParent[childOrder.parent_client_order_id].push(childOrder);
             });
 
             // Filter out parent orders that don't meet display criteria:
@@ -2540,7 +2527,7 @@
             // When showing a parent, display all of its children regardless of their status
             const filteredParentOrders = parentOrders.filter(parentOrder => {
                 const isParentActive = isActiveStealthOrder(parentOrder);
-                const children = childOrdersByParent[parentOrder.stealth_order_id] || [];
+                const children = childOrdersByParent[parentOrder.client_order_id] || [];
                 const hasActiveChild = children.some(isActiveStealthOrder);
                 
                 // Show parent if parent is active OR if parent has at least one active child
@@ -2575,24 +2562,24 @@
                     ? parseFloat(order.revealed_size).toFixed(8)
                     : parseFloat(order.revealed_size).toFixed(2);
 
-                const isParent = !order.parent_order_id;
-                const hasChildren = childOrdersByParent[order.stealth_order_id] && childOrdersByParent[order.stealth_order_id].length > 0;
+                const isParent = !order.parent_client_order_id;
+                const hasChildren = childOrdersByParent[order.client_order_id] && childOrdersByParent[order.client_order_id].length > 0;
                 
                 let parentIndicator = '';
                 let toggleHtml = '';
                 
                 if (isParent) {
                     if (hasChildren) {
-                        const childCount = childOrdersByParent[order.stealth_order_id].length;
-                        const nonHiddenCount = childOrdersByParent[order.stealth_order_id].filter(child => child.status !== 'HIDDEN').length;
-                        const isExpanded = accordionState[order.stealth_order_id] || false;
-                        toggleHtml = `<button type="button" data-toggle-id="${order.stealth_order_id}" class="accordion-toggle ${isExpanded ? 'expanded' : 'collapsed'}" onclick="toggleAccordion('${order.stealth_order_id}')"></button>`;
+                        const childCount = childOrdersByParent[order.client_order_id].length;
+                        const nonHiddenCount = childOrdersByParent[order.client_order_id].filter(child => child.status !== 'HIDDEN').length;
+                        const isExpanded = accordionState[order.client_order_id] || false;
+                        toggleHtml = `<button type="button" data-toggle-id="${order.client_order_id}" class="accordion-toggle ${isExpanded ? 'expanded' : 'collapsed'}" onclick="toggleAccordion('${order.client_order_id}')"></button>`;
                         parentIndicator = toggleHtml + `<span style="color: #ffb347; margin-right: 6px; font-weight: bold;" title="Parent order (${nonHiddenCount} revealed, ${childCount} total children)">👑 (${nonHiddenCount}/${childCount})</span>`;
                     } else {
                         parentIndicator = `<span style="color: #ffb347; margin-right: 6px; font-weight: bold;" title="Parent order">👑</span>`;
                     }
                 } else {
-                    parentIndicator = `<span style="color: #7ba3ff; margin-right: 6px;" title="Child order (Parent: ${order.parent_order_id.substring(0, 8)}...)">→</span>`;
+                    parentIndicator = `<span style="color: #7ba3ff; margin-right: 6px;" title="Child order (Parent: ${order.parent_client_order_id.substring(0, 8)}...)">→</span>`;
                 }
                 
                 const rowClass = isChild ? 'child-row' + (accordionState[parentId] ? ' visible' : '') : 'parent-row';
@@ -2643,21 +2630,21 @@
                         <td>
                             <div class="action-buttons">
                                 ${isParent
-                                    ? `<button onclick="openEditParentTargetMovementModal('${order.stealth_order_id}', ${order.target_movement || 'null'}, '${order.target_movement_type || 'P'}', ${order.max_order_replacements || 0}, ${order.reveal_condition_json && order.reveal_condition_json.price_threshold !== undefined ? order.reveal_condition_json.price_threshold : 'null'}, '${order.reveal_condition_type || ''}', ${order.reveal_condition_json && order.reveal_condition_json.hold_duration_seconds !== undefined ? order.reveal_condition_json.hold_duration_seconds : 'null'})" class="edit-btn" title="Edit parent values" ${rearmPending ? 'disabled' : ''}>⚙️</button>`
+                                    ? `<button onclick="openEditParentTargetMovementModal('${order.client_order_id}', ${order.target_movement || 'null'}, '${order.target_movement_type || 'P'}', ${order.max_order_replacements || 0}, ${order.reveal_condition_json && order.reveal_condition_json.price_threshold !== undefined ? order.reveal_condition_json.price_threshold : 'null'}, '${order.reveal_condition_type || ''}', ${order.reveal_condition_json && order.reveal_condition_json.hold_duration_seconds !== undefined ? order.reveal_condition_json.hold_duration_seconds : 'null'})" class="edit-btn" title="Edit parent values" ${rearmPending ? 'disabled' : ''}>⚙️</button>`
                                     : ''}
                                 ${isActiveStealthOrder(order)
-                                    ? `<button onclick="cancelOrder('${order.stealth_order_id}')" class="cancel-btn" ${cancellationRequested ? 'disabled' : ''}>Cancel</button>`
+                                    ? `<button onclick="cancelOrder('${order.client_order_id}')" class="cancel-btn" ${cancellationRequested ? 'disabled' : ''}>Cancel</button>`
                                     : ''}
                                 ${order.status === 'REVEALED'
                                     ? `<div class="hover-action-wrapper">
                                         <span class="action-text">${rearmPending ? 'Withdrawal pending' : 'Revealed'}</span>
-                                        <button onclick="openMoveRevealedModal('${order.stealth_order_id}', ${order.limit_price})" class="move-btn" title="Move to a new limit price (cancel + replace)" ${rearmPending ? 'disabled' : ''}>Move</button>
-                                        <button onclick="rehideOrder('${order.stealth_order_id}')" class="hide-btn" title="Withdraw the live placement and restart this order's reveal condition; only zero-fill orders are eligible" ${rearmPending || Number(order.executed_size) > 0 ? 'disabled' : ''}>Rehide</button>
+                                        <button onclick="openMoveRevealedModal('${order.client_order_id}', ${order.limit_price})" class="move-btn" title="Move to a new limit price (cancel + replace)" ${rearmPending ? 'disabled' : ''}>Move</button>
+                                        <button onclick="rehideOrder('${order.client_order_id}')" class="hide-btn" title="Withdraw the live placement and restart this order's reveal condition; only zero-fill orders are eligible" ${rearmPending || Number(order.executed_size) > 0 ? 'disabled' : ''}>Rehide</button>
                                       </div>`
                                     : `<span style="color: #999; font-size: 12px;">${order.status === 'EXECUTED' ? 'Executed' : order.status}</span>`
                                 }
                                 ${(order.anchor_repricing_policy_json && order.anchor_repricing_policy_json.enabled && isActiveStealthOrder(order))
-                                    ? `<button onclick="repriceNow('${order.stealth_order_id}')" class="reprice-btn" title="Force repricing now" ${rearmPending ? 'disabled' : ''}>⟳</button>`
+                                    ? `<button onclick="repriceNow('${order.client_order_id}')" class="reprice-btn" title="Force repricing now" ${rearmPending ? 'disabled' : ''}>⟳</button>`
                                     : ''}
                             </div>
                         </td>
@@ -2672,9 +2659,9 @@
                 html += renderOrderRow(parentOrder, false);
                 
                 // Add child rows if they exist
-                if (childOrdersByParent[parentOrder.stealth_order_id]) {
-                    childOrdersByParent[parentOrder.stealth_order_id].forEach(childOrder => {
-                        html += renderOrderRow(childOrder, true, parentOrder.stealth_order_id);
+                if (childOrdersByParent[parentOrder.client_order_id]) {
+                    childOrdersByParent[parentOrder.client_order_id].forEach(childOrder => {
+                        html += renderOrderRow(childOrder, true, parentOrder.client_order_id);
                     });
                 }
             });
@@ -2693,7 +2680,7 @@
             if (active.length > 0) {
                 const totalSize = active.reduce((sum, o) => {
                     const size = parseFloat(o.total_size || 0);
-                    console.log(`Order ${o.stealth_order_id}: total_size=${size}, revealed_size=${o.revealed_size}`);
+                    console.log(`Order ${o.client_order_id}: total_size=${size}, revealed_size=${o.revealed_size}`);
                     return sum + size;
                 }, 0);
                 const totalRevealed = active.reduce((sum, o) => sum + parseFloat(o.revealed_size || 0), 0);
@@ -3619,36 +3606,25 @@
 
             pendingCancelRequests.add(orderID);
             updateOrdersTable();
-            try {
-                ws.send(JSON.stringify({type: "cancel_stealth_order", stealth_order_id: orderID}));
-            } catch (error) {
+            if (!sendRpc(RPC_METHODS.STEALTH_CANCEL, { client_order_id: orderID })) {
                 pendingCancelRequests.delete(orderID);
                 updateOrdersTable();
-                showMessage(`Cancellation request failed: ${error.message}`, 'error');
             }
         }
 
         function sendCreateStealthOrderMessage(orderData) {
-            // Helper function to send create_stealth_order message to server
             if (!ws || ws.readyState !== WebSocket.OPEN) {
                 showMessage('Not connected to server', 'error');
                 return false;
             }
-
-            try {
-                ws.send(JSON.stringify({
-                    type: "create_stealth_order",
-                    order: orderData
-                }));
-                return true;
-            } catch (error) {
-                showMessage(`Error: ${error.message}`, 'error');
-                return false;
-            }
+            return Boolean(sendRpc(RPC_METHODS.STEALTH_CREATE, {
+                client_order_id: newRpcRequestId(),
+                ...orderData,
+            }));
         }
 
         function isStealthRearmPending(order) {
-            return pendingRehideRequests.has(order.stealth_order_id)
+            return pendingRehideRequests.has(order.client_order_id)
                 || isOperatorCancellationRequested(order)
                 || Boolean(order.anchor_repricing_state_json && order.anchor_repricing_state_json.pending_rearm);
         }
@@ -3670,19 +3646,13 @@
             if (!confirm(`Rehide order ${orderID}? Its live exchange placement will be withdrawn. After confirmation, the same order restarts its existing reveal condition and may reveal again immediately if satisfied. No duplicate is created.`)) {
                 return;
             }
-            try {
-                ws.send(JSON.stringify({
-                    type: "rehide_stealth_order",
-                    stealth_order_id: orderID
-                }));
+            if (sendRpc(RPC_METHODS.STEALTH_REHIDE, { client_order_id: orderID })) {
                 pendingRehideRequests.set(orderID, {
                     accepted: false,
                     placementClientOrderId: (order.anchor_repricing_state_json || {}).active_placement_client_order_id
                 });
                 updateOrdersTable();
                 showMessage('Rehide request sent; awaiting acceptance and exchange confirmation.', 'info');
-            } catch (error) {
-                showMessage(`Rehide request failed: ${error.message}`, 'error');
             }
         }
 
@@ -3691,10 +3661,7 @@
                 showMessage('Not connected to server', 'error');
                 return;
             }
-            ws.send(JSON.stringify({
-                type: "reprice_now_stealth_order",
-                stealth_order_id: orderID
-            }));
+            sendRpc(RPC_METHODS.STEALTH_REPRICE_NOW, { client_order_id: orderID });
         }
 
         // ---- Move Revealed Stealth Order ------------------------------
@@ -3740,15 +3707,15 @@
             }
 
             const payload = {
-                type: "move_revealed_stealth_order",
-                stealth_order_id: stealthOrderId,
+                client_order_id: stealthOrderId,
                 new_limit_price: newPrice,
                 reason: reason,
             };
             if (notes) payload.notes = notes;
-            ws.send(JSON.stringify(payload));
-            closeMoveRevealedModal();
-            showMessage(`Move requested for ${stealthOrderId.substring(0, 8)}\u2026`, 'info');
+            if (sendRpc(RPC_METHODS.STEALTH_MOVE_REVEALED, payload)) {
+                closeMoveRevealedModal();
+                showMessage(`Move requested for ${stealthOrderId.substring(0, 8)}\u2026`, 'info');
+            }
         }
 
         // Modal functions for editing parent target movement
@@ -3869,37 +3836,29 @@
             }
             
             try {
-                // Update target movement via dedicated endpoint.
-                ws.send(JSON.stringify({
-                    type: "update_parent_target_movement",
-                    parent_order_id: parentOrderId,
+                sendRpc(RPC_METHODS.STRATEGY_UPDATE_TARGET, {
+                    parent_client_order_id: parentOrderId,
                     target_movement: numValue,
                     target_movement_type: type
-                }));
+                });
 
-                // Update max replacements via parent order update endpoint.
-                ws.send(JSON.stringify({
-                    type: "update_parent_order",
-                    order: {
-                        client_order_id: parentOrderId,
-                        product_id: parentOrder.product_id,
-                        size: parseFloat(parentOrder.total_size || 0),
-                        price: parseFloat(parentOrder.limit_price || 0),
-                        target_movement: numValue,
-                        max_order_replacement: maxFollowups,
-                        status: parentOrder.status || 'PENDING'
-                    }
-                }));
+                sendRpc(RPC_METHODS.STRATEGY_UPDATE_PARENT, {
+                    client_order_id: parentOrderId,
+                    size: parseFloat(parentOrder.total_size || 0),
+                    price: parseFloat(parentOrder.limit_price || 0),
+                    target_movement: numValue,
+                    max_order_replacement: maxFollowups,
+                    status: parentOrder.status || 'PENDING'
+                });
 
                 if (revealConditionType === 'price') {
-                    ws.send(JSON.stringify({
-                        type: "update_stealth_price_threshold",
-                        stealth_order_id: parentOrderId,
+                    sendRpc(RPC_METHODS.STEALTH_UPDATE_PRICE_CONDITION, {
+                        client_order_id: parentOrderId,
                         price_threshold: Number(thresholdRaw),
                         hold_duration_seconds: holdDurationRaw !== '' && !Number.isNaN(Number(holdDurationRaw))
                             ? Number(holdDurationRaw)
                             : null
-                    }));
+                    });
                 }
                 
                 showMessage(`Parent values update sent: target=${numValue}${type === 'A' ? ' (Abs)' : '%'}, max followups=${maxFollowups}`, 'success');
@@ -3946,18 +3905,13 @@
                 document.getElementById('refresh-timer').textContent = refreshCountdown;
                 
                 if (refreshCountdown <= 0) {
-                    if (ws && ws.readyState === WebSocket.OPEN) {
-                        ws.send(JSON.stringify({
-                            type: "request_stealth_orders"
-                        }));
-                    }
+                    sendRpc(RPC_METHODS.STEALTH_LIST);
                     refreshCountdown = 5;
                 }
             }, 1000);
         }
 
         // Initialize
-        loadProductsFromJSON();  // Load all products at startup
         restoreFormValues();      // Restore last used form values
         toggleAnchorRepricingFields();
         toggleAnchorFixedInterval();
@@ -3993,9 +3947,7 @@
             }
             
             try {
-                ws.send(JSON.stringify({
-                    type: "clear_all_stealth_orders"
-                }));
+                sendRpc(RPC_METHODS.STEALTH_CLEAR_ALL);
                 showMessage('Clear request sent to server...', 'info');
             } catch (error) {
                 showMessage(`Error sending clear request: ${error.message}`, 'error');
@@ -4034,30 +3986,20 @@
             }
             setBackupStatus('Requesting export…', '#4dd0e1');
             try {
-                ws.send(JSON.stringify({ type: 'export_active_stealth_orders' }));
+                sendRpc(RPC_METHODS.STEALTH_EXPORT);
             } catch (error) {
                 setBackupStatus(`Export failed: ${error.message}`, '#ff6b6b');
             }
         }
 
         function handleExportResponse(data) {
-            if (data.status !== 'success') {
-                setBackupStatus(`Export failed: ${data.message || 'unknown error'}`, '#ff6b6b');
-                showMessage(`Export failed: ${data.message || 'unknown error'}`, 'error');
-                return;
-            }
             const count = data.count || 0;
             if (count === 0) {
                 setBackupStatus('No active root orders to export', '#ffb74d');
                 showMessage('No active root stealth orders to export', 'info');
                 return;
             }
-            downloadJsonFile('stealth-orders-backup', {
-                version: 1,
-                exported_at: data.exported_at,
-                count: count,
-                orders: data.orders || [],
-            });
+            downloadJsonFile('stealth-orders-backup', data);
             setBackupStatus(`✓ Exported ${count} order(s)`, '#81c784');
             showMessage(`Exported ${count} active stealth order(s) to file`, 'success');
         }
@@ -4083,7 +4025,12 @@
                     showMessage(`Invalid JSON: ${e.message}`, 'error');
                     return;
                 }
-                const orders = Array.isArray(parsed) ? parsed : (parsed.orders || []);
+                const documentPayload = Array.isArray(parsed)
+                    ? { version: 1, count: parsed.length, orders: parsed }
+                    : parsed;
+                const orders = documentPayload && Array.isArray(documentPayload.orders)
+                    ? documentPayload.orders
+                    : [];
                 if (!Array.isArray(orders) || orders.length === 0) {
                     setBackupStatus('File contained no orders', '#ffb74d');
                     showMessage('File contained no orders', 'error');
@@ -4091,7 +4038,7 @@
                 }
                 const confirmed = confirm(
                     `Import ${orders.length} stealth order(s) from "${file.name}"?\n\n` +
-                    `Each entry will be re-created via create_stealth_order. Make sure the engine is RUNNING and accepting new orders.`
+                    `Each entry will be re-created through the operator API. Make sure the engine is RUNNING and accepting new orders.`
                 );
                 if (!confirmed) return;
                 if (!ws || ws.readyState !== WebSocket.OPEN) {
@@ -4100,10 +4047,7 @@
                 }
                 setBackupStatus(`Importing ${orders.length}…`, '#81c784');
                 try {
-                    ws.send(JSON.stringify({
-                        type: 'import_stealth_orders',
-                        orders: orders,
-                    }));
+                    sendRpc(RPC_METHODS.STEALTH_IMPORT, { document: documentPayload });
                 } catch (error) {
                     setBackupStatus(`Import send failed: ${error.message}`, '#ff6b6b');
                 }
@@ -4124,16 +4068,15 @@
             } else {
                 setBackupStatus(`⚠ ${imported}/${total} imported, ${failed} failed`, '#ffb74d');
                 const failures = (data.results || [])
-                    .filter(r => r.status === 'error')
+                    .filter(r => !r.succeeded)
                     .map(r => `• ${r.product_id || '?'} ${r.side || ''}: ${r.error}`)
                     .join('\n');
                 showMessage(`Partial import: ${imported}/${total} succeeded.\n${failures}`, 'error');
                 console.warn('Import results:', data.results);
             }
-            // Refresh the table so newly created orders appear.
-            try {
-                ws.send(JSON.stringify({ type: 'request_stealth_orders' }));
-            } catch (_) { /* ignore */ }
+            if (Array.isArray(data.warnings) && data.warnings.length) {
+                console.warn('Import warnings:', data.warnings);
+            }
         }
 
         document.getElementById('export-active-orders-btn').addEventListener('click', exportActiveStealthOrders);

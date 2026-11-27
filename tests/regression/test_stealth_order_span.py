@@ -17,7 +17,9 @@ from business.stealth_order_span import (
     plan_stealth_order_span,
 )
 from core.execution_core import ExecutionCore
+from core.enums import OperatorRpcMethod
 from core.runtime_controller import RuntimeController
+from tests.regression.operator_rpc_test_support import rpc_request, rpc_result
 
 
 pytestmark = pytest.mark.regression
@@ -310,19 +312,28 @@ def test_dashboard_span_message_returns_one_aggregate_result():
         dashboard_server,
         "EXECUTION_CORE",
         execution_core,
-    ), patch.object(dashboard_server, "broadcast_state", new=AsyncMock()) as broadcast, patch.object(
+    ), patch.object(
+        dashboard_server,
+        "_broadcast_stealth_orders_projection",
+        new=AsyncMock(),
+    ) as broadcast, patch.object(
         dashboard_server,
         "add_log_entry",
     ):
+        span_request = _request(span_id="span-id", order_count=1, total_size=1)
         asyncio.run(
             dashboard_server.handle_client_message(
                 websocket,
-                json.dumps({"type": "create_stealth_order_span", "span": {"span_id": "span-id"}}),
+                rpc_request(
+                    OperatorRpcMethod.STEALTH_CREATE_SPAN,
+                    span_request,
+                ),
             )
         )
 
     payloads = [json.loads(call.args[0]) for call in websocket.send.await_args_list]
-    assert payloads == [{"type": "stealth_order_span_result", **bridge.create_stealth_order_span.return_value}]
-    bridge.create_stealth_order_span.assert_called_once_with({"span_id": "span-id"})
+    assert len(payloads) == 1
+    assert rpc_result(payloads[0])["span"] == bridge.create_stealth_order_span.return_value
+    bridge.create_stealth_order_span.assert_called_once_with(span_request)
     broadcast.assert_awaited_once_with()
-    assert "create_stealth_order_span" in dashboard_server._ORIGINATING_MSG_TYPES
+    assert OperatorRpcMethod.STEALTH_CREATE_SPAN in dashboard_server._ORIGINATING_METHODS

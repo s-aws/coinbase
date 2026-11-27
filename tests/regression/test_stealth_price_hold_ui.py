@@ -53,9 +53,9 @@ def test_span_builder_emits_operator_selected_zero_price_hold():
     create_span = _slice_between(
         html,
         "function createOrderSpan()",
-        "function generateUUID()",
+        "function readNonNegativeWholeSeconds(",
     )
-    assert create_span.count("ws.send(") == 1
+    assert create_span.count("sendRpc(") == 1
     assert "i * 200" not in html
 
 

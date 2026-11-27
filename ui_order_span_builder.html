@@ -1022,12 +1022,90 @@
         const productMetadataHandler = new ProductMetadataHandler();
 
         // WebSocket connection
+        const RPC_METHODS = Object.freeze({
+            BOOTSTRAP: 'v1.session.bootstrap',
+            CREATE_SPAN: 'v1.stealth.create_span',
+        });
+        const RPC_NOTIFICATIONS = Object.freeze({
+            RUNTIME: 'v1.projection.runtime',
+            STEALTH_ORDERS: 'v1.projection.stealth_orders',
+        });
+        const DEFAULT_RPC_TIMEOUT_MS = 30000;
+        const RPC_TIMEOUT_MS = Object.freeze({
+            [RPC_METHODS.CREATE_SPAN]: 120000,
+        });
         let ws = null;
+        let bootstrapReady = false;
+        const pendingRpcRequests = new Map();
         const ordersData = {};
         const accordionState = {};
         let productMetadata = {};
         let products = [];
         let pendingSpanId = null;
+
+        function generateUUID() {
+            if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+                return window.crypto.randomUUID().toLowerCase();
+            }
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, char => {
+                const random = Math.floor(Math.random() * 16);
+                const value = char === 'x' ? random : ((random & 0x3) | 0x8);
+                return value.toString(16);
+            });
+        }
+
+        function clearPendingRpcRequests() {
+            pendingRpcRequests.forEach(request => clearTimeout(request.timeout));
+            pendingRpcRequests.clear();
+        }
+
+        function sendRpc(method, params = {}) {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                showMessage('Not connected to server', 'error');
+                return null;
+            }
+            if (method !== RPC_METHODS.BOOTSTRAP && !bootstrapReady) {
+                showMessage('Operator session is still bootstrapping', 'error');
+                return null;
+            }
+
+            const id = generateUUID();
+            const timeout = setTimeout(() => {
+                const pending = pendingRpcRequests.get(id);
+                if (!pending) return;
+                pendingRpcRequests.delete(id);
+                handleRpcError(pending.method, { message: 'Operator request timed out' });
+            }, RPC_TIMEOUT_MS[method] || DEFAULT_RPC_TIMEOUT_MS);
+            pendingRpcRequests.set(id, { method, timeout });
+            try {
+                ws.send(JSON.stringify({ jsonrpc: '2.0', id, method, params }));
+            } catch (error) {
+                clearTimeout(timeout);
+                pendingRpcRequests.delete(id);
+                handleRpcError(method, { message: error.message });
+                return null;
+            }
+            return id;
+        }
+
+        function handleRpcSuccess(method, result) {
+            if (method === RPC_METHODS.BOOTSTRAP) {
+                bootstrapReady = true;
+                handleProductsList(result.products || {});
+                handleOrdersSnapshot(result.stealth_orders || {});
+            } else if (method === RPC_METHODS.CREATE_SPAN) {
+                handleSpanResult(result.span || {});
+            }
+        }
+
+        function handleRpcError(method, error) {
+            if (method === RPC_METHODS.BOOTSTRAP) bootstrapReady = false;
+            if (method === RPC_METHODS.CREATE_SPAN) {
+                pendingSpanId = null;
+                document.getElementById('create-span-btn').disabled = false;
+            }
+            showMessage(error.message || 'Unknown operator RPC error', 'error');
+        }
 
         // Initialize
         window.addEventListener('DOMContentLoaded', () => {
@@ -1058,13 +1136,16 @@
             ws.addEventListener('open', () => {
                 console.log('Connected to server');
                 updateConnectionStatus(true);
-                ws.send(JSON.stringify({ type: 'request_stealth_orders' }));
+                bootstrapReady = false;
+                sendRpc(RPC_METHODS.BOOTSTRAP);
             });
             
             ws.addEventListener('message', handleMessage);
             
             ws.addEventListener('close', () => {
                 console.log('Disconnected from server');
+                bootstrapReady = false;
+                clearPendingRpcRequests();
                 updateConnectionStatus(false);
                 if (pendingSpanId) {
                     pendingSpanId = null;
@@ -1081,34 +1162,55 @@
         }
 
         function handleMessage(event) {
+            let message;
             try {
-                const data = JSON.parse(event.data);
-                
-                if (data.type === 'products_list') {
-                    handleProductsList(data);
-                } else if (data.type === 'stealth_orders_snapshot') {
-                    handleOrdersSnapshot(data);
-                } else if (data.type === 'stealth_order_created') {
-                    handleOrderCreated(data);
-                } else if (data.type === 'stealth_order_span_result') {
-                    handleSpanResult(data);
-                } else if (data.type === 'admission_rejected' && data.rejected_type === 'create_stealth_order_span') {
-                    pendingSpanId = null;
-                    document.getElementById('create-span-btn').disabled = false;
-                    showMessage(data.message || 'Span creation was rejected', 'error');
-                } else if (data.type === 'state_update' && data.data && data.data.stealth_orders) {
-                    Object.values(data.data.stealth_orders).forEach(order => {
-                        ordersData[order.stealth_order_id] = order;
-                    });
-                    updateOrdersTable();
-                } else if (data.type === 'order_update' || data.type === 'stealth_order_update') {
-                    if (data.stealth_order_id) {
-                        ordersData[data.stealth_order_id] = data;
-                    }
-                    updateOrdersTable();
-                }
+                message = JSON.parse(event.data);
             } catch (error) {
-                console.error('Failed to parse message:', error);
+                showMessage(`Invalid server message: ${error.message}`, 'error');
+                return;
+            }
+            if (message.jsonrpc !== '2.0') {
+                showMessage('Server sent a non-JSON-RPC message', 'error');
+                return;
+            }
+            if (Object.prototype.hasOwnProperty.call(message, 'id')) {
+                const pending = pendingRpcRequests.get(message.id);
+                if (!pending) {
+                    console.warn('Ignoring response with unknown correlation id', message.id);
+                    return;
+                }
+                clearTimeout(pending.timeout);
+                pendingRpcRequests.delete(message.id);
+                const hasError = Object.prototype.hasOwnProperty.call(message, 'error');
+                const hasResult = Object.prototype.hasOwnProperty.call(message, 'result');
+                if (hasError === hasResult) {
+                    handleRpcError(pending.method, { message: 'Malformed JSON-RPC response' });
+                } else if (hasError) {
+                    handleRpcError(pending.method, message.error);
+                } else if (message.result && typeof message.result === 'object' && !Array.isArray(message.result)) {
+                    handleRpcSuccess(pending.method, message.result);
+                } else {
+                    handleRpcError(pending.method, { message: 'JSON-RPC result must be an object' });
+                }
+                return;
+            }
+            if (message.method && (!message.params || typeof message.params !== 'object' || Array.isArray(message.params))) {
+                showMessage('JSON-RPC notification params must be an object', 'error');
+                return;
+            }
+            if (message.method === RPC_NOTIFICATIONS.STEALTH_ORDERS) {
+                handleOrdersSnapshot(message.params);
+            } else if (
+                message.method === RPC_NOTIFICATIONS.RUNTIME
+                && message.params
+                && message.params.state
+                && message.params.state.stealth_orders
+            ) {
+                handleOrdersSnapshot({ orders: message.params.state.stealth_orders });
+            } else if (message.method) {
+                showMessage(`Unknown server notification: ${message.method}`, 'error');
+            } else {
+                showMessage('Server sent a malformed JSON-RPC notification', 'error');
             }
         }
 
@@ -1160,19 +1262,14 @@
 
         function handleOrdersSnapshot(data) {
             if (data.orders) {
+                Object.keys(ordersData).forEach(clientOrderId => {
+                    delete ordersData[clientOrderId];
+                });
                 Object.values(data.orders).forEach(order => {
-                    ordersData[order.stealth_order_id] = order;
+                    ordersData[order.client_order_id] = order;
                 });
                 updateOrdersTable();
             }
-        }
-
-        function handleOrderCreated(data) {
-            if (data.order) {
-                ordersData[data.stealth_order_id] = data.order;
-            }
-            showMessage('Order created successfully!', 'success');
-            updateOrdersTable();
         }
 
         function handleSpanResult(data) {
@@ -1655,31 +1752,24 @@
                 const spanId = generateUUID();
                 pendingSpanId = spanId;
                 document.getElementById('create-span-btn').disabled = true;
-                ws.send(JSON.stringify({
-                    type: 'create_stealth_order_span',
-                    span: {
-                        span_id: spanId,
-                        ...formData,
-                        reveal_condition: baseRevealCondition,
-                        sizing_strategy: { type: 'fixed' },
-                        follow_up_reveal_direction: 'opposite'
-                    }
-                }));
+                const requestId = sendRpc(RPC_METHODS.CREATE_SPAN, {
+                    span_id: spanId,
+                    ...formData,
+                    reveal_condition: baseRevealCondition,
+                    sizing_strategy: { type: 'fixed' },
+                    follow_up_reveal_direction: 'opposite'
+                });
+                if (!requestId) {
+                    pendingSpanId = null;
+                    document.getElementById('create-span-btn').disabled = false;
+                    return;
+                }
                 showMessage(`Creating ${formData.order_count}-order span...`, 'info');
             } catch (error) {
                 pendingSpanId = null;
                 document.getElementById('create-span-btn').disabled = false;
                 showMessage(`Error: ${error.message}`, 'error');
             }
-        }
-
-        function generateUUID() {
-            // Simple UUID v4 generation
-            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-                const r = Math.random() * 16 | 0;
-                const v = c === 'x' ? r : (r & 0x3 | 0x8);
-                return v.toString(16);
-            });
         }
 
         function readNonNegativeWholeSeconds(inputId, label) {
@@ -1794,21 +1884,21 @@
             }
 
             // Separate parent and child orders
-            const parentOrders = allOrders.filter(o => !o.parent_order_id);
+            const parentOrders = allOrders.filter(o => !o.parent_client_order_id);
             const childOrdersByParent = {};
             
-            allOrders.filter(o => o.parent_order_id).forEach(child => {
-                if (!childOrdersByParent[child.parent_order_id]) {
-                    childOrdersByParent[child.parent_order_id] = [];
+            allOrders.filter(o => o.parent_client_order_id).forEach(child => {
+                if (!childOrdersByParent[child.parent_client_order_id]) {
+                    childOrdersByParent[child.parent_client_order_id] = [];
                 }
-                childOrdersByParent[child.parent_order_id].push(child);
+                childOrdersByParent[child.parent_client_order_id].push(child);
             });
 
             let html = '';
             parentOrders.forEach(parent => {
-                const children = childOrdersByParent[parent.stealth_order_id] || [];
+                const children = childOrdersByParent[parent.client_order_id] || [];
                 const hasChildren = children.length > 0;
-                const isExpanded = accordionState[parent.stealth_order_id] || false;
+                const isExpanded = accordionState[parent.client_order_id] || false;
                 const createdAt = parent.created_at ? new Date(parent.created_at).toLocaleTimeString() : '-';
 
                 // For independent parents (no children), just show the order
@@ -1826,7 +1916,7 @@
                     `;
                 } else {
                     // For parent+children mode, show parent with accordion
-                    let toggleBtn = `<button type="button" class="accordion-toggle ${isExpanded ? 'expanded' : 'collapsed'}" onclick="toggleAccordion('${parent.stealth_order_id}')" style="border: none; background: none; padding: 0; cursor: pointer;"></button>`;
+                    let toggleBtn = `<button type="button" class="accordion-toggle ${isExpanded ? 'expanded' : 'collapsed'}" onclick="toggleAccordion('${parent.client_order_id}')" style="border: none; background: none; padding: 0; cursor: pointer;"></button>`;
                     
                     html += `
                         <tr class="parent-row">

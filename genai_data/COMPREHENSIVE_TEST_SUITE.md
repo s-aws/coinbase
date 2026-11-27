@@ -69,6 +69,9 @@ test cases unless the user explicitly requests them.
 - atomic Execution Core admission for all six operator-originated strategy
   commands, including transition-wins, admitted-work-finishes, drain wait, and
   exception-release cases
+- operator JSON-RPC framing and method-specific validation, exact method and
+  dispatch inventory, one-response correlation, named notifications, browser
+  bootstrap/cutover, and lossless versioned backup/import behavior
 - stop-dominant initial fee refresh, coherent sampled dashboard status with
   stop-dominant publication, websocket disconnect ownership, and retryable
   engine cleanup

@@ -10,10 +10,22 @@ from unittest.mock import AsyncMock, Mock, call, patch
 import pytest
 
 import dashboard_server
-from core.enums import EngineState, StealthOrderStatus
+from core.enums import (
+    EngineState,
+    OperatorErrorReason,
+    OperatorOutcome,
+    OperatorRpcErrorCode,
+    OperatorRpcMethod,
+    StealthOrderStatus,
+)
 from core.execution_core import AdmissionRejection, OriginatingCommandResult
 from core.runtime_controller import EngineNotAdmittingError
 from core.runtime_controller import INFLIGHT_APPLICATION_COMMAND
+from tests.regression.operator_rpc_test_support import (
+    rpc_error,
+    rpc_request,
+    rpc_result,
+)
 
 
 pytestmark = pytest.mark.regression
@@ -67,7 +79,10 @@ def _invoke(bridge, *, state=EngineState.RUNNING, stealth_id=STEALTH_ID):
         asyncio.run(
             dashboard_server.handle_client_message(
                 websocket,
-                json.dumps({"type": "rehide_stealth_order", "stealth_order_id": stealth_id}),
+                rpc_request(
+                    OperatorRpcMethod.STEALTH_REHIDE,
+                    {"client_order_id": stealth_id},
+                ),
             )
         )
     assert cache == original, "The command handler must not infer HIDDEN or change cached identity"
@@ -83,13 +98,13 @@ def test_rehide_acceptance_is_pending_intent_and_uses_bridge_only():
     response = _invoke(bridge)
 
     assert bridge.mock_calls == [call.rehide_stealth_order(STEALTH_ID)]
-    assert response["type"] == "stealth_order_rehide_result"
-    assert response["stealth_order_id"] == STEALTH_ID
-    assert response["accepted"] is True
-    assert "pending" in response["message"].lower()
-    assert "reveal again" in response["message"].lower()
-    assert "status" not in response
-    assert "error" not in response
+    result = rpc_result(response)
+    assert result["client_order_id"] == STEALTH_ID
+    assert result["accepted"] is True
+    assert result["outcome"] == OperatorOutcome.ACCEPTED_PENDING.value
+    assert "pending" in result["message"].lower()
+    assert "reveal again" in result["message"].lower()
+    assert "status" not in result
 
 
 def test_rehide_false_result_is_not_reported_as_accepted():
@@ -99,10 +114,10 @@ def test_rehide_false_result_is_not_reported_as_accepted():
     response = _invoke(bridge)
 
     bridge.rehide_stealth_order.assert_called_once_with(STEALTH_ID)
-    assert response["type"] == "stealth_order_rehide_result"
-    assert response["accepted"] is False
-    assert "not accepted" in response["message"].lower()
-    assert response["error"]
+    error = rpc_error(response)
+    assert error["code"] == int(OperatorRpcErrorCode.APPLICATION_REJECTED)
+    assert "not accepted" in error["message"].lower()
+    assert error["data"]["client_order_id"] == STEALTH_ID
 
 
 @pytest.mark.parametrize("stealth_id", [None, "", "   ", 123, {}, []])
@@ -112,16 +127,17 @@ def test_rehide_rejects_invalid_identity_before_bridge_call(stealth_id):
     response = _invoke(bridge, stealth_id=stealth_id)
 
     assert bridge.mock_calls == []
-    assert response["type"] == "stealth_order_rehide_result"
-    assert response["accepted"] is False
-    assert "stealth_order_id" in response["error"]
+    error = rpc_error(response)
+    assert error["code"] == int(OperatorRpcErrorCode.INVALID_PARAMS)
+    assert error["data"]["reason"] == OperatorErrorReason.INVALID_PARAMS.value
 
 
 def test_rehide_rejects_missing_bridge():
     response = _invoke(None)
 
-    assert response["accepted"] is False
-    assert "not initialized" in response["error"]
+    error = rpc_error(response)
+    assert error["code"] == int(OperatorRpcErrorCode.APPLICATION_FAILED)
+    assert "not initialized" in error["message"]
 
 
 @pytest.mark.parametrize(
@@ -140,10 +156,10 @@ def test_rehide_validation_persistence_readiness_and_admission_races_are_rejecti
     response = _invoke(bridge)
 
     bridge.rehide_stealth_order.assert_called_once_with(STEALTH_ID)
-    assert response["type"] == "stealth_order_rehide_result"
-    assert response["stealth_order_id"] == STEALTH_ID
-    assert response["accepted"] is False
-    assert response["error"] == str(error)
+    rpc_failure = rpc_error(response)
+    assert rpc_failure["code"] == int(OperatorRpcErrorCode.APPLICATION_REJECTED)
+    assert rpc_failure["data"]["client_order_id"] == STEALTH_ID
+    assert str(error) in rpc_failure["message"]
 
 
 @pytest.mark.parametrize(
@@ -152,11 +168,11 @@ def test_rehide_validation_persistence_readiness_and_admission_races_are_rejecti
 )
 def test_rehide_is_originating_work_and_cannot_run_outside_running(state):
     bridge = Mock()
-    assert "rehide_stealth_order" in dashboard_server._ORIGINATING_MSG_TYPES
+    assert OperatorRpcMethod.STEALTH_REHIDE in dashboard_server._ORIGINATING_METHODS
 
     response = _invoke(bridge, state=state)
 
-    assert response["type"] == "admission_rejected"
-    assert response["rejected_type"] == "rehide_stealth_order"
-    assert response["engine_state"] == state.value
+    error = rpc_error(response)
+    assert error["code"] == int(OperatorRpcErrorCode.ENGINE_NOT_ADMITTING)
+    assert error["data"]["engine_state"] == state.value
     assert bridge.mock_calls == []

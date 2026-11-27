@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from core.enums import EngineState
+from core.enums import EngineState, OperatorOutcome
 from scripts.runtime_healthcheck import summarize_status, validate_paused_status
 
 
@@ -24,7 +24,7 @@ HEALTHCHECK_SCRIPT = PROJECT_ROOT / "scripts" / "runtime_healthcheck.py"
 
 def _paused_payload(**overrides):
     payload = {
-        "type": "admin_status_response",
+        "outcome": OperatorOutcome.SUCCEEDED.value,
         "engine_state": EngineState.PAUSED.value,
         "is_admitting": False,
         "is_stopping": False,

@@ -86,14 +86,15 @@ unauthenticated, so bind explicitly to loopback for local-only access.
 - `ui_stealth_orders_manager.html`
 - `ui_order_span_builder.html`
 
-### WebSocket request message types currently handled
-- `admin_status`, `admin_pause`, `admin_resume`, `admin_shutdown`
-- `request_stealth_orders`, `create_stealth_order`, `create_stealth_order_span`, `cancel_stealth_order`, `rehide_stealth_order`
-- `update_stealth_price_threshold`
-- `reprice_now_stealth_order`, `move_revealed_stealth_order`
-- `export_active_stealth_orders`, `import_stealth_orders`
-- `clear_all_stealth_orders`
-- `update_parent_target_movement`, `update_parent_order`
+### Operator protocol
+
+The transport accepts only the versioned JSON-RPC methods in
+`core.enums.OperatorRpcMethod`, validated against
+`operator_api/schema.json`. Every client request supplies a canonical UUID
+correlation ID and receives one terminal response. Server projections use
+`OperatorNotificationMethod`; legacy ad-hoc `type` messages, batches, and
+client notifications are unsupported. Current clients must complete
+`v1.session.bootstrap` before mutations. See `genai_data/API_REFERENCE.md`.
 
 Hotpoint replication is enabled only by the per-strategy
 `enable_hotpoint_replication` field in the two creation UIs. There is no

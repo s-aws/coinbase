@@ -61,7 +61,7 @@ The complete safe deployment path is:
 
 It first runs `scripts/validate_release.sh`, invokes the guarded database
 bootstrap, forces `ENGINE_START_PAUSED=true`, starts the canonical `python -m
-main` entry point, and waits for live `admin_status` proof of stable `PAUSED`
+main` entry point, and waits for correlated `v1.runtime.status` proof of stable `PAUSED`
 health with admission closed and zero in-flight work. It rejects a true
 `DISABLE_RECONCILER`, an already responding engine, and overlapping deployment
 launchers. The script remains in the foreground; a service/container
@@ -120,7 +120,7 @@ pages selecting `wss` require TLS termination outside this plain listener.
   - defaults to paused when unset or blank.
   - strict boolean values are `1`, `true`, `yes`, `on`, `0`, `false`, `no`,
     or `off` (case-insensitive).
-  - a true value latches the same startup pause used by `admin_pause`; the
+  - a true value latches the same startup pause used by `v1.runtime.pause`; the
     process still completes hydration, reconciliation, scheduler activation,
     and worker startup, then publishes `PAUSED` instead of `RUNNING`.
   - set an explicit false value to opt into entering `RUNNING` automatically
@@ -135,7 +135,8 @@ pages selecting `wss` require TLS termination outside this plain listener.
     cannot be disabled.
 
 - `DEPLOYMENT_HEALTHCHECK_URL`
-  - dashboard WebSocket URL used only by deployment automation.
+  - operator WebSocket URL used only by deployment automation; the probe sends
+    a correlated `v1.runtime.status` JSON-RPC request.
   - defaults to `ws://127.0.0.1:${DASHBOARD_SERVER_PORT:-8765}`.
 
 - `DEPLOYMENT_HEALTH_TIMEOUT_SECONDS`

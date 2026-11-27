@@ -10,11 +10,12 @@ import math
 import os
 import time
 from typing import Any
+from uuid import uuid4
 
 from websockets import connect
 from websockets.exceptions import WebSocketException
 
-from core.enums import EngineState
+from core.enums import EngineState, OperatorOutcome, OperatorRpcMethod
 
 
 def _positive_timeout(value: str) -> float:
@@ -40,8 +41,8 @@ def _default_healthcheck_url() -> str:
 def validate_paused_status(payload: dict[str, Any]) -> dict[str, Any]:
     """Return the stable health fields or raise for an unsafe response."""
 
-    if payload.get("type") != "admin_status_response":
-        raise RuntimeError("dashboard did not return admin_status_response")
+    if payload.get("outcome") != OperatorOutcome.SUCCEEDED.value:
+        raise RuntimeError("operator status result was not successful")
     if payload.get("engine_state") != EngineState.PAUSED.value:
         raise RuntimeError(
             "engine is not paused: "
@@ -70,8 +71,8 @@ def validate_paused_status(payload: dict[str, Any]) -> dict[str, Any]:
 def summarize_status(payload: dict[str, Any]) -> dict[str, Any]:
     """Return the administrative fields needed for a pre-start probe."""
 
-    if payload.get("type") != "admin_status_response":
-        raise RuntimeError("dashboard did not return admin_status_response")
+    if payload.get("outcome") != OperatorOutcome.SUCCEEDED.value:
+        raise RuntimeError("operator status result was not successful")
     return {
         "engine_state": payload.get("engine_state"),
         "is_admitting": payload.get("is_admitting"),
@@ -83,20 +84,26 @@ def summarize_status(payload: dict[str, Any]) -> dict[str, Any]:
 
 async def _request_status(url: str, timeout_seconds: float) -> dict[str, Any]:
     per_operation_timeout = min(2.0, timeout_seconds)
+    request_id = str(uuid4())
     async with connect(
         url,
         open_timeout=per_operation_timeout,
         close_timeout=1.0,
     ) as websocket:
         await asyncio.wait_for(
-            websocket.send(json.dumps({"type": "admin_status"})),
+            websocket.send(json.dumps({
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "method": OperatorRpcMethod.RUNTIME_STATUS.value,
+                "params": {},
+            })),
             timeout=per_operation_timeout,
         )
         deadline = time.monotonic() + timeout_seconds
         while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
-                raise TimeoutError("admin_status_response was not received")
+                raise TimeoutError("correlated runtime status was not received")
             raw_message = await asyncio.wait_for(
                 websocket.recv(),
                 timeout=min(per_operation_timeout, remaining),
@@ -105,8 +112,18 @@ async def _request_status(url: str, timeout_seconds: float) -> dict[str, Any]:
                 payload = json.loads(raw_message)
             except (TypeError, json.JSONDecodeError):
                 continue
-            if payload.get("type") == "admin_status_response":
-                return payload
+            if payload.get("jsonrpc") != "2.0" or payload.get("id") != request_id:
+                continue
+            if "error" in payload:
+                error = payload.get("error") or {}
+                raise RuntimeError(
+                    "operator status request failed: "
+                    f"{error.get('message', 'unknown JSON-RPC error')}"
+                )
+            result = payload.get("result")
+            if not isinstance(result, dict):
+                raise RuntimeError("operator status response omitted its result")
+            return result
 
 
 async def wait_for_paused_runtime(
@@ -175,7 +192,7 @@ async def wait_for_runtime_status(
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Wait for admin_status to report stable PAUSED health.",
+        description="Wait for operator runtime status to report stable PAUSED health.",
     )
     parser.add_argument("--url", default=_default_healthcheck_url())
     parser.add_argument(

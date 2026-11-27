@@ -10,10 +10,21 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 
 import dashboard_server
-from core.enums import EngineState
+from core.enums import (
+    EngineState,
+    OperatorErrorReason,
+    OperatorOutcome,
+    OperatorRpcErrorCode,
+    OperatorRpcMethod,
+)
 from core.execution_core import AdmissionRejection, OriginatingCommandResult
 from core.runtime_controller import INFLIGHT_APPLICATION_COMMAND
 from core.runtime_controller import RuntimeController
+from tests.regression.operator_rpc_test_support import (
+    rpc_error,
+    rpc_request,
+    rpc_result,
+)
 
 
 pytestmark = pytest.mark.regression
@@ -34,13 +45,13 @@ def _run(coro):
 
 
 def test_originating_surface_contains_only_supported_strategy_commands() -> None:
-    assert dashboard_server._ORIGINATING_MSG_TYPES == frozenset({
-        "create_stealth_order",
-        "create_stealth_order_span",
-        "reprice_now_stealth_order",
-        "rehide_stealth_order",
-        "move_revealed_stealth_order",
-        "import_stealth_orders",
+    assert dashboard_server._ORIGINATING_METHODS == frozenset({
+        OperatorRpcMethod.STEALTH_CREATE,
+        OperatorRpcMethod.STEALTH_CREATE_SPAN,
+        OperatorRpcMethod.STEALTH_REPRICE_NOW,
+        OperatorRpcMethod.STEALTH_REHIDE,
+        OperatorRpcMethod.STEALTH_MOVE_REVEALED,
+        OperatorRpcMethod.STEALTH_IMPORT,
     })
 
 
@@ -70,61 +81,68 @@ def test_every_originating_message_is_rejected_while_starting() -> None:
             "anchor_repricing_policy_json": {"enabled": True},
         }
     }
-    messages = {
-        "create_stealth_order": {
-            "type": "create_stealth_order",
-            "order": {
-                "product_id": "BTC-USD",
-                "side": "BUY",
-                "total_size": 1.0,
-                "limit_price": 100.0,
-                "reveal_condition": {
-                    "type": "time_delay",
-                    "delay_seconds": 0,
-                },
+    params = {
+        OperatorRpcMethod.STEALTH_CREATE: {
+            "client_order_id": "create-starting",
+            "product_id": "BTC-USD",
+            "side": "BUY",
+            "total_size": 1.0,
+            "limit_price": 100.0,
+            "reveal_condition": {
+                "type": "time_delay",
+                "delay_seconds": 0,
             },
         },
-        "create_stealth_order_span": {
-            "type": "create_stealth_order_span",
-            "span": {"span_id": "span-starting"},
+        OperatorRpcMethod.STEALTH_CREATE_SPAN: {
+            "span_id": "span-starting",
+            "product_id": "BTC-USD",
+            "side": "BUY",
+            "total_size": 1.0,
+            "start_price": 100.0,
+            "price_step": 0.0,
+            "order_count": 1,
+            "size_distribution": "equal",
+            "creation_mode": "independent_parents",
+            "reveal_condition": {"type": "time_delay", "delay_seconds": 0},
         },
-        "import_stealth_orders": {
-            "type": "import_stealth_orders",
-            "orders": [],
+        OperatorRpcMethod.STEALTH_IMPORT: {
+            "document": {"version": 1, "count": 0, "orders": []},
         },
-        "rehide_stealth_order": {
-            "type": "rehide_stealth_order",
-            "stealth_order_id": "sid-starting",
+        OperatorRpcMethod.STEALTH_REHIDE: {
+            "client_order_id": "sid-starting",
         },
-        "reprice_now_stealth_order": {
-            "type": "reprice_now_stealth_order",
-            "stealth_order_id": "sid-starting",
+        OperatorRpcMethod.STEALTH_REPRICE_NOW: {
+            "client_order_id": "sid-starting",
         },
-        "move_revealed_stealth_order": {
-            "type": "move_revealed_stealth_order",
-            "stealth_order_id": "sid-starting",
+        OperatorRpcMethod.STEALTH_MOVE_REVEALED: {
+            "client_order_id": "sid-starting",
             "new_limit_price": 101.0,
         },
     }
 
     async def exercise() -> None:
-        for msg_type in sorted(dashboard_server._ORIGINATING_MSG_TYPES):
+        for method in sorted(
+            dashboard_server._ORIGINATING_METHODS,
+            key=lambda item: item.value,
+        ):
             websocket = _websocket()
             await dashboard_server.handle_client_message(
                 websocket,
-                json.dumps(messages[msg_type]),
+                rpc_request(method, params[method]),
             )
-            assert _payloads(websocket) == [
-                {
-                    "type": "admission_rejected",
-                    "rejected_type": msg_type,
-                    "engine_state": EngineState.STARTING.value,
-                    "message": (
-                        "Engine startup is still completing; new orders are "
-                        "not being accepted yet."
-                    ),
-                }
-            ]
+            payload = _payloads(websocket)[0]
+            error = rpc_error(payload)
+            assert error["code"] == int(
+                OperatorRpcErrorCode.ENGINE_NOT_ADMITTING
+            )
+            assert error["message"] == (
+                "Engine startup is still completing; new orders are "
+                "not being accepted yet."
+            )
+            assert error["data"]["reason"] == (
+                OperatorErrorReason.ENGINE_NOT_ADMITTING.value
+            )
+            assert error["data"]["engine_state"] == EngineState.STARTING.value
 
     with patch.object(
         dashboard_server,
@@ -151,15 +169,15 @@ def test_admin_pause_is_visible_and_sticky_during_startup() -> None:
     async def exercise() -> None:
         await dashboard_server.handle_client_message(
             status_ws,
-            json.dumps({"type": "admin_status"}),
+            rpc_request(OperatorRpcMethod.RUNTIME_STATUS),
         )
         await dashboard_server.handle_client_message(
             pause_ws,
-            json.dumps({"type": "admin_pause"}),
+            rpc_request(OperatorRpcMethod.RUNTIME_PAUSE),
         )
         await dashboard_server.handle_client_message(
             resume_ws,
-            json.dumps({"type": "admin_resume"}),
+            rpc_request(OperatorRpcMethod.RUNTIME_RESUME),
         )
 
     with patch.object(
@@ -169,27 +187,27 @@ def test_admin_pause_is_visible_and_sticky_during_startup() -> None:
     ), patch.object(dashboard_server, "add_log_entry"):
         _run(exercise())
 
-    status = _payloads(status_ws)[0]
+    status = rpc_result(_payloads(status_ws)[0])
     assert status["engine_state"] == EngineState.STARTING.value
     assert status["is_admitting"] is False
     assert status["startup_pause_pending"] is False
 
-    pause = _payloads(pause_ws)[0]
+    pause = rpc_result(_payloads(pause_ws)[0])
     assert pause == {
-        "type": "admin_pause_response",
         "changed": True,
         "engine_state": EngineState.STARTING.value,
         "startup_pause_pending": True,
+        "outcome": OperatorOutcome.SUCCEEDED.value,
     }
     assert controller.state is EngineState.STARTING
     assert controller.startup_pause_pending() is True
 
-    resume = _payloads(resume_ws)[0]
+    resume = rpc_result(_payloads(resume_ws)[0])
     assert resume == {
-        "type": "admin_resume_response",
         "changed": False,
         "engine_state": EngineState.STARTING.value,
         "startup_pause_pending": True,
+        "outcome": OperatorOutcome.SUCCEEDED.value,
     }
     assert controller.complete_startup() is True
     assert controller.state is EngineState.PAUSED
@@ -221,23 +239,20 @@ def test_admin_shutdown_closes_startup_before_acknowledging() -> None:
         _run(
             dashboard_server.handle_client_message(
                 websocket,
-                json.dumps(
-                    {
-                        "type": "admin_shutdown",
-                        "timeout_seconds": 5.0,
-                    }
+                rpc_request(
+                    OperatorRpcMethod.RUNTIME_SHUTDOWN,
+                    {"timeout_seconds": 5.0},
                 ),
             )
         )
 
-    assert _payloads(websocket) == [
-        {
-            "type": "admin_shutdown_response",
-            "accepted": True,
-            "timeout_seconds": 5.0,
-            "engine_state_before": EngineState.STARTING.value,
-        }
-    ]
+    result = rpc_result(_payloads(websocket)[0])
+    assert result == {
+        "accepted": True,
+        "timeout_seconds": 5.0,
+        "engine_state_before": EngineState.STARTING.value,
+        "outcome": OperatorOutcome.ACCEPTED_PENDING.value,
+    }
     assert controller.state is EngineState.DRAINING
     thread_factory.assert_called_once()
     drain_thread.start.assert_called_once_with()
@@ -262,7 +277,7 @@ def test_admin_shutdown_starts_cleanup_even_if_acknowledgement_fails() -> None:
             _run(
                 dashboard_server.handle_client_message(
                     websocket,
-                    json.dumps({"type": "admin_shutdown"}),
+                    rpc_request(OperatorRpcMethod.RUNTIME_SHUTDOWN),
                 )
             )
 
@@ -290,7 +305,7 @@ def test_admin_shutdown_drains_synchronously_if_worker_cannot_start() -> None:
         _run(
             dashboard_server.handle_client_message(
                 websocket,
-                json.dumps({"type": "admin_shutdown"}),
+                rpc_request(OperatorRpcMethod.RUNTIME_SHUTDOWN),
             )
         )
 
@@ -317,7 +332,7 @@ def test_admin_shutdown_drains_synchronously_if_worker_cannot_be_created() -> No
         _run(
             dashboard_server.handle_client_message(
                 websocket,
-                json.dumps({"type": "admin_shutdown"}),
+                rpc_request(OperatorRpcMethod.RUNTIME_SHUTDOWN),
             )
         )
 
@@ -346,22 +361,19 @@ def test_admin_shutdown_rejects_invalid_timeout_without_closing_runtime(
         _run(
             dashboard_server.handle_client_message(
                 websocket,
-                json.dumps({
-                    "type": "admin_shutdown",
-                    "timeout_seconds": timeout,
-                }),
+                rpc_request(
+                    OperatorRpcMethod.RUNTIME_SHUTDOWN,
+                    {"timeout_seconds": timeout},
+                ),
             )
         )
 
-    assert _payloads(websocket) == [{
-        "type": "admin_shutdown_response",
-        "accepted": False,
-        "engine_state_before": EngineState.STARTING.value,
-        "message": (
-            "drain timeout must be a finite non-negative number within the "
-            "platform wait limit"
-        ),
-    }]
+    error = rpc_error(_payloads(websocket)[0])
+    assert error["code"] in {
+        int(OperatorRpcErrorCode.INVALID_PARAMS),
+        int(OperatorRpcErrorCode.APPLICATION_REJECTED),
+    }
+    assert error["data"]["reason"] == OperatorErrorReason.INVALID_PARAMS.value
     assert controller.state is EngineState.STARTING
     thread_factory.assert_not_called()
 
@@ -388,7 +400,8 @@ def test_stealth_manager_resume_control_is_fail_closed() -> None:
     assert "normalizedState === 'PAUSED'" in controls
     assert "resumeButton.disabled = !canResume;" in controls
     assert "Resume the engine and enable new order placement?" in controls
-    assert "ws.send(JSON.stringify({ type: 'admin_resume' }));" in controls
-    assert 'type: "admin_status"' in websocket_handler
-    assert 'data.type === "admin_status_response"' in websocket_handler
-    assert 'data.type === "admin_resume_response"' in websocket_handler
+    assert "sendRpc(RPC_METHODS.RUNTIME_RESUME)" in controls
+    assert "sendRpc(RPC_METHODS.BOOTSTRAP);" in websocket_handler
+    assert "message.jsonrpc !== '2.0'" in websocket_handler
+    assert "pendingRpcRequests.get(message.id)" in websocket_handler
+    assert "data.type" not in websocket_handler

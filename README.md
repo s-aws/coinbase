@@ -83,8 +83,8 @@ tracks the corresponding Coinbase placement.
 - PostgreSQL persistence for parent/child state, stealth lifecycle, reveal and
   move history, fill ledger, event stream, partial-fill progress, and market
   telemetry.
-- Two browser tools: stealth management and order-span creation, both backed by
-  the embedded dashboard state/command transport.
+- Two browser tools: stealth management and order-span creation, both using
+  the embedded versioned JSON-RPC operator transport.
 - Optional hotpoint auto-replication with per-order opt-in, rate limiting,
   and decay cleanup. Per-strategy opt-in is the sole enablement gate.
 - Optional fail-soft cross-venue market-intelligence libraries remain for
@@ -124,8 +124,8 @@ git switch prod
 dependencies, and provisions the isolated test PostgreSQL at
 `127.0.0.1:9876`, including its complete test schema. The editable install
 provides the runtime dependencies declared in `pyproject.toml`, including the
-Coinbase SDK, PostgreSQL driver, Rich, and the dashboard WebSocket version used
-by this branch.
+Coinbase SDK, PostgreSQL driver, JSON Schema validator, and dashboard WebSocket
+version used by this branch.
 
 ### 3. Configure the process
 
@@ -181,7 +181,8 @@ It does not delete rows/tables, contact Coinbase, or start the engine.
 worktree, runs the complete local non-external suite, checks the repository
 graph and final diff, and proves the worktree stayed clean. The deployment then
 performs the guarded database bootstrap, forces paused startup, launches the
-canonical `python -m main` path, and verifies live `admin_status` health before
+canonical `python -m main` path, and verifies correlated
+`v1.runtime.status` health before
 remaining attached to the engine. Run the launcher under a foreground process
 supervisor for durability. It never resets data, resumes trading, places orders,
 pushes Git state, or daemonizes itself.
@@ -213,8 +214,9 @@ the exchange/local drift safety barrier.
 
 ### 5. Connect an operator UI
 
-With the configuration above, the engine exposes its unauthenticated dashboard
-protocol at `ws://localhost:8765`. `main` reads `DASHBOARD_SERVER_HOST`, falling
+With the configuration above, the engine exposes its unauthenticated JSON-RPC
+operator protocol at `ws://localhost:8765`. `main` reads
+`DASHBOARD_SERVER_HOST`, falling
 back to `HOSTNAME`, then `localhost`; `DASHBOARD_SERVER_PORT` defaults to
 `8765`. Settings are read when `main()` starts and are passed explicitly to the
 embedded transport. Set them before launch, and do not expose this operator
@@ -236,8 +238,15 @@ Open one of the local HTML files directly in a browser:
   authoritative engine state. Its **Resume Engine** button is enabled only
   while connected and exactly `PAUSED`, and requires confirmation.
 - `ui_order_span_builder.html` — create a ladder/span of stealth orders with a
-  fixed 200 ms batch-send cadence and a configurable price-hold duration,
-  including zero seconds. Open it only after the engine reports `RUNNING`.
+  single declarative server-planned request and a configurable price-hold
+  duration, including zero seconds. Open it only after the engine reports
+  `RUNNING`.
+
+Both pages first call `v1.session.bootstrap`; mutation requests remain disabled
+until that response supplies runtime state, products, capabilities, and the
+authoritative stealth projection. Every request has a caller UUID and exactly
+one correlated terminal response. Server state, ticker, and spread updates are
+separate named notifications. Legacy ad-hoc `type` messages are unsupported.
 
 Hotpoint replication is an off-by-default option on each created strategy (or
 span). That checkbox is the only enablement control; there is no global
@@ -245,7 +254,7 @@ Hotpoint kill switch or separate Hotpoint manager.
 
 Use `Ctrl+C` in the engine terminal for the ordinary cooperative drain and
 stop. The tracked HTML clients do not currently expose the
-`admin_shutdown` protocol command.
+`v1.runtime.shutdown` protocol method.
 
 ## Validation
 
@@ -325,7 +334,8 @@ and verifies terminal cleanup without retained per-order state.
 | `scripts/validate_release.sh` | Clean-worktree full-suite, graph, and diff release gate |
 | `scripts/bootstrap_runtime_database.sh` | Guarded runtime identity/fresh-state check and schema deployment entry point |
 | `scripts/deploy_runtime.sh` | Foreground paused launcher with live dashboard health verification |
-| `dashboard_server.py` | Embedded operator WebSocket command and state transport; runtime dependencies are installed by `main.py` |
+| `dashboard_server.py` | Embedded operator JSON-RPC dispatch and state-notification adapter; runtime dependencies are installed by `main.py` |
+| `operator_api/` | Strict JSON-RPC framing plus the committed version-one JSON Schema |
 
 Deeper architecture, configuration, and message-contract references are
 indexed by [ai-context.md](ai-context.md). Current code, schema, configuration,

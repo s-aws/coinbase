@@ -33,7 +33,8 @@ applies.
 | Spec | Status | Scope | Read when |
 |---|---|---|---|
 | [Execution Core](EXECUTION_CORE.md) | `IMPLEMENTING` | Modular-monolith checklist item 5; stages 5.1-5.2 implemented | Reviewing commands, queries, execution ownership, dependency inversion, or future dashboard/CLI command paths |
-| [Operator Console](OPERATOR_CONSOLE.md) | `ACCEPTED` | Unified TypeScript/Vite operator workflow, protocol, and deployment contract; implementation not started | Reviewing operator UI, dashboard protocol, frontend tooling, static delivery, or deployment prerequisites |
+| [Operator Console](OPERATOR_CONSOLE.md) | `IMPLEMENTING` | Stage 1 JSON-RPC normalization implemented; TypeScript/Vite and delivery stages not started | Reviewing operator UI, protocol, frontend tooling, static delivery, or deployment prerequisites |
+| [Operator Protocol](OPERATOR_PROTOCOL.md) | `IMPLEMENTED` | Exact Operator Console stage 1 JSON-RPC decisions and acceptance evidence | Reviewing operator wire framing, method dispatch, identifiers, errors, notifications, or backup versions |
 
 Read only the task-relevant spec. Do not bulk-load this directory.
 

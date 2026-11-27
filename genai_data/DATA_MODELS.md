@@ -69,8 +69,14 @@ High-impact enums:
 - `StealthLifecycleEvent`
 - `EventStreamType`, `EventSourceChannel`
 - `EngineState`, `WebSocketEventType`, `UserFeedPhase`
+- `OperatorRpcMethod`, `OperatorNotificationMethod`, `OperatorOutcome`,
+  `OperatorErrorReason`, `OperatorRpcErrorCode`
 
 Use enums instead of string literals in new behavior.
+
+The operator enums define the fixed JSON-RPC vocabulary. Method-specific
+parameter structure remains owned by `operator_api/schema.json`; the RPC `id`
+is correlation metadata and is never an order identifier.
 
 `WebSocketEventType` is the authenticated wire kind (`snapshot`, `update`, or
 `patch`) and must not be substituted for the lifecycle `OrderStatus` carried

@@ -68,11 +68,13 @@ release, bootstraps a fresh trading database, launches this module paused, and
 verifies dashboard health while remaining attached to the process.
 
 ### `dashboard_server.py`
-WebSocket server for operator commands and state broadcasts.
-Owns the message contract for the two supported browser UIs.
+WebSocket adapter for correlated operator JSON-RPC commands and named state
+notifications. It owns explicit method dispatch for the two supported browser
+UIs and the deployment healthcheck; framing and schema validation live in
+`operator_api/`.
 It is an embedded transport, not a process composition root: `main.py`
 installs the shared `OrderBook`, publish interval, `ExecutionCore`, and stealth
-bridge. Six originating request variants are parsed into typed facade commands;
+bridge. Six originating methods are parsed into typed facade commands;
 the transport does not perform its former check-then-act admission precheck.
 Direct
 script execution exits with canonical
@@ -80,6 +82,14 @@ entrypoint guidance. `main()` owns environment resolution and passes the host
 and port explicitly; direct `run_websocket_server()` defaults remain
 `localhost:8765`. See `CONFIGURATION.md` for listener and independent client
 endpoint settings.
+
+### `operator_api/`
+Transport-only JSON-RPC framing. `protocol.py` validates canonical caller UUID
+IDs, method-specific object params, one-request envelopes, and serializes
+success, structured error, and server-notification envelopes. `schema.json` is
+the committed Draft 2020-12 contract consumed by Python and reserved for the
+accepted TypeScript console bindings. It owns no lifecycle, persistence,
+exchange, or admission behavior.
 
 ### `configuration.py`
 Passive configuration model and loader. Importing it performs no environment,
@@ -352,7 +362,7 @@ trading state read-only, permits only existing candle/tick telemetry, delegates
 schema work to `database.schema`, and never starts the trading engine.
 
 ### `scripts/runtime_healthcheck.py`
-Dashboard `admin_status` poller used by deployment. A healthy result requires
+Correlated `v1.runtime.status` poller used by deployment. A healthy result requires
 `PAUSED`, admission closed, no stop transition, and zero in-flight work.
 
 ### Dashboard and market-data persistence helpers

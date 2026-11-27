@@ -1,6 +1,6 @@
 # Module Dependency Contract
 
-Reconciled with the `prod` checkout on 2026-11-26. Current source and tests
+Reconciled with the current checkout on 2026-11-27. Current source and tests
 remain the evidence for runtime behavior.
 
 ## Purpose and Authority
@@ -27,7 +27,7 @@ The contract covers the installed runtime packages plus these supported root
 modules:
 
 - composition: `main.py`, `configuration.py`;
-- operator modules: `dashboard_server.py`, `order.py`;
+- operator modules: `dashboard_server.py`, `operator_api/`, `order.py`;
 - shared logging adapter: `logging_service.py`.
 
 Tests, `genai_tools/`, repository-graph tooling, scripts, and unsupported root
@@ -60,6 +60,10 @@ command/query protocols; `main.py` supplies the shared runtime controller and
 bridge. The facade receives no persistence, exchange, dashboard, or integration
 capability. Stage 5.2 moves dashboard origination behind the facade but retires
 none of the exact item-5 reverse-import debt entries yet.
+
+Operator Console stage 1 adds `operator_api` in the operator zone. It owns only
+JSON-RPC framing and committed schema validation; lifecycle, persistence,
+exchange, and admission remain behind the existing application/domain owners.
 
 These directions describe the target modular monolith. Existing reverse edges
 are exact debt entries rather than broad package exemptions. Item 4 retired

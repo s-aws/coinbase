@@ -24,6 +24,7 @@ requires-python = ">=3.14"
 # legacy ``websockets.server`` compatibility module.
 dependencies = [
     "coinbase-advanced-py>=1.8,<2",
+    "jsonschema>=4.23,<5",
     "psycopg2>=2.9,<3",
     "tabulate>=0.9,<1",
     "websockets>=13,<14",
@@ -41,8 +42,12 @@ packages = [
     "external",
     "integration",
     "market_intel",
+    "operator_api",
     "websocket",
 ]
+
+[tool.setuptools.package-data]
+operator_api = ["schema.json"]
 
 # `database` and `websocket` lack __init__.py today; declare them as
 # namespace packages so setuptools includes them anyway.

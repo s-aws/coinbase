@@ -164,143 +164,159 @@ drift-checked/hydrated without DB or order-lifecycle side effects. Only later
 complete live rows enter bounded, keyed canonical `process_user_order`
 dispatch; failed admission desynchronizes and reconnects.
 
-## 3) Dashboard WebSocket Contract
+## 3) Operator WebSocket JSON-RPC Contract
 
-Transport is JSON over plain WebSocket at the configured host and port.
-The supported `python -m main` entrypoint reads `DASHBOARD_SERVER_HOST`
-(fallback `HOSTNAME`, then `localhost`) and integer `DASHBOARD_SERVER_PORT`
-(default `8765`) at startup and passes both explicitly to the embedded
-transport. Direct `run_websocket_server()` calls retain literal
-`localhost:8765` defaults, but `dashboard_server.py` is not a supported
-standalone runtime entrypoint.
-The API is unauthenticated; local-only deployments should explicitly bind
-to loopback. Client URLs are configured separately and do not inherit the
-server environment. See [listener and client configuration](CONFIGURATION.md#dashboard-websocket-listener-dashboard_serverpy)
-for precedence, parsing, and browser endpoint behavior.
+Transport is JSON-RPC 2.0 over plain WebSocket at the configured host and
+port. The supported `python -m main` entrypoint owns the embedded listener;
+`dashboard_server.py` is not a standalone runtime. The API remains
+unauthenticated, so supported deployments bind it to loopback. Client endpoint
+selection remains independent of listener configuration; see
+[CONFIGURATION.md](CONFIGURATION.md#dashboard-websocket-listener-dashboard_serverpy).
 
-### Client request message types
+The executable protocol schema is committed at `operator_api/schema.json`.
+`core.enums.OperatorRpcMethod`, `OperatorNotificationMethod`,
+`OperatorOutcome`, `OperatorErrorReason`, and `OperatorRpcErrorCode` own
+the fixed wire vocabulary. `dashboard_server._RPC_HANDLERS` is an explicit
+method-to-function map; reflection or method-name dispatch is not supported.
 
-Runtime/admin:
-- `admin_status`
-- `admin_pause`
-- `admin_resume`
-- `admin_shutdown`
+### Request and response framing
 
-Stealth views/actions:
-- `request_stealth_orders`
-- `create_stealth_order`
-- `create_stealth_order_span`
-- `cancel_stealth_order`
-- `rehide_stealth_order`
-- `update_stealth_price_threshold`
-- `reprice_now_stealth_order`
-- `move_revealed_stealth_order`
-- `clear_all_stealth_orders`
-- `export_active_stealth_orders`
-- `import_stealth_orders`
+Every client request has exactly this envelope:
 
-Supported parent projection updates:
-- `update_parent_target_movement`
-- `update_parent_order`
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "caller-generated-canonical-lowercase-uuid",
+  "method": "v1.runtime.status",
+  "params": {}
+}
+```
 
-The originating-work admission set is exactly `create_stealth_order`,
-`create_stealth_order_span`, `reprice_now_stealth_order`,
-`rehide_stealth_order`, `move_revealed_stealth_order`, and
-`import_stealth_orders`. During process startup or any non-admitting state,
-those requests receive `admission_rejected`; reads, managed cancellation,
-cleanup, and admin control remain available.
+The server rejects batches, client notifications, non-object `params`,
+unknown top-level fields, noncanonical IDs, unknown methods, and method-specific
+schema violations. One request receives one correlated terminal success or
+error response. The request ID is correlation only; it does not make a
+non-idempotent operation safe to replay.
 
-The six variants are admitted by explicit `ExecutionCore` methods. Admission
-and `application_command` in-flight registration are one controller-lock
-operation: a concurrent pause/shutdown either rejects before delegation or sees
-the command registered and allows it to finish. The dashboard's former
-check-then-act precheck is not authoritative and has been removed.
+Success:
 
-Hotpoint replication has no dashboard command surface. It is enabled only by
-the off-by-default `enable_hotpoint_replication` field on a created strategy
-or span. Auto-created Hotpoint orders persist that field as false to prevent
-cascades. There is no global Hotpoint kill switch or manual live-test command.
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "same-request-uuid",
+  "result": {"outcome": "succeeded"}
+}
+```
 
-### Server response message types
+Application-success outcomes are `succeeded`, `accepted_pending`, and
+`partial`. Acceptance never proves exchange-terminal truth. Errors use the
+standard JSON-RPC `error.code` and `error.message` fields plus structured
+`error.data`. Stable application reasons include `invalid_params`,
+`engine_not_admitting`, `not_found`, `precondition_failed`, `conflict`,
+`unavailable`, `operation_failed`, and `indeterminate`. Validation errors
+include field paths; operational errors retain actionable evidence such as the
+failed move stage and retryability.
 
-Administrative:
-- `admin_status_response`
-- `admin_pause_response`
-- `admin_resume_response`
-- `admin_shutdown_response`
-- `admission_rejected`
+### Version-one methods
 
-Parent/stealth responses:
-- `parent_order_updated`
-- `parent_target_movement_updated`
-- `stealth_orders_snapshot`
-- `stealth_order_created`
-- `stealth_order_span_result`
-- `stealth_order_rehide_result`
-- `stealth_order_updated`
-- `stealth_order_cancel_result`
-- `stealth_order_moved`
-- `stealth_threshold_updated`
-- `reprice_now_result`
-- `export_active_stealth_orders_response`
-- `import_stealth_orders_response`
-- `stealth_orders_imported`
-- `stealth_orders_cleared`
-- `stealth_orders_clear_result`
+| Method | Purpose |
+|---|---|
+| `v1.session.bootstrap` | Required initial runtime, products, dashboard state, capabilities, and enriched stealth projection |
+| `v1.runtime.status` | Authoritative lifecycle/admission/in-flight query |
+| `v1.runtime.pause` | Pause or latch startup pause |
+| `v1.runtime.resume` | Resume only when the RuntimeController permits it |
+| `v1.runtime.shutdown` | Begin drain; success is `accepted_pending` |
+| `v1.stealth.list` | Current enriched stealth-order projection |
+| `v1.stealth.export` | Lossless active-root backup document |
+| `v1.stealth.import` | Creation-only, per-entry import |
+| `v1.stealth.create` | Create one managed logical limit order |
+| `v1.stealth.create_span` | Create/resume one deterministic span |
+| `v1.stealth.cancel` | Stop automation and request managed withdrawal |
+| `v1.stealth.rehide` | Re-arm the same zero-fill revealed strategy |
+| `v1.stealth.reprice_now` | Run one manual anchor reprice |
+| `v1.stealth.move_revealed` | Audited cancel-and-replace of a revealed placement |
+| `v1.stealth.update_price_condition` | Update root price strategy and editable materializations |
+| `v1.stealth.clear_all` | Guarded cleanup after cancellations settle |
+| `v1.strategy.update_target` | Update root target movement |
+| `v1.strategy.update_parent` | Update supported parent projection fields |
 
-Automatic state/data messages:
-- `products_list` (sent when a client registers)
-- `state_update`
-- `ticker`
-- `spread_snapshot`
-- `update_success`
-- `error`
+The exact originating-work set is `v1.stealth.create`,
+`v1.stealth.create_span`, `v1.stealth.import`, `v1.stealth.rehide`,
+`v1.stealth.reprice_now`, and `v1.stealth.move_revealed`. Each delegates
+through one explicit `ExecutionCore` method and one atomic
+`application_command` admission/in-flight registration. Reads, managed
+cancellation, guarded cleanup, and runtime control retain their reviewed
+non-originating/wind-down contracts.
 
-`admin_status_response`, `admin_pause_response`, and
-`admin_resume_response` expose `startup_pause_pending`. A startup pause
-leaves state `STARTING` until runtime readiness; resume cannot open admission
-during that interval.
+All current clients must complete `v1.session.bootstrap` before enabling
+mutations. The server is still authoritative for races. Hotpoint replication
+has no standalone command: it is the off-by-default
+`enable_hotpoint_replication` field on create/span/import.
 
-`update_stealth_price_threshold` accepts only a root price strategy. The
-manager serializes the edit across that root and its editable `HIDDEN`/
-`PENDING` children: initial Parent+Children members keep the shared absolute
-threshold, while derived follow-ups preserve their child-relative percentage
-inversion. `stealth_threshold_updated` includes `affected_conditions`, keyed by
-`stealth_order_id`, so clients can replace every materialized condition
-immediately. A committed `TRIGGERED` snapshot is not rewritten.
+### Server notifications
 
-Dashboard delivery is latest-state and bounded. Concurrent order, position,
-status, and log mutations coalesce behind one `state_update` publisher; a
-mutation during a send produces at most one follow-up snapshot. Ticker relay
-similarly retains only the newest unsent update per product. Client sends time
-out after two seconds and the lagging client is removed from broadcast fanout.
-The dashboard cache keeps every active direct order plus the newest 1,000
-terminal direct orders; durable history remains in PostgreSQL. One-second
-spread messages are computed from constant-space per-product accumulators,
-including while no dashboard client is connected.
-Stealth snapshots copy their view under `state_lock`, release the lock, and
-enrich all referenced parent `client_order_id` rows with one bulk query.
+Server pushes are JSON-RPC notifications: they contain `jsonrpc`, `method`,
+and object `params`, but never an `id`, `result`, or `error`.
+
+| Notification | Projection |
+|---|---|
+| `v1.projection.runtime` | Coalesced bounded `engine_state` snapshot |
+| `v1.projection.stealth_orders` | Enriched order map and repricing statistics |
+| `v1.market.ticker` | Newest unsent ticker per product |
+| `v1.market.spread_snapshot` | One-second bounded spread aggregate |
+
+Connection registration sends no uncorrelated bootstrap fragments. The
+bootstrap response is the initial coherent client entry point; later
+notifications are distinct from command responses.
+
+Dashboard delivery remains latest-state and bounded. Concurrent order,
+position, status, and log mutations coalesce behind one runtime projection
+publisher. Ticker relay retains only the newest unsent update per product.
+Client sends time out after two seconds and lagging clients leave fanout. The
+dashboard cache keeps every active direct order plus the newest 1,000 terminal
+direct orders; durable history remains in PostgreSQL. Spread aggregation uses
+constant per-product memory. Stealth snapshots copy under `state_lock`,
+release it, then enrich referenced parent `client_order_id` values with one
+bulk query.
+
+### Backup document versions
+
+`v1.stealth.export` returns a document with schema
+`coinbase.stealth-orders`, version `2`, export timestamp, count, and active
+root orders. Version 2 preserves every replayed strategy field, including
+`enable_hotpoint_replication`. Follow-ups remain excluded because they are
+regenerated by lifecycle behavior.
+
+`v1.stealth.import` accepts versions 1 and 2. The historical unversioned
+`export_active_stealth_orders_response` file is recognized explicitly as
+version 1. Version 2 requires the canonical schema marker. The explicit
+version-1 migration maps the former
+`stealth_order_id` wire field to `client_order_id`, defaults the field that
+old backups could not represent to `enable_hotpoint_replication=false`, and
+returns a warning. Import is admitted as one application command but remains a
+per-entry, non-atomic creation workflow; every entry has a result.
 
 ### Stealth message contract rules
 
 - A dashboard request type is considered active only when it is implemented end to end: browser/terminal caller, `dashboard_server.py` handler, bridge method if the handler routes through `StealthOrderBridge`, manager/domain method, and regression coverage.
 - Do not document speculative message types as active. If a design is not implemented, keep it in design notes, not in the request/response tables above.
 - The stealth-manager table displays a parent group when the parent or any child is `HIDDEN`, `PENDING`, `TRIGGERED`, `REVEALED`, or awaiting exchange confirmation of an operator cancellation. Terminal parents remain visible as containers for active children; all children in a displayed group remain available through the existing expansion control. A settled terminal-only group is omitted.
-- `request_stealth_orders` and `stealth_orders_snapshot` already include revealed orders; the visibility rule is browser-side and does not change the WebSocket payload or backend lifecycle.
-- The UI `Rehide` action sends `rehide_stealth_order` for the existing stealth identity; it never creates a duplicate. It disables conflicting row actions while exchange withdrawal is pending and disables Rehide for known executed quantity. Terminal Cancel remains available to supersede a pending rehide.
+- `v1.stealth.list`, bootstrap, and `v1.projection.stealth_orders` include revealed orders; the visibility rule is browser-side and does not change backend lifecycle.
+- The UI `Rehide` action calls `v1.stealth.rehide` with the existing `client_order_id`; it never creates a duplicate. It disables conflicting row actions while exchange withdrawal is pending and disables Rehide for known executed quantity. Terminal Cancel remains available to supersede a pending rehide.
 
 ### Operator cancellation and guarded deletion
 
-`cancel_stealth_order` returns `stealth_order_cancel_result` with
-`stealth_order_id`, `accepted`, `exchange_cancel_pending`, authoritative `order`,
-and `message` (plus `error` on failure). Local automation stops durably before
+`v1.stealth.cancel` succeeds with `client_order_id`, `accepted`,
+`exchange_cancel_pending`, authoritative `order`, and `message`. A refusal is
+a structured JSON-RPC application error carrying retained order evidence.
+Local automation stops durably before
 exchange cancellation is requested. An accepted request may still await exchange
 confirmation; even a failed request can expose a retained, stopped order needing
 reconciliation. The browser never infers exchange cancellation from acceptance.
 Cancellation is available while paused/draining and for REVEALED orders.
 
 Clear All first requests canonical cancellations. If any cancellation fails or
-remains unresolved, `stealth_orders_clear_result` reports `cleared=false` and
+remains unresolved, the JSON-RPC error data reports `cleared=false` and
 retains all memory, database rows, and recovery history. The operator can retry
 after confirmation; there is no deferred-delete job. Database deletion is
 transactionally guarded against active status, pending intent, live placement
@@ -309,9 +325,9 @@ to remove a logical root or placement row needed by unresolved stealth activity.
 Import remains creation-only and rejects an existing identity rather than
 overwriting pending cancellation evidence.
 
-### `rehide_stealth_order`
+### `v1.stealth.rehide`
 
-Request: `{"type": "rehide_stealth_order", "stealth_order_id": "<existing stealth id>"}`.
+Request params: `{"client_order_id": "<existing logical stealth id>"}`.
 
 This is a manual `REVEALED` to `HIDDEN` operation on the same zero-fill stealth
 order, not restoration of an already-cancelled order. It preserves the configured
@@ -322,22 +338,23 @@ confirmation before resetting the hidden cycle. The existing reveal policy then
 resumes; a satisfied condition may reveal the order again immediately, subject to
 its configured hold/delay. A fill discovered during cancellation prevents rehide.
 
-Response: `stealth_order_rehide_result` with `stealth_order_id`, `accepted`, and
-`message`; failures also include `error`. `accepted: true` acknowledges durable
+The success result contains `client_order_id`, `accepted`, `message`, and
+`outcome=accepted_pending`; failures use the JSON-RPC error envelope.
+`accepted: true` acknowledges durable
 intent, **not** confirmed withdrawal or a `HIDDEN` state. Initial exchange rejection
-or timeout can leave this request pending reconciliation. The browser refreshes
-`request_stealth_orders` and renders authoritative state without marking the order
-hidden itself. Repeat pending requests must not create another order or placement.
+or timeout can leave this request pending reconciliation. The browser renders
+authoritative runtime/stealth projections without marking the order hidden
+itself. Repeat pending requests must not create another order or placement.
 
 The command originates a new reveal cycle, so it requires atomic `RUNNING`
 admission through `ExecutionCore` plus bridge readiness. A lifecycle race that
-wins before registration returns `admission_rejected`; after registration, a
+wins before registration returns `engine_not_admitting`; after registration, a
 pause may close new admission while this Rehide finishes under its per-order
-lock. Validation, readiness, or persistence failure returns
-`stealth_order_rehide_result` with `accepted: false`. Ordinary cancellation
+lock. Validation, readiness, or persistence failure returns a structured
+application error. Ordinary cancellation
 remains independently available under its existing contract.
 
-### `create_stealth_order` high-impact fields
+### `v1.stealth.create` high-impact fields
 
 Core fields:
 - `product_id`
@@ -398,7 +415,7 @@ numeric policy values, negative unit-bearing distances, and
 hydrated so an old or partial row does not become unloadable.
 
 The span builder sends one declarative base policy to
-`create_stealth_order_span`; the server planner materializes a policy for every
+`v1.stealth.create_span`; the server planner materializes a policy for every
 execution unit. For zero-based span index `i`, it adds the same nonnegative offset to
 `target_distance` and `max_distance`: `i * price_step` for `A`, or
 `i * (price_step / start_price)` for `P`. The backend remains responsible for
@@ -408,14 +425,16 @@ fixed quote-unit spacing. In Parent+Children mode, the per-child values are
 derived execution materializations of the root span policy, not independent
 child strategy choices.
 
-### `create_stealth_order_span`
+### `v1.stealth.create_span`
 
 Request shape:
 
 ```json
 {
-  "type": "create_stealth_order_span",
-  "span": {
+  "jsonrpc": "2.0",
+  "id": "caller-generated-request-uuid",
+  "method": "v1.stealth.create_span",
+  "params": {
     "span_id": "UUID idempotency key",
     "product_id": "BTC-USDC",
     "side": "BUY",
@@ -431,7 +450,7 @@ Request shape:
 ```
 
 The remaining span-level fields use the corresponding
-`create_stealth_order` policy names: `reveal_pricing_policy`,
+`v1.stealth.create` policy names: `reveal_pricing_policy`,
 `sizing_strategy`, `follow_up_reveal_direction`, `max_order_replacements`,
 `target_movement`, `target_movement_type`, `allow_partial_fills`,
 `anchor_repricing_policy`, `enable_hotpoint_replication`, and `notes`.
@@ -449,7 +468,7 @@ fields is a conflict. In Parent+Children mode every child links directly to the
 deterministic rung-zero root; strategy is supplied once at span level and
 per-child values are derived execution materializations.
 
-Response type is `stealth_order_span_result`. It includes `status`
+The correlated result contains a `span` object with `status`
 (`success`, `partial`, or `error`), requested/effective totals, aggregate
 counts, and ordered rung results (`created`, `existing`, `failed`, or
 `not_attempted`). Planning errors create no orders. Runtime creation stops at
@@ -500,7 +519,7 @@ a sample taken during STARTING, PAUSED, DRAINING, or STOPPED.
 The nested `user_feed` object reports generation, phase, bootstrap size,
 generation-inflight count, private queue depth, and keyed-dispatcher pending,
 queue, and active-key counts from one processor snapshot.
-`admin_status_response` is the live state authority after the engine stop
+`v1.runtime.status` is the live state authority after the engine stop
 hook's final DRAINING sample.
 
 `OrderEngine.prepare_for_global_drain()` is the early ordered hook. It sets the
@@ -522,11 +541,11 @@ Inflight categories used by callers include:
 ## 5) Error-Handling Guidance
 
 - Use domain-specific exceptions from `core/exceptions.py`.
-- WebSocket handlers should return structured `error` payloads, not raw tracebacks.
+- WebSocket handlers return structured JSON-RPC errors, never raw tracebacks.
 - Analytics may degrade with structured errors. Startup reconciliation and
   scheduler integrity are fail-closed readiness boundaries; do not describe
   them as universally fail-soft.
 
 ---
 
-Last reconciled with checkout: 2026-10-09
+Last reconciled with checkout: 2026-11-27

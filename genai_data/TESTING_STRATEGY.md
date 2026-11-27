@@ -77,7 +77,9 @@ Examples include:
   snapshot/bootstrap timeout, generation-drain fencing, position isolation,
   keyed per-COID FIFO, and `EXPIRED` cleanup
   (`tests/regression/test_user_channel_patch_dispatch.py`)
-- dashboard handler contracts
+- strict operator JSON-RPC framing, method/schema/dispatch inventory,
+  correlation, named notifications, browser cutover, and backup-version
+  contracts
 - missed-fill reconciliation behavior
 - fresh-database enforcement, release validation, foreground paused deployment,
   and authoritative dashboard-health contracts

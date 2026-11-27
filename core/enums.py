@@ -7,7 +7,7 @@ derived from Coinbase API responses and WebSocket messages. Using enums improves
 - Consistency across the codebase
 """
 
-from enum import Enum
+from enum import Enum, IntEnum
 
 
 # ============================================================================
@@ -631,6 +631,82 @@ class TargetMovementType(str, Enum):
     """
     PERCENTAGE = "P"       # As percentage (e.g., 0.004 = 0.4%)
     ABSOLUTE = "A"         # As absolute amount (e.g., $500)
+
+
+# ============================================================================
+# OPERATOR JSON-RPC PROTOCOL
+# ============================================================================
+
+class OperatorRpcMethod(str, Enum):
+    """Supported version-one operator request methods.
+
+    The JSON-RPC envelope supplies correlation and protocol framing. These
+    values version the application method contract independently of JSON-RPC
+    itself so a future incompatible operator API can coexist explicitly.
+    """
+
+    SESSION_BOOTSTRAP = "v1.session.bootstrap"
+    RUNTIME_STATUS = "v1.runtime.status"
+    RUNTIME_PAUSE = "v1.runtime.pause"
+    RUNTIME_RESUME = "v1.runtime.resume"
+    RUNTIME_SHUTDOWN = "v1.runtime.shutdown"
+    STEALTH_LIST = "v1.stealth.list"
+    STEALTH_EXPORT = "v1.stealth.export"
+    STEALTH_IMPORT = "v1.stealth.import"
+    STEALTH_CREATE = "v1.stealth.create"
+    STEALTH_CREATE_SPAN = "v1.stealth.create_span"
+    STEALTH_CANCEL = "v1.stealth.cancel"
+    STEALTH_REHIDE = "v1.stealth.rehide"
+    STEALTH_REPRICE_NOW = "v1.stealth.reprice_now"
+    STEALTH_MOVE_REVEALED = "v1.stealth.move_revealed"
+    STEALTH_UPDATE_PRICE_CONDITION = "v1.stealth.update_price_condition"
+    STEALTH_CLEAR_ALL = "v1.stealth.clear_all"
+    STRATEGY_UPDATE_TARGET = "v1.strategy.update_target"
+    STRATEGY_UPDATE_PARENT = "v1.strategy.update_parent"
+
+
+class OperatorNotificationMethod(str, Enum):
+    """Server-originated JSON-RPC notification methods."""
+
+    RUNTIME_PROJECTION = "v1.projection.runtime"
+    STEALTH_ORDERS_PROJECTION = "v1.projection.stealth_orders"
+    MARKET_TICKER = "v1.market.ticker"
+    MARKET_SPREAD_SNAPSHOT = "v1.market.spread_snapshot"
+
+
+class OperatorOutcome(str, Enum):
+    """Application meaning of a successful JSON-RPC result."""
+
+    SUCCEEDED = "succeeded"
+    ACCEPTED_PENDING = "accepted_pending"
+    PARTIAL = "partial"
+
+
+class OperatorErrorReason(str, Enum):
+    """Stable machine-readable reasons carried in JSON-RPC error data."""
+
+    INVALID_PARAMS = "invalid_params"
+    ENGINE_NOT_ADMITTING = "engine_not_admitting"
+    NOT_FOUND = "not_found"
+    PRECONDITION_FAILED = "precondition_failed"
+    CONFLICT = "conflict"
+    UNAVAILABLE = "unavailable"
+    OPERATION_FAILED = "operation_failed"
+    INDETERMINATE = "indeterminate"
+
+
+class OperatorRpcErrorCode(IntEnum):
+    """JSON-RPC standard and reserved application error codes."""
+
+    PARSE_ERROR = -32700
+    INVALID_REQUEST = -32600
+    METHOD_NOT_FOUND = -32601
+    INVALID_PARAMS = -32602
+    INTERNAL_ERROR = -32603
+    ENGINE_NOT_ADMITTING = -32001
+    APPLICATION_REJECTED = -32002
+    APPLICATION_FAILED = -32003
+    APPLICATION_INDETERMINATE = -32004
 
 
 # ============================================================================

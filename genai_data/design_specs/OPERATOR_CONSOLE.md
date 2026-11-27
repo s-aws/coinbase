@@ -2,13 +2,14 @@
 
 | Field | Value |
 |---|---|
-| Status | `ACCEPTED` |
+| Status | `IMPLEMENTING` |
 | Operator approval | Accepted 2026-11-27; TypeScript/build-chain decision confirmed 2026-11-27 |
 | Checklist or objective | Replace the experimental browser UIs after the application command boundary is stable |
 | Last evidence review | 2026-11-27, current worktree based on `c84d3b0d` |
-| Implementation | Workflow contract accepted; source implementation not started |
+| Implementation | Stage 1 protocol normalization implemented; stages 2-6 not started |
 
-> `ACCEPTED` records the reviewed target and constraints. The current HTML
+> `IMPLEMENTING` records the reviewed target and active staged implementation.
+> The current HTML
 > prototypes remain the supported clients until an implementation stage is
 > separately reviewed, validated, and cut over.
 
@@ -29,16 +30,19 @@ would not meet that requirement.
 
 ## Evidence From the Current Checkout
 
-- `dashboard_server.py` is an embedded, unauthenticated WebSocket transport and
-  large mixed command/projection adapter.
+- `dashboard_server.py` remains an embedded, unauthenticated WebSocket
+  transport and mixed command/projection adapter, but Stage 1 gives it one
+  explicit versioned JSON-RPC dispatch boundary.
 - `ui_stealth_orders_manager.html` and `ui_order_span_builder.html` are the only
   retained browser clients. Both are standalone HTML/JavaScript prototypes.
 - The repository currently has no `package.json`, lockfile, pinned Node
   version, frontend build, or Node prerequisite in `setup.sh`, release
   validation, or deployment.
-- The current clients contain listeners for response/update names that the
-  server does not emit. Import/export also omits
-  `enable_hotpoint_replication`, so a replay is not yet a lossless protocol.
+- `operator_api/schema.json`, protocol enums, explicit server dispatch, both
+  retained HTML clients, and `scripts/runtime_healthcheck.py` now share one
+  JSON-RPC 2.0 contract. Ghost variants are removed. Backup document version 2
+  preserves `enable_hotpoint_replication`; version 1 has an explicit lossy-field
+  migration warning.
 - `scripts/deploy_runtime.sh` validates, bootstraps, and starts the Python
   runtime, but it neither builds nor verifies browser assets.
 - Execution Core stage 5.2 supplies the atomic application-admission boundary
@@ -95,8 +99,13 @@ remain unchanged.
 - Initial connection obtains runtime status plus authoritative order
   projections before mutation controls become available.
 
-Exact envelope schemas belong to the focused protocol-normalization stage and
-must be reviewed before implementation.
+The implemented Stage 1 envelope is JSON-RPC 2.0 with versioned `v1.*` methods,
+canonical caller UUID IDs, object params, one terminal response per request,
+and named server notifications. Batch requests and client notifications are
+unsupported. The committed Draft 2020-12 schema is the executable contract;
+request IDs provide correlation only, not generic idempotent replay.
+The complete reviewed Stage 1 decision is retained in
+`OPERATOR_PROTOCOL.md`.
 
 ## Build and Deployment Contract
 
@@ -178,11 +187,11 @@ is never a production dependency or deployment entrypoint.
 Each implementation stage requires a focused current-checkout search and blast
 radius review before source changes.
 
-1. **Protocol normalization:** inventory supported commands/projections, remove
+1. **Protocol normalization — implemented:** inventory supported commands/projections, remove
    ghost variants, add version/request IDs, close import/export field loss, and
    define typed failure envelopes. Blast radius: dashboard protocol, tests,
    current clients, API documentation.
-2. **Build and delivery foundation:** add the pinned Node/npm prerequisites,
+2. **Build and delivery foundation — not approved for source changes:** add the pinned Node/npm prerequisites,
    TypeScript/Vite source shell, locked dependency/bootstrap path, production
    static adapter, and setup/release/deployment integration. Blast radius:
    repository root configuration, scripts, `main.py`, operator transport,
@@ -224,7 +233,12 @@ locked/reproducible deployment contract.
 
 ## Implementation Mapping
 
-No console source has been implemented. Execution Core stage 5.2 is a required
-backend prerequisite and is mapped in `EXECUTION_CORE.md`; it does not itself
-establish the protocol, frontend, static delivery, or deployment behavior
-described here.
+Stage 1 is implemented by `operator_api/`, the operator enums in
+`core/enums.py`, `dashboard_server.py`, the two retained prototype clients,
+`scripts/runtime_healthcheck.py`, and operator-protocol regression coverage.
+The living wire contract is `API_REFERENCE.md`; the committed executable schema
+is `operator_api/schema.json`. This stage deliberately does not introduce the
+TypeScript/Vite source tree, Node/npm prerequisites, static delivery, or
+deployment build integration. Stage 2 requires its own current-checkout search,
+blast-radius review, package/version selection, and operator approval before
+source changes.

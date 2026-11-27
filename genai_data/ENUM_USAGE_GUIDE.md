@@ -1,6 +1,6 @@
 # Enum Usage Guide
 
-Reconciled on 2026-10-09 from `core/enums.py`. Import directly from that module;
+Reconciled on 2026-11-27 from `core/enums.py`. Import directly from that module;
 `core/__init__.py` re-exports only a subset. Use enum members inside domain code
 and `.value` for persisted/wire values. UI JSON uses the same wire values.
 
@@ -57,6 +57,11 @@ expiry month strings.
 | `StealthLifecycleEvent` | `CREATED=CREATED`, `CONDITION_WATCHING=CONDITION_WATCHING`, `CONDITION_RESET=CONDITION_RESET`, `CONDITION_MET=CONDITION_MET`, `REVEAL_ATTEMPTED=REVEAL_ATTEMPTED`, `PLACEMENT_BLOCKED=PLACEMENT_BLOCKED`, `REVEAL_FAILED=REVEAL_FAILED`, `REVEAL_SUCCEEDED=REVEAL_SUCCEEDED`, `FILL_RECEIVED=FILL_RECEIVED`, `EXECUTED=EXECUTED`, `CANCELLED=CANCELLED` |
 | `TargetMovementType` | `PERCENTAGE=P`, `ABSOLUTE=A` |
 | `EngineState` | `STARTING=STARTING`, `RUNNING=RUNNING`, `PAUSING=PAUSING`, `PAUSED=PAUSED`, `DRAINING=DRAINING`, `STOPPED=STOPPED` |
+| `OperatorRpcMethod` | Versioned `v1.session.*`, `v1.runtime.*`, `v1.stealth.*`, and `v1.strategy.*` request methods; see `operator_api/schema.json` for params |
+| `OperatorNotificationMethod` | `RUNTIME_PROJECTION=v1.projection.runtime`, `STEALTH_ORDERS_PROJECTION=v1.projection.stealth_orders`, `MARKET_TICKER=v1.market.ticker`, `MARKET_SPREAD_SNAPSHOT=v1.market.spread_snapshot` |
+| `OperatorOutcome` | `SUCCEEDED=succeeded`, `ACCEPTED_PENDING=accepted_pending`, `PARTIAL=partial` |
+| `OperatorErrorReason` | Stable `error.data.reason` vocabulary for operator RPC failures |
+| `OperatorRpcErrorCode` | Standard JSON-RPC codes plus reserved application codes `-32001` through `-32004` |
 | `HotpointPlacementPolicy` | `WINDOW_CENTER=WINDOW_CENTER`, `LAST_FILL=LAST_FILL`, `MEAN_OF_FILLS=MEAN_OF_FILLS` |
 | `HotpointFillSource` | `OWN_ORDERS=OWN_ORDERS`, `TAPE=TAPE` |
 

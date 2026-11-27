@@ -3,9 +3,9 @@ WebSocket handler.
 
 Covers:
 
-1. Message type is registered in ``_ORIGINATING_MSG_TYPES`` and routes through
+1. RPC method is registered in ``_ORIGINATING_METHODS`` and routes through
    the Execution Core atomic admission boundary.
-2. Happy path → ``stealth_order_moved`` success response with new
+2. Happy path → one correlated JSON-RPC result with the new
    exchange order id and broadcasts to all connected clients.
 3. ``StealthMoveError`` raised by the executor surfaces the failing
    ``stage`` to the UI verbatim — this is what tells the operator
@@ -27,8 +27,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from core.enums import OperatorRpcErrorCode, OperatorRpcMethod
 from core.execution_core import ExecutionCore
 from core.runtime_controller import RuntimeController
+from tests.regression.operator_rpc_test_support import (
+    rpc_error,
+    rpc_request,
+    rpc_result,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -77,8 +83,8 @@ def test_move_revealed_is_registered_as_originating_msg_type():
     must remain classified as an Execution Core originating command."""
     import dashboard_server
 
-    assert "move_revealed_stealth_order" in dashboard_server._ORIGINATING_MSG_TYPES, (
-        "move_revealed_stealth_order must remain in the originating command "
+    assert OperatorRpcMethod.STEALTH_MOVE_REVEALED in dashboard_server._ORIGINATING_METHODS, (
+        "v1.stealth.move_revealed must remain in the originating command "
         "inventory"
     )
 
@@ -110,9 +116,8 @@ def test_handler_happy_path_returns_success_and_broadcasts():
     ))
     controller = _admitting_controller()
 
-    message = json.dumps({
-        "type": "move_revealed_stealth_order",
-        "stealth_order_id": "sid_happy",
+    message = rpc_request(OperatorRpcMethod.STEALTH_MOVE_REVEALED, {
+        "client_order_id": "sid_happy",
         "new_limit_price": 101.5,
         "reason": "manual_user_move",
         "notes": "ui-test",
@@ -124,6 +129,8 @@ def test_handler_happy_path_returns_success_and_broadcasts():
          patch.object(dashboard_server, "EXECUTION_CORE",
                       _execution_core(controller, bridge)), \
          patch.object(dashboard_server, "connected_clients", {ws, other_client}), \
+         patch.object(dashboard_server, "_broadcast_stealth_orders_projection",
+                      new=AsyncMock()) as broadcast, \
          patch.object(dashboard_server, "add_log_entry"):
         _run(dashboard_server.handle_client_message(ws, message))
 
@@ -133,15 +140,15 @@ def test_handler_happy_path_returns_success_and_broadcasts():
     assert build_args.args[0] == "sid_happy"
     assert build_args.args[1] == 101.5
 
-    # Broadcast — both clients received the success payload.
-    for client in (ws, other_client):
-        assert client.send.await_count >= 1
+    # Exactly one correlated response goes to the requester. Projection
+    # publication is a separate named server notification.
+    assert ws.send.await_count == 1
+    other_client.send.assert_not_awaited()
+    broadcast.assert_awaited_once_with()
     payloads = _sent_payloads(ws)
-    success = [p for p in payloads if p.get("type") == "stealth_order_moved"]
-    assert len(success) == 1, f"expected one stealth_order_moved payload, got {payloads}"
-    body = success[0]
-    assert body["success"] is True
-    assert body["stealth_order_id"] == "sid_happy"
+    assert len(payloads) == 1
+    body = rpc_result(payloads[0])
+    assert body["client_order_id"] == "sid_happy"
     assert body["old_exchange_order_id"] == "old_ex_123"
     assert body["new_placement_client_order_id"] == "new_placement_coid_456"
     assert body["new_exchange_order_id"] == "new_ex_789"
@@ -178,9 +185,8 @@ def test_handler_surfaces_stealth_move_error_stage_to_ui(stage):
     )
     controller = _admitting_controller()
 
-    message = json.dumps({
-        "type": "move_revealed_stealth_order",
-        "stealth_order_id": "sid_fail",
+    message = rpc_request(OperatorRpcMethod.STEALTH_MOVE_REVEALED, {
+        "client_order_id": "sid_fail",
         "new_limit_price": 100.0,
     })
 
@@ -194,15 +200,15 @@ def test_handler_surfaces_stealth_move_error_stage_to_ui(stage):
         _run(dashboard_server.handle_client_message(ws, message))
 
     payloads = _sent_payloads(ws)
-    move_payloads = [p for p in payloads if p.get("type") == "stealth_order_moved"]
-    assert len(move_payloads) == 1
-    body = move_payloads[0]
-    assert body["success"] is False
-    assert body["stage"] == stage, (
-        f"handler dropped or rewrote the stage tag (got {body.get('stage')!r}, "
+    assert len(payloads) == 1
+    error = rpc_error(payloads[0])
+    assert error["code"] == int(OperatorRpcErrorCode.APPLICATION_FAILED)
+    assert error["data"]["stage"] == stage, (
+        "handler dropped or rewrote the stage tag "
+        f"(got {error['data'].get('stage')!r}, "
         f"expected {stage!r}). The UI uses this to decide recovery action."
     )
-    assert "forced" in body["error"]
+    assert "forced" in error["message"]
 
 
 # ---------------------------------------------------------------------------
@@ -227,9 +233,8 @@ def test_handler_rejects_unknown_reason_with_validate_stage():
     )
     controller = _admitting_controller()
 
-    message = json.dumps({
-        "type": "move_revealed_stealth_order",
-        "stealth_order_id": "sid_bad_reason",
+    message = rpc_request(OperatorRpcMethod.STEALTH_MOVE_REVEALED, {
+        "client_order_id": "sid_bad_reason",
         "new_limit_price": 100.0,
         "reason": "totally_made_up",
     })
@@ -244,12 +249,10 @@ def test_handler_rejects_unknown_reason_with_validate_stage():
         _run(dashboard_server.handle_client_message(ws, message))
 
     payloads = _sent_payloads(ws)
-    move_payloads = [p for p in payloads if p.get("type") == "stealth_order_moved"]
-    assert len(move_payloads) == 1
-    body = move_payloads[0]
-    assert body["success"] is False
-    assert body["stage"] == "validate"
-    assert "totally_made_up" in body["error"]
+    assert len(payloads) == 1
+    error = rpc_error(payloads[0])
+    assert error["code"] == int(OperatorRpcErrorCode.INVALID_PARAMS)
+    assert "totally_made_up" in json.dumps(error)
     bridge.move_revealed_stealth_order.assert_not_called()
 
 
@@ -259,7 +262,7 @@ def test_handler_rejects_unknown_reason_with_validate_stage():
 
 
 @pytest.mark.regression
-@pytest.mark.parametrize("missing", ["stealth_order_id", "new_limit_price"])
+@pytest.mark.parametrize("missing", ["client_order_id", "new_limit_price"])
 def test_handler_rejects_missing_required_fields(missing):
     import dashboard_server
 
@@ -267,8 +270,7 @@ def test_handler_rejects_missing_required_fields(missing):
     bridge = MagicMock()
 
     payload = {
-        "type": "move_revealed_stealth_order",
-        "stealth_order_id": "sid_x",
+        "client_order_id": "sid_x",
         "new_limit_price": 100.0,
     }
     payload.pop(missing)
@@ -281,13 +283,15 @@ def test_handler_rejects_missing_required_fields(missing):
                       _execution_core(controller, bridge)), \
          patch.object(dashboard_server, "connected_clients", {ws}), \
          patch.object(dashboard_server, "add_log_entry"):
-        _run(dashboard_server.handle_client_message(ws, json.dumps(payload)))
+        _run(dashboard_server.handle_client_message(
+            ws,
+            rpc_request(OperatorRpcMethod.STEALTH_MOVE_REVEALED, payload),
+        ))
 
     payloads = _sent_payloads(ws)
-    move_payloads = [p for p in payloads if p.get("type") == "stealth_order_moved"]
-    assert len(move_payloads) == 1
-    assert move_payloads[0]["success"] is False
-    assert move_payloads[0]["stage"] == "validate"
+    assert len(payloads) == 1
+    error = rpc_error(payloads[0])
+    assert error["code"] == int(OperatorRpcErrorCode.INVALID_PARAMS)
     bridge.move_revealed_stealth_order.assert_not_called()
 
 
@@ -375,9 +379,8 @@ def test_smoke_handler_drives_real_build_and_execute_end_to_end():
 
     ws = _make_websocket()
 
-    message = json.dumps({
-        "type": "move_revealed_stealth_order",
-        "stealth_order_id": "sid_smoke",
+    message = rpc_request(OperatorRpcMethod.STEALTH_MOVE_REVEALED, {
+        "client_order_id": "sid_smoke",
         "new_limit_price": 101.5,
         "reason": "manual_user_move",
         "notes": "smoke-test",
@@ -389,6 +392,8 @@ def test_smoke_handler_drives_real_build_and_execute_end_to_end():
          patch.object(dashboard_server, "EXECUTION_CORE",
                       _execution_core(controller, bridge)), \
          patch.object(dashboard_server, "connected_clients", {ws}), \
+         patch.object(dashboard_server, "_broadcast_stealth_orders_projection",
+                      new=AsyncMock()), \
          patch.object(dashboard_server, "add_log_entry"), \
          patch.object(mgr, "_get_stealth_order", return_value=order), \
          patch.object(mgr, "_update_stealth_order") as update_mock, \
@@ -410,13 +415,9 @@ def test_smoke_handler_drives_real_build_and_execute_end_to_end():
 
     # --- WS contract -----------------------------------------------------
     payloads = _sent_payloads(ws)
-    move_payloads = [p for p in payloads if p.get("type") == "stealth_order_moved"]
-    assert len(move_payloads) == 1, (
-        f"expected exactly one stealth_order_moved payload, got {payloads!r}"
-    )
-    body = move_payloads[0]
-    assert body["success"] is True, f"expected success, got {body!r}"
-    assert body["stealth_order_id"] == "sid_smoke"
+    assert len(payloads) == 1
+    body = rpc_result(payloads[0])
+    assert body["client_order_id"] == "sid_smoke"
     assert body["old_exchange_order_id"] == "old_exchange"
     # Both ids surfaced inline:
     #   - placement_client_order_id (internal tracking, per AGENTS.md)

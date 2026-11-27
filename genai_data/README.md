@@ -45,8 +45,9 @@ This is a multithreaded Coinbase trading engine with:
 - Runtime lifecycle control (`STARTING`, `RUNNING`, transitional `PAUSING`, `PAUSED`, `DRAINING`, `STOPPED`) via `core/runtime_controller.py`.
 - Startup and periodic reconciliation against exchange truth (`core/startup_reconciler.py`, `core/periodic_reconciler.py`).
 - Fill ledger + cross-source fill reconciliation (`business/fill_ledger.py`, `business/fill_reconciler.py`).
-- Dashboard WebSocket adapter (`dashboard_server.py`) over the typed Execution
-  Core plus two current prototype browser consumers.
+- Versioned dashboard JSON-RPC adapter (`dashboard_server.py` and
+  `operator_api/`) over the typed Execution Core plus two current prototype
+  browser consumers.
 - Durable market telemetry (`market_tick`, `market_candle_1m`) retained for
   engine use and future analysis.
 - Cross-venue support libraries remain under `market_intel/` and `external/`,
@@ -111,9 +112,11 @@ A stealth order is a local execution plan, not a normal exchange order. It may s
 ## Quick Troubleshooting Pointers
 
 - Order ownership or linkage confusion: see `ORDER_ID_HANDLING.md`.
-- Runtime pause/drain behavior: see `ARCHITECTURE.md` and `API_REFERENCE.md` admin messages.
+- Runtime pause/drain behavior: see `ARCHITECTURE.md` and the versioned runtime
+  methods in `API_REFERENCE.md`.
 - Fill mismatches or missed fills: see `ARCHITECTURE.md` reconciliation section and `DEBUGGING_STRATEGY.md`.
-- Dashboard request/response mismatch: see `API_REFERENCE.md` message contract tables.
+- Operator request/response mismatch: see `API_REFERENCE.md` JSON-RPC method,
+  error, and notification contracts plus `operator_api/schema.json`.
 - Stealth behavior summary: see `ARCHITECTURE.md`, `DATA_MODELS.md`, and `API_REFERENCE.md`.
 - Test triage and required commands: see `TESTING_STRATEGY.md`.
 - Module ownership, allowed dependency direction, and frozen architectural

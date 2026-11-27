@@ -177,13 +177,13 @@ def test_span_builder_sends_one_declarative_policy_for_server_materialization():
     create_span = _slice_between(
         html,
         "function createOrderSpan()",
-        "function generateUUID()",
+        "function readNonNegativeWholeSeconds(",
     )
     assert "anchor_repricing_policy: buildAnchorRepricingPolicy()" in create_span
-    assert "type: 'create_stealth_order_span'" in create_span
+    assert "sendRpc(RPC_METHODS.CREATE_SPAN" in create_span
     assert "span_id: spanId" in create_span
     assert "...formData" in create_span
-    assert create_span.count("ws.send(") == 1
+    assert create_span.count("sendRpc(") == 1
     assert "setTimeout(" not in create_span
     assert "buildIndexedAnchorRepricingPolicy(" not in create_span
 
@@ -194,7 +194,7 @@ def test_browser_sends_creation_mode_and_one_root_reveal_definition():
     create_span = _slice_between(
         html,
         "function createOrderSpan()",
-        "function generateUUID()",
+        "function readNonNegativeWholeSeconds(",
     )
 
     assert "creation_mode: document.getElementById('creation_mode').value" in create_span
@@ -260,7 +260,7 @@ def test_span_profit_target_type_is_selected_and_forwarded_independently():
     create_span = _slice_between(
         html,
         "function createOrderSpan()",
-        "function generateUUID()",
+        "function readNonNegativeWholeSeconds(",
     )
     assert (
         "target_movement_type: document.getElementById('target_movement_type').value"
@@ -269,7 +269,7 @@ def test_span_profit_target_type_is_selected_and_forwarded_independently():
 
     assert "...formData" in create_span
     assert "target_movement_type: 'P'" not in create_span
-    assert create_span.index("target_movement_type:") < create_span.index("ws.send(")
+    assert create_span.index("target_movement_type:") < create_span.index("sendRpc(")
 
 
 @pytest.mark.regression
@@ -291,7 +291,7 @@ def test_span_profit_target_validation_and_reset_are_type_aware():
     create_span = _slice_between(
         html,
         "function createOrderSpan()",
-        "function generateUUID()",
+        "function readNonNegativeWholeSeconds(",
     )
     target_validation = create_span.index(
         "getTargetMovementValidationError(formData)"
@@ -299,7 +299,7 @@ def test_span_profit_target_validation_and_reset_are_type_aware():
     anchor_validation = create_span.index(
         "getAnchorRepricingValidationError("
     )
-    send_dispatch = create_span.index("ws.send(")
+    send_dispatch = create_span.index("sendRpc(")
     assert target_validation < anchor_validation < send_dispatch
 
     reset = _slice_between(

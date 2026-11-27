@@ -9,7 +9,8 @@ The runtime is centered on a single `OrderEngine` instance (`core/order_engine.p
 
 - `core/user_feed_processor.py`: authenticated connection-generation state,
   ordered envelope reduction, bounded keyed dispatch, and feed metrics.
-- `dashboard_server.py`: operator command surface and state broadcast over WebSocket.
+- `dashboard_server.py` + `operator_api/`: versioned operator JSON-RPC
+  transport, schema validation, explicit dispatch, and state notifications.
 - `bridges/stealth_order_bridge.py` +
   `bridges/stealth_event_deadline_scheduler.py`: ordered stealth condition
   evaluation, deadline scheduling, and reveal orchestration.
@@ -50,7 +51,8 @@ persistence mutations remain owned by the bridge, manager, and engine.
   `OrderEngine.on_message`; authenticated user/futures-balance/heartbeat
   envelopes enter through `OrderEngine.on_user_message` on a separate
   `WSUserClient` connection and are owned by its `UserFeedProcessor`.
-- Dashboard websocket commands flow into `dashboard_server.handle_client_message`.
+- Operator JSON-RPC requests flow through `operator_api.protocol` validation
+  into the explicit `dashboard_server.handle_client_message` dispatcher.
 2. **Domain Layer**
 - `OrderEngine` handles flat parent/child cache hydration, placement-to-execution
   status projection, follow-up creation, partial-fill state, and ownership
@@ -83,8 +85,8 @@ persistence mutations remain owned by the bridge, manager, and engine.
   non-atomic; durable delivery is deferred to the process-boundary/outbox work.
 
 5. **Presentation Layer**
-- Dashboard state, ticker, and spread broadcasts for the two retained HTML
-  consumers.
+- Named runtime, stealth-order, ticker, and spread JSON-RPC notifications for
+  the two retained HTML consumers.
 - Supported stealth strategy commands and admin lifecycle control.
 
 ## Enforced In-Process Boundaries
@@ -294,8 +296,9 @@ DRAINING, and STOPPED would each have `running=false` when sampled. Monitor and
 stop publications share the engine's short lifecycle commit boundary, so a
 status snapshot prepared before stop cannot overwrite the stop hook's false
 value. That hook normally publishes DRAINING; the later logical STOPPED
-transition is immediately visible through `admin_status` but is not
-republished by OrderEngine. The stealth-manager UI additionally uses `admin_status` to render the exact
+transition is immediately visible through `v1.runtime.status` but is not
+republished by OrderEngine. The stealth-manager UI additionally uses the
+bootstrap/runtime-status result to render the exact
 authoritative state and enables its confirmed Resume control only in PAUSED.
 Other consumers may still collapse `running=false` into a stopped label.
 
@@ -514,11 +517,12 @@ guidance. Browser clients choose their own endpoints; changing the listener
 does not reconfigure clients or serve HTML. See
 `CONFIGURATION.md` for the endpoint matrix and local-only binding guidance.
 
-`dashboard_server.py` exposes command handlers for:
-- runtime admin (`admin_status`, `admin_pause`, `admin_resume`, `admin_shutdown`)
-- single/span stealth creation, managed cancel/Rehide/move/reprice, and import/export
-- price-threshold, parent-target, and supported parent-order updates
-- active-order reads and guarded clear-all cleanup
+`dashboard_server.py` accepts only the methods declared by
+`OperatorRpcMethod` and `operator_api/schema.json`. One explicit dispatch map
+covers bootstrap, runtime control, single/span creation, managed
+cancel/Rehide/move/reprice, import/export, price/target/parent updates,
+active-order reads, and guarded cleanup. Caller UUIDs correlate exactly one
+terminal response; they do not provide generic idempotent replay.
 
 The only supported browser clients are `ui_stealth_orders_manager.html` and
 `ui_order_span_builder.html`. Hotpoint replication is an off-by-default
@@ -526,10 +530,17 @@ per-strategy field; there is no independent global kill switch or manager UI.
 Their approved replacement is the not-yet-implemented unified TypeScript/Vite
 console in `design_specs/OPERATOR_CONSOLE.md`.
 
-Broadcast model:
-- shared in-memory `engine_state`
-- periodic and event-driven `state_update` pushes
-- JSON-safe serialization for Decimal/datetime payloads
+Publication model:
+- shared in-memory `engine_state`;
+- `v1.projection.runtime` and `v1.projection.stealth_orders` notifications;
+- `v1.market.ticker` and `v1.market.spread_snapshot` notifications; and
+- JSON-safe serialization for Decimal/datetime payloads.
+
+Client registration sends no uncorrelated fragments. The required
+`v1.session.bootstrap` response supplies initial runtime, products,
+capabilities, dashboard state, and enriched stealth projection before clients
+enable mutations. Batches and client notifications are unsupported. The API
+remains unauthenticated and loopback-only in supported deployment.
 
 ## Optional Cross-Venue Intelligence
 

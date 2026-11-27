@@ -1,0 +1,345 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://coinbase-engine.local/operator-api/v1/schema.json",
+  "title": "Coinbase Engine Operator JSON-RPC Protocol",
+  "oneOf": [
+    {"$ref": "#/$defs/request"},
+    {"$ref": "#/$defs/successResponse"},
+    {"$ref": "#/$defs/errorResponse"},
+    {"$ref": "#/$defs/notification"}
+  ],
+  "$defs": {
+    "requestId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "clientOrderId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "\\S"
+    },
+    "emptyParams": {
+      "type": "object",
+      "additionalProperties": false
+    },
+    "revealCondition": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {"type": {"type": "string", "minLength": 1}},
+      "additionalProperties": true
+    },
+    "createOrderParams": {
+      "type": "object",
+      "required": [
+        "client_order_id",
+        "product_id",
+        "side",
+        "total_size",
+        "limit_price",
+        "reveal_condition"
+      ],
+      "properties": {
+        "client_order_id": {"$ref": "#/$defs/clientOrderId"},
+        "product_id": {"type": "string", "minLength": 1},
+        "side": {"enum": ["BUY", "SELL"]},
+        "total_size": {"type": "number", "exclusiveMinimum": 0},
+        "limit_price": {"type": "number", "exclusiveMinimum": 0},
+        "reveal_condition": {"$ref": "#/$defs/revealCondition"},
+        "reveal_pricing_policy": {
+          "type": ["string", "null"],
+          "enum": ["configured_limit", "top_of_book", "midpoint", null]
+        },
+        "sizing_strategy": {"type": "object"},
+        "parent_client_order_id": {
+          "oneOf": [{"$ref": "#/$defs/clientOrderId"}, {"type": "null"}]
+        },
+        "follow_up_reveal_direction": {"enum": ["same", "opposite"]},
+        "notes": {"type": "string"},
+        "max_order_replacements": {"type": ["integer", "null"], "minimum": 0},
+        "target_movement": {"type": "number", "minimum": 0},
+        "target_movement_type": {"enum": ["P", "A"]},
+        "allow_partial_fills": {"type": "boolean"},
+        "anchor_repricing_policy": {"type": ["object", "null"]},
+        "enable_hotpoint_replication": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "createSpanParams": {
+      "type": "object",
+      "required": [
+        "span_id",
+        "product_id",
+        "side",
+        "total_size",
+        "start_price",
+        "price_step",
+        "order_count",
+        "size_distribution",
+        "creation_mode",
+        "reveal_condition"
+      ],
+      "properties": {
+        "span_id": {"type": "string", "minLength": 1, "maxLength": 128},
+        "product_id": {"type": "string", "minLength": 1},
+        "side": {"enum": ["BUY", "SELL"]},
+        "total_size": {"type": "number", "exclusiveMinimum": 0},
+        "start_price": {"type": "number", "exclusiveMinimum": 0},
+        "price_step": {"type": "number", "minimum": 0},
+        "order_count": {"type": "integer", "minimum": 1},
+        "size_distribution": {"enum": ["equal", "ascending", "descending", "pyramid"]},
+        "creation_mode": {"enum": ["independent_parents", "parent_children"]},
+        "reveal_condition": {"$ref": "#/$defs/revealCondition"},
+        "reveal_pricing_policy": {
+          "type": ["string", "null"],
+          "enum": ["configured_limit", "top_of_book", "midpoint", null]
+        },
+        "sizing_strategy": {"type": "object"},
+        "follow_up_reveal_direction": {"enum": ["same", "opposite"]},
+        "notes": {"type": "string"},
+        "max_order_replacements": {"type": ["integer", "null"], "minimum": 0},
+        "target_movement": {"type": "number", "minimum": 0},
+        "target_movement_type": {"enum": ["P", "A"]},
+        "allow_partial_fills": {"type": "boolean"},
+        "anchor_repricing_policy": {"type": ["object", "null"]},
+        "enable_hotpoint_replication": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "methodParams": {
+      "v1.session.bootstrap": {"$ref": "#/$defs/emptyParams"},
+      "v1.runtime.status": {"$ref": "#/$defs/emptyParams"},
+      "v1.runtime.pause": {"$ref": "#/$defs/emptyParams"},
+      "v1.runtime.resume": {"$ref": "#/$defs/emptyParams"},
+      "v1.runtime.shutdown": {
+        "type": "object",
+        "properties": {
+          "timeout_seconds": {"type": "number", "minimum": 0}
+        },
+        "additionalProperties": false
+      },
+      "v1.stealth.list": {"$ref": "#/$defs/emptyParams"},
+      "v1.stealth.export": {"$ref": "#/$defs/emptyParams"},
+      "v1.stealth.import": {
+        "type": "object",
+        "required": ["document"],
+        "properties": {
+          "document": {
+            "type": "object",
+            "required": ["orders"],
+            "properties": {
+              "schema": {"type": "string"},
+              "version": {"enum": [1, 2]},
+              "type": {"const": "export_active_stealth_orders_response"},
+              "status": {"const": "success"},
+              "exported_at": {"type": "string"},
+              "count": {"type": "integer", "minimum": 0},
+              "orders": {
+                "type": "array",
+                "items": {"type": "object"}
+              }
+            },
+            "additionalProperties": false,
+            "anyOf": [
+              {"required": ["version"]},
+              {"required": ["type"]}
+            ],
+            "allOf": [
+              {
+                "if": {
+                  "properties": {"version": {"const": 2}},
+                  "required": ["version"]
+                },
+                "then": {
+                  "required": ["schema"],
+                  "not": {
+                    "anyOf": [
+                      {"required": ["type"]},
+                      {"required": ["status"]}
+                    ]
+                  },
+                  "properties": {
+                    "schema": {"const": "coinbase.stealth-orders"},
+                    "orders": {
+                      "type": "array",
+                      "items": {"$ref": "#/$defs/createOrderParams"}
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "v1.stealth.create": {"$ref": "#/$defs/createOrderParams"},
+      "v1.stealth.create_span": {"$ref": "#/$defs/createSpanParams"},
+      "v1.stealth.cancel": {
+        "type": "object",
+        "required": ["client_order_id"],
+        "properties": {"client_order_id": {"$ref": "#/$defs/clientOrderId"}},
+        "additionalProperties": false
+      },
+      "v1.stealth.rehide": {
+        "type": "object",
+        "required": ["client_order_id"],
+        "properties": {"client_order_id": {"$ref": "#/$defs/clientOrderId"}},
+        "additionalProperties": false
+      },
+      "v1.stealth.reprice_now": {
+        "type": "object",
+        "required": ["client_order_id"],
+        "properties": {"client_order_id": {"$ref": "#/$defs/clientOrderId"}},
+        "additionalProperties": false
+      },
+      "v1.stealth.move_revealed": {
+        "type": "object",
+        "required": ["client_order_id", "new_limit_price"],
+        "properties": {
+          "client_order_id": {"$ref": "#/$defs/clientOrderId"},
+          "new_limit_price": {"type": "number", "exclusiveMinimum": 0},
+          "reason": {"enum": ["manual_user_move", "operator_reprice"]},
+          "notes": {"type": ["string", "null"]},
+          "new_target_movement": {"type": ["number", "null"], "minimum": 0},
+          "new_target_movement_type": {"type": ["string", "null"], "enum": ["P", "A", null]}
+        },
+        "additionalProperties": false
+      },
+      "v1.stealth.update_price_condition": {
+        "type": "object",
+        "required": ["client_order_id", "price_threshold"],
+        "properties": {
+          "client_order_id": {"$ref": "#/$defs/clientOrderId"},
+          "price_threshold": {"type": "number", "exclusiveMinimum": 0},
+          "hold_duration_seconds": {"type": ["integer", "null"], "minimum": 0}
+        },
+        "additionalProperties": false
+      },
+      "v1.stealth.clear_all": {"$ref": "#/$defs/emptyParams"},
+      "v1.strategy.update_target": {
+        "type": "object",
+        "required": ["parent_client_order_id", "target_movement", "target_movement_type"],
+        "properties": {
+          "parent_client_order_id": {"$ref": "#/$defs/clientOrderId"},
+          "target_movement": {"type": "number", "minimum": 0},
+          "target_movement_type": {"enum": ["P", "A"]}
+        },
+        "additionalProperties": false
+      },
+      "v1.strategy.update_parent": {
+        "type": "object",
+        "required": ["client_order_id", "size", "price", "max_order_replacement", "status"],
+        "properties": {
+          "client_order_id": {"$ref": "#/$defs/clientOrderId"},
+          "size": {"type": "number", "minimum": 0},
+          "price": {"type": "number", "minimum": 0},
+          "target_movement": {"type": ["number", "null"], "minimum": 0},
+          "max_order_replacement": {"type": "integer", "minimum": 0},
+          "status": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      }
+    },
+    "resultBase": {
+      "type": "object",
+      "required": ["outcome"],
+      "properties": {
+        "outcome": {"enum": ["succeeded", "accepted_pending", "partial"]}
+      }
+    },
+    "methodResults": {
+      "v1.session.bootstrap": {
+        "allOf": [
+          {"$ref": "#/$defs/resultBase"},
+          {
+            "type": "object",
+            "required": ["protocol_version", "capabilities", "runtime", "products", "stealth_orders"],
+            "properties": {
+              "protocol_version": {"const": 1},
+              "capabilities": {"type": "object"},
+              "runtime": {"type": "object"},
+              "products": {"type": "object"},
+              "stealth_orders": {"type": "object"},
+              "dashboard_state": {"type": "object"},
+              "server_time": {"type": "string"}
+            }
+          }
+        ]
+      },
+      "v1.runtime.status": {"$ref": "#/$defs/resultBase"},
+      "v1.runtime.pause": {"$ref": "#/$defs/resultBase"},
+      "v1.runtime.resume": {"$ref": "#/$defs/resultBase"},
+      "v1.runtime.shutdown": {"$ref": "#/$defs/resultBase"},
+      "v1.stealth.list": {"$ref": "#/$defs/resultBase"},
+      "v1.stealth.export": {"$ref": "#/$defs/resultBase"},
+      "v1.stealth.import": {"$ref": "#/$defs/resultBase"},
+      "v1.stealth.create": {"$ref": "#/$defs/resultBase"},
+      "v1.stealth.create_span": {"$ref": "#/$defs/resultBase"},
+      "v1.stealth.cancel": {"$ref": "#/$defs/resultBase"},
+      "v1.stealth.rehide": {"$ref": "#/$defs/resultBase"},
+      "v1.stealth.reprice_now": {"$ref": "#/$defs/resultBase"},
+      "v1.stealth.move_revealed": {"$ref": "#/$defs/resultBase"},
+      "v1.stealth.update_price_condition": {"$ref": "#/$defs/resultBase"},
+      "v1.stealth.clear_all": {"$ref": "#/$defs/resultBase"},
+      "v1.strategy.update_target": {"$ref": "#/$defs/resultBase"},
+      "v1.strategy.update_parent": {"$ref": "#/$defs/resultBase"}
+    },
+    "request": {
+      "type": "object",
+      "required": ["jsonrpc", "id", "method"],
+      "properties": {
+        "jsonrpc": {"const": "2.0"},
+        "id": {"$ref": "#/$defs/requestId"},
+        "method": {"type": "string"},
+        "params": {"type": "object"}
+      },
+      "additionalProperties": false
+    },
+    "successResponse": {
+      "type": "object",
+      "required": ["jsonrpc", "id", "result"],
+      "properties": {
+        "jsonrpc": {"const": "2.0"},
+        "id": {"$ref": "#/$defs/requestId"},
+        "result": {"$ref": "#/$defs/resultBase"}
+      },
+      "additionalProperties": false
+    },
+    "errorResponse": {
+      "type": "object",
+      "required": ["jsonrpc", "id", "error"],
+      "properties": {
+        "jsonrpc": {"const": "2.0"},
+        "id": {"oneOf": [{"$ref": "#/$defs/requestId"}, {"type": "null"}]},
+        "error": {
+          "type": "object",
+          "required": ["code", "message"],
+          "properties": {
+            "code": {"type": "integer"},
+            "message": {"type": "string"},
+            "data": {"type": "object"}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "notification": {
+      "type": "object",
+      "required": ["jsonrpc", "method", "params"],
+      "properties": {
+        "jsonrpc": {"const": "2.0"},
+        "method": {
+          "enum": [
+            "v1.projection.runtime",
+            "v1.projection.stealth_orders",
+            "v1.market.ticker",
+            "v1.market.spread_snapshot"
+          ]
+        },
+        "params": {"type": "object"}
+      },
+      "additionalProperties": false
+    }
+  }
+}

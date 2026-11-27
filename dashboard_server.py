@@ -12,9 +12,11 @@ import asyncio
 import json
 from contextlib import nullcontext
 from copy import deepcopy
+from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 from threading import Thread, Lock
-from typing import Any, Dict, Optional, Set
+from typing import Any, Awaitable, Callable, Dict, Optional, Set
 import websockets
 from websockets.server import WebSocketServerProtocol
 
@@ -32,6 +34,11 @@ from logging_service import get_logger
 from core.enums import (
     EngineState,
     FollowUpRevealDirection,
+    OperatorErrorReason,
+    OperatorNotificationMethod,
+    OperatorOutcome,
+    OperatorRpcErrorCode,
+    OperatorRpcMethod,
     OrderSide,
     OrderStatus,
     RevealPricingPolicy,
@@ -52,24 +59,34 @@ from core.execution_core import (
     RepriceStealthOrderRequest,
 )
 from core.models import RepricingPolicy
-from core.exceptions import WebSocketMessageError, OrderCreationError
+from core.exceptions import OrderCreationError
 from core.runtime_controller import (
     get_runtime_controller,
     validate_drain_timeout_seconds,
 )
 from calculation.formatter import safe_float
+from operator_api.protocol import (
+    STEALTH_EXPORT_SCHEMA,
+    STEALTH_EXPORT_VERSION,
+    OperatorRpcError,
+    OperatorRpcRequest,
+    decode_request,
+    encode_error,
+    encode_notification,
+    encode_success,
+)
 
-# Message types that *originate* new work and therefore must route through an
+# RPC methods that *originate* new work and therefore must route through an
 # explicit ``ExecutionCore`` command. Cancellations, queries, and admin commands
 # are intentionally excluded so the engine remains controllable and existing
 # positions can be wound down while paused or draining.
-_ORIGINATING_MSG_TYPES = frozenset({
-    "create_stealth_order",
-    "create_stealth_order_span",
-    "reprice_now_stealth_order",
-    "rehide_stealth_order",
-    "move_revealed_stealth_order",
-    "import_stealth_orders",
+_ORIGINATING_METHODS = frozenset({
+    OperatorRpcMethod.STEALTH_CREATE,
+    OperatorRpcMethod.STEALTH_CREATE_SPAN,
+    OperatorRpcMethod.STEALTH_REPRICE_NOW,
+    OperatorRpcMethod.STEALTH_REHIDE,
+    OperatorRpcMethod.STEALTH_MOVE_REVEALED,
+    OperatorRpcMethod.STEALTH_IMPORT,
 })
 
 # Stealth-order statuses considered "active" for export. Derived from the
@@ -87,11 +104,9 @@ _ACTIVE_STEALTH_STATUSES = frozenset(
     s.value for s in StealthOrderStatus if s.value not in _TERMINAL_STEALTH_STATUSES
 )
 
-# Fields on the in-memory stealth order that map back to create_stealth_order
-# kwargs (keys exactly match what the existing "create_stealth_order" message
-# handler expects in `data["order"]`). Listing them explicitly avoids leaking
-# runtime-only state (revealed_orders, executed_size, anchor state, etc.) into
-# the export payload.
+# Fields on the in-memory stealth order that map back to the canonical create
+# request. Listing them explicitly avoids leaking runtime-only state
+# (revealed_orders, executed_size, anchor state, etc.) into the export payload.
 _EXPORT_FIELDS = (
     "product_id",
     "side",
@@ -107,6 +122,7 @@ _EXPORT_FIELDS = (
     "target_movement_type",
     "allow_partial_fills",
     "anchor_repricing_policy_json",  # → anchor_repricing_policy
+    "enable_hotpoint_replication",
 )
 
 logger = get_logger("DashboardServer")
@@ -162,18 +178,6 @@ _state_publish_dirty = False
 _ticker_publish_lock = Lock()
 _ticker_publish_scheduled = False
 _pending_ticker_updates: Dict[str, Dict[str, Any]] = {}
-
-# Custom JSON encoder for handling Decimal and other non-standard types
-from decimal import Decimal
-
-class CustomJSONEncoder(json.JSONEncoder):
-    """JSON encoder that handles Decimal, datetime, and other special types."""
-    def default(self, obj):
-        if isinstance(obj, Decimal):
-            return float(obj)
-        if hasattr(obj, 'isoformat'):  # datetime, date, time
-            return obj.isoformat()
-        return super().default(obj)
 
 # Event loop reference (set when server starts)
 server_event_loop = None
@@ -248,30 +252,48 @@ def _build_market_metrics_payload() -> Dict[str, Any]:
 
 
 async def register_client(websocket: WebSocketServerProtocol):
-    """Register a new connected client."""
+    """Register a client without sending uncorrelated bootstrap fragments."""
     connected_clients.add(websocket)
     logger.info(f"Client connected. Total clients: {len(connected_clients)}")
-    
-    # Send products list first
+
+
+def _load_products_payload() -> Dict[str, Any]:
+    """Return the static product catalog used by operator clients."""
+
+    products_file = Path(__file__).parent / "products.json"
+    if not products_file.exists():
+        return {"derivatives": [], "spot": [], "metadata": {}}
     try:
-        import json as json_lib
-        from pathlib import Path
-        products_file = Path(__file__).parent / "products.json"
-        if products_file.exists():
-            with open(products_file, 'r') as f:
-                products_data = json_lib.load(f)
-                products_payload = {
-                    "type": "products_list",
-                    "derivatives": products_data.get("derivatives", []),
-                    "spot": products_data.get("spot", []),
-                    "metadata": products_data.get("metadata", {}),
-                }
-                await _send_dashboard_message(websocket, json_lib.dumps(products_payload))
-    except Exception as e:
-        logger.error(f"Failed to send products list: {e}")
-    
-    # Send current state to newly connected client
-    await broadcast_state(websocket)
+        with products_file.open("r", encoding="utf-8-sig") as products_stream:
+            products_data = json.load(products_stream)
+    except Exception as exc:
+        logger.error(f"Failed to load products list: {exc}")
+        raise OperatorRpcError(
+            OperatorRpcErrorCode.APPLICATION_FAILED,
+            "Product catalog is unavailable",
+            reason=OperatorErrorReason.UNAVAILABLE,
+            data={"retryable": True},
+        ) from exc
+    return {
+        "derivatives": products_data.get("derivatives", []),
+        "spot": products_data.get("spot", []),
+        "metadata": products_data.get("metadata", {}),
+    }
+
+
+def _runtime_status_payload() -> Dict[str, Any]:
+    """Return the authoritative RuntimeController status projection."""
+
+    controller = get_runtime_controller()
+    return {
+        "engine_state": controller.state.value,
+        "is_admitting": controller.is_admitting(),
+        "is_stopping": controller.is_stopping(),
+        "startup_pause_pending": controller.startup_pause_pending(),
+        "inflight": controller.inflight_snapshot(),
+        "total_inflight": controller.total_inflight(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 async def unregister_client(websocket: WebSocketServerProtocol):
@@ -325,19 +347,64 @@ async def _broadcast_dashboard_message(message: str) -> None:
             pass
 
 
+def _normalize_stealth_orders_for_operator(
+    orders: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Translate legacy manager identity fields into the wire contract."""
+
+    normalized: Dict[str, Any] = {}
+    for map_client_order_id, raw_order in orders.items():
+        if not isinstance(raw_order, dict):
+            normalized[map_client_order_id] = raw_order
+            continue
+        order = deepcopy(raw_order)
+        client_order_id = order.pop(
+            "stealth_order_id",
+            order.get("client_order_id") or map_client_order_id,
+        )
+        order["client_order_id"] = client_order_id
+        if "parent_order_id" in order:
+            order["parent_client_order_id"] = order.pop(
+                "parent_order_id"
+            )
+        revealed_orders = order.get("revealed_orders")
+        if isinstance(revealed_orders, list):
+            for reveal_event in revealed_orders:
+                if not isinstance(reveal_event, dict):
+                    continue
+                if "placed_order_id" in reveal_event:
+                    placement_client_order_id = reveal_event.pop(
+                        "placed_order_id"
+                    )
+                    if "placement_client_order_id" not in reveal_event:
+                        reveal_event["placement_client_order_id"] = (
+                            placement_client_order_id
+                        )
+        normalized[str(client_order_id)] = order
+    return normalized
+
+
 def _build_state_update_message() -> str:
-    """Capture and serialize one internally consistent dashboard snapshot."""
+    """Capture one internally consistent runtime projection notification."""
 
     market_metrics = _build_market_metrics_payload()
+    runtime_status = _runtime_status_payload()
     with state_lock:
         engine_state["market_metrics"] = market_metrics
         state_snapshot = deepcopy(engine_state)
-    payload = {
-        "type": "state_update",
-        "data": state_snapshot,
-        "timestamp": datetime.utcnow().isoformat(),
-    }
-    return json.dumps(payload, cls=CustomJSONEncoder)
+    state_snapshot["engine_status"].update(runtime_status)
+    state_snapshot["stealth_orders"] = (
+        _normalize_stealth_orders_for_operator(
+            state_snapshot["stealth_orders"]
+        )
+    )
+    return encode_notification(
+        OperatorNotificationMethod.RUNTIME_PROJECTION,
+        {
+            "state": state_snapshot,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    )
 
 
 async def _async_broadcast_state():
@@ -425,19 +492,19 @@ def _stealth_exchange_cancel_pending(order: Dict[str, Any]) -> bool:
     )
 
 
-def _cancel_managed_stealth_order(stealth_order_id: str, reason: str) -> Dict[str, Any]:
+def _cancel_managed_stealth_order(client_order_id: str, reason: str) -> Dict[str, Any]:
     """Return committed local truth, never treating REST acceptance as final."""
-    if not isinstance(stealth_order_id, str) or not stealth_order_id.strip():
-        raise ValueError("A non-empty stealth_order_id is required")
+    if not isinstance(client_order_id, str) or not client_order_id.strip():
+        raise ValueError("A non-empty client_order_id is required")
     if stealth_order_bridge is None:
         raise RuntimeError("Stealth order system not initialized")
-    with stealth_order_bridge._get_order_action_lock(stealth_order_id):
-        accepted = stealth_order_bridge.cancel_stealth_order(stealth_order_id, reason)
-        current = stealth_order_bridge.stealth_manager._get_stealth_order(stealth_order_id)
+    with stealth_order_bridge._get_order_action_lock(client_order_id):
+        accepted = stealth_order_bridge.cancel_stealth_order(client_order_id, reason)
+        current = stealth_order_bridge.stealth_manager._get_stealth_order(client_order_id)
         order = deepcopy(current) if current is not None else None
     pending = _stealth_exchange_cancel_pending(order) if order is not None else False
     response = {
-        "stealth_order_id": stealth_order_id,
+        "client_order_id": client_order_id,
         "accepted": bool(accepted),
         "exchange_cancel_pending": pending,
         "order": order,
@@ -452,7 +519,7 @@ def _cancel_managed_stealth_order(stealth_order_id: str, reason: str) -> Dict[st
         response["error"] = (order or {}).get("failure_reason") or response["message"]
     if order is not None:
         with state_lock:
-            engine_state["stealth_orders"][stealth_order_id] = deepcopy(order)
+            engine_state["stealth_orders"][client_order_id] = deepcopy(order)
     return response
 
 
@@ -460,7 +527,6 @@ def _create_stealth_order_request(
     order: Dict[str, Any],
     *,
     force_root: bool = False,
-    include_hotpoint: bool = True,
 ) -> CreateStealthOrderRequest:
     """Parse one dashboard payload into the typed application contract."""
 
@@ -474,7 +540,7 @@ def _create_stealth_order_request(
         FollowUpRevealDirection.OPPOSITE.value,
     )
     return CreateStealthOrderRequest(
-        client_order_id=order.get("stealth_order_id"),
+        client_order_id=order["client_order_id"],
         product_id=str(order["product_id"]),
         side=OrderSide(str(order["side"]).upper()),
         total_size=float(order["total_size"]),
@@ -487,7 +553,7 @@ def _create_stealth_order_request(
         ),
         sizing_strategy=order.get("sizing_strategy", {}),
         parent_client_order_id=(
-            None if force_root else order.get("parent_order_id")
+            None if force_root else order.get("parent_client_order_id")
         ),
         follow_up_reveal_direction=FollowUpRevealDirection(
             follow_up_direction
@@ -498,24 +564,18 @@ def _create_stealth_order_request(
         target_movement_type=TargetMovementType(target_type),
         allow_partial_fills=bool(order.get("allow_partial_fills", True)),
         anchor_repricing_policy=order.get("anchor_repricing_policy"),
-        enable_hotpoint_replication=(
-            bool(order.get("enable_hotpoint_replication", False))
-            if include_hotpoint
-            else False
+        enable_hotpoint_replication=bool(
+            order.get("enable_hotpoint_replication", False)
         ),
     )
 
 
-async def _admitted_value(
-    websocket: WebSocketServerProtocol,
-    msg_type: str,
-    outcome: OriginatingCommandResult[Any],
-) -> tuple[bool, Any]:
-    """Translate typed application admission refusal at the transport edge."""
+def _admitted_value(outcome: OriginatingCommandResult[Any]) -> Any:
+    """Return an admitted value or raise a structured application error."""
 
     rejection = outcome.rejection
     if rejection is None:
-        return True, outcome.value
+        return outcome.value
 
     if rejection.state is EngineState.STARTING:
         rejection_message = (
@@ -527,1202 +587,1331 @@ async def _admitted_value(
             f"Engine is {rejection.state.value}; new orders are not "
             f"being accepted. Resume the engine to place new orders."
         )
-    await _send_dashboard_message(websocket, json.dumps({
-        "type": "admission_rejected",
-        "rejected_type": msg_type,
-        "engine_state": rejection.state.value,
-        "message": rejection_message,
-    }))
     add_log_entry(
         "WARNING",
-        f"Rejected {msg_type}: engine state {rejection.state.value}",
+        "Rejected operator command: engine state "
+        f"{rejection.state.value}",
     )
-    return False, None
+    raise OperatorRpcError(
+        OperatorRpcErrorCode.ENGINE_NOT_ADMITTING,
+        rejection_message,
+        reason=OperatorErrorReason.ENGINE_NOT_ADMITTING,
+        data={
+            "engine_state": rejection.state.value,
+            "category": rejection.category,
+            "retryable": rejection.state is EngineState.PAUSED,
+        },
+    )
 
 
-async def handle_client_message(websocket: WebSocketServerProtocol, message: str):
-    """Handle incoming messages from client.
-    
-    Raises:
-        WebSocketMessageError: If message parsing fails or required fields missing
-        OrderCreationError: If order placement fails
-    """
+@dataclass(frozen=True)
+class _RpcDispatchResult:
+    payload: Dict[str, Any]
+    broadcast_runtime: bool = False
+    broadcast_stealth_orders: bool = False
+
+
+_RpcHandler = Callable[
+    [Dict[str, Any]],
+    Awaitable[_RpcDispatchResult],
+]
+
+
+def _encode_rpc_error_response(
+    request_id: Optional[str],
+    error: OperatorRpcError,
+) -> str:
+    """Encode an error, falling back if application evidence is not JSON-safe."""
+
     try:
-        # Parse incoming message
-        try:
-            data = json.loads(message)
-        except json.JSONDecodeError as e:
-            raise WebSocketMessageError(f"Invalid JSON: {e}", raw_data=message)
-        
-        msg_type = data.get("type")
-        if not msg_type:
-            raise WebSocketMessageError("Missing 'type' field in message", raw_data=message)
-        
-        # DEBUG: Log all incoming messages
-        logger.debug(f"[HANDLER] Received message type: {msg_type}")
+        return encode_error(request_id, error)
+    except Exception:
+        logger.exception("Operator RPC error evidence was not serializable")
+        fallback = OperatorRpcError(
+            OperatorRpcErrorCode.INTERNAL_ERROR,
+            "Internal operator RPC error",
+            reason=OperatorErrorReason.INDETERMINATE,
+            data={"retryable": False},
+        )
+        return encode_error(request_id, fallback)
 
-        controller = get_runtime_controller()
 
-        if msg_type == "admin_status":
-            response = {
-                "type": "admin_status_response",
-                "engine_state": controller.state.value,
-                "is_admitting": controller.is_admitting(),
-                "is_stopping": controller.is_stopping(),
-                "startup_pause_pending": controller.startup_pause_pending(),
-                "inflight": controller.inflight_snapshot(),
-                "total_inflight": controller.total_inflight(),
-                "timestamp": datetime.utcnow().isoformat(),
-            }
-            await _send_dashboard_message(websocket, json.dumps(response))
-            return
+def _rpc_result(
+    payload: Optional[Dict[str, Any]] = None,
+    *,
+    outcome: OperatorOutcome = OperatorOutcome.SUCCEEDED,
+    broadcast_runtime: bool = False,
+    broadcast_stealth_orders: bool = False,
+) -> _RpcDispatchResult:
+    result = dict(payload or {})
+    result["outcome"] = outcome.value
+    return _RpcDispatchResult(
+        payload=result,
+        broadcast_runtime=broadcast_runtime,
+        broadcast_stealth_orders=broadcast_stealth_orders,
+    )
 
-        if msg_type == "admin_pause":
-            changed = controller.request_pause()
-            response = {
-                "type": "admin_pause_response",
-                "changed": changed,
-                "engine_state": controller.state.value,
-                "startup_pause_pending": controller.startup_pause_pending(),
-            }
-            if changed:
-                if controller.state is EngineState.STARTING:
-                    add_log_entry(
-                        "WARNING",
-                        "Engine pause requested during startup via admin_pause",
-                    )
-                else:
-                    add_log_entry("WARNING", "Engine paused via admin_pause")
-            await _send_dashboard_message(websocket, json.dumps(response))
-            return
 
-        if msg_type == "admin_resume":
-            changed = controller.resume()
-            response = {
-                "type": "admin_resume_response",
-                "changed": changed,
-                "engine_state": controller.state.value,
-                "startup_pause_pending": controller.startup_pause_pending(),
-            }
-            if changed:
-                add_log_entry("INFO", "Engine resumed via admin_resume")
-            await _send_dashboard_message(websocket, json.dumps(response))
-            return
+def _rpc_application_error(
+    message: str,
+    *,
+    reason: OperatorErrorReason,
+    code: Optional[OperatorRpcErrorCode] = None,
+    data: Optional[Dict[str, Any]] = None,
+) -> OperatorRpcError:
+    resolved_code = code
+    if resolved_code is None:
+        resolved_code = (
+            OperatorRpcErrorCode.INVALID_PARAMS
+            if reason is OperatorErrorReason.INVALID_PARAMS
+            else OperatorRpcErrorCode.APPLICATION_REJECTED
+        )
+    return OperatorRpcError(
+        resolved_code,
+        message,
+        reason=reason,
+        data=data,
+    )
 
-        if msg_type == "admin_shutdown":
-            # Close admission synchronously, then acknowledge and run the
-            # bounded drain in a worker so the asyncio loop stays responsive.
-            # This prevents startup readiness from winning after the operator
-            # has already requested shutdown.
-            try:
-                timeout = validate_drain_timeout_seconds(
-                    data.get("timeout_seconds", 30.0)
-                )
-            except ValueError as exc:
-                await _send_dashboard_message(websocket, json.dumps({
-                    "type": "admin_shutdown_response",
-                    "accepted": False,
-                    "engine_state_before": controller.state.value,
-                    "message": str(exc),
-                }))
-                return
-            state_before = controller.state
-            controller.request_shutdown()
-            response = {
-                "type": "admin_shutdown_response",
-                "accepted": True,
-                "timeout_seconds": timeout,
-                "engine_state_before": state_before.value,
-            }
 
-            def _drain_worker() -> None:
-                try:
-                    controller.drain_and_stop(timeout_seconds=timeout)
-                except Exception:
-                    logger.exception("Drain worker raised")
+def _require_execution_core() -> ExecutionCore:
+    if EXECUTION_CORE is None:
+        raise _rpc_application_error(
+            "Execution core is not initialized",
+            reason=OperatorErrorReason.UNAVAILABLE,
+            code=OperatorRpcErrorCode.APPLICATION_FAILED,
+            data={"retryable": True},
+        )
+    return EXECUTION_CORE
 
-            try:
-                drain_thread = Thread(
-                    target=_drain_worker,
-                    daemon=False,
-                    name="admin-shutdown-drain",
-                )
-                drain_thread.start()
-            except Exception:
-                # Admission is already closed. If the worker cannot be
-                # created, complete the same single-owner drain here instead
-                # of leaving the runtime stranded in DRAINING.
-                logger.exception(
-                    "Could not start admin drain worker; draining synchronously"
-                )
-                controller.drain_and_stop(timeout_seconds=timeout)
-            await _send_dashboard_message(websocket, json.dumps(response))
+
+def _require_stealth_bridge():
+    if stealth_order_bridge is None:
+        raise _rpc_application_error(
+            "Stealth order system is not initialized",
+            reason=OperatorErrorReason.UNAVAILABLE,
+            code=OperatorRpcErrorCode.APPLICATION_FAILED,
+            data={"retryable": True},
+        )
+    return stealth_order_bridge
+
+
+async def _rpc_session_bootstrap(
+    params: Dict[str, Any],
+) -> _RpcDispatchResult:
+    del params
+    market_metrics = _build_market_metrics_payload()
+    with state_lock:
+        engine_state["market_metrics"] = market_metrics
+        dashboard_state = deepcopy(engine_state)
+    runtime_status = _runtime_status_payload()
+    dashboard_state["engine_status"].update(runtime_status)
+    dashboard_state["stealth_orders"] = (
+        _normalize_stealth_orders_for_operator(
+            dashboard_state["stealth_orders"]
+        )
+    )
+    return _rpc_result({
+        "protocol_version": 1,
+        "server_time": datetime.now(timezone.utc).isoformat(),
+        "capabilities": {
+            "methods": [method.value for method in OperatorRpcMethod],
+            "notifications": [
+                method.value for method in OperatorNotificationMethod
+            ],
+            "client_notifications": False,
+            "batch_requests": False,
+            "generic_idempotent_replay": False,
+        },
+        "runtime": runtime_status,
+        "products": _load_products_payload(),
+        "stealth_orders": _stealth_orders_snapshot_payload(),
+        "dashboard_state": dashboard_state,
+    })
+
+
+async def _rpc_runtime_status(
+    params: Dict[str, Any],
+) -> _RpcDispatchResult:
+    del params
+    return _rpc_result(_runtime_status_payload())
+
+
+async def _rpc_runtime_pause(
+    params: Dict[str, Any],
+) -> _RpcDispatchResult:
+    del params
+    controller = get_runtime_controller()
+    changed = controller.request_pause()
+    if changed:
+        if controller.state is EngineState.STARTING:
             add_log_entry(
                 "WARNING",
-                f"Engine shutdown requested (timeout={timeout}s)",
+                "Engine pause requested during startup via operator RPC",
             )
-            return
-        
-        if msg_type == "request_stealth_orders":
-            # Send current stealth orders snapshot
-            await send_stealth_orders_snapshot(websocket)
+        else:
+            add_log_entry("WARNING", "Engine paused via operator RPC")
+    return _rpc_result(
+        {
+            "changed": changed,
+            "engine_state": controller.state.value,
+            "startup_pause_pending": controller.startup_pause_pending(),
+        },
+        broadcast_runtime=True,
+    )
 
-        elif msg_type == "export_active_stealth_orders":
-            # Read-only export of all currently active root stealth orders.
-            # Output is shaped so each entry can be replayed verbatim through
-            # the existing "create_stealth_order" message handler. Only ROOT
-            # orders (parent_order_id is None) are exported because follow-ups
-            # are spawned automatically when their root fills.
-            if not stealth_order_bridge:
-                response = {
-                    "type": "export_active_stealth_orders_response",
-                    "status": "error",
-                    "message": "Stealth order system not initialized",
-                }
-                await _send_dashboard_message(websocket, json.dumps(response))
-                return
 
+async def _rpc_runtime_resume(
+    params: Dict[str, Any],
+) -> _RpcDispatchResult:
+    del params
+    controller = get_runtime_controller()
+    changed = controller.resume()
+    if changed:
+        add_log_entry("INFO", "Engine resumed via operator RPC")
+    return _rpc_result(
+        {
+            "changed": changed,
+            "engine_state": controller.state.value,
+            "startup_pause_pending": controller.startup_pause_pending(),
+        },
+        broadcast_runtime=True,
+    )
+
+
+async def _rpc_runtime_shutdown(
+    params: Dict[str, Any],
+) -> _RpcDispatchResult:
+    controller = get_runtime_controller()
+    try:
+        timeout = validate_drain_timeout_seconds(
+            params.get("timeout_seconds", 30.0)
+        )
+    except ValueError as exc:
+        raise _rpc_application_error(
+            str(exc),
+            reason=OperatorErrorReason.INVALID_PARAMS,
+            data={
+                "fields": [{
+                    "path": "timeout_seconds",
+                    "message": str(exc),
+                    "rule": "runtime_validation",
+                }],
+                "retryable": False,
+            },
+        ) from exc
+
+    state_before = controller.state
+    controller.request_shutdown()
+
+    def _drain_worker() -> None:
+        try:
+            controller.drain_and_stop(timeout_seconds=timeout)
+        except Exception:
+            logger.exception("Drain worker raised")
+
+    try:
+        drain_thread = Thread(
+            target=_drain_worker,
+            daemon=False,
+            name="admin-shutdown-drain",
+        )
+        drain_thread.start()
+    except Exception:
+        logger.exception(
+            "Could not start admin drain worker; draining synchronously"
+        )
+        controller.drain_and_stop(timeout_seconds=timeout)
+
+    add_log_entry(
+        "WARNING",
+        f"Engine shutdown requested (timeout={timeout}s)",
+    )
+    return _rpc_result(
+        {
+            "accepted": True,
+            "timeout_seconds": timeout,
+            "engine_state_before": state_before.value,
+        },
+        outcome=OperatorOutcome.ACCEPTED_PENDING,
+        broadcast_runtime=True,
+    )
+
+
+async def _rpc_stealth_list(
+    params: Dict[str, Any],
+) -> _RpcDispatchResult:
+    del params
+    return _rpc_result(_stealth_orders_snapshot_payload())
+
+
+async def _rpc_stealth_export(
+    params: Dict[str, Any],
+) -> _RpcDispatchResult:
+    del params
+    bridge = _require_stealth_bridge()
+
+    try:
+        from database.order import get_parent_order
+
+        manager = bridge.stealth_manager
+        exported: list[dict[str, Any]] = []
+        for client_order_id, order in list(manager.in_memory_orders.items()):
+            if not isinstance(order, dict):
+                continue
+            if order.get("parent_order_id"):
+                continue
+            status = str(order.get("status") or "").upper()
+            if status not in _ACTIVE_STEALTH_STATUSES:
+                continue
+
+            serialized = manager._serialize_order_for_json(order)
             try:
-                from database.order import get_parent_order
-
-                manager = stealth_order_bridge.stealth_manager
-                exported: list[dict] = []
-                # Snapshot the dict before iterating so concurrent mutations
-                # by the evaluator thread don't raise RuntimeError.
-                in_memory_snapshot = list(manager.in_memory_orders.items())
-                for stealth_order_id, order in in_memory_snapshot:
-                    if not isinstance(order, dict):
-                        continue
-                    if order.get("parent_order_id"):
-                        # Skip follow-ups; they're recreated by the engine.
-                        continue
-                    status = str(order.get("status") or "").upper()
-                    if status not in _ACTIVE_STEALTH_STATUSES:
-                        continue
-
-                    serialized = manager._serialize_order_for_json(order)
-
-                    # Overlay canonical persisted fields from order_parent.
-                    # Several create_stealth_order kwargs (target_movement,
-                    # target_movement_type, max_order_replacements,
-                    # allow_partial_fills) live ONLY in the order_parent row
-                    # for root orders — they're not on the in-memory stealth
-                    # dict. Without this merge the export is missing the
-                    # config the user originally typed in.
-                    try:
-                        parent_row = get_parent_order(stealth_order_id) or {}
-                    except Exception as e:
-                        logger.warning(
-                            f"export: get_parent_order failed for "
-                            f"{stealth_order_id}: {e}"
-                        )
-                        parent_row = {}
-
-                    tm = parent_row.get("target_movement")
-                    if tm is not None and "target_movement" not in serialized:
-                        serialized["target_movement"] = safe_float(tm, default=0.0)
-                    if (
-                        parent_row.get("target_movement_type")
-                        and "target_movement_type" not in serialized
-                    ):
-                        serialized["target_movement_type"] = parent_row["target_movement_type"]
-                    # NOTE: order_parent column is `max_order_replacement`
-                    # (singular); the create_stealth_order kwarg is
-                    # `max_order_replacements` (plural). Map across.
-                    if parent_row.get("max_order_replacement") is not None:
-                        serialized["max_order_replacements"] = int(
-                            parent_row["max_order_replacement"]
-                        )
-                    if parent_row.get("allow_partial_fills") is not None:
-                        serialized["allow_partial_fills"] = bool(
-                            parent_row["allow_partial_fills"]
-                        )
-
-                    payload: dict = {
-                        "stealth_order_id": stealth_order_id,
-                    }
-                    for src_key in _EXPORT_FIELDS:
-                        if src_key not in serialized:
-                            continue
-                        # Map the in-memory _json suffix back to the
-                        # create_stealth_order kwarg name.
-                        if src_key == "reveal_condition_json":
-                            dst_key = "reveal_condition"
-                        elif src_key == "sizing_strategy_json":
-                            dst_key = "sizing_strategy"
-                        elif src_key == "anchor_repricing_policy_json":
-                            dst_key = "anchor_repricing_policy"
-                        else:
-                            dst_key = src_key
-                        payload[dst_key] = serialized[src_key]
-                    exported.append(payload)
-
-                response = {
-                    "type": "export_active_stealth_orders_response",
-                    "status": "success",
-                    "exported_at": datetime.utcnow().isoformat(),
-                    "count": len(exported),
-                    "orders": exported,
-                }
-                add_log_entry(
-                    "INFO",
-                    f"Exported {len(exported)} active stealth orders for backup",
+                parent_row = get_parent_order(client_order_id) or {}
+            except Exception as exc:
+                logger.warning(
+                    "export: get_parent_order failed for %s: %s",
+                    client_order_id,
+                    exc,
                 )
-                await _send_dashboard_message(websocket, json.dumps(response))
-            except Exception as e:
-                logger.exception("Failed to export active stealth orders")
-                response = {
-                    "type": "export_active_stealth_orders_response",
-                    "status": "error",
-                    "message": f"Export failed: {e}",
-                }
-                await _send_dashboard_message(websocket, json.dumps(response))
+                parent_row = {}
 
-        elif msg_type == "import_stealth_orders":
-            # Bulk-replay create_stealth_order for each entry in payload.
-            # Each entry must already be in the create_stealth_order shape (as
-            # produced by export_active_stealth_orders). Per-entry results are
-            # returned so a partial failure doesn't lose the whole batch.
-            orders_to_import = data.get("orders") or []
-            if not isinstance(orders_to_import, list):
-                response = {
-                    "type": "import_stealth_orders_response",
-                    "status": "error",
-                    "message": "'orders' must be a list",
-                }
-                await _send_dashboard_message(websocket, json.dumps(response))
-                return
+            target_movement = parent_row.get("target_movement")
+            if (
+                target_movement is not None
+                and "target_movement" not in serialized
+            ):
+                serialized["target_movement"] = safe_float(
+                    target_movement,
+                    default=0.0,
+                )
+            if (
+                parent_row.get("target_movement_type")
+                and "target_movement_type" not in serialized
+            ):
+                serialized["target_movement_type"] = (
+                    parent_row["target_movement_type"]
+                )
+            if parent_row.get("max_order_replacement") is not None:
+                serialized["max_order_replacements"] = int(
+                    parent_row["max_order_replacement"]
+                )
+            if parent_row.get("allow_partial_fills") is not None:
+                serialized["allow_partial_fills"] = bool(
+                    parent_row["allow_partial_fills"]
+                )
+            if parent_row.get("enable_hotpoint_replication") is not None:
+                serialized["enable_hotpoint_replication"] = bool(
+                    parent_row["enable_hotpoint_replication"]
+                )
 
-            if EXECUTION_CORE is None:
-                response = {
-                    "type": "import_stealth_orders_response",
-                    "status": "error",
-                    "message": "Execution core is not initialized",
-                }
-                await _send_dashboard_message(websocket, json.dumps(response))
-                return
+            payload: dict[str, Any] = {
+                "client_order_id": client_order_id,
+            }
+            for source_key in _EXPORT_FIELDS:
+                if source_key not in serialized:
+                    continue
+                if source_key == "reveal_condition_json":
+                    destination_key = "reveal_condition"
+                elif source_key == "sizing_strategy_json":
+                    destination_key = "sizing_strategy"
+                elif source_key == "anchor_repricing_policy_json":
+                    destination_key = "anchor_repricing_policy"
+                else:
+                    destination_key = source_key
+                payload[destination_key] = serialized[source_key]
+            exported.append(payload)
 
-            parsed_orders: list[CreateStealthOrderRequest] = []
-            preflight_errors: dict[int, dict] = {}
-            parsed_indexes: list[int] = []
-            for index, entry in enumerate(orders_to_import):
-                if not isinstance(entry, dict):
-                    preflight_errors[index] = {
-                        "status": "error",
-                        "error": "entry not a dict",
-                    }
+        document = {
+            "schema": STEALTH_EXPORT_SCHEMA,
+            "version": STEALTH_EXPORT_VERSION,
+            "exported_at": datetime.now(timezone.utc).isoformat(),
+            "count": len(exported),
+            "orders": exported,
+        }
+        add_log_entry(
+            "INFO",
+            f"Exported {len(exported)} active stealth orders for backup",
+        )
+        return _rpc_result({"document": document})
+    except OperatorRpcError:
+        raise
+    except Exception as exc:
+        logger.exception("Failed to export active stealth orders")
+        raise _rpc_application_error(
+            f"Export failed: {exc}",
+            reason=OperatorErrorReason.OPERATION_FAILED,
+            code=OperatorRpcErrorCode.APPLICATION_FAILED,
+            data={"retryable": False},
+        ) from exc
+
+
+def _normalize_import_order(
+    entry: Dict[str, Any],
+    *,
+    document_version: int,
+) -> Dict[str, Any]:
+    normalized = dict(entry)
+    if document_version == 1:
+        if "client_order_id" not in normalized:
+            normalized["client_order_id"] = normalized.pop(
+                "stealth_order_id",
+                None,
+            )
+        normalized.pop("parent_order_id", None)
+        normalized["enable_hotpoint_replication"] = False
+    return normalized
+
+
+async def _rpc_stealth_import(
+    params: Dict[str, Any],
+) -> _RpcDispatchResult:
+    core = _require_execution_core()
+    document = params["document"]
+    document_version = int(document.get("version", 1))
+    if document_version == STEALTH_EXPORT_VERSION:
+        if document.get("schema") != STEALTH_EXPORT_SCHEMA:
+            raise _rpc_application_error(
+                "Version 2 import requires the canonical stealth export schema",
+                reason=OperatorErrorReason.INVALID_PARAMS,
+                data={
+                    "fields": [{
+                        "path": "document.schema",
+                        "message": (
+                            f"expected {STEALTH_EXPORT_SCHEMA!r}"
+                        ),
+                        "rule": "const",
+                    }],
+                    "retryable": False,
+                },
+            )
+    elif document_version != 1:
+        raise _rpc_application_error(
+            f"Unsupported stealth export version: {document_version}",
+            reason=OperatorErrorReason.INVALID_PARAMS,
+            data={"retryable": False},
+        )
+
+    orders_to_import = document["orders"]
+    declared_count = document.get("count")
+    if (
+        declared_count is not None
+        and int(declared_count) != len(orders_to_import)
+    ):
+        raise _rpc_application_error(
+            "Import document count does not match orders length",
+            reason=OperatorErrorReason.INVALID_PARAMS,
+            data={
+                "fields": [{
+                    "path": "document.count",
+                    "message": "must equal len(document.orders)",
+                    "rule": "consistency",
+                }],
+                "retryable": False,
+            },
+        )
+
+    warnings: list[str] = []
+    if document_version == 1:
+        warnings.append(
+            "Version 1 backup imported with "
+            "enable_hotpoint_replication=false because that field was not "
+            "preserved by the old export format."
+        )
+
+    parsed_orders: list[CreateStealthOrderRequest] = []
+    parsed_indexes: list[int] = []
+    preflight_errors: dict[int, dict[str, Any]] = {}
+    for index, entry in enumerate(orders_to_import):
+        if not isinstance(entry, dict):
+            preflight_errors[index] = {
+                "succeeded": False,
+                "error": "entry is not an object",
+            }
+            continue
+        normalized = _normalize_import_order(
+            entry,
+            document_version=document_version,
+        )
+        try:
+            if not normalized.get("client_order_id"):
+                raise ValueError("client_order_id is required")
+            parsed_orders.append(
+                _create_stealth_order_request(
+                    normalized,
+                    force_root=True,
+                )
+            )
+            parsed_indexes.append(index)
+        except Exception as exc:
+            preflight_errors[index] = {
+                "succeeded": False,
+                "requested_client_order_id": normalized.get(
+                    "client_order_id"
+                ),
+                "product_id": normalized.get("product_id"),
+                "side": normalized.get("side"),
+                "error": str(exc),
+            }
+
+    import_result = _admitted_value(
+        core.import_stealth_orders(
+            ImportStealthOrdersRequest(orders=tuple(parsed_orders))
+        )
+    )
+    results_by_index = dict(preflight_errors)
+    for index, result in zip(parsed_indexes, import_result.orders):
+        results_by_index[index] = {
+            "succeeded": result.succeeded,
+            "requested_client_order_id": (
+                result.requested_client_order_id
+            ),
+            "client_order_id": result.client_order_id,
+            "product_id": result.product_id,
+            "side": result.side.value,
+            "error": result.error,
+        }
+
+    results = [
+        results_by_index[index]
+        for index in range(len(orders_to_import))
+    ]
+    success_count = import_result.imported_count
+    total = len(orders_to_import)
+    add_log_entry(
+        "INFO",
+        f"Imported {success_count}/{total} stealth orders",
+    )
+    return _rpc_result(
+        {
+            "imported": success_count,
+            "total": total,
+            "results": results,
+            "warnings": warnings,
+        },
+        outcome=(
+            OperatorOutcome.SUCCEEDED
+            if success_count == total
+            else OperatorOutcome.PARTIAL
+        ),
+        broadcast_stealth_orders=success_count > 0,
+    )
+
+
+async def _rpc_stealth_create_span(
+    params: Dict[str, Any],
+) -> _RpcDispatchResult:
+    core = _require_execution_core()
+    bridge = _require_stealth_bridge()
+    span_id = params.get("span_id")
+    try:
+        result = _admitted_value(
+            core.create_stealth_order_span(
+                CreateStealthOrderSpanRequest(span=params)
+            )
+        )
+    except OperatorRpcError:
+        raise
+    except Exception as exc:
+        logger.exception("Failed to create stealth order span")
+        raise _rpc_application_error(
+            f"Stealth order span creation failed: {exc}",
+            reason=OperatorErrorReason.OPERATION_FAILED,
+            code=OperatorRpcErrorCode.APPLICATION_FAILED,
+            data={"span_id": span_id, "retryable": False},
+        ) from exc
+
+    with state_lock:
+        for order_result in result.get("orders", []):
+            client_order_id = order_result.get("client_order_id")
+            if not client_order_id:
+                continue
+            current = bridge.stealth_manager.in_memory_orders.get(
+                client_order_id
+            )
+            if current is not None:
+                engine_state["stealth_orders"][client_order_id] = (
+                    bridge.stealth_manager._serialize_order_for_json(
+                        current
+                    )
+                )
+
+    status = result.get("status")
+    if status == StealthSpanResultStatus.ERROR.value:
+        raise _rpc_application_error(
+            result.get("error") or "Stealth span creation failed",
+            reason=OperatorErrorReason.OPERATION_FAILED,
+            code=OperatorRpcErrorCode.APPLICATION_FAILED,
+            data={"span_result": result, "retryable": False},
+        )
+    outcome = (
+        OperatorOutcome.PARTIAL
+        if status == StealthSpanResultStatus.PARTIAL.value
+        else OperatorOutcome.SUCCEEDED
+    )
+    add_log_entry(
+        "INFO" if outcome is OperatorOutcome.SUCCEEDED else "WARNING",
+        "Stealth order span "
+        f"{status}: {result.get('created_count', 0)} created, "
+        f"{result.get('existing_count', 0)} existing, "
+        f"{result.get('failed_count', 0)} failed",
+    )
+    return _rpc_result(
+        {"span": result},
+        outcome=outcome,
+        broadcast_stealth_orders=True,
+    )
+
+
+async def _rpc_stealth_create(
+    params: Dict[str, Any],
+) -> _RpcDispatchResult:
+    core = _require_execution_core()
+    bridge = _require_stealth_bridge()
+    try:
+        client_order_id = _admitted_value(
+            core.create_stealth_order(
+                _create_stealth_order_request(params)
+            )
+        )
+        client_order_id = str(client_order_id)
+        order_data = bridge.stealth_manager.in_memory_orders.get(
+            client_order_id
+        )
+        serialized_order = (
+            bridge.stealth_manager._serialize_order_for_json(order_data)
+            if order_data
+            else None
+        )
+        with state_lock:
+            engine_state["stealth_orders"][client_order_id] = (
+                serialized_order
+            )
+        add_log_entry(
+            "INFO",
+            "Stealth order created: "
+            f"{params['product_id']} {params['side']} "
+            f"{params['total_size']}",
+        )
+        projected_order = _normalize_stealth_orders_for_operator({
+            client_order_id: serialized_order,
+        }).get(client_order_id)
+        return _rpc_result(
+            {
+                "client_order_id": client_order_id,
+                "order": projected_order,
+            },
+            broadcast_stealth_orders=True,
+        )
+    except OperatorRpcError:
+        raise
+    except Exception as exc:
+        logger.exception("Failed to create stealth order")
+        raise _rpc_application_error(
+            f"Failed to create order: {exc}",
+            reason=OperatorErrorReason.OPERATION_FAILED,
+            code=OperatorRpcErrorCode.APPLICATION_FAILED,
+            data={
+                "client_order_id": params.get("client_order_id"),
+                "retryable": False,
+            },
+        ) from exc
+
+
+async def _rpc_stealth_cancel(
+    params: Dict[str, Any],
+) -> _RpcDispatchResult:
+    client_order_id = params["client_order_id"]
+    try:
+        response = _cancel_managed_stealth_order(
+            client_order_id,
+            "user_cancelled",
+        )
+    except Exception as exc:
+        raise _rpc_application_error(
+            str(exc),
+            reason=OperatorErrorReason.OPERATION_FAILED,
+            code=OperatorRpcErrorCode.APPLICATION_FAILED,
+            data={
+                "client_order_id": client_order_id,
+                "retryable": False,
+            },
+        ) from exc
+
+    order = response.get("order")
+    if isinstance(order, dict):
+        response["order"] = _normalize_stealth_orders_for_operator({
+            client_order_id: order,
+        })[client_order_id]
+    if not response["accepted"]:
+        raise _rpc_application_error(
+            response.get("error") or response["message"],
+            reason=OperatorErrorReason.PRECONDITION_FAILED,
+            data={
+                **response,
+                "retryable": False,
+            },
+        )
+    return _rpc_result(
+        response,
+        outcome=(
+            OperatorOutcome.ACCEPTED_PENDING
+            if response["exchange_cancel_pending"]
+            else OperatorOutcome.SUCCEEDED
+        ),
+        broadcast_stealth_orders=True,
+    )
+
+
+async def _rpc_stealth_rehide(
+    params: Dict[str, Any],
+) -> _RpcDispatchResult:
+    client_order_id = params["client_order_id"]
+    core = _require_execution_core()
+    try:
+        accepted = _admitted_value(
+            core.rehide_stealth_order(
+                RehideStealthOrderRequest(
+                    client_order_id=client_order_id
+                )
+            )
+        )
+    except OperatorRpcError:
+        raise
+    except Exception as exc:
+        raise _rpc_application_error(
+            f"Rehide not accepted: {exc}",
+            reason=OperatorErrorReason.PRECONDITION_FAILED,
+            data={
+                "client_order_id": client_order_id,
+                "retryable": False,
+            },
+        ) from exc
+    if not accepted:
+        raise _rpc_application_error(
+            "Rehide request was not accepted; refresh the order and retry",
+            reason=OperatorErrorReason.PRECONDITION_FAILED,
+            data={
+                "client_order_id": client_order_id,
+                "retryable": False,
+            },
+        )
+
+    message = (
+        "Rehide requested; exchange withdrawal confirmation is pending. "
+        "The same order may reveal again when its condition is satisfied."
+    )
+    add_log_entry(
+        "INFO",
+        f"Stealth order rehide requested: {client_order_id}",
+    )
+    return _rpc_result(
+        {
+            "client_order_id": client_order_id,
+            "accepted": True,
+            "message": message,
+        },
+        outcome=OperatorOutcome.ACCEPTED_PENDING,
+        broadcast_stealth_orders=True,
+    )
+
+
+async def _rpc_stealth_reprice_now(
+    params: Dict[str, Any],
+) -> _RpcDispatchResult:
+    client_order_id = params["client_order_id"]
+    core = _require_execution_core()
+    bridge = _require_stealth_bridge()
+    manager = bridge.stealth_manager
+    order = manager.in_memory_orders.get(client_order_id)
+    if not order:
+        raise _rpc_application_error(
+            "Order not found",
+            reason=OperatorErrorReason.NOT_FOUND,
+            data={
+                "client_order_id": client_order_id,
+                "retryable": False,
+            },
+        )
+
+    policy = RepricingPolicy.from_dict(
+        order.get("anchor_repricing_policy_json")
+    )
+    if not policy.enabled:
+        raise _rpc_application_error(
+            "Anchor repricing is not enabled for this order",
+            reason=OperatorErrorReason.PRECONDITION_FAILED,
+            data={
+                "client_order_id": client_order_id,
+                "retryable": False,
+            },
+        )
+
+    active_statuses = {
+        StealthOrderStatus.HIDDEN.value,
+        StealthOrderStatus.PENDING.value,
+        StealthOrderStatus.TRIGGERED.value,
+        StealthOrderStatus.REVEALED.value,
+    }
+    if order.get("status") not in active_statuses:
+        raise _rpc_application_error(
+            f"Order status {order.get('status')} is not repriceable",
+            reason=OperatorErrorReason.PRECONDITION_FAILED,
+            data={
+                "client_order_id": client_order_id,
+                "retryable": False,
+            },
+        )
+
+    try:
+        processed = _admitted_value(
+            core.reprice_stealth_order_now(
+                RepriceStealthOrderRequest(
+                    client_order_id=client_order_id
+                )
+            )
+        )
+    except OperatorRpcError:
+        raise
+    except Exception as exc:
+        raise _rpc_application_error(
+            str(exc),
+            reason=OperatorErrorReason.OPERATION_FAILED,
+            code=OperatorRpcErrorCode.APPLICATION_FAILED,
+            data={
+                "client_order_id": client_order_id,
+                "retryable": False,
+            },
+        ) from exc
+
+    add_log_entry(
+        "INFO",
+        "Manual reprice triggered for "
+        f"{client_order_id}: processed={processed}",
+    )
+    return _rpc_result(
+        {
+            "client_order_id": client_order_id,
+            "processed": processed,
+        },
+        broadcast_stealth_orders=True,
+    )
+
+
+async def _rpc_stealth_move_revealed(
+    params: Dict[str, Any],
+) -> _RpcDispatchResult:
+    from core.exceptions import StealthMoveError
+
+    client_order_id = params["client_order_id"]
+    core = _require_execution_core()
+    reason = (
+        StealthMoveReason(params["reason"])
+        if params.get("reason")
+        else None
+    )
+    movement_type = (
+        TargetMovementType(params["new_target_movement_type"])
+        if params.get("new_target_movement_type") is not None
+        else None
+    )
+
+    try:
+        move_result = _admitted_value(
+            core.move_revealed_stealth_order(
+                MoveRevealedStealthOrderRequest(
+                    client_order_id=client_order_id,
+                    new_limit_price=float(params["new_limit_price"]),
+                    new_target_movement=params.get(
+                        "new_target_movement"
+                    ),
+                    new_target_movement_type=movement_type,
+                    reason=reason,
+                    notes=params.get("notes"),
+                )
+            )
+        )
+        plan = move_result.plan
+        result = move_result.result
+    except OperatorRpcError:
+        raise
+    except StealthMoveError as exc:
+        raise _rpc_application_error(
+            str(exc),
+            reason=OperatorErrorReason.OPERATION_FAILED,
+            code=OperatorRpcErrorCode.APPLICATION_FAILED,
+            data={
+                "client_order_id": client_order_id,
+                "stage": exc.stage,
+                "retryable": False,
+            },
+        ) from exc
+    except Exception as exc:
+        logger.exception("move_revealed_stealth_order crashed")
+        raise _rpc_application_error(
+            str(exc),
+            reason=OperatorErrorReason.INDETERMINATE,
+            code=OperatorRpcErrorCode.APPLICATION_INDETERMINATE,
+            data={
+                "client_order_id": client_order_id,
+                "stage": "unknown",
+                "retryable": False,
+            },
+        ) from exc
+
+    add_log_entry(
+        "INFO",
+        f"Stealth order moved: {client_order_id} "
+        f"@ {plan.new_configured_limit_price} "
+        f"(new placement_client_order_id: "
+        f"{result.new_placement_client_order_id}, "
+        f"new exchange_order_id: {result.new_exchange_order_id})",
+    )
+    return _rpc_result(
+        {
+            "client_order_id": client_order_id,
+            "old_exchange_order_id": plan.old_exchange_order_id,
+            "new_placement_client_order_id": (
+                result.new_placement_client_order_id
+            ),
+            "new_exchange_order_id": result.new_exchange_order_id,
+            "new_submitted_price": result.new_submitted_price,
+        },
+        broadcast_stealth_orders=True,
+    )
+
+
+async def _rpc_stealth_update_price_condition(
+    params: Dict[str, Any],
+) -> _RpcDispatchResult:
+    client_order_id = params["client_order_id"]
+    threshold = float(params["price_threshold"])
+    hold_seconds = params.get("hold_duration_seconds")
+    bridge = _require_stealth_bridge()
+
+    try:
+        from database.order import get_stealth_order_by_id
+
+        existing = get_stealth_order_by_id(client_order_id)
+        if not existing:
+            raise _rpc_application_error(
+                f"Stealth order not found: {client_order_id}",
+                reason=OperatorErrorReason.NOT_FOUND,
+                data={
+                    "client_order_id": client_order_id,
+                    "retryable": False,
+                },
+            )
+        if (
+            str(existing.get("reveal_condition_type", "")).lower()
+            != "price"
+        ):
+            raise _rpc_application_error(
+                "Threshold updates are only supported for price "
+                "reveal conditions",
+                reason=OperatorErrorReason.PRECONDITION_FAILED,
+                data={
+                    "client_order_id": client_order_id,
+                    "retryable": False,
+                },
+            )
+
+        bridge.update_price_condition(
+            client_order_id,
+            price_threshold=threshold,
+            hold_duration_seconds=hold_seconds,
+        )
+
+        manager = bridge.stealth_manager
+        affected_ids = manager.strategy_condition_order_ids(
+            client_order_id
+        )
+        if not isinstance(affected_ids, (list, tuple, set)):
+            affected_ids = (client_order_id,)
+
+        affected_conditions: dict[str, Any] = {}
+        for affected_id in affected_ids:
+            affected_order = manager.in_memory_orders.get(affected_id)
+            if not isinstance(affected_order, dict):
+                continue
+            affected_conditions[affected_id] = deepcopy(
+                affected_order.get("reveal_condition_json") or {}
+            )
+
+        with state_lock:
+            for affected_id, reveal_json in affected_conditions.items():
+                if affected_id in engine_state["stealth_orders"]:
+                    engine_state["stealth_orders"][affected_id][
+                        "reveal_condition_json"
+                    ] = deepcopy(reveal_json)
+
+        add_log_entry(
+            "INFO",
+            f"Stealth threshold updated: {client_order_id} -> "
+            f"{threshold}"
+            + (
+                f", hold={hold_seconds}s"
+                if hold_seconds is not None
+                else ""
+            ),
+        )
+        return _rpc_result(
+            {
+                "client_order_id": client_order_id,
+                "price_threshold": threshold,
+                "hold_duration_seconds": hold_seconds,
+                "affected_conditions": affected_conditions,
+            },
+            broadcast_stealth_orders=True,
+        )
+    except OperatorRpcError:
+        raise
+    except Exception as exc:
+        logger.exception(
+            "Failed to update stealth price condition for %s",
+            client_order_id,
+        )
+        raise _rpc_application_error(
+            str(exc),
+            reason=OperatorErrorReason.OPERATION_FAILED,
+            code=OperatorRpcErrorCode.APPLICATION_FAILED,
+            data={
+                "client_order_id": client_order_id,
+                "retryable": False,
+            },
+        ) from exc
+
+
+async def _rpc_strategy_update_target(
+    params: Dict[str, Any],
+) -> _RpcDispatchResult:
+    from database.order import update_parent_order_target_movement
+
+    parent_client_order_id = params["parent_client_order_id"]
+    target_movement = float(params["target_movement"])
+    target_movement_type = TargetMovementType(
+        params["target_movement_type"]
+    )
+    try:
+        success = update_parent_order_target_movement(
+            parent_order_id=parent_client_order_id,
+            target_movement=target_movement,
+            target_movement_type=target_movement_type.value,
+        )
+        if not success:
+            raise _rpc_application_error(
+                f"Failed to update parent order: "
+                f"{parent_client_order_id}",
+                reason=OperatorErrorReason.OPERATION_FAILED,
+                code=OperatorRpcErrorCode.APPLICATION_FAILED,
+                data={
+                    "parent_client_order_id": parent_client_order_id,
+                    "retryable": False,
+                },
+            )
+        if stealth_order_bridge:
+            stealth_order_bridge.stealth_manager.sync_target_movement_to_cache(
+                parent_client_order_id,
+                target_movement,
+                target_movement_type.value,
+            )
+        add_log_entry(
+            "INFO",
+            "Parent order target_movement updated: "
+            f"{parent_client_order_id} = {target_movement}"
+            f"{target_movement_type.value}",
+        )
+        return _rpc_result(
+            {
+                "parent_client_order_id": parent_client_order_id,
+                "target_movement": target_movement,
+                "target_movement_type": target_movement_type.value,
+            },
+            broadcast_stealth_orders=True,
+        )
+    except OperatorRpcError:
+        raise
+    except Exception as exc:
+        raise _rpc_application_error(
+            f"Failed to update parent target movement: {exc}",
+            reason=OperatorErrorReason.OPERATION_FAILED,
+            code=OperatorRpcErrorCode.APPLICATION_FAILED,
+            data={
+                "parent_client_order_id": parent_client_order_id,
+                "retryable": False,
+            },
+        ) from exc
+
+
+async def _rpc_stealth_clear_all(
+    params: Dict[str, Any],
+) -> _RpcDispatchResult:
+    del params
+    try:
+        from database.order import clear_all_stealth_orders
+
+        cancelled_in_memory = 0
+        cancel_failures = 0
+        manager = None
+        if stealth_order_bridge is not None:
+            manager = stealth_order_bridge.stealth_manager
+            orders = stealth_order_bridge.get_stealth_orders()
+            for client_order_id, order in orders.items():
+                if (
+                    order.get("status") in _TERMINAL_STEALTH_STATUSES
+                    and not _stealth_exchange_cancel_pending(order)
+                ):
                     continue
                 try:
-                    parsed_orders.append(
-                        _create_stealth_order_request(
-                            entry,
-                            force_root=True,
-                            # Preserve the current import/export contract. The
-                            # separate protocol cleanup will add the currently
-                            # omitted hotpoint field end to end.
-                            include_hotpoint=False,
-                        )
+                    outcome = _cancel_managed_stealth_order(
+                        client_order_id,
+                        "Clear All Orders (operator RPC)",
                     )
-                    parsed_indexes.append(index)
-                except Exception as exc:
-                    preflight_errors[index] = {
-                        "status": "error",
-                        "requested_id": entry.get("stealth_order_id"),
-                        "product_id": entry.get("product_id"),
-                        "side": entry.get("side"),
-                        "error": str(exc),
-                    }
-
-            outcome = EXECUTION_CORE.import_stealth_orders(
-                ImportStealthOrdersRequest(orders=tuple(parsed_orders))
-            )
-            admitted, import_result = await _admitted_value(
-                websocket,
-                msg_type,
-                outcome,
-            )
-            if not admitted:
-                return
-
-            results_by_index = dict(preflight_errors)
-            for index, result in zip(parsed_indexes, import_result.orders):
-                if result.succeeded:
-                    results_by_index[index] = {
-                        "status": "success",
-                        "requested_id": result.requested_client_order_id,
-                        "stealth_order_id": result.client_order_id,
-                        "product_id": result.product_id,
-                        "side": result.side.value,
-                    }
-                else:
-                    results_by_index[index] = {
-                        "status": "error",
-                        "requested_id": result.requested_client_order_id,
-                        "product_id": result.product_id,
-                        "side": result.side.value,
-                        "error": result.error,
-                    }
-                    logger.warning(
-                        "Import failed for stealth order %s: %s",
-                        result.requested_client_order_id,
-                        result.error,
-                    )
-
-            results = [
-                results_by_index[index]
-                for index in range(len(orders_to_import))
-            ]
-            success_count = import_result.imported_count
-
-            response = {
-                "type": "import_stealth_orders_response",
-                "status": "success" if success_count == len(orders_to_import) else "partial",
-                "imported": success_count,
-                "total": len(orders_to_import),
-                "results": results,
-            }
-            add_log_entry(
-                "INFO",
-                f"Imported {success_count}/{len(orders_to_import)} stealth orders",
-            )
-            await _send_dashboard_message(websocket, json.dumps(response))
-            # Push fresh state to all clients so the new orders show up.
-            await broadcast_stealth_order_update({
-                "type": "stealth_orders_imported",
-                "imported": success_count,
-                "total": len(orders_to_import),
-            })
-
-        elif msg_type == "create_stealth_order_span":
-            span = data.get("span")
-            span_id = span.get("span_id") if isinstance(span, dict) else None
-            if not isinstance(span, dict):
-                await _send_dashboard_message(websocket, json.dumps({
-                    "type": "stealth_order_span_result",
-                    "span_id": span_id,
-                    "status": "error",
-                    "requested_count": 0,
-                    "created_count": 0,
-                    "existing_count": 0,
-                    "failed_count": 1,
-                    "orders": [],
-                    "error": "Missing or invalid span data",
-                }))
-                return
-            if EXECUTION_CORE is None or not stealth_order_bridge:
-                await _send_dashboard_message(websocket, json.dumps({
-                    "type": "stealth_order_span_result",
-                    "span_id": span_id,
-                    "status": "error",
-                    "requested_count": span.get("order_count", 0),
-                    "created_count": 0,
-                    "existing_count": 0,
-                    "failed_count": 1,
-                    "orders": [],
-                    "error": "Stealth order system not initialized",
-                }))
-                return
-
-            try:
-                outcome = EXECUTION_CORE.create_stealth_order_span(
-                    CreateStealthOrderSpanRequest(span=span)
-                )
-                admitted, result = await _admitted_value(
-                    websocket,
-                    msg_type,
-                    outcome,
-                )
-                if not admitted:
-                    return
-                response = {
-                    "type": "stealth_order_span_result",
-                    **result,
-                }
-                with state_lock:
-                    for order_result in result.get("orders", []):
-                        client_order_id = order_result.get("client_order_id")
-                        if not client_order_id:
-                            continue
-                        current = stealth_order_bridge.stealth_manager.in_memory_orders.get(
-                            client_order_id
-                        )
-                        if current is not None:
-                            engine_state["stealth_orders"][client_order_id] = (
-                                stealth_order_bridge.stealth_manager._serialize_order_for_json(
-                                    current
-                                )
-                            )
-                add_log_entry(
-                    "INFO"
-                    if result.get("status") == StealthSpanResultStatus.SUCCESS.value
-                    else "WARNING",
-                    "Stealth order span "
-                    f"{result.get('status')}: {result.get('created_count', 0)} created, "
-                    f"{result.get('existing_count', 0)} existing, "
-                    f"{result.get('failed_count', 0)} failed",
-                )
-            except Exception as exc:
-                logger.exception("Failed to create stealth order span")
-                response = {
-                    "type": "stealth_order_span_result",
-                    "span_id": span_id,
-                    "status": StealthSpanResultStatus.ERROR.value,
-                    "requested_count": span.get("order_count", 0),
-                    "created_count": 0,
-                    "existing_count": 0,
-                    "failed_count": 1,
-                    "orders": [],
-                    "error": str(exc),
-                }
-                add_log_entry("ERROR", f"Stealth order span creation failed: {exc}")
-
-            await _send_dashboard_message(
-                websocket,
-                json.dumps(response, cls=CustomJSONEncoder),
-            )
-            # The request receives one aggregate result; all clients then get
-            # one authoritative state refresh instead of N per-rung success
-            # broadcasts from the browser loop.
-            await broadcast_state()
-
-        elif msg_type == "create_stealth_order":
-            # Create new stealth order
-            logger.info("[HANDLER] create_stealth_order message received")
-            order = data.get("order")
-            
-            if not order:
-                response = {
-                    "type": "error",
-                    "message": "Missing order data"
-                }
-                await _send_dashboard_message(websocket, json.dumps(response))
-                return
-            
-            if EXECUTION_CORE is None or not stealth_order_bridge:
-                response = {
-                    "type": "error",
-                    "message": "Execution core or stealth order system not initialized"
-                }
-                await _send_dashboard_message(websocket, json.dumps(response))
-                return
-            
-            try:
-                outcome = EXECUTION_CORE.create_stealth_order(
-                    _create_stealth_order_request(order)
-                )
-                admitted, stealth_id = await _admitted_value(
-                    websocket,
-                    msg_type,
-                    outcome,
-                )
-                if not admitted:
-                    return
-                
-                # Get the created order data and serialize for JSON
-                order_data = stealth_order_bridge.stealth_manager.in_memory_orders.get(stealth_id)
-                serialized_order = stealth_order_bridge.stealth_manager._serialize_order_for_json(order_data) if order_data else None
-                
-                response = {
-                    "type": "stealth_order_created",
-                    "stealth_order_id": str(stealth_id),
-                    "order": serialized_order
-                }
-                
-                with state_lock:
-                    engine_state["stealth_orders"][str(stealth_id)] = serialized_order
-                
-                add_log_entry("INFO", f"Stealth order created: {order['product_id']} {order['side']} {order['total_size']}")
-                logger.info(f"Stealth order created: {stealth_id}")
-                
-                # Broadcast to all clients
-                await broadcast_stealth_order_update(response)
-                
-            except Exception as e:
-                import traceback
-                error_trace = traceback.format_exc()
-                logger.error(f"Failed to create stealth order: {e}\n{error_trace}")
-                response = {
-                    "type": "error",
-                    "message": f"Failed to create order: {str(e)}"
-                }
-                add_log_entry("ERROR", f"Stealth order creation failed: {str(e)}")
-                await _send_dashboard_message(websocket, json.dumps(response))
-        
-        elif msg_type == "cancel_stealth_order":
-            stealth_order_id = data.get("stealth_order_id")
-            try:
-                response = _cancel_managed_stealth_order(stealth_order_id, "user_cancelled")
-            except Exception as exc:
-                response = {
-                    "stealth_order_id": stealth_order_id, "accepted": False,
-                    "exchange_cancel_pending": False, "error": str(exc), "message": str(exc),
-                }
-            response["type"] = "stealth_order_cancel_result"
-            await _send_dashboard_message(websocket, json.dumps(response, cls=CustomJSONEncoder))
-        
-        elif msg_type == "rehide_stealth_order":
-            stealth_order_id = data.get("stealth_order_id")
-            response = {
-                "type": "stealth_order_rehide_result",
-                "stealth_order_id": stealth_order_id,
-                "accepted": False,
-            }
-            try:
-                if not isinstance(stealth_order_id, str) or not stealth_order_id.strip():
-                    raise ValueError("Missing or invalid stealth_order_id")
-                if EXECUTION_CORE is None:
-                    raise RuntimeError("Execution core is not initialized")
-                outcome = EXECUTION_CORE.rehide_stealth_order(
-                    RehideStealthOrderRequest(client_order_id=stealth_order_id)
-                )
-                admitted, accepted = await _admitted_value(
-                    websocket,
-                    msg_type,
-                    outcome,
-                )
-                if not admitted:
-                    return
-                # The bridge owns readiness and same-order serialization.
-                # Acceptance is not confirmation of cancellation.
-                if not accepted:
-                    raise ValueError("Rehide request was not accepted; refresh the order and retry")
-            except Exception as exc:
-                response["error"] = str(exc)
-                response["message"] = f"Rehide not accepted: {exc}"
-                logger.warning("Rehide not accepted for %s: %s", stealth_order_id, exc)
-            else:
-                response["accepted"] = True
-                response["message"] = (
-                    "Rehide requested; exchange withdrawal confirmation is pending. "
-                    "The same order may reveal again when its condition is satisfied."
-                )
-                add_log_entry("INFO", f"Stealth order rehide requested: {stealth_order_id}")
-            # Never infer HIDDEN from an accepted request or overwrite the cache.
-            await _send_dashboard_message(websocket, json.dumps(response))
-
-        elif msg_type == "reprice_now_stealth_order":
-            # Immediately trigger anchor repricing for a single stealth order,
-            # bypassing the next_reprice_at cooldown.
-            stealth_order_id = data.get("stealth_order_id")
-            if (
-                not stealth_order_id
-                or not stealth_order_bridge
-                or EXECUTION_CORE is None
-            ):
-                await _send_dashboard_message(websocket, json.dumps({
-                    "type": "error",
-                    "message": "Missing stealth_order_id or system not initialised"
-                }))
-                return
-
-            try:
-                mgr = stealth_order_bridge.stealth_manager
-                order = mgr.in_memory_orders.get(stealth_order_id)
-                if not order:
-                    await _send_dashboard_message(websocket, json.dumps({
-                        "type": "reprice_now_result",
-                        "stealth_order_id": stealth_order_id,
-                        "processed": 0,
-                        "error": "Order not found"
-                    }))
-                    return
-
-                policy = RepricingPolicy.from_dict(order.get("anchor_repricing_policy_json"))
-                if not policy.enabled:
-                    await _send_dashboard_message(websocket, json.dumps({
-                        "type": "reprice_now_result",
-                        "stealth_order_id": stealth_order_id,
-                        "processed": 0,
-                        "error": "Anchor repricing not enabled for this order"
-                    }))
-                    return
-
-                active_statuses = {"HIDDEN", "PENDING", "TRIGGERED", "REVEALED"}
-                if order.get("status") not in active_statuses:
-                    await _send_dashboard_message(websocket, json.dumps({
-                        "type": "reprice_now_result",
-                        "stealth_order_id": stealth_order_id,
-                        "processed": 0,
-                        "error": f"Order status {order.get('status')} is not repriceable"
-                    }))
-                    return
-
-                # The bridge owns manual anchor scheduling so the persisted
-                # next_reprice_at and disposable heap deadline cannot diverge.
-                outcome = EXECUTION_CORE.reprice_stealth_order_now(
-                    RepriceStealthOrderRequest(
-                        client_order_id=stealth_order_id
-                    )
-                )
-                admitted, processed = await _admitted_value(
-                    websocket,
-                    msg_type,
-                    outcome,
-                )
-                if not admitted:
-                    return
-
-                add_log_entry("INFO", f"Manual reprice triggered for {stealth_order_id}: processed={processed}")
-                logger.info(f"[REPRICE-NOW] {stealth_order_id} processed={processed}")
-
-                await _send_dashboard_message(websocket, json.dumps({
-                    "type": "reprice_now_result",
-                    "stealth_order_id": stealth_order_id,
-                    "processed": processed
-                }))
-
-            except Exception as e:
-                logger.error(f"reprice_now_stealth_order failed: {e}")
-                await _send_dashboard_message(websocket, json.dumps({
-                    "type": "reprice_now_result",
-                    "stealth_order_id": stealth_order_id,
-                    "processed": 0,
-                    "error": str(e)
-                }))
-
-        elif msg_type == "move_revealed_stealth_order":
-            # Move a REVEALED stealth order to a new limit price by
-            # cancelling the existing exchange placement and re-placing
-            # at the new price. Mutually exclusive with anchor repricing
-            # for the same sid (enforced by StealthMutationKind claim).
-            #
-            # Inbound shape:
-            #   {
-            #     "type": "move_revealed_stealth_order",
-            #     "stealth_order_id": "sid_xyz",
-            #     "new_limit_price": 101.5,
-            #     "reason":  "manual_user_move" | "operator_reprice",  # optional
-            #     "notes":   "...",                                    # optional
-            #     "new_target_movement": 0.2,                          # optional
-            #     "new_target_movement_type": "P" | "A"                # optional
-            #   }
-            stealth_order_id = data.get("stealth_order_id")
-            new_limit_price = data.get("new_limit_price")
-            reason_raw = data.get("reason")
-            notes = data.get("notes")
-            new_target_movement = data.get("new_target_movement")
-            new_target_movement_type = data.get("new_target_movement_type")
-
-            if (
-                not stealth_order_id
-                or new_limit_price is None
-                or EXECUTION_CORE is None
-            ):
-                await _send_dashboard_message(websocket, json.dumps({
-                    "type": "stealth_order_moved",
-                    "stealth_order_id": stealth_order_id,
-                    "success": False,
-                    "error": "Missing stealth_order_id / new_limit_price or system not initialised",
-                    "stage": "validate",
-                }))
-                return
-
-            try:
-                from core.exceptions import StealthMoveError
-
-                # Resolve reason enum at the boundary (P2 rule #5: enums, not magic strings).
-                reason_enum = None
-                if reason_raw:
-                    try:
-                        reason_enum = StealthMoveReason(reason_raw)
-                    except ValueError:
-                        await _send_dashboard_message(websocket, json.dumps({
-                            "type": "stealth_order_moved",
-                            "stealth_order_id": stealth_order_id,
-                            "success": False,
-                            "error": (
-                                f"unknown reason {reason_raw!r}; "
-                                f"expected one of: "
-                                f"{[r.value for r in StealthMoveReason]}"
-                            ),
-                            "stage": "validate",
-                        }))
-                        return
-
-                target_movement_type = None
-                if new_target_movement_type is not None:
-                    try:
-                        target_movement_type = TargetMovementType(
-                            new_target_movement_type
-                        )
-                    except ValueError:
-                        await _send_dashboard_message(websocket, json.dumps({
-                            "type": "stealth_order_moved",
-                            "stealth_order_id": stealth_order_id,
-                            "success": False,
-                            "error": (
-                                f"unknown target movement type "
-                                f"{new_target_movement_type!r}; expected one "
-                                f"of: {[item.value for item in TargetMovementType]}"
-                            ),
-                            "stage": "validate",
-                        }))
-                        return
-
-                outcome = EXECUTION_CORE.move_revealed_stealth_order(
-                    MoveRevealedStealthOrderRequest(
-                        client_order_id=stealth_order_id,
-                        new_limit_price=safe_float(
-                            new_limit_price,
-                            default=0.0,
-                        ),
-                        new_target_movement=(
-                            safe_float(new_target_movement, default=None)
-                            if new_target_movement is not None
-                            else None
-                        ),
-                        new_target_movement_type=target_movement_type,
-                        reason=reason_enum,
-                        notes=notes,
-                    )
-                )
-                admitted, move_result = await _admitted_value(
-                    websocket,
-                    msg_type,
-                    outcome,
-                )
-                if not admitted:
-                    return
-                plan = move_result.plan
-                result = move_result.result
-
-                add_log_entry(
-                    "INFO",
-                    f"Stealth order moved: {stealth_order_id} "
-                    f"@ {plan.new_configured_limit_price} "
-                    f"(new placement_client_order_id: "
-                    f"{result.new_placement_client_order_id}, "
-                    f"new exchange_order_id: {result.new_exchange_order_id})",
-                )
-                logger.info(
-                    f"[STEALTH-MOVE] {stealth_order_id} "
-                    f"old_ex={plan.old_exchange_order_id} "
-                    f"new_placement_client_order_id={result.new_placement_client_order_id} "
-                    f"new_exchange_order_id={result.new_exchange_order_id} "
-                    f"price={plan.new_configured_limit_price}"
-                )
-
-                response = {
-                    "type": "stealth_order_moved",
-                    "stealth_order_id": stealth_order_id,
-                    "success": True,
-                    "old_exchange_order_id": plan.old_exchange_order_id,
-                    "new_placement_client_order_id": result.new_placement_client_order_id,
-                    "new_exchange_order_id": result.new_exchange_order_id,
-                    "new_submitted_price": result.new_submitted_price,
-                }
-                # Broadcast so any other connected dashboards refresh too.
-                message = json.dumps(response)
-                await _broadcast_dashboard_message(message)
-
-            except StealthMoveError as e:
-                # Stage tells the UI which phase failed: validate / claim /
-                # cancel / place / persist. "place" after a successful
-                # cancel is the operator-action-required case (the stealth
-                # order is now CANCELLED and there is no replacement on
-                # the exchange — see audit table stealth_order_moves).
-                logger.warning(
-                    f"move_revealed_stealth_order rejected: "
-                    f"sid={stealth_order_id} stage={e.stage} err={e}"
-                )
-                add_log_entry(
-                    "WARN" if e.stage in ("validate", "claim") else "ERROR",
-                    f"Stealth move {stealth_order_id} failed at {e.stage}: {e}",
-                )
-                await _send_dashboard_message(websocket, json.dumps({
-                    "type": "stealth_order_moved",
-                    "stealth_order_id": stealth_order_id,
-                    "success": False,
-                    "error": str(e),
-                    "stage": e.stage,
-                }))
-            except Exception as e:
-                logger.exception(f"move_revealed_stealth_order crashed: {e}")
-                add_log_entry(
-                    "ERROR",
-                    f"Stealth move {stealth_order_id} crashed: {e}",
-                )
-                await _send_dashboard_message(websocket, json.dumps({
-                    "type": "stealth_order_moved",
-                    "stealth_order_id": stealth_order_id,
-                    "success": False,
-                    "error": str(e),
-                    "stage": "unknown",
-                }))
-
-        elif msg_type == "update_stealth_price_threshold":
-            # Update price threshold for a price-based stealth order
-            stealth_order_id = data.get("stealth_order_id")
-            price_threshold = data.get("price_threshold")
-            hold_duration_seconds = data.get("hold_duration_seconds")  # optional
-
-            if not stealth_order_id:
-                response = {
-                    "type": "error",
-                    "message": "Missing stealth_order_id"
-                }
-                await _send_dashboard_message(websocket, json.dumps(response))
-                return
-
-            if price_threshold is None:
-                response = {
-                    "type": "error",
-                    "message": "Missing price_threshold"
-                }
-                await _send_dashboard_message(websocket, json.dumps(response))
-                return
-
-            try:
-                threshold = float(price_threshold)
-            except (TypeError, ValueError):
-                response = {
-                    "type": "error",
-                    "message": "price_threshold must be numeric"
-                }
-                await _send_dashboard_message(websocket, json.dumps(response))
-                return
-
-            if threshold <= 0:
-                response = {
-                    "type": "error",
-                    "message": "price_threshold must be greater than 0"
-                }
-                await _send_dashboard_message(websocket, json.dumps(response))
-                return
-
-            # Validate optional hold_duration_seconds
-            hold_secs = None
-            if hold_duration_seconds is not None:
-                try:
-                    hold_secs = int(hold_duration_seconds)
-                    if hold_secs < 0:
-                        raise ValueError
-                except (TypeError, ValueError):
-                    response = {
-                        "type": "error",
-                        "message": "hold_duration_seconds must be a non-negative integer"
-                    }
-                    await _send_dashboard_message(websocket, json.dumps(response))
-                    return
-
-            try:
-                from database.order import get_stealth_order_by_id
-
-                existing = get_stealth_order_by_id(stealth_order_id)
-                if not existing:
-                    response = {
-                        "type": "error",
-                        "message": f"Stealth order not found: {stealth_order_id}"
-                    }
-                    await _send_dashboard_message(websocket, json.dumps(response))
-                    return
-
-                if str(existing.get("reveal_condition_type", "")).lower() != "price":
-                    response = {
-                        "type": "error",
-                        "message": "Threshold updates are only supported for price reveal conditions"
-                    }
-                    await _send_dashboard_message(websocket, json.dumps(response))
-                    return
-
-                if not stealth_order_bridge:
-                    response = {
-                        "type": "error",
-                        "message": "Stealth order bridge is not available",
-                    }
-                    await _send_dashboard_message(websocket, json.dumps(response))
-                    return
-
-                try:
-                    stealth_order_bridge.update_price_condition(
-                        stealth_order_id,
-                        price_threshold=threshold,
-                        hold_duration_seconds=hold_secs,
-                    )
-                except Exception as update_error:
+                    if outcome["accepted"]:
+                        cancelled_in_memory += 1
+                    else:
+                        cancel_failures += 1
+                except Exception:
+                    cancel_failures += 1
                     logger.exception(
-                        "Failed to update stealth price condition for %s",
-                        stealth_order_id,
-                    )
-                    response = {
-                        "type": "error",
-                        "message": str(update_error),
-                    }
-                    await _send_dashboard_message(websocket, json.dumps(response))
-                    return
-
-                hold_duration_persisted = hold_secs is not None
-
-                affected_conditions = {}
-                manager = stealth_order_bridge.stealth_manager
-                affected_snapshot = getattr(
-                    manager,
-                    "strategy_condition_order_ids",
-                    None,
-                )
-                affected_ids = (
-                    affected_snapshot(stealth_order_id)
-                    if callable(affected_snapshot)
-                    else (stealth_order_id,)
-                )
-                if not isinstance(affected_ids, (list, tuple, set)):
-                    affected_ids = (stealth_order_id,)
-                for affected_id in affected_ids:
-                    affected_order = manager.in_memory_orders.get(affected_id)
-                    if not isinstance(affected_order, dict):
-                        continue
-                    affected_conditions[affected_id] = deepcopy(
-                        affected_order.get("reveal_condition_json") or {}
+                        "Clear All failed to cancel %s",
+                        client_order_id,
                     )
 
-                # Sync state payload cache
-                with state_lock:
-                    for affected_id, reveal_json in affected_conditions.items():
-                        if affected_id in engine_state["stealth_orders"]:
-                            engine_state["stealth_orders"][affected_id][
-                                "reveal_condition_json"
-                            ] = deepcopy(reveal_json)
-
-                response = {
-                    "type": "stealth_threshold_updated",
-                    "stealth_order_id": stealth_order_id,
-                    "price_threshold": threshold,
-                    "hold_duration_seconds": hold_secs if hold_duration_persisted else None,
-                    "affected_conditions": affected_conditions,
-                }
-
-                add_log_entry("INFO", f"Stealth threshold updated: {stealth_order_id} -> {threshold}" + (f", hold={hold_secs}s" if hold_secs is not None else ""))
-                logger.info(f"Stealth threshold updated: {stealth_order_id} -> {threshold}" + (f", hold={hold_secs}s" if hold_secs is not None else ""))
-
-                message = json.dumps(response, cls=CustomJSONEncoder)
-                await _broadcast_dashboard_message(message)
-
-                await _send_dashboard_message(websocket, json.dumps({"type": "update_success", "message": "Threshold updated"}))
-
-            except Exception as e:
-                logger.error(f"Failed to update stealth threshold: {e}")
-                response = {
-                    "type": "error",
-                    "message": f"Failed to update threshold: {str(e)}"
-                }
-                add_log_entry("ERROR", f"Stealth threshold update failed: {str(e)}")
-                await _send_dashboard_message(websocket, json.dumps(response))
-        
-        elif msg_type == "update_parent_target_movement":
-            # Update target movement for a parent order
-            parent_order_id = data.get("parent_order_id")
-            target_movement = data.get("target_movement")
-            target_movement_type = data.get("target_movement_type", "P")
-            
-            if not parent_order_id:
-                response = {
-                    "type": "error",
-                    "message": "Missing parent_order_id"
-                }
-                await _send_dashboard_message(websocket, json.dumps(response))
-                return
-            
-            try:
-                from database.order import update_parent_order_target_movement, get_parent_order
-                
-                # Update in database (order_parent table is source of truth for target_movement)
-                success = update_parent_order_target_movement(
-                    parent_order_id=parent_order_id,
-                    target_movement=target_movement,
-                    target_movement_type=target_movement_type
-                )
-                
-                if success:
-                    # Sync to in-memory cache for fast access
-                    if stealth_order_bridge:
-                        stealth_order_bridge.stealth_manager.sync_target_movement_to_cache(
-                            parent_order_id,
-                            target_movement,
-                            target_movement_type
-                        )
-                    
-                    response = {
-                        "type": "parent_target_movement_updated",
-                        "parent_order_id": parent_order_id,
-                        "target_movement": target_movement,
-                        "target_movement_type": target_movement_type
-                    }
-                    
-                    add_log_entry("INFO", f"Parent order target_movement updated: {parent_order_id} = {target_movement}{target_movement_type}")
-                    logger.info(f"Parent order target_movement updated: {parent_order_id} = {target_movement}{target_movement_type}")
-                    
-                    # Broadcast to all clients
-                    message = json.dumps(response, cls=CustomJSONEncoder)
-                    await _broadcast_dashboard_message(message)
-                    
-                    await _send_dashboard_message(websocket, json.dumps({"type": "update_success", "message": "Parent target movement updated"}))
-                else:
-                    response = {
-                        "type": "error",
-                        "message": f"Failed to update parent order: {parent_order_id}"
-                    }
-                    add_log_entry("ERROR", f"Failed to update parent target_movement: {parent_order_id}")
-                    await _send_dashboard_message(websocket, json.dumps(response))
-                
-            except Exception as e:
-                logger.error(f"Failed to update parent target_movement: {e}")
-                response = {
-                    "type": "error",
-                    "message": f"Failed to update parent target movement: {str(e)}"
-                }
-                add_log_entry("ERROR", f"Parent target_movement update failed: {str(e)}")
-                await _send_dashboard_message(websocket, json.dumps(response))
-
-        elif msg_type == "clear_all_stealth_orders":
-            # Stop through the canonical path, but preserve recovery evidence
-            # until every cancellation is settled. The operator can retry Clear
-            # All afterwards; there is no deferred deletion job.
-            try:
-                from database.order import clear_all_stealth_orders
-
-                cancelled_in_memory = 0
-                cancel_failures = 0
-                mgr = None
-                if stealth_order_bridge is not None:
-                    mgr = stealth_order_bridge.stealth_manager
-                    orders = stealth_order_bridge.get_stealth_orders()
-                    for sid, order in orders.items():
-                        if (
-                            order.get("status") in _TERMINAL_STEALTH_STATUSES
-                            and not _stealth_exchange_cancel_pending(order)
-                        ):
-                            continue
-                        try:
-                            outcome = _cancel_managed_stealth_order(
-                                sid, "Clear All Orders (dashboard)"
-                            )
-                            if outcome["accepted"]:
-                                cancelled_in_memory += 1
-                            else:
-                                cancel_failures += 1
-                        except Exception as cancel_exc:
-                            cancel_failures += 1
-                            logger.error(
-                                f"Clear All: failed to cancel stealth order {sid}: {cancel_exc}"
-                            )
-                # Do not acquire a SID action lock while holding the creation
-                # lock: creation takes them in the opposite order.
-                with mgr._creation_lock if mgr is not None else nullcontext():
-                    current = stealth_order_bridge.get_stealth_orders() if mgr is not None else {}
-                    pending = any(_stealth_exchange_cancel_pending(row) for row in current.values())
-                    active = any(row.get("status") not in _TERMINAL_STEALTH_STATUSES for row in current.values())
-                    blocked = bool(cancel_failures or pending or active)
-                    if not blocked:
-                        result = clear_all_stealth_orders()
-                        if result["success"] and mgr is not None:
-                            mgr.clear_in_memory_orders()
-                            mgr._placed_order_index.clear()
-                if blocked:
-                    await _send_dashboard_message(websocket, json.dumps({
-                        "type": "stealth_orders_clear_result", "cleared": False,
+        creation_context = (
+            manager._creation_lock
+            if manager is not None
+            else nullcontext()
+        )
+        with creation_context:
+            current = (
+                stealth_order_bridge.get_stealth_orders()
+                if manager is not None
+                else {}
+            )
+            pending = any(
+                _stealth_exchange_cancel_pending(row)
+                for row in current.values()
+            )
+            active = any(
+                row.get("status") not in _TERMINAL_STEALTH_STATUSES
+                for row in current.values()
+            )
+            blocked = bool(cancel_failures or pending or active)
+            if blocked:
+                raise _rpc_application_error(
+                    "No records deleted. Resolve outstanding "
+                    "cancellations, then retry Clear All.",
+                    reason=OperatorErrorReason.PRECONDITION_FAILED,
+                    data={
+                        "cleared": False,
                         "exchange_cancel_pending": pending,
                         "in_memory_cancelled": cancelled_in_memory,
                         "in_memory_cancel_failures": cancel_failures,
-                        "message": "No records deleted. Resolve outstanding cancellations, then retry Clear All.",
-                    }))
-                    return
+                        "retryable": True,
+                    },
+                )
+            result = clear_all_stealth_orders()
+            if not result["success"]:
+                raise _rpc_application_error(
+                    "Failed to clear orders: "
+                    f"{result.get('error', 'Unknown error')}",
+                    reason=OperatorErrorReason.OPERATION_FAILED,
+                    code=OperatorRpcErrorCode.APPLICATION_FAILED,
+                    data={"retryable": False},
+                )
+            if manager is not None:
+                manager.clear_in_memory_orders()
+                manager._placed_order_index.clear()
 
-                if result["success"]:
-                    # Clear dashboard's view-copy as well
-                    with state_lock:
-                        engine_state["stealth_orders"] = {}
+        with state_lock:
+            engine_state["stealth_orders"] = {}
+        add_log_entry(
+            "INFO",
+            f"All stealth orders cleared - {result['rows_deleted']} "
+            f"DB rows, {cancelled_in_memory} in-memory cancelled, "
+            f"{cancel_failures} cancel failures",
+        )
+        return _rpc_result(
+            {
+                "rows_deleted": result["rows_deleted"],
+                "in_memory_cancelled": cancelled_in_memory,
+                "in_memory_cancel_failures": cancel_failures,
+                "message": result["message"],
+            },
+            broadcast_stealth_orders=True,
+        )
+    except OperatorRpcError:
+        raise
+    except Exception as exc:
+        logger.exception("Failed to clear stealth orders")
+        raise _rpc_application_error(
+            f"Failed to clear orders: {exc}",
+            reason=OperatorErrorReason.OPERATION_FAILED,
+            code=OperatorRpcErrorCode.APPLICATION_FAILED,
+            data={"retryable": False},
+        ) from exc
 
-                    response = {
-                        "type": "stealth_orders_cleared",
-                        "rows_deleted": result["rows_deleted"],
-                        "in_memory_cancelled": cancelled_in_memory,
-                        "in_memory_cancel_failures": cancel_failures,
-                        "message": result["message"]
-                    }
 
-                    add_log_entry(
-                        "INFO",
-                        f"All stealth orders cleared - {result['rows_deleted']} DB rows, "
-                        f"{cancelled_in_memory} in-memory cancelled, "
-                        f"{cancel_failures} cancel failures"
-                    )
-                    logger.info(
-                        f"All stealth orders cleared - {result['rows_deleted']} DB rows, "
-                        f"{cancelled_in_memory} in-memory cancelled, "
-                        f"{cancel_failures} cancel failures"
-                    )
-                    
-                    # Broadcast to all clients
-                    message = json.dumps(response)
-                    await _broadcast_dashboard_message(message)
-                else:
-                    response = {
-                        "type": "error",
-                        "message": f"Failed to clear orders: {result.get('error', 'Unknown error')}"
-                    }
-                    add_log_entry("ERROR", f"Failed to clear stealth orders: {result.get('error')}")
-                    await _send_dashboard_message(websocket, json.dumps(response))
-                
-            except Exception as e:
-                logger.error(f"Failed to clear stealth orders: {e}")
-                response = {
-                    "type": "error",
-                    "message": f"Failed to clear orders: {str(e)}"
-                }
-                add_log_entry("ERROR", f"Clear stealth orders failed: {str(e)}")
-                await _send_dashboard_message(websocket, json.dumps(response))
-        
-        elif msg_type == "update_parent_order":
-            # Update existing parent order
-            try:
-                from database.order_dashboard_helpers import update_parent_order, get_parent_order_by_client_id
-                order = data.get("order", {})
-                
-                client_order_id = order.get('client_order_id')
-                update_data = {
-                    'size': float(order.get('size', 0)),
-                    'price': float(order.get('price', 0)),
-                    'target_movement': float(order.get('target_movement')) if order.get('target_movement') else None,
-                    'max_order_replacement': int(order.get('max_order_replacement', 0)),
-                    'status': order.get('status', 'OPEN')
-                }
-                
-                if not update_parent_order(
-                    client_order_id,
-                    update_data,
-                    metadata_reader=_product_metadata_reader,
-                ):
-                    raise OrderCreationError(
-                        "Parent order update failed boundary or persistence validation",
-                        client_order_id=client_order_id,
-                    )
-                
-                # Fetch the updated order
-                updated_order = get_parent_order_by_client_id(client_order_id)
-                
-                response = {
-                    "type": "parent_order_updated",
-                    "order": updated_order
-                }
-                
-                add_log_entry("INFO", f"Parent order updated: {client_order_id}")
-                logger.info(f"Parent order updated: {client_order_id}")
-                
-                # Broadcast to all clients
-                message = json.dumps(response)
-                await _broadcast_dashboard_message(message)
-                
-            except Exception as e:
-                logger.error(f"Failed to update parent order: {e}")
-                response = {
-                    "type": "error",
-                    "message": f"Failed to update order: {str(e)}"
-                }
-                add_log_entry("ERROR", f"Parent order update failed: {str(e)}")
-                await _send_dashboard_message(websocket, json.dumps(response))
-        
-    except json.JSONDecodeError:
-        logger.error(f"Invalid JSON received: {message}")
+async def _rpc_strategy_update_parent(
+    params: Dict[str, Any],
+) -> _RpcDispatchResult:
+    try:
+        from database.order_dashboard_helpers import (
+            get_parent_order_by_client_id,
+            update_parent_order,
+        )
+
+        client_order_id = params["client_order_id"]
+        update_data = {
+            "size": float(params["size"]),
+            "price": float(params["price"]),
+            "target_movement": params.get("target_movement"),
+            "max_order_replacement": int(
+                params["max_order_replacement"]
+            ),
+            "status": params["status"],
+        }
+        if not update_parent_order(
+            client_order_id,
+            update_data,
+            metadata_reader=_product_metadata_reader,
+        ):
+            raise OrderCreationError(
+                "Parent order update failed boundary or persistence "
+                "validation",
+                client_order_id=client_order_id,
+            )
+        updated_order = get_parent_order_by_client_id(client_order_id)
+        if isinstance(updated_order, dict):
+            updated_order = _normalize_stealth_orders_for_operator({
+                client_order_id: updated_order,
+            })[client_order_id]
+        add_log_entry(
+            "INFO",
+            f"Parent order updated: {client_order_id}",
+        )
+        return _rpc_result(
+            {
+                "client_order_id": client_order_id,
+                "order": updated_order,
+            },
+            broadcast_stealth_orders=True,
+        )
+    except Exception as exc:
+        raise _rpc_application_error(
+            f"Failed to update order: {exc}",
+            reason=OperatorErrorReason.OPERATION_FAILED,
+            code=OperatorRpcErrorCode.APPLICATION_FAILED,
+            data={
+                "client_order_id": params.get("client_order_id"),
+                "retryable": False,
+            },
+        ) from exc
+
+
+_RPC_HANDLERS: Dict[OperatorRpcMethod, _RpcHandler] = {
+    OperatorRpcMethod.SESSION_BOOTSTRAP: _rpc_session_bootstrap,
+    OperatorRpcMethod.RUNTIME_STATUS: _rpc_runtime_status,
+    OperatorRpcMethod.RUNTIME_PAUSE: _rpc_runtime_pause,
+    OperatorRpcMethod.RUNTIME_RESUME: _rpc_runtime_resume,
+    OperatorRpcMethod.RUNTIME_SHUTDOWN: _rpc_runtime_shutdown,
+    OperatorRpcMethod.STEALTH_LIST: _rpc_stealth_list,
+    OperatorRpcMethod.STEALTH_EXPORT: _rpc_stealth_export,
+    OperatorRpcMethod.STEALTH_IMPORT: _rpc_stealth_import,
+    OperatorRpcMethod.STEALTH_CREATE: _rpc_stealth_create,
+    OperatorRpcMethod.STEALTH_CREATE_SPAN: _rpc_stealth_create_span,
+    OperatorRpcMethod.STEALTH_CANCEL: _rpc_stealth_cancel,
+    OperatorRpcMethod.STEALTH_REHIDE: _rpc_stealth_rehide,
+    OperatorRpcMethod.STEALTH_REPRICE_NOW: _rpc_stealth_reprice_now,
+    OperatorRpcMethod.STEALTH_MOVE_REVEALED: (
+        _rpc_stealth_move_revealed
+    ),
+    OperatorRpcMethod.STEALTH_UPDATE_PRICE_CONDITION: (
+        _rpc_stealth_update_price_condition
+    ),
+    OperatorRpcMethod.STEALTH_CLEAR_ALL: _rpc_stealth_clear_all,
+    OperatorRpcMethod.STRATEGY_UPDATE_TARGET: (
+        _rpc_strategy_update_target
+    ),
+    OperatorRpcMethod.STRATEGY_UPDATE_PARENT: (
+        _rpc_strategy_update_parent
+    ),
+}
+
+
+async def handle_client_message(
+    websocket: WebSocketServerProtocol,
+    message: str,
+) -> None:
+    """Decode, dispatch, and answer one correlated operator request."""
+
+    request: OperatorRpcRequest | None = None
+    try:
+        request = decode_request(message)
+        handler_function = _RPC_HANDLERS[request.method]
+        dispatch_result = await handler_function(request.params)
+    except OperatorRpcError as exc:
+        request_id = (
+            request.request_id
+            if request is not None
+            else exc.request_id
+        )
+        await _send_dashboard_message(
+            websocket,
+            _encode_rpc_error_response(request_id, exc),
+        )
+        return
+    except Exception as exc:
+        logger.exception("Unhandled operator RPC failure")
+        error = OperatorRpcError(
+            OperatorRpcErrorCode.INTERNAL_ERROR,
+            "Internal operator RPC error",
+            reason=OperatorErrorReason.INDETERMINATE,
+            data={"retryable": False},
+        )
+        await _send_dashboard_message(
+            websocket,
+            _encode_rpc_error_response(
+                request.request_id if request is not None else None,
+                error,
+            ),
+        )
+        return
+
+    try:
+        response_message = encode_success(
+            request.request_id,
+            dispatch_result.payload,
+        )
+    except Exception:
+        logger.exception("Operator RPC result was not serializable")
+        error = OperatorRpcError(
+            OperatorRpcErrorCode.INTERNAL_ERROR,
+            "Internal operator RPC error",
+            reason=OperatorErrorReason.INDETERMINATE,
+            data={"retryable": False},
+        )
+        await _send_dashboard_message(
+            websocket,
+            _encode_rpc_error_response(request.request_id, error),
+        )
+        return
+
+    await _send_dashboard_message(
+        websocket,
+        response_message,
+    )
+
+    try:
+        if dispatch_result.broadcast_runtime:
+            await broadcast_state()
+        if dispatch_result.broadcast_stealth_orders:
+            await _broadcast_stealth_orders_projection()
+    except Exception:
+        logger.exception(
+            "Operator response succeeded but projection publication failed"
+        )
 
 
 async def handler(websocket: WebSocketServerProtocol, path: str):
@@ -1733,6 +1922,8 @@ async def handler(websocket: WebSocketServerProtocol, path: str):
         async for message in websocket:
             await handle_client_message(websocket, message)
     except websockets.exceptions.ConnectionClosed:
+        pass
+    finally:
         await unregister_client(websocket)
 
 
@@ -1806,12 +1997,13 @@ def add_log_entry(level: str, message: str, context: Dict[str, Any] = None):
 
 async def _async_broadcast_ticker(ticker_data: Dict[str, Any]):
     """Broadcast one latest-per-product ticker update."""
-    payload = {
-        "type": "ticker",
-        "data": ticker_data,
-        "timestamp": datetime.utcnow().isoformat(),
-    }
-    message = json.dumps(payload)
+    message = encode_notification(
+        OperatorNotificationMethod.MARKET_TICKER,
+        {
+            "ticker": ticker_data,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    )
     await _broadcast_dashboard_message(message)
 
 
@@ -2018,35 +2210,61 @@ def _take_spread_snapshot() -> list:
 
 async def _async_broadcast_spread(spread_snapshot: list):
     """Async version of broadcast_spread for scheduling from event loop."""
-    payload = {
-        "type": "spread_snapshot",
-        "data": spread_snapshot,
-        "timestamp": datetime.utcnow().isoformat(),
-    }
-    message = json.dumps(payload)
+    message = encode_notification(
+        OperatorNotificationMethod.MARKET_SPREAD_SNAPSHOT,
+        {
+            "spreads": spread_snapshot,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    )
     await _broadcast_dashboard_message(message)
 
 
-async def send_stealth_orders_snapshot(websocket: WebSocketServerProtocol):
-    """Send current stealth orders to a client."""
-    try:
-        with state_lock:
-            orders_snapshot = deepcopy(engine_state["stealth_orders"])
+def _stealth_orders_snapshot_payload() -> Dict[str, Any]:
+    """Build the current enriched stealth-order projection."""
 
-        # Parent enrichment performs database I/O. Never hold state_lock while
-        # waiting for it, and fetch all relevant parents in one query.
-        enriched_orders = _enrich_stealth_orders_with_parent_data(orders_snapshot)
-        repricing_stats = _calculate_repricing_statistics(enriched_orders)
-        payload = {
-            "type": "stealth_orders_snapshot",
-            "orders": enriched_orders,
-            "repricing_stats": repricing_stats,
-            "timestamp": datetime.utcnow().isoformat(),
-        }
-        
-        await _send_dashboard_message(websocket, json.dumps(payload, cls=CustomJSONEncoder))
+    with state_lock:
+        orders_snapshot = deepcopy(engine_state["stealth_orders"])
+
+    # Parent enrichment performs database I/O. Never hold state_lock while
+    # waiting for it, and fetch all relevant parents in one query.
+    enriched_orders = _enrich_stealth_orders_with_parent_data(
+        orders_snapshot
+    )
+    return {
+        "orders": _normalize_stealth_orders_for_operator(
+            enriched_orders
+        ),
+        "repricing_stats": _calculate_repricing_statistics(
+            enriched_orders
+        ),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+async def send_stealth_orders_snapshot(websocket: WebSocketServerProtocol):
+    """Send the current canonical stealth-order projection notification."""
+    try:
+        await _send_dashboard_message(
+            websocket,
+            encode_notification(
+                OperatorNotificationMethod.STEALTH_ORDERS_PROJECTION,
+                _stealth_orders_snapshot_payload(),
+            ),
+        )
     except Exception as e:
         logger.error(f"Failed to send stealth orders snapshot: {e}")
+
+
+async def _broadcast_stealth_orders_projection() -> None:
+    """Broadcast the current canonical stealth-order projection."""
+
+    await _broadcast_dashboard_message(
+        encode_notification(
+            OperatorNotificationMethod.STEALTH_ORDERS_PROJECTION,
+            _stealth_orders_snapshot_payload(),
+        )
+    )
 
 
 def _calculate_repricing_statistics(orders: Dict[str, Any]) -> Dict[str, Any]:
@@ -2150,21 +2368,6 @@ def _enrich_stealth_orders_with_parent_data(orders: Dict[str, Any]) -> Dict[str,
     return enriched
 
 
-async def broadcast_stealth_order_update(update: Dict[str, Any]):
-    """Broadcast stealth order update to all connected clients."""
-    global server_event_loop
-    
-    if not server_event_loop or not connected_clients:
-        return
-    
-    try:
-        message = json.dumps(update, cls=CustomJSONEncoder)
-        
-        await _broadcast_dashboard_message(message)
-    except Exception as e:
-        logger.debug(f"Failed to broadcast stealth order update: {e}")
-
-
 async def _stealth_orders_refresh_loop():
     """Background task to refresh stealth orders from database every 30 seconds."""
     while True:
@@ -2184,15 +2387,7 @@ async def _stealth_orders_refresh_loop():
                         # Update with enriched orders
                         engine_state["stealth_orders"] = enriched_orders
                     
-                    # Broadcast updated snapshot
-                    payload = {
-                        "type": "stealth_orders_snapshot",
-                        "orders": enriched_orders,
-                        "timestamp": datetime.utcnow().isoformat(),
-                    }
-                    
-                    message = json.dumps(payload, cls=CustomJSONEncoder)
-                    await _broadcast_dashboard_message(message)
+                    await _broadcast_stealth_orders_projection()
                 except Exception as e:
                     logger.debug(f"Error refreshing stealth orders: {e}")
         

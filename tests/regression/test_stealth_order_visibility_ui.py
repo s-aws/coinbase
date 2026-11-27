@@ -87,9 +87,9 @@ def test_manager_uses_one_active_status_predicate_for_visibility_and_actions():
 def test_manager_preserves_group_history_and_handles_no_visible_groups():
     html = _manager_html()
     table = _slice_between(html, "function updateOrdersTable()", "function updateStats()")
-    assert "const parentOrders = orders.filter(o => !o.parent_order_id);" in table
-    assert "orders.filter(o => o.parent_order_id).forEach(childOrder => {" in table
-    assert "childOrdersByParent[childOrder.parent_order_id].push(childOrder);" in table
+    assert "const parentOrders = orders.filter(o => !o.parent_client_order_id);" in table
+    assert "orders.filter(o => o.parent_client_order_id).forEach(childOrder => {" in table
+    assert "childOrdersByParent[childOrder.parent_client_order_id].push(childOrder);" in table
 
     render_groups = _slice_between(
         table,
@@ -97,8 +97,8 @@ def test_manager_preserves_group_history_and_handles_no_visible_groups():
         "tbody.innerHTML = html;",
     )
     assert "html += renderOrderRow(parentOrder, false);" in render_groups
-    assert "childOrdersByParent[parentOrder.stealth_order_id].forEach(childOrder => {" in render_groups
-    assert "html += renderOrderRow(childOrder, true, parentOrder.stealth_order_id);" in render_groups
+    assert "childOrdersByParent[parentOrder.client_order_id].forEach(childOrder => {" in render_groups
+    assert "html += renderOrderRow(childOrder, true, parentOrder.client_order_id);" in render_groups
     assert ".filter(" not in render_groups
 
     empty_state = _slice_between(
@@ -134,16 +134,16 @@ def test_rehide_action_restarts_same_order_without_creating_a_duplicate():
     warning = confirmation.group(1).lower()
     for phrase in ("withdrawn", "same order", "reveal again", "satisfied"):
         assert phrase in warning
-    assert 'type: "rehide_stealth_order"' in rehide
-    assert "stealth_order_id: orderID" in rehide
+    assert "sendRpc(RPC_METHODS.STEALTH_REHIDE" in rehide
+    assert "client_order_id: orderID" in rehide
     assert "order.status !== 'REVEALED'" in rehide
     assert "isStealthRearmPending(order)" in rehide
     assert "Number(order.executed_size) > 0" in rehide
     assert "placementClientOrderId: (order.anchor_repricing_state_json || {}).active_placement_client_order_id" in rehide
     assert "order.active_placement_client_order_id" not in html
     assert "sendCreateStealthOrderMessage" not in rehide
-    assert "create_stealth_order" not in rehide
-    assert "cancel_stealth_order" not in rehide
+    assert "RPC_METHODS.STEALTH_CREATE" not in rehide
+    assert "RPC_METHODS.STEALTH_CANCEL" not in rehide
     assert ".status =" not in rehide
 
     create_message = _slice_between(
@@ -151,8 +151,9 @@ def test_rehide_action_restarts_same_order_without_creating_a_duplicate():
         "function sendCreateStealthOrderMessage(orderData)",
         "function isStealthRearmPending(order)",
     )
-    assert 'type: "create_stealth_order"' in create_message
-    assert "order: orderData" in create_message
+    assert "sendRpc(RPC_METHODS.STEALTH_CREATE" in create_message
+    assert "client_order_id: newRpcRequestId()" in create_message
+    assert "...orderData" in create_message
 
 
 @pytest.mark.regression
@@ -160,22 +161,20 @@ def test_rehide_result_waits_for_authoritative_state_and_guards_conflicting_acti
     html = _manager_html()
     result_handler = _slice_between(
         html,
-        '} else if (data.type === "stealth_order_rehide_result")',
-        '} else if (data.type === "reprice_now_result")',
+        '} else if (method === RPC_METHODS.STEALTH_REHIDE)',
+        '} else if (method === RPC_METHODS.STEALTH_REPRICE_NOW)',
     )
-    assert "data.accepted ? 'info' : 'error'" in result_handler
-    assert "type: 'request_stealth_orders'" in result_handler
+    assert "request.accepted = Boolean(result.accepted)" in result_handler
+    assert "confirmation pending" in result_handler
     assert ".status =" not in result_handler
     assert "ordersData[" not in result_handler
-    assert 'data.type === "admission_rejected"' in result_handler
-    assert "if (request) request.accepted = true" in result_handler
 
     snapshot_handler = _slice_between(
         html,
-        '} else if (data.type === "stealth_orders_snapshot")',
-        '} else if (data.type === "stealth_order_created")',
+        'function applyStealthOrdersProjection(projection)',
+        'function applyBootstrap(result)',
     )
-    assert "if (request.accepted && progressed) pendingRehideRequests.delete(sid)" in snapshot_handler
+    assert "if (request.accepted && progressed) pendingRehideRequests.delete(clientOrderId)" in snapshot_handler
     assert "(order.anchor_repricing_state_json || {}).active_placement_client_order_id !== request.placementClientOrderId" in snapshot_handler
     assert "order.anchor_repricing_state_json.pending_rearm" in snapshot_handler
     assert "pendingRehideRequests.clear()" not in snapshot_handler
@@ -183,7 +182,7 @@ def test_rehide_result_waits_for_authoritative_state_and_guards_conflicting_acti
     pending_guard = _slice_between(
         html, "function isStealthRearmPending(order)", "function rehideOrder(orderID)"
     )
-    assert "pendingRehideRequests.has(order.stealth_order_id)" in pending_guard
+    assert "pendingRehideRequests.has(order.client_order_id)" in pending_guard
     assert "order.anchor_repricing_state_json.pending_rearm" in pending_guard
 
     table = _slice_between(html, "function updateOrdersTable()", "function updateStats()")
@@ -197,13 +196,15 @@ def test_rehide_result_waits_for_authoritative_state_and_guards_conflicting_acti
 @pytest.mark.regression
 def test_operator_cancellation_is_pending_authoritative_and_can_supersede_rehide():
     html = _manager_html()
-    handler = _slice_between(html, '} else if (data.type === "stealth_order_cancel_result")',
-                             '} else if (data.type === "stealth_orders_cleared")')
-    assert "if (data.order) ordersData[data.stealth_order_id] = data.order" in handler
+    handler = _slice_between(
+        html,
+        '} else if (method === RPC_METHODS.STEALTH_CANCEL)',
+        '} else if (method === RPC_METHODS.STEALTH_REHIDE)',
+    )
+    assert "pendingCancelRequests.delete" in handler
+    assert "confirmation pending" in handler
     assert ".status =" not in handler
     assert "ordersData = {}" not in handler
-    assert "stealth_orders_clear_result" in handler
-    assert "type: 'request_stealth_orders'" in handler
     cancel = _slice_between(html, "function cancelOrder(orderID)", "function sendCreateStealthOrderMessage")
     assert "isOperatorCancellationRequested(order)" in cancel
     assert "isStealthRearmPending(order)" not in cancel
