@@ -178,6 +178,9 @@ The executable protocol schema is committed at `operator_api/schema.json`.
 `OperatorOutcome`, `OperatorErrorReason`, and `OperatorRpcErrorCode` own
 the fixed wire vocabulary. `dashboard_server._RPC_HANDLERS` is an explicit
 method-to-function map; reflection or method-name dispatch is not supported.
+The schema's `methodParams`, `methodResults`, and `notificationParams` maps are
+the machine-consumable per-method contracts reserved for generated client
+bindings. Generation itself is not implemented yet.
 
 ### Request and response framing
 
@@ -216,6 +219,35 @@ standard JSON-RPC `error.code` and `error.message` fields plus structured
 `unavailable`, `operation_failed`, and `indeterminate`. Validation errors
 include field paths; operational errors retain actionable evidence such as the
 failed move stage and retryability.
+
+After a handler returns, `operator_api.protocol` JSON-normalizes the payload,
+resolves the exact result schema from the originating `OperatorRpcMethod`, and
+validates that wire value before emitting success. The response remains
+standard JSON-RPC and therefore does not echo the method; a client selects its
+result type from the method held in its pending request-ID record. Missing,
+extra, wrongly typed, or impossible discriminated result states never cross the
+wire as success. They produce exactly one correlated `INTERNAL_ERROR` with
+`reason=indeterminate` and `retryable=false`. A mutating handler may already
+have completed at that point, so clients must not retry automatically. After
+the correlated error is sent, the adapter independently attempts each runtime
+or stealth-order projection requested by the completed handler. Projection
+failure is logged, does not emit another response, and does not prevent a
+sibling requested projection from being attempted.
+
+Schema `date-time` fields are asserted as RFC 3339 values by the Python
+boundary. Stable product-metadata, dashboard engine-status, and updated-parent
+fields are typed while their explicitly extensible objects may retain additive
+telemetry. Span success requires matching outer `outcome` and inner `status`;
+a failed rung carries `error`. Managed cancel reports `succeeded` only when
+`exchange_cancel_pending=false`, otherwise it reports `accepted_pending`.
+Span rung results retain the existing legacy `parent_order_id` field; normal
+order projections use `parent_client_order_id`. That inconsistency is frozen
+wire debt and must be resolved deliberately before generated bindings are cut.
+
+Result validation is synchronous on the WebSocket event loop and traverses the
+full response. This is acceptable for the current low-volume operator surface,
+but large bootstrap/list/export projections are a scaling bound to remeasure
+before high-volume or remote clients are supported.
 
 ### Version-one methods
 

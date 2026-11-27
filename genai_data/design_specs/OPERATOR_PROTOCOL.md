@@ -3,10 +3,10 @@
 | Field | Value |
 |---|---|
 | Status | `IMPLEMENTED` |
-| Operator approval | Approved 2026-11-27 as Operator Console stage 1 |
-| Checklist or objective | Normalize the operator transport before the TypeScript/Vite build foundation |
+| Operator approval | Stage 1 and Stage 2A approved 2026-11-27 |
+| Checklist or objective | Normalize the operator transport and complete its bidirectional schema before TypeScript generation |
 | Last evidence review | 2026-11-27, current worktree |
-| Implementation | Source, retained clients, healthcheck, tests, living docs, and repository graph implemented and validated |
+| Implementation | Stage 1 framing plus Stage 2A method params/results, notification contracts, producer validation, tests, living docs, and graph implemented and validated |
 
 ## Decision
 
@@ -25,8 +25,8 @@ supplied create `client_order_id` retain their own contracts.
 | Concern | Owner |
 |---|---|
 | Fixed methods, notifications, outcomes, reasons, and error codes | `core/enums.py` |
-| Executable wire and method-param schema | `operator_api/schema.json` |
-| Decode/validate/encode framing | `operator_api/protocol.py` |
+| Executable wire, method-param/result, and notification schema | `operator_api/schema.json` |
+| Decode, inbound validation, method-correlated result validation, and framing | `operator_api/protocol.py` |
 | Explicit application dispatch and projection publication | `dashboard_server.py` |
 | Atomic originating-command admission | `ExecutionCore` |
 | Lifecycle/persistence/exchange truth | Existing engine, manager, bridge, and persistence owners |
@@ -65,6 +65,21 @@ Success results contain one of:
 - `partial`: a documented non-atomic multi-entry operation partially
   completed.
 
+The committed schema defines the exact top-level result for every method and
+the params for every notification. After dispatch, the server selects the
+result contract by the originating method, JSON-normalizes the handler payload,
+and validates the wire value before success emission. RFC 3339 date-time
+formats and stable nested product/status/parent fields are asserted; span and
+cancel outcome discriminants reject combinations the producers cannot emit.
+The method is not added to the response; clients retain it in their pending
+request-ID map. A producer-contract defect returns one correlated
+`INTERNAL_ERROR` with `indeterminate` evidence. Because a mutating handler may
+already have completed, this failure never authorizes an automatic retry. The
+adapter sends that error first, then independently attempts every runtime or
+stealth-order projection requested by the completed handler. A projection
+failure is logged, cannot replace or supplement the terminal response, and
+does not suppress another requested projection.
+
 Errors use standard JSON-RPC codes plus the reserved application range in
 `OperatorRpcErrorCode`. `error.data.reason` is stable machine vocabulary;
 field validation includes paths and operational failures retain stage,
@@ -74,7 +89,10 @@ identity, retryability, or retained-order evidence when available.
 
 The authoritative method and notification inventories are the enums and
 committed schema, checked against `dashboard_server._RPC_HANDLERS` by regression
-tests. The living human-readable table is in `API_REFERENCE.md`.
+tests. Params, results, and notifications are ordinary closed schema maps
+intended as input to a future pinned generator; no TypeScript generator has
+been selected or proven compatible yet. The living human-readable table is in
+`API_REFERENCE.md`.
 
 The originating set remains exactly single create, span create, import,
 Rehide, manual reprice, and move-revealed. This stage does not silently move
@@ -84,7 +102,20 @@ separate modular-boundary work requiring its own review.
 Runtime, stealth-order, ticker, and spread publications are server
 notifications and never command responses. Mutation handlers send the
 correlated response before best-effort projection publication; a projection
-publication failure does not rewrite a successful command result.
+publication failure does not rewrite a successful command result. The same
+ordering applies when a completed handler's result violates its producer
+contract: the correlated indeterminate error precedes the requested
+best-effort projections.
+
+Span rung results retain the pre-existing `parent_order_id` spelling while
+normal order projections expose `parent_client_order_id`. Stage 2A records that
+as legacy wire debt instead of silently changing an existing result. Resolve it
+as an explicit protocol migration before generated bindings become durable.
+
+Method-result validation traverses the full response synchronously on the
+WebSocket event loop. Current operator volume makes that acceptable; large
+bootstrap/list/export payloads remain a documented scaling bound to remeasure
+before high-volume or remote consumers are supported.
 
 ## Backup Versioning
 
@@ -117,7 +148,8 @@ merely with a new JSON-RPC ID.
 
 In scope:
 
-- protocol enums, committed JSON Schema, strict framing, explicit dispatch;
+- protocol enums, complete bidirectional JSON Schema, strict framing, explicit
+  dispatch, and method-correlated producer validation;
 - both retained browser clients and deployment healthcheck;
 - removal of ghost wire variants;
 - backup versioning, contract regression tests, docs, and graph evidence.
@@ -135,6 +167,12 @@ Not in scope:
 ## Acceptance Evidence
 
 - Schema method inventory, protocol enums, and explicit dispatch are equal.
+- Every method has a representative closed result contract; missing, extra,
+  wrong-type, invalid-format, and impossible discriminated states fail before
+  success emission; completed handlers still publish each requested projection
+  after the correlated indeterminate error, with failures isolated.
+- Notification inventory and method-specific payload contracts are complete,
+  and current runtime, stealth, ticker, and spread builders conform.
 - Malformed JSON, batch/non-object input, client notifications, unknown
   methods, legacy identifier names, and invalid params fail structurally.
 - One request produces one response with the same UUID; notifications have no
@@ -142,8 +180,9 @@ Not in scope:
 - Both retained pages bootstrap, correlate requests, use `client_order_id`, and
   contain no legacy `data.type`/ghost branches.
 - Runtime deployment health uses `v1.runtime.status`.
-- Backup v2 round-trips `enable_hotpoint_replication`; v1 migration is tested.
-- The complete non-external suite passed on 2026-11-27 with 1,859 tests,
+- Backup v2 round-trips `enable_hotpoint_replication`; explicit v1 and
+  historical unversioned migration contracts are tested.
+- The complete non-external suite passed on 2026-11-27 with 1,891 tests,
   17 skipped tests, and 11 external tests deselected. Python compilation,
   schema smoke checks, diff validation, living documentation, and the
   repository graph were reconciled in the same change.

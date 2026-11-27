@@ -335,7 +335,7 @@ and verifies terminal cleanup without retained per-order state.
 | `scripts/bootstrap_runtime_database.sh` | Guarded runtime identity/fresh-state check and schema deployment entry point |
 | `scripts/deploy_runtime.sh` | Foreground paused launcher with live dashboard health verification |
 | `dashboard_server.py` | Embedded operator JSON-RPC dispatch and state-notification adapter; runtime dependencies are installed by `main.py` |
-| `operator_api/` | Strict JSON-RPC framing plus the committed version-one JSON Schema |
+| `operator_api/` | Strict JSON-RPC framing plus complete method-param/result and notification schemas with producer validation |
 
 Deeper architecture, configuration, and message-contract references are
 indexed by [ai-context.md](ai-context.md). Current code, schema, configuration,

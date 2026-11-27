@@ -53,6 +53,13 @@ persistence mutations remain owned by the bridge, manager, and engine.
   `WSUserClient` connection and are owned by its `UserFeedProcessor`.
 - Operator JSON-RPC requests flow through `operator_api.protocol` validation
   into the explicit `dashboard_server.handle_client_message` dispatcher.
+- After dispatch, handler success payloads flow back through the originating
+  method's closed result schema before serialization. A producer-contract
+  mismatch fails closed as one correlated indeterminate internal error; it is
+  never treated as retry permission for a possibly completed mutation. After
+  that error is sent, each projection requested by the completed handler is
+  attempted independently so authoritative state can still reveal the outcome;
+  projection failures are logged and cannot rewrite the terminal response.
 2. **Domain Layer**
 - `OrderEngine` handles flat parent/child cache hydration, placement-to-execution
   status projection, follow-up creation, partial-fill state, and ownership
@@ -522,7 +529,11 @@ does not reconfigure clients or serve HTML. See
 covers bootstrap, runtime control, single/span creation, managed
 cancel/Rehide/move/reprice, import/export, price/target/parent updates,
 active-order reads, and guarded cleanup. Caller UUIDs correlate exactly one
-terminal response; they do not provide generic idempotent replay.
+terminal response; they do not provide generic idempotent replay. The adapter
+passes the originating method to `operator_api.protocol` so only a
+method-schema-valid handler result can be emitted as success. Notification
+builders are regression-checked against their method-specific schemas without
+adding validation work to the live ticker path.
 
 The only supported browser clients are `ui_stealth_orders_manager.html` and
 `ui_order_span_builder.html`. Hotpoint replication is an off-by-default

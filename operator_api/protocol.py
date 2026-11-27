@@ -14,10 +14,11 @@ from functools import lru_cache
 import json
 import math
 from pathlib import Path
+import re
 from typing import Any, Mapping
 from uuid import UUID
 
-from jsonschema import Draft202012Validator
+from jsonschema import Draft202012Validator, FormatChecker
 
 from core.enums import (
     OperatorErrorReason,
@@ -30,6 +31,28 @@ from core.enums import (
 JSONRPC_VERSION = "2.0"
 STEALTH_EXPORT_SCHEMA = "coinbase.stealth-orders"
 STEALTH_EXPORT_VERSION = 2
+_RFC3339_DATETIME = re.compile(
+    r"^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}"
+    r"(?:\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})$"
+)
+
+
+def _is_rfc3339_datetime(value: object) -> bool:
+    if not isinstance(value, str) or not _RFC3339_DATETIME.fullmatch(value):
+        return False
+    try:
+        parsed = datetime.fromisoformat(
+            value[:-1] + "+00:00"
+            if value.endswith(("Z", "z"))
+            else value
+        )
+    except ValueError:
+        return False
+    return parsed.tzinfo is not None and parsed.utcoffset() is not None
+
+
+_FORMAT_CHECKER = FormatChecker()
+_FORMAT_CHECKER.checks("date-time")(_is_rfc3339_datetime)
 
 
 @dataclass(frozen=True)
@@ -68,7 +91,7 @@ class OperatorRpcError(Exception):
 
 @lru_cache(maxsize=1)
 def load_protocol_schema() -> dict[str, Any]:
-    """Load the committed protocol schema used by Python and TypeScript."""
+    """Load the committed schema used by Python and reserved for bindings."""
 
     schema_path = Path(__file__).with_name("schema.json")
     with schema_path.open("r", encoding="utf-8") as schema_file:
@@ -82,19 +105,50 @@ def _params_validator(method: OperatorRpcMethod) -> Draft202012Validator:
     schema = load_protocol_schema()
     # Validate through the root document so method schemas can resolve shared
     # definitions such as ``emptyParams`` and ``clientOrderId``.
-    return Draft202012Validator({
-        "$schema": schema["$schema"],
-        "$ref": f"#/$defs/methodParams/{method.value}",
-        "$defs": schema["$defs"],
-    })
+    return Draft202012Validator(
+        {
+            "$schema": schema["$schema"],
+            "$ref": f"#/$defs/methodParams/properties/{method.value}",
+            "$defs": schema["$defs"],
+        },
+        format_checker=_FORMAT_CHECKER,
+    )
+
+
+@lru_cache(maxsize=None)
+def _result_validator(method: OperatorRpcMethod) -> Draft202012Validator:
+    schema = load_protocol_schema()
+    return Draft202012Validator(
+        {
+            "$schema": schema["$schema"],
+            "$ref": f"#/$defs/methodResults/properties/{method.value}",
+            "$defs": schema["$defs"],
+        },
+        format_checker=_FORMAT_CHECKER,
+    )
+
+
+@lru_cache(maxsize=None)
+def _notification_params_validator(
+    method: OperatorNotificationMethod,
+) -> Draft202012Validator:
+    schema = load_protocol_schema()
+    return Draft202012Validator(
+        {
+            "$schema": schema["$schema"],
+            "$ref": f"#/$defs/notificationParams/properties/{method.value}",
+            "$defs": schema["$defs"],
+        },
+        format_checker=_FORMAT_CHECKER,
+    )
 
 
 def _field_errors(
     validator: Draft202012Validator,
-    params: Mapping[str, Any],
+    value: Any,
 ) -> list[dict[str, str]]:
     errors = sorted(
-        validator.iter_errors(params),
+        validator.iter_errors(value),
         key=lambda error: tuple(str(item) for item in error.absolute_path),
     )
     return [
@@ -105,6 +159,36 @@ def _field_errors(
         }
         for error in errors
     ]
+
+
+def validate_method_result(
+    method: OperatorRpcMethod,
+    result: Mapping[str, Any],
+) -> None:
+    """Reject a normalized wire result that violates its method contract."""
+
+    wire_result = _normalize_json_value(dict(result))
+    fields = _field_errors(_result_validator(method), wire_result)
+    if fields:
+        raise ValueError(
+            f"Invalid result for {method.value}: "
+            + json.dumps(fields, separators=(",", ":"))
+        )
+
+
+def validate_notification_params(
+    method: OperatorNotificationMethod,
+    params: Mapping[str, Any],
+) -> None:
+    """Validate one notification payload without imposing hot-path checks."""
+
+    wire_params = _normalize_json_value(dict(params))
+    fields = _field_errors(_notification_params_validator(method), wire_params)
+    if fields:
+        raise ValueError(
+            f"Invalid notification params for {method.value}: "
+            + json.dumps(fields, separators=(",", ":"))
+        )
 
 
 def _canonical_request_id(value: Any) -> str | None:
@@ -254,8 +338,25 @@ def _encode(payload: Mapping[str, Any]) -> str:
     )
 
 
-def encode_success(request_id: str, result: Mapping[str, Any]) -> str:
-    """Serialize one successful correlated response."""
+def _normalize_json_value(value: Any) -> Any:
+    """Return the exact JSON value produced by the protocol encoder."""
+
+    return json.loads(_encode({"value": value}))["value"]
+
+
+def encode_success(
+    request_id: str,
+    method: OperatorRpcMethod,
+    result: Mapping[str, Any],
+) -> str:
+    """Validate and serialize one successful correlated response.
+
+    ``method`` selects the result schema but is not echoed on the wire. JSON-RPC
+    correlation remains the caller-generated request id and the client's
+    pending-request method map.
+    """
+
+    validate_method_result(method, result)
 
     return _encode({
         "jsonrpc": JSONRPC_VERSION,

@@ -46,8 +46,9 @@ This is a multithreaded Coinbase trading engine with:
 - Startup and periodic reconciliation against exchange truth (`core/startup_reconciler.py`, `core/periodic_reconciler.py`).
 - Fill ledger + cross-source fill reconciliation (`business/fill_ledger.py`, `business/fill_reconciler.py`).
 - Versioned dashboard JSON-RPC adapter (`dashboard_server.py` and
-  `operator_api/`) over the typed Execution Core plus two current prototype
-  browser consumers.
+  `operator_api/`) over the typed Execution Core, with complete method
+  param/result and notification schemas plus method-correlated producer
+  validation, and two current prototype browser consumers.
 - Durable market telemetry (`market_tick`, `market_candle_1m`) retained for
   engine use and future analysis.
 - Cross-venue support libraries remain under `market_intel/` and `external/`,
@@ -116,7 +117,8 @@ A stealth order is a local execution plan, not a normal exchange order. It may s
   methods in `API_REFERENCE.md`.
 - Fill mismatches or missed fills: see `ARCHITECTURE.md` reconciliation section and `DEBUGGING_STRATEGY.md`.
 - Operator request/response mismatch: see `API_REFERENCE.md` JSON-RPC method,
-  error, and notification contracts plus `operator_api/schema.json`.
+  result-validation, error, and notification contracts plus
+  `operator_api/schema.json`.
 - Stealth behavior summary: see `ARCHITECTURE.md`, `DATA_MODELS.md`, and `API_REFERENCE.md`.
 - Test triage and required commands: see `TESTING_STRATEGY.md`.
 - Module ownership, allowed dependency direction, and frozen architectural

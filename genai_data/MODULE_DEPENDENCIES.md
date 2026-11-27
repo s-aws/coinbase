@@ -61,9 +61,12 @@ bridge. The facade receives no persistence, exchange, dashboard, or integration
 capability. Stage 5.2 moves dashboard origination behind the facade but retires
 none of the exact item-5 reverse-import debt entries yet.
 
-Operator Console stage 1 adds `operator_api` in the operator zone. It owns only
-JSON-RPC framing and committed schema validation; lifecycle, persistence,
-exchange, and admission remain behind the existing application/domain owners.
+Operator Console stages 1 and 2A place `operator_api` in the operator zone. It
+owns JSON-RPC framing plus committed inbound param, method-correlated outbound
+result, and notification schemas. Lifecycle, persistence, exchange, and
+admission remain behind the existing application/domain owners. Result
+validation selects a schema using the already-decoded enum method and adds no
+reverse dependency into execution owners.
 
 These directions describe the target modular monolith. Existing reverse edges
 are exact debt entries rather than broad package exemptions. Item 4 retired

@@ -19,6 +19,78 @@
       "maxLength": 128,
       "pattern": "\\S"
     },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "operatorMethod": {
+      "enum": [
+        "v1.session.bootstrap",
+        "v1.runtime.status",
+        "v1.runtime.pause",
+        "v1.runtime.resume",
+        "v1.runtime.shutdown",
+        "v1.stealth.list",
+        "v1.stealth.export",
+        "v1.stealth.import",
+        "v1.stealth.create",
+        "v1.stealth.create_span",
+        "v1.stealth.cancel",
+        "v1.stealth.rehide",
+        "v1.stealth.reprice_now",
+        "v1.stealth.move_revealed",
+        "v1.stealth.update_price_condition",
+        "v1.stealth.clear_all",
+        "v1.strategy.update_target",
+        "v1.strategy.update_parent"
+      ]
+    },
+    "operatorNotificationMethod": {
+      "enum": [
+        "v1.projection.runtime",
+        "v1.projection.stealth_orders",
+        "v1.market.ticker",
+        "v1.market.spread_snapshot"
+      ]
+    },
+    "operatorOutcome": {
+      "enum": ["succeeded", "accepted_pending", "partial"]
+    },
+    "operatorErrorReason": {
+      "enum": [
+        "invalid_params",
+        "engine_not_admitting",
+        "not_found",
+        "precondition_failed",
+        "conflict",
+        "unavailable",
+        "operation_failed",
+        "indeterminate"
+      ]
+    },
+    "operatorErrorCode": {
+      "enum": [-32700, -32600, -32601, -32602, -32603, -32001, -32002, -32003, -32004]
+    },
+    "engineState": {
+      "enum": ["STARTING", "RUNNING", "PAUSING", "PAUSED", "DRAINING", "STOPPED"]
+    },
+    "orderSide": {"enum": ["BUY", "SELL"]},
+    "followUpRevealDirection": {"enum": ["same", "opposite"]},
+    "targetMovementType": {"enum": ["P", "A"]},
+    "stealthSpanCreationMode": {
+      "enum": ["independent_parents", "parent_children"]
+    },
+    "stealthSpanSizeDistribution": {
+      "enum": ["equal", "ascending", "descending", "pyramid"]
+    },
+    "stealthSpanResultStatus": {"enum": ["success", "partial", "error"]},
+    "stealthSpanOrderResultStatus": {
+      "enum": ["created", "existing", "failed", "not_attempted"]
+    },
+    "stealthMoveReason": {"enum": ["manual_user_move", "operator_reprice"]},
+    "revealPricingPolicy": {
+      "enum": ["configured_limit", "top_of_book", "midpoint", null]
+    },
     "emptyParams": {
       "type": "object",
       "additionalProperties": false
@@ -42,23 +114,20 @@
       "properties": {
         "client_order_id": {"$ref": "#/$defs/clientOrderId"},
         "product_id": {"type": "string", "minLength": 1},
-        "side": {"enum": ["BUY", "SELL"]},
+        "side": {"$ref": "#/$defs/orderSide"},
         "total_size": {"type": "number", "exclusiveMinimum": 0},
         "limit_price": {"type": "number", "exclusiveMinimum": 0},
         "reveal_condition": {"$ref": "#/$defs/revealCondition"},
-        "reveal_pricing_policy": {
-          "type": ["string", "null"],
-          "enum": ["configured_limit", "top_of_book", "midpoint", null]
-        },
+        "reveal_pricing_policy": {"$ref": "#/$defs/revealPricingPolicy"},
         "sizing_strategy": {"type": "object"},
         "parent_client_order_id": {
           "oneOf": [{"$ref": "#/$defs/clientOrderId"}, {"type": "null"}]
         },
-        "follow_up_reveal_direction": {"enum": ["same", "opposite"]},
-        "notes": {"type": "string"},
+        "follow_up_reveal_direction": {"$ref": "#/$defs/followUpRevealDirection"},
+        "notes": {"type": ["string", "null"]},
         "max_order_replacements": {"type": ["integer", "null"], "minimum": 0},
         "target_movement": {"type": "number", "minimum": 0},
-        "target_movement_type": {"enum": ["P", "A"]},
+        "target_movement_type": {"$ref": "#/$defs/targetMovementType"},
         "allow_partial_fills": {"type": "boolean"},
         "anchor_repricing_policy": {"type": ["object", "null"]},
         "enable_hotpoint_replication": {"type": "boolean"}
@@ -82,31 +151,106 @@
       "properties": {
         "span_id": {"type": "string", "minLength": 1, "maxLength": 128},
         "product_id": {"type": "string", "minLength": 1},
-        "side": {"enum": ["BUY", "SELL"]},
+        "side": {"$ref": "#/$defs/orderSide"},
         "total_size": {"type": "number", "exclusiveMinimum": 0},
         "start_price": {"type": "number", "exclusiveMinimum": 0},
         "price_step": {"type": "number", "minimum": 0},
         "order_count": {"type": "integer", "minimum": 1},
-        "size_distribution": {"enum": ["equal", "ascending", "descending", "pyramid"]},
-        "creation_mode": {"enum": ["independent_parents", "parent_children"]},
+        "size_distribution": {"$ref": "#/$defs/stealthSpanSizeDistribution"},
+        "creation_mode": {"$ref": "#/$defs/stealthSpanCreationMode"},
         "reveal_condition": {"$ref": "#/$defs/revealCondition"},
-        "reveal_pricing_policy": {
-          "type": ["string", "null"],
-          "enum": ["configured_limit", "top_of_book", "midpoint", null]
-        },
+        "reveal_pricing_policy": {"$ref": "#/$defs/revealPricingPolicy"},
         "sizing_strategy": {"type": "object"},
-        "follow_up_reveal_direction": {"enum": ["same", "opposite"]},
-        "notes": {"type": "string"},
+        "follow_up_reveal_direction": {"$ref": "#/$defs/followUpRevealDirection"},
+        "notes": {"type": ["string", "null"]},
         "max_order_replacements": {"type": ["integer", "null"], "minimum": 0},
         "target_movement": {"type": "number", "minimum": 0},
-        "target_movement_type": {"enum": ["P", "A"]},
+        "target_movement_type": {"$ref": "#/$defs/targetMovementType"},
         "allow_partial_fills": {"type": "boolean"},
         "anchor_repricing_policy": {"type": ["object", "null"]},
         "enable_hotpoint_replication": {"type": "boolean"}
       },
       "additionalProperties": false
     },
+    "stealthBackupV2": {
+      "type": "object",
+      "required": ["schema", "version", "orders"],
+      "properties": {
+        "schema": {"const": "coinbase.stealth-orders"},
+        "version": {"const": 2},
+        "exported_at": {"$ref": "#/$defs/timestamp"},
+        "count": {"type": "integer", "minimum": 0},
+        "orders": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/createOrderParams"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "stealthBackupV1": {
+      "type": "object",
+      "required": ["version", "orders"],
+      "properties": {
+        "schema": {"type": "string"},
+        "version": {"const": 1},
+        "type": {"const": "export_active_stealth_orders_response"},
+        "status": {"const": "success"},
+        "exported_at": {"type": "string"},
+        "count": {"type": "integer", "minimum": 0},
+        "orders": {
+          "type": "array",
+          "items": {"type": "object"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "stealthBackupLegacyUnversioned": {
+      "type": "object",
+      "required": ["type", "orders"],
+      "properties": {
+        "schema": {"type": "string"},
+        "type": {"const": "export_active_stealth_orders_response"},
+        "status": {"const": "success"},
+        "exported_at": {"type": "string"},
+        "count": {"type": "integer", "minimum": 0},
+        "orders": {
+          "type": "array",
+          "items": {"type": "object"}
+        }
+      },
+      "not": {"required": ["version"]},
+      "additionalProperties": false
+    },
+    "stealthBackupImportDocument": {
+      "oneOf": [
+        {"$ref": "#/$defs/stealthBackupV2"},
+        {"$ref": "#/$defs/stealthBackupV1"},
+        {"$ref": "#/$defs/stealthBackupLegacyUnversioned"}
+      ]
+    },
     "methodParams": {
+      "type": "object",
+      "required": [
+        "v1.session.bootstrap",
+        "v1.runtime.status",
+        "v1.runtime.pause",
+        "v1.runtime.resume",
+        "v1.runtime.shutdown",
+        "v1.stealth.list",
+        "v1.stealth.export",
+        "v1.stealth.import",
+        "v1.stealth.create",
+        "v1.stealth.create_span",
+        "v1.stealth.cancel",
+        "v1.stealth.rehide",
+        "v1.stealth.reprice_now",
+        "v1.stealth.move_revealed",
+        "v1.stealth.update_price_condition",
+        "v1.stealth.clear_all",
+        "v1.strategy.update_target",
+        "v1.strategy.update_parent"
+      ],
+      "properties": {
       "v1.session.bootstrap": {"$ref": "#/$defs/emptyParams"},
       "v1.runtime.status": {"$ref": "#/$defs/emptyParams"},
       "v1.runtime.pause": {"$ref": "#/$defs/emptyParams"},
@@ -124,51 +268,7 @@
         "type": "object",
         "required": ["document"],
         "properties": {
-          "document": {
-            "type": "object",
-            "required": ["orders"],
-            "properties": {
-              "schema": {"type": "string"},
-              "version": {"enum": [1, 2]},
-              "type": {"const": "export_active_stealth_orders_response"},
-              "status": {"const": "success"},
-              "exported_at": {"type": "string"},
-              "count": {"type": "integer", "minimum": 0},
-              "orders": {
-                "type": "array",
-                "items": {"type": "object"}
-              }
-            },
-            "additionalProperties": false,
-            "anyOf": [
-              {"required": ["version"]},
-              {"required": ["type"]}
-            ],
-            "allOf": [
-              {
-                "if": {
-                  "properties": {"version": {"const": 2}},
-                  "required": ["version"]
-                },
-                "then": {
-                  "required": ["schema"],
-                  "not": {
-                    "anyOf": [
-                      {"required": ["type"]},
-                      {"required": ["status"]}
-                    ]
-                  },
-                  "properties": {
-                    "schema": {"const": "coinbase.stealth-orders"},
-                    "orders": {
-                      "type": "array",
-                      "items": {"$ref": "#/$defs/createOrderParams"}
-                    }
-                  }
-                }
-              }
-            ]
-          }
+          "document": {"$ref": "#/$defs/stealthBackupImportDocument"}
         },
         "additionalProperties": false
       },
@@ -198,10 +298,15 @@
         "properties": {
           "client_order_id": {"$ref": "#/$defs/clientOrderId"},
           "new_limit_price": {"type": "number", "exclusiveMinimum": 0},
-          "reason": {"enum": ["manual_user_move", "operator_reprice"]},
+          "reason": {"$ref": "#/$defs/stealthMoveReason"},
           "notes": {"type": ["string", "null"]},
           "new_target_movement": {"type": ["number", "null"], "minimum": 0},
-          "new_target_movement_type": {"type": ["string", "null"], "enum": ["P", "A", null]}
+          "new_target_movement_type": {
+            "oneOf": [
+              {"$ref": "#/$defs/targetMovementType"},
+              {"type": "null"}
+            ]
+          }
         },
         "additionalProperties": false
       },
@@ -222,7 +327,7 @@
         "properties": {
           "parent_client_order_id": {"$ref": "#/$defs/clientOrderId"},
           "target_movement": {"type": "number", "minimum": 0},
-          "target_movement_type": {"enum": ["P", "A"]}
+          "target_movement_type": {"$ref": "#/$defs/targetMovementType"}
         },
         "additionalProperties": false
       },
@@ -239,50 +344,974 @@
         },
         "additionalProperties": false
       }
+      },
+      "additionalProperties": false
+    },
+    "validationFieldError": {
+      "type": "object",
+      "required": ["path", "message", "rule"],
+      "properties": {
+        "path": {"type": "string"},
+        "message": {"type": "string"},
+        "rule": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "operatorErrorData": {
+      "type": "object",
+      "properties": {
+        "reason": {"$ref": "#/$defs/operatorErrorReason"},
+        "fields": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/validationFieldError"}
+        },
+        "retryable": {"type": "boolean"},
+        "client_order_id": {"type": ["string", "null"]},
+        "parent_client_order_id": {"type": ["string", "null"]},
+        "span_id": {"type": ["string", "null"]},
+        "stage": {"type": "string"},
+        "engine_state": {"$ref": "#/$defs/engineState"},
+        "category": {"type": "string"},
+        "method": {"type": "string", "minLength": 1},
+        "retry_after_seconds": {"type": "number", "minimum": 0}
+      },
+      "additionalProperties": true
+    },
+    "runtimeStatus": {
+      "type": "object",
+      "required": [
+        "engine_state",
+        "is_admitting",
+        "is_stopping",
+        "startup_pause_pending",
+        "inflight",
+        "total_inflight",
+        "timestamp"
+      ],
+      "properties": {
+        "engine_state": {"$ref": "#/$defs/engineState"},
+        "is_admitting": {"type": "boolean"},
+        "is_stopping": {"type": "boolean"},
+        "startup_pause_pending": {"type": "boolean"},
+        "inflight": {
+          "type": "object",
+          "additionalProperties": {"type": "integer", "minimum": 0}
+        },
+        "total_inflight": {"type": "integer", "minimum": 0},
+        "timestamp": {"$ref": "#/$defs/timestamp"}
+      },
+      "additionalProperties": false
+    },
+    "operatorCapabilities": {
+      "type": "object",
+      "required": [
+        "methods",
+        "notifications",
+        "client_notifications",
+        "batch_requests",
+        "generic_idempotent_replay"
+      ],
+      "properties": {
+        "methods": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/operatorMethod"},
+          "uniqueItems": true
+        },
+        "notifications": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/operatorNotificationMethod"},
+          "uniqueItems": true
+        },
+        "client_notifications": {"const": false},
+        "batch_requests": {"const": false},
+        "generic_idempotent_replay": {"const": false}
+      },
+      "additionalProperties": false
+    },
+    "productMetadata": {
+      "type": "object",
+      "required": [
+        "type",
+        "base_currency",
+        "quote_currency",
+        "base_increment",
+        "quote_increment",
+        "price_increment",
+        "base_min_size",
+        "quote_min_size",
+        "display_name",
+        "status",
+        "mid_price",
+        "trading_disabled",
+        "contract_size",
+        "expiry"
+      ],
+      "properties": {
+        "type": {"type": "string", "minLength": 1},
+        "base_currency": {"type": ["string", "null"]},
+        "quote_currency": {"type": ["string", "null"]},
+        "base_increment": {"type": "string"},
+        "quote_increment": {"type": "string"},
+        "price_increment": {"type": "string"},
+        "base_min_size": {"type": "string"},
+        "quote_min_size": {"type": "string"},
+        "display_name": {"type": ["string", "null"]},
+        "status": {"type": ["string", "null"]},
+        "mid_price": {"type": ["string", "number", "null"]},
+        "trading_disabled": {"type": "boolean"},
+        "contract_size": {"type": ["string", "null"]},
+        "expiry": {"type": ["string", "null"]}
+      },
+      "additionalProperties": true
+    },
+    "productCatalog": {
+      "type": "object",
+      "required": ["derivatives", "spot", "metadata"],
+      "properties": {
+        "derivatives": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "spot": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": {"$ref": "#/$defs/productMetadata"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "operatorStealthOrder": {
+      "type": "object",
+      "required": ["client_order_id"],
+      "properties": {
+        "client_order_id": {"$ref": "#/$defs/clientOrderId"},
+        "parent_client_order_id": {
+          "oneOf": [
+            {"$ref": "#/$defs/clientOrderId"},
+            {"type": "null"}
+          ]
+        },
+        "product_id": {"type": "string"},
+        "side": {"$ref": "#/$defs/orderSide"},
+        "total_size": {"type": "number"},
+        "limit_price": {"type": "number"},
+        "revealed_size": {"type": "number"},
+        "remaining_size": {"type": "number"},
+        "executed_size": {"type": "number"},
+        "status": {
+          "enum": [
+            "HIDDEN",
+            "PENDING",
+            "TRIGGERED",
+            "REVEALED",
+            "ERROR",
+            "EXECUTED",
+            "CANCELLED"
+          ]
+        },
+        "visibility_score": {"type": "number"},
+        "reveal_condition_type": {"type": "string"},
+        "reveal_condition_json": {"type": "object"},
+        "reveal_pricing_policy": {"type": ["string", "null"]},
+        "follow_up_reveal_direction": {"$ref": "#/$defs/followUpRevealDirection"},
+        "sizing_strategy_json": {"type": "object"},
+        "reason": {"type": ["string", "null"]},
+        "notes": {"type": ["string", "null"]},
+        "revealed_orders": {
+          "type": "array",
+          "items": {"type": "object"}
+        },
+        "anchor_repricing_policy_json": {"type": ["object", "null"]},
+        "anchor_repricing_state_json": {"type": ["object", "null"]},
+        "created_at": {"type": ["string", "null"]},
+        "updated_at": {"type": ["string", "null"]},
+        "condition_first_met_at": {"type": ["string", "null"]},
+        "condition_confirmed_at": {"type": ["string", "null"]},
+        "last_placement_at": {"type": ["string", "null"]},
+        "failure_reason": {"type": ["string", "null"]},
+        "allow_partial_fills": {"type": "boolean"},
+        "parent_target_movement": {"type": ["number", "null"]},
+        "parent_target_movement_type": {"type": ["string", "null"]},
+        "parent_max_order_replacements": {"type": "integer", "minimum": 0},
+        "max_order_replacements": {"type": ["integer", "null"], "minimum": 0},
+        "target_movement": {"type": ["number", "null"]},
+        "target_movement_type": {"type": ["string", "null"]}
+      },
+      "additionalProperties": true
+    },
+    "stealthOrderMap": {
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/operatorStealthOrder"}
+    },
+    "repricingStatistics": {
+      "type": "object",
+      "required": [
+        "active_repricing_count",
+        "total_reprices_executed",
+        "breakdown_by_source"
+      ],
+      "properties": {
+        "active_repricing_count": {"type": "integer", "minimum": 0},
+        "total_reprices_executed": {"type": "integer", "minimum": 0},
+        "breakdown_by_source": {
+          "type": "object",
+          "required": ["last_trade", "midpoint", "top_of_book"],
+          "properties": {
+            "last_trade": {"type": "integer", "minimum": 0},
+            "midpoint": {"type": "integer", "minimum": 0},
+            "top_of_book": {"type": "integer", "minimum": 0}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "stealthOrdersProjection": {
+      "type": "object",
+      "required": ["orders", "repricing_stats", "timestamp"],
+      "properties": {
+        "orders": {"$ref": "#/$defs/stealthOrderMap"},
+        "repricing_stats": {"$ref": "#/$defs/repricingStatistics"},
+        "timestamp": {"$ref": "#/$defs/timestamp"}
+      },
+      "additionalProperties": false
+    },
+    "dashboardLogEntry": {
+      "type": "object",
+      "required": ["timestamp", "level", "message", "context"],
+      "properties": {
+        "timestamp": {"type": "string"},
+        "level": {"type": "string"},
+        "message": {"type": "string"},
+        "context": {"type": "object"}
+      },
+      "additionalProperties": false
+    },
+    "marketMetricWindow": {
+      "type": "object",
+      "required": ["minutes", "avg", "delta_pct"],
+      "properties": {
+        "minutes": {"type": "number"},
+        "avg": {"type": "number"},
+        "delta_pct": {"type": "number"}
+      },
+      "additionalProperties": false
+    },
+    "marketMetric": {
+      "type": "object",
+      "required": ["price", "as_of", "windows"],
+      "properties": {
+        "price": {"type": "number"},
+        "as_of": {"type": "number"},
+        "windows": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/marketMetricWindow"}
+        }
+      },
+      "additionalProperties": true
+    },
+    "dashboardEngineStatus": {
+      "type": "object",
+      "required": [
+        "running",
+        "engine_state",
+        "threads_active",
+        "event_queue_depth",
+        "taker_fee_rate",
+        "effective_fee_rate",
+        "target_movement_factor",
+        "fee_regime_factor",
+        "volume_ratio",
+        "overnight_margin_active",
+        "margin_window_type",
+        "last_update",
+        "is_admitting",
+        "is_stopping",
+        "startup_pause_pending",
+        "inflight",
+        "total_inflight",
+        "timestamp"
+      ],
+      "properties": {
+        "running": {"type": "boolean"},
+        "engine_state": {"$ref": "#/$defs/engineState"},
+        "threads_active": {"type": "integer", "minimum": 0},
+        "event_queue_depth": {"type": "integer", "minimum": 0},
+        "taker_fee_rate": {"type": ["number", "null"]},
+        "effective_fee_rate": {"type": ["number", "null"]},
+        "target_movement_factor": {"type": ["number", "null"]},
+        "fee_regime_factor": {"type": ["number", "null"]},
+        "volume_ratio": {"type": ["number", "null"]},
+        "overnight_margin_active": {"type": ["boolean", "null"]},
+        "margin_window_type": {"type": ["string", "null"]},
+        "last_update": {"type": ["string", "null"]},
+        "is_admitting": {"type": "boolean"},
+        "is_stopping": {"type": "boolean"},
+        "startup_pause_pending": {"type": "boolean"},
+        "inflight": {
+          "type": "object",
+          "additionalProperties": {"type": "integer", "minimum": 0}
+        },
+        "total_inflight": {"type": "integer", "minimum": 0},
+        "timestamp": {"$ref": "#/$defs/timestamp"},
+        "user_feed": {"type": "object", "additionalProperties": true}
+      },
+      "additionalProperties": true
+    },
+    "dashboardState": {
+      "type": "object",
+      "required": [
+        "orders",
+        "positions",
+        "stealth_orders",
+        "engine_status",
+        "logs",
+        "market_metrics"
+      ],
+      "properties": {
+        "orders": {
+          "type": "object",
+          "additionalProperties": {"type": "object"}
+        },
+        "positions": {
+          "type": "object",
+          "additionalProperties": {"type": "object"}
+        },
+        "stealth_orders": {"$ref": "#/$defs/stealthOrderMap"},
+        "engine_status": {"$ref": "#/$defs/dashboardEngineStatus"},
+        "logs": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/dashboardLogEntry"}
+        },
+        "market_metrics": {
+          "type": "object",
+          "additionalProperties": {"$ref": "#/$defs/marketMetric"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "parentOrderRecord": {
+      "type": "object",
+      "required": [
+        "id",
+        "target_movement",
+        "target_movement_type",
+        "max_order_replacement",
+        "current_order_replacement",
+        "client_order_id",
+        "product_id",
+        "side",
+        "size",
+        "price",
+        "status",
+        "parent_client_order_id",
+        "execution_owner_client_order_id",
+        "allow_partial_fills",
+        "enable_hotpoint_replication",
+        "auto_placed_by_hotpoint",
+        "externally_created",
+        "created_at"
+      ],
+      "properties": {
+        "id": {"type": "integer"},
+        "client_order_id": {"$ref": "#/$defs/clientOrderId"},
+        "product_id": {"type": "string"},
+        "side": {"$ref": "#/$defs/orderSide"},
+        "size": {"type": "number"},
+        "price": {"type": "number"},
+        "status": {"type": "string"},
+        "target_movement": {"type": ["number", "null"]},
+        "target_movement_type": {
+          "oneOf": [
+            {"$ref": "#/$defs/targetMovementType"},
+            {"type": "null"}
+          ]
+        },
+        "max_order_replacement": {"type": "integer", "minimum": 0},
+        "current_order_replacement": {"type": "integer", "minimum": 0},
+        "parent_client_order_id": {"type": ["string", "null"]},
+        "execution_owner_client_order_id": {"type": ["string", "null"]},
+        "allow_partial_fills": {"type": "boolean"},
+        "enable_hotpoint_replication": {"type": "boolean"},
+        "auto_placed_by_hotpoint": {"type": "boolean"},
+        "externally_created": {"type": "boolean"},
+        "created_at": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "importEntryNonObjectFailure": {
+      "type": "object",
+      "required": ["succeeded", "error"],
+      "properties": {
+        "succeeded": {"const": false},
+        "error": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "importEntryPreflightFailure": {
+      "type": "object",
+      "required": [
+        "succeeded",
+        "requested_client_order_id",
+        "product_id",
+        "side",
+        "error"
+      ],
+      "properties": {
+        "succeeded": {"const": false},
+        "requested_client_order_id": {},
+        "product_id": {},
+        "side": {},
+        "error": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "importEntryExecutionResult": {
+      "type": "object",
+      "required": [
+        "succeeded",
+        "requested_client_order_id",
+        "client_order_id",
+        "product_id",
+        "side",
+        "error"
+      ],
+      "properties": {
+        "succeeded": {"type": "boolean"},
+        "requested_client_order_id": {"type": ["string", "null"]},
+        "client_order_id": {"type": ["string", "null"]},
+        "product_id": {"type": "string"},
+        "side": {"$ref": "#/$defs/orderSide"},
+        "error": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "importEntryResult": {
+      "oneOf": [
+        {"$ref": "#/$defs/importEntryNonObjectFailure"},
+        {"$ref": "#/$defs/importEntryPreflightFailure"},
+        {"$ref": "#/$defs/importEntryExecutionResult"}
+      ]
+    },
+    "stealthSpanOrderResult": {
+      "type": "object",
+      "required": [
+        "index",
+        "client_order_id",
+        "parent_order_id",
+        "product_id",
+        "side",
+        "size",
+        "price",
+        "reveal_condition",
+        "anchor_repricing_policy",
+        "status"
+      ],
+      "properties": {
+        "index": {"type": "integer", "minimum": 0},
+        "client_order_id": {"$ref": "#/$defs/clientOrderId"},
+        "parent_order_id": {"type": ["string", "null"]},
+        "product_id": {"type": "string"},
+        "side": {"$ref": "#/$defs/orderSide"},
+        "size": {"type": "number", "exclusiveMinimum": 0},
+        "price": {"type": "number", "exclusiveMinimum": 0},
+        "reveal_condition": {"type": "object"},
+        "anchor_repricing_policy": {"type": "object"},
+        "status": {"$ref": "#/$defs/stealthSpanOrderResultStatus"},
+        "error": {"type": "string"}
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "status": {"enum": ["created", "existing", "not_attempted"]}
+          },
+          "not": {"required": ["error"]}
+        },
+        {
+          "properties": {"status": {"const": "failed"}},
+          "required": ["error"]
+        }
+      ],
+      "additionalProperties": false
+    },
+    "stealthSpanResult": {
+      "type": "object",
+      "required": [
+        "span_id",
+        "status",
+        "creation_mode",
+        "size_distribution",
+        "requested_count",
+        "requested_total_size",
+        "effective_total_size",
+        "created_count",
+        "existing_count",
+        "failed_count",
+        "orders"
+      ],
+      "properties": {
+        "span_id": {"type": "string"},
+        "status": {"enum": ["success", "partial"]},
+        "creation_mode": {"$ref": "#/$defs/stealthSpanCreationMode"},
+        "size_distribution": {"$ref": "#/$defs/stealthSpanSizeDistribution"},
+        "requested_count": {"type": "integer", "minimum": 1},
+        "requested_total_size": {"type": "number", "exclusiveMinimum": 0},
+        "effective_total_size": {"type": "number", "exclusiveMinimum": 0},
+        "created_count": {"type": "integer", "minimum": 0},
+        "existing_count": {"type": "integer", "minimum": 0},
+        "failed_count": {"type": "integer", "minimum": 0},
+        "orders": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/stealthSpanOrderResult"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "stealthBackupExportV2": {
+      "type": "object",
+      "required": ["schema", "version", "exported_at", "count", "orders"],
+      "properties": {
+        "schema": {"const": "coinbase.stealth-orders"},
+        "version": {"const": 2},
+        "exported_at": {"$ref": "#/$defs/timestamp"},
+        "count": {"type": "integer", "minimum": 0},
+        "orders": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/createOrderParams"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "tickerProjection": {
+      "type": "object",
+      "required": ["product_id", "price", "time", "server_time_ms"],
+      "properties": {
+        "product_id": {"type": "string"},
+        "price": {"type": "number"},
+        "time": {"type": "number"},
+        "server_time_ms": {"type": "integer"},
+        "price_24h": {"type": "number"},
+        "cb_time_ms": {"type": "integer"}
+      },
+      "additionalProperties": false
+    },
+    "spreadProjection": {
+      "type": "object",
+      "required": ["product_id", "bid", "ask", "mid"],
+      "properties": {
+        "product_id": {"type": "string"},
+        "bid": {"type": "number"},
+        "ask": {"type": "number"},
+        "mid": {"type": "number"}
+      },
+      "additionalProperties": false
+    },
+    "runtimeNotificationParams": {
+      "type": "object",
+      "required": ["state", "timestamp"],
+      "properties": {
+        "state": {"$ref": "#/$defs/dashboardState"},
+        "timestamp": {"$ref": "#/$defs/timestamp"}
+      },
+      "additionalProperties": false
+    },
+    "tickerNotificationParams": {
+      "type": "object",
+      "required": ["ticker", "timestamp"],
+      "properties": {
+        "ticker": {"$ref": "#/$defs/tickerProjection"},
+        "timestamp": {"$ref": "#/$defs/timestamp"}
+      },
+      "additionalProperties": false
+    },
+    "spreadNotificationParams": {
+      "type": "object",
+      "required": ["spreads", "timestamp"],
+      "properties": {
+        "spreads": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/spreadProjection"}
+        },
+        "timestamp": {"$ref": "#/$defs/timestamp"}
+      },
+      "additionalProperties": false
     },
     "resultBase": {
       "type": "object",
       "required": ["outcome"],
       "properties": {
-        "outcome": {"enum": ["succeeded", "accepted_pending", "partial"]}
+        "outcome": {"$ref": "#/$defs/operatorOutcome"}
       }
     },
-    "methodResults": {
-      "v1.session.bootstrap": {
-        "allOf": [
-          {"$ref": "#/$defs/resultBase"},
-          {
-            "type": "object",
-            "required": ["protocol_version", "capabilities", "runtime", "products", "stealth_orders"],
-            "properties": {
-              "protocol_version": {"const": 1},
-              "capabilities": {"type": "object"},
-              "runtime": {"type": "object"},
-              "products": {"type": "object"},
-              "stealth_orders": {"type": "object"},
-              "dashboard_state": {"type": "object"},
-              "server_time": {"type": "string"}
+    "sessionBootstrapResult": {
+      "type": "object",
+      "required": [
+        "outcome",
+        "protocol_version",
+        "server_time",
+        "capabilities",
+        "runtime",
+        "products",
+        "stealth_orders",
+        "dashboard_state"
+      ],
+      "properties": {
+        "outcome": {"const": "succeeded"},
+        "protocol_version": {"const": 1},
+        "server_time": {"$ref": "#/$defs/timestamp"},
+        "capabilities": {"$ref": "#/$defs/operatorCapabilities"},
+        "runtime": {"$ref": "#/$defs/runtimeStatus"},
+        "products": {"$ref": "#/$defs/productCatalog"},
+        "stealth_orders": {"$ref": "#/$defs/stealthOrdersProjection"},
+        "dashboard_state": {"$ref": "#/$defs/dashboardState"}
+      },
+      "additionalProperties": false
+    },
+    "runtimeStatusResult": {
+      "type": "object",
+      "required": [
+        "outcome",
+        "engine_state",
+        "is_admitting",
+        "is_stopping",
+        "startup_pause_pending",
+        "inflight",
+        "total_inflight",
+        "timestamp"
+      ],
+      "properties": {
+        "outcome": {"const": "succeeded"},
+        "engine_state": {"$ref": "#/$defs/engineState"},
+        "is_admitting": {"type": "boolean"},
+        "is_stopping": {"type": "boolean"},
+        "startup_pause_pending": {"type": "boolean"},
+        "inflight": {
+          "type": "object",
+          "additionalProperties": {"type": "integer", "minimum": 0}
+        },
+        "total_inflight": {"type": "integer", "minimum": 0},
+        "timestamp": {"$ref": "#/$defs/timestamp"}
+      },
+      "additionalProperties": false
+    },
+    "runtimeControlResult": {
+      "type": "object",
+      "required": ["outcome", "changed", "engine_state", "startup_pause_pending"],
+      "properties": {
+        "outcome": {"const": "succeeded"},
+        "changed": {"type": "boolean"},
+        "engine_state": {"$ref": "#/$defs/engineState"},
+        "startup_pause_pending": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "runtimeShutdownResult": {
+      "type": "object",
+      "required": ["outcome", "accepted", "timeout_seconds", "engine_state_before"],
+      "properties": {
+        "outcome": {"const": "accepted_pending"},
+        "accepted": {"const": true},
+        "timeout_seconds": {"type": "number", "minimum": 0},
+        "engine_state_before": {"$ref": "#/$defs/engineState"}
+      },
+      "additionalProperties": false
+    },
+    "stealthListResult": {
+      "type": "object",
+      "required": ["outcome", "orders", "repricing_stats", "timestamp"],
+      "properties": {
+        "outcome": {"const": "succeeded"},
+        "orders": {"$ref": "#/$defs/stealthOrderMap"},
+        "repricing_stats": {"$ref": "#/$defs/repricingStatistics"},
+        "timestamp": {"$ref": "#/$defs/timestamp"}
+      },
+      "additionalProperties": false
+    },
+    "stealthExportResult": {
+      "type": "object",
+      "required": ["outcome", "document"],
+      "properties": {
+        "outcome": {"const": "succeeded"},
+        "document": {"$ref": "#/$defs/stealthBackupExportV2"}
+      },
+      "additionalProperties": false
+    },
+    "stealthImportResult": {
+      "type": "object",
+      "required": ["outcome", "imported", "total", "results", "warnings"],
+      "properties": {
+        "outcome": {"enum": ["succeeded", "partial"]},
+        "imported": {"type": "integer", "minimum": 0},
+        "total": {"type": "integer", "minimum": 0},
+        "results": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/importEntryResult"}
+        },
+        "warnings": {
+          "type": "array",
+          "items": {"type": "string"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "stealthCreateResult": {
+      "type": "object",
+      "required": ["outcome", "client_order_id", "order"],
+      "properties": {
+        "outcome": {"const": "succeeded"},
+        "client_order_id": {"$ref": "#/$defs/clientOrderId"},
+        "order": {
+          "oneOf": [
+            {"$ref": "#/$defs/operatorStealthOrder"},
+            {"type": "null"}
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "stealthCreateSpanResult": {
+      "type": "object",
+      "required": ["outcome", "span"],
+      "properties": {
+        "outcome": {"enum": ["succeeded", "partial"]},
+        "span": {"$ref": "#/$defs/stealthSpanResult"}
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "outcome": {"const": "succeeded"},
+            "span": {
+              "type": "object",
+              "required": ["status"],
+              "properties": {"status": {"const": "success"}}
             }
           }
-        ]
+        },
+        {
+          "properties": {
+            "outcome": {"const": "partial"},
+            "span": {
+              "type": "object",
+              "required": ["status"],
+              "properties": {"status": {"const": "partial"}}
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "stealthCancelResult": {
+      "type": "object",
+      "required": [
+        "outcome",
+        "client_order_id",
+        "accepted",
+        "exchange_cancel_pending",
+        "order",
+        "message"
+      ],
+      "properties": {
+        "outcome": {"enum": ["succeeded", "accepted_pending"]},
+        "client_order_id": {"$ref": "#/$defs/clientOrderId"},
+        "accepted": {"const": true},
+        "exchange_cancel_pending": {"type": "boolean"},
+        "order": {
+          "oneOf": [
+            {"$ref": "#/$defs/operatorStealthOrder"},
+            {"type": "null"}
+          ]
+        },
+        "message": {"type": "string"}
       },
-      "v1.runtime.status": {"$ref": "#/$defs/resultBase"},
-      "v1.runtime.pause": {"$ref": "#/$defs/resultBase"},
-      "v1.runtime.resume": {"$ref": "#/$defs/resultBase"},
-      "v1.runtime.shutdown": {"$ref": "#/$defs/resultBase"},
-      "v1.stealth.list": {"$ref": "#/$defs/resultBase"},
-      "v1.stealth.export": {"$ref": "#/$defs/resultBase"},
-      "v1.stealth.import": {"$ref": "#/$defs/resultBase"},
-      "v1.stealth.create": {"$ref": "#/$defs/resultBase"},
-      "v1.stealth.create_span": {"$ref": "#/$defs/resultBase"},
-      "v1.stealth.cancel": {"$ref": "#/$defs/resultBase"},
-      "v1.stealth.rehide": {"$ref": "#/$defs/resultBase"},
-      "v1.stealth.reprice_now": {"$ref": "#/$defs/resultBase"},
-      "v1.stealth.move_revealed": {"$ref": "#/$defs/resultBase"},
-      "v1.stealth.update_price_condition": {"$ref": "#/$defs/resultBase"},
-      "v1.stealth.clear_all": {"$ref": "#/$defs/resultBase"},
-      "v1.strategy.update_target": {"$ref": "#/$defs/resultBase"},
-      "v1.strategy.update_parent": {"$ref": "#/$defs/resultBase"}
+      "oneOf": [
+        {
+          "properties": {
+            "outcome": {"const": "succeeded"},
+            "exchange_cancel_pending": {"const": false}
+          }
+        },
+        {
+          "properties": {
+            "outcome": {"const": "accepted_pending"},
+            "exchange_cancel_pending": {"const": true}
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "stealthRehideResult": {
+      "type": "object",
+      "required": ["outcome", "client_order_id", "accepted", "message"],
+      "properties": {
+        "outcome": {"const": "accepted_pending"},
+        "client_order_id": {"$ref": "#/$defs/clientOrderId"},
+        "accepted": {"const": true},
+        "message": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "stealthRepriceNowResult": {
+      "type": "object",
+      "required": ["outcome", "client_order_id", "processed"],
+      "properties": {
+        "outcome": {"const": "succeeded"},
+        "client_order_id": {"$ref": "#/$defs/clientOrderId"},
+        "processed": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "stealthMoveRevealedResult": {
+      "type": "object",
+      "required": [
+        "outcome",
+        "client_order_id",
+        "old_exchange_order_id",
+        "new_placement_client_order_id",
+        "new_exchange_order_id",
+        "new_submitted_price"
+      ],
+      "properties": {
+        "outcome": {"const": "succeeded"},
+        "client_order_id": {"$ref": "#/$defs/clientOrderId"},
+        "old_exchange_order_id": {"type": "string"},
+        "new_placement_client_order_id": {"$ref": "#/$defs/clientOrderId"},
+        "new_exchange_order_id": {"type": ["string", "null"]},
+        "new_submitted_price": {"type": "number"}
+      },
+      "additionalProperties": false
+    },
+    "stealthUpdatePriceConditionResult": {
+      "type": "object",
+      "required": [
+        "outcome",
+        "client_order_id",
+        "price_threshold",
+        "hold_duration_seconds",
+        "affected_conditions"
+      ],
+      "properties": {
+        "outcome": {"const": "succeeded"},
+        "client_order_id": {"$ref": "#/$defs/clientOrderId"},
+        "price_threshold": {"type": "number"},
+        "hold_duration_seconds": {"type": ["integer", "null"], "minimum": 0},
+        "affected_conditions": {
+          "type": "object",
+          "additionalProperties": {"type": "object"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "stealthClearAllResult": {
+      "type": "object",
+      "required": [
+        "outcome",
+        "rows_deleted",
+        "in_memory_cancelled",
+        "in_memory_cancel_failures",
+        "message"
+      ],
+      "properties": {
+        "outcome": {"const": "succeeded"},
+        "rows_deleted": {"type": "integer", "minimum": 0},
+        "in_memory_cancelled": {"type": "integer", "minimum": 0},
+        "in_memory_cancel_failures": {"type": "integer", "minimum": 0},
+        "message": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "strategyUpdateTargetResult": {
+      "type": "object",
+      "required": [
+        "outcome",
+        "parent_client_order_id",
+        "target_movement",
+        "target_movement_type"
+      ],
+      "properties": {
+        "outcome": {"const": "succeeded"},
+        "parent_client_order_id": {"$ref": "#/$defs/clientOrderId"},
+        "target_movement": {"type": "number", "minimum": 0},
+        "target_movement_type": {"$ref": "#/$defs/targetMovementType"}
+      },
+      "additionalProperties": false
+    },
+    "strategyUpdateParentResult": {
+      "type": "object",
+      "required": ["outcome", "client_order_id", "order"],
+      "properties": {
+        "outcome": {"const": "succeeded"},
+        "client_order_id": {"$ref": "#/$defs/clientOrderId"},
+        "order": {
+          "oneOf": [
+            {"$ref": "#/$defs/parentOrderRecord"},
+            {"type": "null"}
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "methodResults": {
+      "type": "object",
+      "required": [
+        "v1.session.bootstrap",
+        "v1.runtime.status",
+        "v1.runtime.pause",
+        "v1.runtime.resume",
+        "v1.runtime.shutdown",
+        "v1.stealth.list",
+        "v1.stealth.export",
+        "v1.stealth.import",
+        "v1.stealth.create",
+        "v1.stealth.create_span",
+        "v1.stealth.cancel",
+        "v1.stealth.rehide",
+        "v1.stealth.reprice_now",
+        "v1.stealth.move_revealed",
+        "v1.stealth.update_price_condition",
+        "v1.stealth.clear_all",
+        "v1.strategy.update_target",
+        "v1.strategy.update_parent"
+      ],
+      "properties": {
+        "v1.session.bootstrap": {"$ref": "#/$defs/sessionBootstrapResult"},
+        "v1.runtime.status": {"$ref": "#/$defs/runtimeStatusResult"},
+        "v1.runtime.pause": {"$ref": "#/$defs/runtimeControlResult"},
+        "v1.runtime.resume": {"$ref": "#/$defs/runtimeControlResult"},
+        "v1.runtime.shutdown": {"$ref": "#/$defs/runtimeShutdownResult"},
+        "v1.stealth.list": {"$ref": "#/$defs/stealthListResult"},
+        "v1.stealth.export": {"$ref": "#/$defs/stealthExportResult"},
+        "v1.stealth.import": {"$ref": "#/$defs/stealthImportResult"},
+        "v1.stealth.create": {"$ref": "#/$defs/stealthCreateResult"},
+        "v1.stealth.create_span": {"$ref": "#/$defs/stealthCreateSpanResult"},
+        "v1.stealth.cancel": {"$ref": "#/$defs/stealthCancelResult"},
+        "v1.stealth.rehide": {"$ref": "#/$defs/stealthRehideResult"},
+        "v1.stealth.reprice_now": {"$ref": "#/$defs/stealthRepriceNowResult"},
+        "v1.stealth.move_revealed": {"$ref": "#/$defs/stealthMoveRevealedResult"},
+        "v1.stealth.update_price_condition": {"$ref": "#/$defs/stealthUpdatePriceConditionResult"},
+        "v1.stealth.clear_all": {"$ref": "#/$defs/stealthClearAllResult"},
+        "v1.strategy.update_target": {"$ref": "#/$defs/strategyUpdateTargetResult"},
+        "v1.strategy.update_parent": {"$ref": "#/$defs/strategyUpdateParentResult"}
+      },
+      "additionalProperties": false
+    },
+    "notificationParams": {
+      "type": "object",
+      "required": [
+        "v1.projection.runtime",
+        "v1.projection.stealth_orders",
+        "v1.market.ticker",
+        "v1.market.spread_snapshot"
+      ],
+      "properties": {
+        "v1.projection.runtime": {"$ref": "#/$defs/runtimeNotificationParams"},
+        "v1.projection.stealth_orders": {"$ref": "#/$defs/stealthOrdersProjection"},
+        "v1.market.ticker": {"$ref": "#/$defs/tickerNotificationParams"},
+        "v1.market.spread_snapshot": {"$ref": "#/$defs/spreadNotificationParams"}
+      },
+      "additionalProperties": false
     },
     "request": {
       "type": "object",
@@ -290,7 +1319,7 @@
       "properties": {
         "jsonrpc": {"const": "2.0"},
         "id": {"$ref": "#/$defs/requestId"},
-        "method": {"type": "string"},
+        "method": {"$ref": "#/$defs/operatorMethod"},
         "params": {"type": "object"}
       },
       "additionalProperties": false
@@ -315,9 +1344,9 @@
           "type": "object",
           "required": ["code", "message"],
           "properties": {
-            "code": {"type": "integer"},
+            "code": {"$ref": "#/$defs/operatorErrorCode"},
             "message": {"type": "string"},
-            "data": {"type": "object"}
+            "data": {"$ref": "#/$defs/operatorErrorData"}
           },
           "additionalProperties": false
         }
@@ -325,21 +1354,48 @@
       "additionalProperties": false
     },
     "notification": {
-      "type": "object",
-      "required": ["jsonrpc", "method", "params"],
-      "properties": {
-        "jsonrpc": {"const": "2.0"},
-        "method": {
-          "enum": [
-            "v1.projection.runtime",
-            "v1.projection.stealth_orders",
-            "v1.market.ticker",
-            "v1.market.spread_snapshot"
-          ]
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["jsonrpc", "method", "params"],
+          "properties": {
+            "jsonrpc": {"const": "2.0"},
+            "method": {"const": "v1.projection.runtime"},
+            "params": {"$ref": "#/$defs/runtimeNotificationParams"}
+          },
+          "additionalProperties": false
         },
-        "params": {"type": "object"}
-      },
-      "additionalProperties": false
+        {
+          "type": "object",
+          "required": ["jsonrpc", "method", "params"],
+          "properties": {
+            "jsonrpc": {"const": "2.0"},
+            "method": {"const": "v1.projection.stealth_orders"},
+            "params": {"$ref": "#/$defs/stealthOrdersProjection"}
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["jsonrpc", "method", "params"],
+          "properties": {
+            "jsonrpc": {"const": "2.0"},
+            "method": {"const": "v1.market.ticker"},
+            "params": {"$ref": "#/$defs/tickerNotificationParams"}
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["jsonrpc", "method", "params"],
+          "properties": {
+            "jsonrpc": {"const": "2.0"},
+            "method": {"const": "v1.market.spread_snapshot"},
+            "params": {"$ref": "#/$defs/spreadNotificationParams"}
+          },
+          "additionalProperties": false
+        }
+      ]
     }
   }
 }

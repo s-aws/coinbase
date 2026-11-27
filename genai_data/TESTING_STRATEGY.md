@@ -77,9 +77,13 @@ Examples include:
   snapshot/bootstrap timeout, generation-drain fencing, position isolation,
   keyed per-COID FIFO, and `EXPIRED` cleanup
   (`tests/regression/test_user_channel_patch_dispatch.py`)
-- strict operator JSON-RPC framing, method/schema/dispatch inventory,
-  correlation, named notifications, browser cutover, and backup-version
-  contracts
+- strict operator JSON-RPC framing; complete param/result/notification
+  schema inventories; fixed-enum/dispatch parity; representative nonempty
+  results for all 18 methods; missing/extra/wrong-type/invalid-format producer
+  failures; post-handler error-before-projection ordering and independent
+  projection-failure isolation; span/cancel discriminants; one-response
+  correlation; current notification-builder conformance; browser cutover; and
+  backup-version contracts
 - missed-fill reconciliation behavior
 - fresh-database enforcement, release validation, foreground paused deployment,
   and authoritative dashboard-health contracts

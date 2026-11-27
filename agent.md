@@ -91,9 +91,13 @@ unauthenticated, so bind explicitly to loopback for local-only access.
 The transport accepts only the versioned JSON-RPC methods in
 `core.enums.OperatorRpcMethod`, validated against
 `operator_api/schema.json`. Every client request supplies a canonical UUID
-correlation ID and receives one terminal response. Server projections use
-`OperatorNotificationMethod`; legacy ad-hoc `type` messages, batches, and
-client notifications are unsupported. Current clients must complete
+correlation ID and receives one terminal response. Before success
+emission, the JSON-normalized handler payload must validate against the
+originating method's `methodResults` contract; do not add an unvalidated
+parallel encoder.
+Server projections use `OperatorNotificationMethod` and method-specific
+notification schemas; legacy ad-hoc `type` messages, batches, and client
+notifications are unsupported. Current clients must complete
 `v1.session.bootstrap` before mutations. See `genai_data/API_REFERENCE.md`.
 
 Hotpoint replication is enabled only by the per-strategy

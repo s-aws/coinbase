@@ -652,6 +652,28 @@ def _rpc_result(
     )
 
 
+async def _publish_requested_rpc_projections(
+    dispatch_result: _RpcDispatchResult,
+) -> None:
+    """Best-effort each projection requested by a completed RPC handler."""
+
+    if dispatch_result.broadcast_runtime:
+        try:
+            await broadcast_state()
+        except Exception:
+            logger.exception(
+                "Operator RPC runtime projection publication failed"
+            )
+
+    if dispatch_result.broadcast_stealth_orders:
+        try:
+            await _broadcast_stealth_orders_projection()
+        except Exception:
+            logger.exception(
+                "Operator RPC stealth-order projection publication failed"
+            )
+
+
 def _rpc_application_error(
     message: str,
     *,
@@ -1882,10 +1904,16 @@ async def handle_client_message(
     try:
         response_message = encode_success(
             request.request_id,
+            request.method,
             dispatch_result.payload,
         )
     except Exception:
-        logger.exception("Operator RPC result was not serializable")
+        # A mutating handler may already have completed. Treat a producer-side
+        # contract or serialization defect as indeterminate and never retry it
+        # automatically.
+        logger.exception(
+            "Operator RPC result violated its contract or was not serializable"
+        )
         error = OperatorRpcError(
             OperatorRpcErrorCode.INTERNAL_ERROR,
             "Internal operator RPC error",
@@ -1896,6 +1924,7 @@ async def handle_client_message(
             websocket,
             _encode_rpc_error_response(request.request_id, error),
         )
+        await _publish_requested_rpc_projections(dispatch_result)
         return
 
     await _send_dashboard_message(
@@ -1903,15 +1932,7 @@ async def handle_client_message(
         response_message,
     )
 
-    try:
-        if dispatch_result.broadcast_runtime:
-            await broadcast_state()
-        if dispatch_result.broadcast_stealth_orders:
-            await _broadcast_stealth_orders_projection()
-    except Exception:
-        logger.exception(
-            "Operator response succeeded but projection publication failed"
-        )
+    await _publish_requested_rpc_projections(dispatch_result)
 
 
 async def handler(websocket: WebSocketServerProtocol, path: str):

@@ -71,7 +71,12 @@ verifies dashboard health while remaining attached to the process.
 WebSocket adapter for correlated operator JSON-RPC commands and named state
 notifications. It owns explicit method dispatch for the two supported browser
 UIs and the deployment healthcheck; framing and schema validation live in
-`operator_api/`.
+`operator_api/`. Every handler result is validated against its originating
+method after JSON normalization and before success emission; a contract defect
+becomes one correlated indeterminate internal error rather than an untyped
+success. Once that error is sent, the adapter still attempts each projection
+requested by the completed handler; those attempts are independent and best
+effort.
 It is an embedded transport, not a process composition root: `main.py`
 installs the shared `OrderBook`, publish interval, `ExecutionCore`, and stealth
 bridge. Six originating methods are parsed into typed facade commands;
@@ -85,11 +90,13 @@ endpoint settings.
 
 ### `operator_api/`
 Transport-only JSON-RPC framing. `protocol.py` validates canonical caller UUID
-IDs, method-specific object params, one-request envelopes, and serializes
-success, structured error, and server-notification envelopes. `schema.json` is
-the committed Draft 2020-12 contract consumed by Python and reserved for the
-accepted TypeScript console bindings. It owns no lifecycle, persistence,
-exchange, or admission behavior.
+IDs, method-specific object params and results, one-request envelopes, and
+serializes success, structured error, and server-notification envelopes.
+Notification validators support regression and future client-boundary checks
+without running on every Python ticker publication. `schema.json` is the
+committed Draft 2020-12 contract consumed by Python and prepared for future
+generated TypeScript bindings. It owns no lifecycle, persistence, exchange, or
+admission behavior.
 
 ### `configuration.py`
 Passive configuration model and loader. Importing it performs no environment,

@@ -2,14 +2,14 @@
 
 | Field | Value |
 |---|---|
-| Status | `IMPLEMENTING` |
-| Operator approval | Accepted 2026-11-27; TypeScript/build-chain decision confirmed 2026-11-27 |
+| Status | `ACCEPTED` |
+| Operator approval | Accepted 2026-11-27; TypeScript/build-chain and Stage 2A decisions confirmed 2026-11-27 |
 | Checklist or objective | Replace the experimental browser UIs after the application command boundary is stable |
-| Last evidence review | 2026-11-27, current worktree based on `c84d3b0d` |
-| Implementation | Stage 1 protocol normalization implemented; stages 2-6 not started |
+| Last evidence review | 2026-11-27, current worktree |
+| Implementation | Stage 1 protocol normalization and Stage 2A schema completeness implemented; Stage 2B and stages 3-6 not started |
 
-> `IMPLEMENTING` records the reviewed target and active staged implementation.
-> The current HTML
+> `ACCEPTED` records the reviewed target between implementation stages. Stages
+> 1 and 2A are complete; no remaining stage is active. The current HTML
 > prototypes remain the supported clients until an implementation stage is
 > separately reviewed, validated, and cut over.
 
@@ -43,6 +43,15 @@ would not meet that requirement.
   JSON-RPC 2.0 contract. Ghost variants are removed. Backup document version 2
   preserves `enable_hotpoint_replication`; version 1 has an explicit lossy-field
   migration warning.
+- Stage 2A makes method params, all 18 method results, and all four notification
+  payloads machine-consumable schema maps. Python validates each handler result
+  against its originating method after JSON normalization and before success
+  emission. RFC 3339 formats, stable nested payloads, and real outcome
+  discriminants are covered without adding live notification validation to the
+  ticker path. The schema is structured for evaluation by a future pinned
+  generator, but no generator or Node toolchain exists yet. Stage 2B must prove
+  compatibility and deterministic output before generated declarations become
+  authoritative.
 - `scripts/deploy_runtime.sh` validates, bootstraps, and starts the Python
   runtime, but it neither builds nor verifies browser assets.
 - Execution Core stage 5.2 supplies the atomic application-admission boundary
@@ -103,8 +112,12 @@ The implemented Stage 1 envelope is JSON-RPC 2.0 with versioned `v1.*` methods,
 canonical caller UUID IDs, object params, one terminal response per request,
 and named server notifications. Batch requests and client notifications are
 unsupported. The committed Draft 2020-12 schema is the executable contract;
-request IDs provide correlation only, not generic idempotent replay.
-The complete reviewed Stage 1 decision is retained in
+request IDs provide correlation only, not generic idempotent replay. Stage 2A
+completes the bidirectional schema and validates method-correlated handler
+results before sending success. Notification payloads are method-specific;
+their current Python builders are contract-tested without adding schema work to
+the ticker hot path.
+The complete reviewed Stage 1 and Stage 2A protocol decisions are retained in
 `OPERATOR_PROTOCOL.md`.
 
 ## Build and Deployment Contract
@@ -187,15 +200,22 @@ is never a production dependency or deployment entrypoint.
 Each implementation stage requires a focused current-checkout search and blast
 radius review before source changes.
 
-1. **Protocol normalization — implemented:** inventory supported commands/projections, remove
-   ghost variants, add version/request IDs, close import/export field loss, and
-   define typed failure envelopes. Blast radius: dashboard protocol, tests,
-   current clients, API documentation.
-2. **Build and delivery foundation — not approved for source changes:** add the pinned Node/npm prerequisites,
-   TypeScript/Vite source shell, locked dependency/bootstrap path, production
-   static adapter, and setup/release/deployment integration. Blast radius:
-   repository root configuration, scripts, `main.py`, operator transport,
-   deployment tests/docs.
+1. **Protocol normalization — implemented:** inventory supported
+   commands/projections, remove ghost variants, add version/request IDs, close
+   import/export field loss, and define typed failure envelopes. Blast radius:
+   dashboard protocol, tests, current clients, API documentation.
+2. **Build and delivery foundation:**
+   - **Stage 2A implemented:** define ordinary schema maps for all method
+     params/results and notification params, preserve current legacy payload
+     facts, validate method-correlated server results, and structure the schema
+     for future generator evaluation. Stage 2B must select and prove the pinned
+     generator and artifact policy. Blast radius: `operator_api`, the success
+     serialization call, protocol tests/docs, and graph evidence.
+   - **Stage 2B pending:** add the pinned Node/npm prerequisites,
+     TypeScript/Vite source shell, locked dependency/bootstrap path, production
+     static adapter, and setup/release/deployment integration. Blast radius:
+     repository root configuration, scripts, `main.py`, operator transport,
+     deployment tests/docs.
 3. **Read projections and navigation:** runtime health, active strategy tree,
    execution evidence, connection state, and bounded update handling.
 4. **Strategy composer:** single managed-limit and span workflows with shared
@@ -233,12 +253,11 @@ locked/reproducible deployment contract.
 
 ## Implementation Mapping
 
-Stage 1 is implemented by `operator_api/`, the operator enums in
+Stages 1 and 2A are implemented by `operator_api/`, the operator enums in
 `core/enums.py`, `dashboard_server.py`, the two retained prototype clients,
 `scripts/runtime_healthcheck.py`, and operator-protocol regression coverage.
 The living wire contract is `API_REFERENCE.md`; the committed executable schema
-is `operator_api/schema.json`. This stage deliberately does not introduce the
-TypeScript/Vite source tree, Node/npm prerequisites, static delivery, or
-deployment build integration. Stage 2 requires its own current-checkout search,
-blast-radius review, package/version selection, and operator approval before
-source changes.
+is `operator_api/schema.json`. Stage 2A deliberately does not introduce the
+TypeScript generator/source tree, Node/npm prerequisites, static delivery, or
+deployment build integration. Stage 2B requires its own approved implementation
+boundary after prerequisite and package validation.

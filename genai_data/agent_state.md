@@ -3,22 +3,27 @@
 ## Status
 
 - Last updated (ET): 2026-11-27.
-- Current committed baseline: local `prod` and `origin/prod` are at `c84d3b0d`.
-  It contains modular-monolith checklist items 1 through 4, the durable
-  design-spec framework, validated Execution Core stage 5.1, and the approved
-  operator-surface cleanup.
-- Completed implementation objective: Operator Console stage 1 protocol
-  normalization. The server, both retained HTML clients, and runtime
-  healthcheck use one strict versioned JSON-RPC contract with explicit
-  dispatch, schema validation, correlation, named notifications, bootstrap,
-  structured errors, and lossless backup version 2. The durable protocol spec
-  is `IMPLEMENTED`; source, complete-suite, living-documentation, and graph
-  evidence are reconciled in this worktree.
-- Accepted but not active: Operator Console stages 2-6. The complete Node/npm
-  prerequisite, locked TypeScript/Vite build, static-delivery, setup, release,
-  and deployment contract remains in `design_specs/OPERATOR_CONSOLE.md`; no
-  frontend build-chain source has been added yet. Stage 2 requires a fresh
-  focused review and operator approval before source changes.
+- Current committed baseline: local `prod` and `origin/prod` are at `f6c9c05b`.
+  The Stage 2A work described below is the active uncommitted change.
+- Completed implementation objective: Operator Console stages 1 and 2A. The
+  server, both retained HTML clients, and runtime healthcheck use one strict
+  versioned JSON-RPC contract with explicit dispatch, correlation, named
+  notifications, bootstrap, structured errors, and lossless backup version 2.
+  The executable schema now contains ordinary maps for all 18 method params
+  and results plus all four notification payloads. Python validates each
+  JSON-normalized handler result against its originating method before success
+  emission. RFC 3339 timestamps, stable nested DTO fields, and span/cancel
+  discriminants are asserted; producer defects fail closed as one correlated
+  indeterminate internal error. The adapter sends that error before attempting
+  each projection requested by the completed handler; projection failures are
+  isolated and never change the terminal response.
+- Accepted but not active: Operator Console Stage 2B and stages 3-6. The pinned
+  Node/npm prerequisite, future generated-binding requirement, locked
+  TypeScript/Vite build, static-delivery, setup, release, and deployment
+  contract remains in `design_specs/OPERATOR_CONSOLE.md`; no generator or
+  frontend build-chain source has been added yet. The focused Stage 2B plan
+  still requires its implementation boundary to be approved before source
+  changes.
 - Completed implementation objective: make `main.py` the sole process
   composition root and make configuration imports passive. One REST adapter,
   one shared `OrderBook`, and explicit consumer readers are now wired in
@@ -100,8 +105,9 @@ before code changes.
    removed rather than ported in its later approved stage.
 6. Extract public market-data ownership into an in-process component.
 7. Separate operator WebSocket transport from application commands and read
-   projections. The approved console Stage 1 protocol foundation is present,
-   but `dashboard_server.py` still coordinates application handlers and
+   projections. The approved console Stage 1 framing and Stage 2A complete
+   bidirectional schema/producer-validation foundation are present, but
+   `dashboard_server.py` still coordinates application handlers and
    projections; the modular boundary item is not complete.
 8. Isolate reconciliation and historical auditing behind injected readers and
    explicit repair commands.
@@ -162,6 +168,14 @@ before code changes.
   non-external gate passed 1,859 tests with 17 skipped and 11 external tests
   deselected. Python compilation, schema smoke checks, and `git diff --check`
   passed; repository-graph build/check was reconciled in the same change.
+- Operator Console stage 2A completes the executable contract for all 18
+  method params/results and all four notification payloads, and validates each
+  JSON-normalized handler result against its originating method before success
+  emission. The complete local non-external gate passed 1,891 tests with 17
+  skipped and 11 external tests deselected. Python compilation, schema smoke
+  validation, and `git diff --check` passed. Repository-graph build/check
+  reported 460 files, 8,623 symbols, 1,538 indexed tests, and 185 semantic
+  records with no parse findings, fatal errors, or check mismatches.
 - The approved operator-surface cleanup removed five abandoned HTML pages,
   both obsolete terminal consoles, unused dashboard routes/helpers, and their
   obsolete coverage. The complete local non-external gate passed 1,823 tests
@@ -185,9 +199,10 @@ before code changes.
   unowned pre-wipe/off-engine history, so it did not backfill them. This is not
   current local order state and will age out of the audit window.
 - No production database bootstrap/deployment, destructive database command,
-  order placement/cancellation, or delegated agent was used for this feature.
-  The pre-existing engine session was left running and untouched; later runtime
-  activity means its database must not be assumed fresh for a future launch.
+  or order placement/cancellation was used for Stage 2A. Delegated agents
+  performed read-only contract, toolchain, deployment, and documentation
+  audits; all repository edits remained in the primary implementation path.
+  The production database and any engine session were left untouched.
 
 ## Local Environment
 

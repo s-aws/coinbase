@@ -1,6 +1,6 @@
 # Test Coverage Navigation
 
-Reconciled on 2026-10-09. This is a source inventory, not a measured coverage
+Reconciled on 2026-11-27. This is a source inventory, not a measured coverage
 report. The repository does not publish a current coverage percentage here.
 Run policy and environment are in [README.md](README.md); exact file counts
 and module summaries are in [TEST_FILES_INDEX.md](TEST_FILES_INDEX.md).
@@ -14,6 +14,7 @@ and module summaries are in [TEST_FILES_INDEX.md](TEST_FILES_INDEX.md).
 | Reveal acceptance/pricing | `regression/test_stealth_placement_truth.py`, `regression/test_reveal_pricing_policy_post_only.py` |
 | Confirmed rearm and Rehide | `regression/test_anchor_reprice_phantom_parent.py`, `regression/test_anchor_rearm_tombstone_replay.py`, `regression/test_manual_stealth_rehide.py`, `regression/test_dashboard_rehide.py` |
 | Operator stop/withdrawal/recovery | `regression/test_operator_cancel_lifecycle.py`, `regression/test_operator_cancel_followups.py`, `regression/test_operator_cancel_deletion_guards.py`, `regression/test_operator_cancel_dashboard.py` |
+| Operator JSON-RPC contracts | `regression/test_operator_protocol.py`, `regression/test_dashboard_startup_admission.py`, `regression/test_deployment_automation.py` |
 | Threshold offsets/composite edits | `regression/test_reveal_condition_price_tracking.py` |
 | Flat hierarchy/follow-up claims/caps | `regression/test_flat_hierarchy_stealth_placement.py`, `regression/test_replacement_slot_atomic_claim.py`, `regression/test_partial_fill_follow_up_atomic_claim.py` |
 | Fills/ownership/reconciliation | `regression/test_cross_source_reconciliation.py`, `unit/test_fill_reconciler.py`, `unit/test_fill_ledger_append_derived.py` |

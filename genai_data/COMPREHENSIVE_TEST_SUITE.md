@@ -70,8 +70,13 @@ test cases unless the user explicitly requests them.
   commands, including transition-wins, admitted-work-finishes, drain wait, and
   exception-release cases
 - operator JSON-RPC framing and method-specific validation, exact method and
-  dispatch inventory, one-response correlation, named notifications, browser
-  bootstrap/cutover, and lossless versioned backup/import behavior
+  dispatch inventory, closed result contracts for all methods, fail-closed
+  malformed/invalid-format producer results, fixed-vocabulary parity,
+  discriminated span/cancel states, realistic hydrated projections,
+  one-response correlation, post-handler error-before-projection ordering,
+  independent projection-failure isolation, method-specific notification
+  builders, browser bootstrap/cutover, and lossless versioned backup/import
+  behavior
 - stop-dominant initial fee refresh, coherent sampled dashboard status with
   stop-dominant publication, websocket disconnect ownership, and retryable
   engine cleanup

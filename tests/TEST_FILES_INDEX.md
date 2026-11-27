@@ -66,7 +66,7 @@ an explicit user request.
 | [test_order_processing.py](integration/test_order_processing.py) | 13 | Integration tests for complete order processing workflows. |
 | [test_stealth_order_workflow.py](integration/test_stealth_order_workflow.py) | 6 | Integration tests for stealth order workflows. |
 
-## tests/regression (82 files)
+## tests/regression (83 files)
 
 | File | Defined test functions | Module intent |
 | --- | ---: | --- |
@@ -113,6 +113,7 @@ an explicit user request.
 | [test_operator_cancel_deletion_guards.py](regression/test_operator_cancel_deletion_guards.py) | 2 | Destructive cleanup keeps durable cancellation and parent recovery evidence. |
 | [test_operator_cancel_followups.py](regression/test_operator_cancel_followups.py) | 9 | An accepted project cancel stops new automation, not exchange accounting. |
 | [test_operator_cancel_lifecycle.py](regression/test_operator_cancel_lifecycle.py) | 15 | Intentional stealth cancellation stops automation without losing venue truth. |
+| [test_operator_protocol.py](regression/test_operator_protocol.py) | 23 | Complete operator JSON-RPC param/result/notification contracts, producer validation and recovery projection ordering, correlation, discriminants, formats, and backup versions. |
 | [test_order_id_regression.py](regression/test_order_id_regression.py) | 3 | Regression guards for critical order ID and hierarchy behavior. |
 | [test_parent_child_strategy_authority.py](regression/test_parent_child_strategy_authority.py) | 7 | Root-owned strategy definitions remain distinct from child execution ownership. |
 | [test_parent_row_before_ws_delta.py](regression/test_parent_row_before_ws_delta.py) | 6 | Regression: order_parent row must exist BEFORE _process_ws_order_delta. |
