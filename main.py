@@ -238,11 +238,13 @@ def build_application_runtime(settings: RuntimeSettings) -> ApplicationRuntime:
     controller = get_runtime_controller()
     execution_core = ExecutionCore(
         runtime_controller=controller,
-        stealth_orders=stealth_bridge,
+        stealth_commands=stealth_bridge,
+        stealth_queries=stealth_bridge,
     )
 
     configure_runtime_dependencies(
         orderbook=orderbook,
+        execution_core=execution_core,
         state_publish_interval_seconds=(
             settings.dashboard_state_publish_interval_seconds
         ),

@@ -11,6 +11,8 @@ import pytest
 
 import dashboard_server
 from core.enums import EngineState
+from core.execution_core import AdmissionRejection, OriginatingCommandResult
+from core.runtime_controller import INFLIGHT_APPLICATION_COMMAND
 from core.runtime_controller import RuntimeController
 
 
@@ -44,13 +46,73 @@ def test_originating_surface_contains_only_supported_strategy_commands() -> None
 
 def test_every_originating_message_is_rejected_while_starting() -> None:
     controller = RuntimeController()
+    application_core = Mock(name="execution_core")
+    rejection = OriginatingCommandResult(
+        rejection=AdmissionRejection(
+            state=EngineState.STARTING,
+            category=INFLIGHT_APPLICATION_COMMAND,
+        )
+    )
+    for method_name in (
+        "create_stealth_order",
+        "create_stealth_order_span",
+        "import_stealth_orders",
+        "rehide_stealth_order",
+        "reprice_stealth_order_now",
+        "move_revealed_stealth_order",
+    ):
+        getattr(application_core, method_name).return_value = rejection
+
+    bridge = Mock(name="stealth_order_bridge")
+    bridge.stealth_manager.in_memory_orders = {
+        "sid-starting": {
+            "status": "HIDDEN",
+            "anchor_repricing_policy_json": {"enabled": True},
+        }
+    }
+    messages = {
+        "create_stealth_order": {
+            "type": "create_stealth_order",
+            "order": {
+                "product_id": "BTC-USD",
+                "side": "BUY",
+                "total_size": 1.0,
+                "limit_price": 100.0,
+                "reveal_condition": {
+                    "type": "time_delay",
+                    "delay_seconds": 0,
+                },
+            },
+        },
+        "create_stealth_order_span": {
+            "type": "create_stealth_order_span",
+            "span": {"span_id": "span-starting"},
+        },
+        "import_stealth_orders": {
+            "type": "import_stealth_orders",
+            "orders": [],
+        },
+        "rehide_stealth_order": {
+            "type": "rehide_stealth_order",
+            "stealth_order_id": "sid-starting",
+        },
+        "reprice_now_stealth_order": {
+            "type": "reprice_now_stealth_order",
+            "stealth_order_id": "sid-starting",
+        },
+        "move_revealed_stealth_order": {
+            "type": "move_revealed_stealth_order",
+            "stealth_order_id": "sid-starting",
+            "new_limit_price": 101.0,
+        },
+    }
 
     async def exercise() -> None:
         for msg_type in sorted(dashboard_server._ORIGINATING_MSG_TYPES):
             websocket = _websocket()
             await dashboard_server.handle_client_message(
                 websocket,
-                json.dumps({"type": msg_type}),
+                json.dumps(messages[msg_type]),
             )
             assert _payloads(websocket) == [
                 {
@@ -68,6 +130,14 @@ def test_every_originating_message_is_rejected_while_starting() -> None:
         dashboard_server,
         "get_runtime_controller",
         return_value=controller,
+    ), patch.object(
+        dashboard_server,
+        "EXECUTION_CORE",
+        application_core,
+    ), patch.object(
+        dashboard_server,
+        "stealth_order_bridge",
+        bridge,
     ), patch.object(dashboard_server, "add_log_entry"):
         _run(exercise())
 

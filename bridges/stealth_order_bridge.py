@@ -31,6 +31,7 @@ from core.enums import (
     MarketEventMode,
     OrderStatus,
     RevealConditionType,
+    StealthMoveReason,
     StealthSpanOrderResultStatus,
     StealthSpanResultStatus,
     StealthOrderStatus,
@@ -38,7 +39,12 @@ from core.enums import (
     TickerPublicationDisposition,
 )
 from core.stealth_order_manager import StealthOrderManager
-from core.models import MarketData, RepricingPolicy
+from core.models import (
+    MarketData,
+    RepricingPolicy,
+    StealthMovePlan,
+    StealthMoveResult,
+)
 from core.runtime_controller import (
     INFLIGHT_REST_PLACE,
     INFLIGHT_STEALTH_REVEAL,
@@ -1728,17 +1734,19 @@ class StealthOrderBridge:
         }
 
     def rehide_stealth_order(self, stealth_order_id: str) -> bool:
-        """Serialize manual rehide with fills, reveal, and other mutations."""
+        """Serialize an already-admitted rehide with other order mutations.
+
+        Application admission is owned by :class:`core.execution_core.ExecutionCore`.
+        Keeping the per-order lock and readiness checks here preserves lifecycle
+        ownership without registering the same command twice.
+        """
         if not self._decisions_ready.is_set():
             raise RuntimeError("Stealth decisions are not active; await startup reconciliation")
         with self._get_order_action_lock(stealth_order_id):
             # Acquiring the order lock may wait behind a fill or shutdown.
             if not self._decisions_ready.is_set():
                 raise RuntimeError("Stealth decisions are not active")
-            with get_runtime_controller().track_admitted_inflight(INFLIGHT_REST_PLACE):
-                if not self._decisions_ready.is_set():
-                    raise RuntimeError("Stealth decisions are not active")
-                return self.stealth_manager.rehide_revealed_order(stealth_order_id)
+            return self.stealth_manager.rehide_revealed_order(stealth_order_id)
 
     def reprice_stealth_order_now(self, stealth_order_id: str) -> int:
         """Run one operator-requested anchor reprice and rebuild its deadline."""
@@ -1790,6 +1798,33 @@ class StealthOrderBridge:
                     stealth_order_id,
                     minimum_delay=self._OVERDUE_DEADLINE_RETRY_SECONDS,
                 )
+
+    def move_revealed_stealth_order(
+        self,
+        stealth_order_id: str,
+        new_limit_price: float,
+        *,
+        new_target_movement: Optional[float] = None,
+        new_target_movement_type: Optional[str] = None,
+        reason: Optional[StealthMoveReason] = None,
+        notes: Optional[str] = None,
+    ) -> Tuple[StealthMovePlan, StealthMoveResult]:
+        """Build and execute one already-admitted manual move.
+
+        The manager remains the lifecycle owner. This explicit bridge method
+        prevents operator transports from reaching through the bridge to call
+        manager mutation methods directly.
+        """
+
+        plan = self.stealth_manager.build_stealth_move_plan(
+            stealth_order_id,
+            new_limit_price,
+            new_target_movement=new_target_movement,
+            new_target_movement_type=new_target_movement_type,
+            reason=reason,
+            notes=notes,
+        )
+        return plan, self.stealth_manager.execute_stealth_move(plan)
 
     def update_price_condition(
         self,

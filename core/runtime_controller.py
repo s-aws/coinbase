@@ -60,6 +60,7 @@ INFLIGHT_FILL_PROCESSING = "fill_processing"
 INFLIGHT_STEALTH_REVEAL = "stealth_reveal"
 INFLIGHT_DB_WRITE = "db_write"
 INFLIGHT_STOP_HOOK = "stop_hook"
+INFLIGHT_APPLICATION_COMMAND = "application_command"
 
 
 def validate_drain_timeout_seconds(value: object) -> float:

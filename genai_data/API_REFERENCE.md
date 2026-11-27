@@ -210,6 +210,12 @@ The originating-work admission set is exactly `create_stealth_order`,
 those requests receive `admission_rejected`; reads, managed cancellation,
 cleanup, and admin control remain available.
 
+The six variants are admitted by explicit `ExecutionCore` methods. Admission
+and `application_command` in-flight registration are one controller-lock
+operation: a concurrent pause/shutdown either rejects before delegation or sees
+the command registered and allows it to finish. The dashboard's former
+check-then-act precheck is not authoritative and has been removed.
+
 Hotpoint replication has no dashboard command surface. It is enabled only by
 the off-by-default `enable_hotpoint_replication` field on a created strategy
 or span. Auto-created Hotpoint orders persist that field as false to prevent
@@ -323,12 +329,13 @@ or timeout can leave this request pending reconciliation. The browser refreshes
 `request_stealth_orders` and renders authoritative state without marking the order
 hidden itself. Repeat pending requests must not create another order or placement.
 
-The command originates a new reveal cycle, so it requires `RUNNING` admission and
-bridge readiness. The dashboard's initial admission gate returns
-`admission_rejected` during startup/pause/drain; validation, readiness, persistence,
-or a later admission-race rejection returns `stealth_order_rehide_result` with
-`accepted: false`. Ordinary cancellation remains independently available under
-its existing contract.
+The command originates a new reveal cycle, so it requires atomic `RUNNING`
+admission through `ExecutionCore` plus bridge readiness. A lifecycle race that
+wins before registration returns `admission_rejected`; after registration, a
+pause may close new admission while this Rehide finishes under its per-order
+lock. Validation, readiness, or persistence failure returns
+`stealth_order_rehide_result` with `accepted: false`. Ordinary cancellation
+remains independently available under its existing contract.
 
 ### `create_stealth_order` high-impact fields
 
@@ -477,6 +484,10 @@ deprecated; server-coordinated creation does not sleep between rungs.
   while RUNNING is level-triggered
 - `start_startup_component(name, start, stop)` atomically registers then starts
   one bounded component only while state is `STARTING`
+
+`INFLIGHT_APPLICATION_COMMAND` is the shared category for the six explicit
+originating `ExecutionCore` commands. Autonomous reveal, anchor repricing, and
+Hotpoint placement retain their existing worker-specific registration paths.
 
 `drain_and_stop()` is single-owner. Concurrent callers do not execute hooks a
 second time; they receive the owning drain's terminal `DrainResult`. Timeout

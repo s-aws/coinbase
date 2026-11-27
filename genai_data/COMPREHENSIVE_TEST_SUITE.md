@@ -66,6 +66,9 @@ test cases unless the user explicitly requests them.
   and drain correctness
 - startup admission rejection across dashboard, stealth reveal, and hotpoint
   placement origins
+- atomic Execution Core admission for all six operator-originated strategy
+  commands, including transition-wins, admitted-work-finishes, drain wait, and
+  exception-release cases
 - stop-dominant initial fee refresh, coherent sampled dashboard status with
   stop-dominant publication, websocket disconnect ownership, and retryable
   engine cleanup

@@ -71,7 +71,10 @@ verifies dashboard health while remaining attached to the process.
 WebSocket server for operator commands and state broadcasts.
 Owns the message contract for the two supported browser UIs.
 It is an embedded transport, not a process composition root: `main.py`
-installs the shared `OrderBook`, publish interval, and stealth bridge. Direct
+installs the shared `OrderBook`, publish interval, `ExecutionCore`, and stealth
+bridge. Six originating request variants are parsed into typed facade commands;
+the transport does not perform its former check-then-act admission precheck.
+Direct
 script execution exits with canonical
 entrypoint guidance. `main()` owns environment resolution and passes the host
 and port explicitly; direct `run_websocket_server()` defaults remain
@@ -160,6 +163,8 @@ Responsibilities:
 - sticky pause requests during startup and sole readiness completion
 - admission checks for originating work
 - inflight tracking for graceful drain
+- one `application_command` category for atomic facade admission and drain
+  accounting
 - atomic admission plus inflight registration for scheduler-owned reveal and
   anchor work
 - atomic register/start for bounded startup components
@@ -248,6 +253,10 @@ Responsibilities:
 - reveal event recording
 
 Dashboard handlers that route through the bridge must have an explicit bridge method. Do not call manager methods from `dashboard_server.py` through a bridge method that does not exist.
+Manual move now follows that rule through
+`StealthOrderBridge.move_revealed_stealth_order`; Rehide readiness and
+per-order locking remain in the bridge while application admission is owned by
+`ExecutionCore`.
 
 ### `bridges/stealth_event_deadline_scheduler.py`
 Manager/DB/REST-independent scheduling primitive. Owns one condition-protected

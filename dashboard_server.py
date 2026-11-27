@@ -32,10 +32,24 @@ from logging_service import get_logger
 from core.enums import (
     EngineState,
     FollowUpRevealDirection,
+    OrderSide,
     OrderStatus,
+    RevealPricingPolicy,
     RepricingReferenceSource,
+    StealthMoveReason,
     StealthOrderStatus,
     StealthSpanResultStatus,
+    TargetMovementType,
+)
+from core.execution_core import (
+    CreateStealthOrderRequest,
+    CreateStealthOrderSpanRequest,
+    ExecutionCore,
+    ImportStealthOrdersRequest,
+    MoveRevealedStealthOrderRequest,
+    OriginatingCommandResult,
+    RehideStealthOrderRequest,
+    RepriceStealthOrderRequest,
 )
 from core.models import RepricingPolicy
 from core.exceptions import WebSocketMessageError, OrderCreationError
@@ -45,10 +59,10 @@ from core.runtime_controller import (
 )
 from calculation.formatter import safe_float
 
-# Message types that *originate* new work and are gated on EngineState.RUNNING.
-# Cancellations, queries, and admin commands are intentionally excluded so the
-# engine remains controllable and existing positions can be wound down while
-# paused or draining.
+# Message types that *originate* new work and therefore must route through an
+# explicit ``ExecutionCore`` command. Cancellations, queries, and admin commands
+# are intentionally excluded so the engine remains controllable and existing
+# positions can be wound down while paused or draining.
 _ORIGINATING_MSG_TYPES = frozenset({
     "create_stealth_order",
     "create_stealth_order_span",
@@ -166,21 +180,27 @@ server_event_loop = None
 
 # Stealth order bridge reference (set during integration)
 stealth_order_bridge = None
+EXECUTION_CORE: Optional[ExecutionCore] = None
 
 
 def configure_runtime_dependencies(
     *,
     orderbook: Any,
+    execution_core: ExecutionCore,
     state_publish_interval_seconds: float,
 ) -> None:
     """Install the live adapters owned and constructed by ``main.py``."""
 
     if orderbook is None:
         raise ValueError("orderbook is required")
+    if execution_core is None:
+        raise ValueError("execution_core is required")
     interval = max(0.01, float(state_publish_interval_seconds))
 
     global ORDERBOOK
     global DASHBOARD_STATE_PUBLISH_INTERVAL_SECONDS
+    global EXECUTION_CORE
+    EXECUTION_CORE = execution_core
     ORDERBOOK = orderbook
     DASHBOARD_STATE_PUBLISH_INTERVAL_SECONDS = interval
 
@@ -436,6 +456,90 @@ def _cancel_managed_stealth_order(stealth_order_id: str, reason: str) -> Dict[st
     return response
 
 
+def _create_stealth_order_request(
+    order: Dict[str, Any],
+    *,
+    force_root: bool = False,
+    include_hotpoint: bool = True,
+) -> CreateStealthOrderRequest:
+    """Parse one dashboard payload into the typed application contract."""
+
+    reveal_policy = order.get("reveal_pricing_policy")
+    target_type = order.get(
+        "target_movement_type",
+        TargetMovementType.PERCENTAGE.value,
+    )
+    follow_up_direction = order.get(
+        "follow_up_reveal_direction",
+        FollowUpRevealDirection.OPPOSITE.value,
+    )
+    return CreateStealthOrderRequest(
+        client_order_id=order.get("stealth_order_id"),
+        product_id=str(order["product_id"]),
+        side=OrderSide(str(order["side"]).upper()),
+        total_size=float(order["total_size"]),
+        limit_price=float(order["limit_price"]),
+        reveal_condition=order["reveal_condition"],
+        reveal_pricing_policy=(
+            RevealPricingPolicy(reveal_policy)
+            if reveal_policy is not None
+            else None
+        ),
+        sizing_strategy=order.get("sizing_strategy", {}),
+        parent_client_order_id=(
+            None if force_root else order.get("parent_order_id")
+        ),
+        follow_up_reveal_direction=FollowUpRevealDirection(
+            follow_up_direction
+        ),
+        notes=str(order.get("notes", "")),
+        max_order_replacements=order.get("max_order_replacements"),
+        target_movement=float(order.get("target_movement", 0.002)),
+        target_movement_type=TargetMovementType(target_type),
+        allow_partial_fills=bool(order.get("allow_partial_fills", True)),
+        anchor_repricing_policy=order.get("anchor_repricing_policy"),
+        enable_hotpoint_replication=(
+            bool(order.get("enable_hotpoint_replication", False))
+            if include_hotpoint
+            else False
+        ),
+    )
+
+
+async def _admitted_value(
+    websocket: WebSocketServerProtocol,
+    msg_type: str,
+    outcome: OriginatingCommandResult[Any],
+) -> tuple[bool, Any]:
+    """Translate typed application admission refusal at the transport edge."""
+
+    rejection = outcome.rejection
+    if rejection is None:
+        return True, outcome.value
+
+    if rejection.state is EngineState.STARTING:
+        rejection_message = (
+            "Engine startup is still completing; new orders are not "
+            "being accepted yet."
+        )
+    else:
+        rejection_message = (
+            f"Engine is {rejection.state.value}; new orders are not "
+            f"being accepted. Resume the engine to place new orders."
+        )
+    await _send_dashboard_message(websocket, json.dumps({
+        "type": "admission_rejected",
+        "rejected_type": msg_type,
+        "engine_state": rejection.state.value,
+        "message": rejection_message,
+    }))
+    add_log_entry(
+        "WARNING",
+        f"Rejected {msg_type}: engine state {rejection.state.value}",
+    )
+    return False, None
+
+
 async def handle_client_message(websocket: WebSocketServerProtocol, message: str):
     """Handle incoming messages from client.
     
@@ -457,34 +561,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
         # DEBUG: Log all incoming messages
         logger.debug(f"[HANDLER] Received message type: {msg_type}")
 
-        # Admission gate: reject originating-work messages when the engine is
-        # not RUNNING (starting / paused / draining / stopped). Cancels, queries, and
-        # admin messages pass through so operators can still control the
-        # system and wind down existing positions.
         controller = get_runtime_controller()
-        if msg_type in _ORIGINATING_MSG_TYPES and not controller.is_admitting():
-            if controller.state is EngineState.STARTING:
-                rejection_message = (
-                    "Engine startup is still completing; new orders are not "
-                    "being accepted yet."
-                )
-            else:
-                rejection_message = (
-                    f"Engine is {controller.state.value}; new orders are not "
-                    f"being accepted. Resume the engine to place new orders."
-                )
-            response = {
-                "type": "admission_rejected",
-                "rejected_type": msg_type,
-                "engine_state": controller.state.value,
-                "message": rejection_message,
-            }
-            await _send_dashboard_message(websocket, json.dumps(response))
-            add_log_entry(
-                "WARNING",
-                f"Rejected {msg_type}: engine state {controller.state.value}",
-            )
-            return
 
         if msg_type == "admin_status":
             response = {
@@ -716,66 +793,86 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 await _send_dashboard_message(websocket, json.dumps(response))
                 return
 
-            if not stealth_order_bridge:
+            if EXECUTION_CORE is None:
                 response = {
                     "type": "import_stealth_orders_response",
                     "status": "error",
-                    "message": "Stealth order system not initialized",
+                    "message": "Execution core is not initialized",
                 }
                 await _send_dashboard_message(websocket, json.dumps(response))
                 return
 
-            results: list[dict] = []
-            success_count = 0
-            for entry in orders_to_import:
+            parsed_orders: list[CreateStealthOrderRequest] = []
+            preflight_errors: dict[int, dict] = {}
+            parsed_indexes: list[int] = []
+            for index, entry in enumerate(orders_to_import):
                 if not isinstance(entry, dict):
-                    results.append({
+                    preflight_errors[index] = {
                         "status": "error",
                         "error": "entry not a dict",
-                    })
+                    }
                     continue
-                requested_id = entry.get("stealth_order_id")
                 try:
-                    new_id = stealth_order_bridge.create_stealth_order(
-                        stealth_order_id=requested_id,
-                        product_id=entry["product_id"],
-                        side=entry["side"],
-                        total_size=entry["total_size"],
-                        limit_price=entry["limit_price"],
-                        reveal_condition=entry["reveal_condition"],
-                        reveal_pricing_policy=entry.get("reveal_pricing_policy"),
-                        sizing_strategy=entry.get("sizing_strategy", {}),
-                        parent_order_id=None,  # imports are always roots
-                        follow_up_reveal_direction=entry.get(
-                            "follow_up_reveal_direction",
-                            FollowUpRevealDirection.OPPOSITE.value,
-                        ),
-                        notes=entry.get("notes", ""),
-                        max_order_replacements=entry.get("max_order_replacements"),
-                        target_movement=entry.get("target_movement", 0.002),
-                        target_movement_type=entry.get("target_movement_type", "P"),
-                        allow_partial_fills=bool(entry.get("allow_partial_fills", True)),
-                        anchor_repricing_policy=entry.get("anchor_repricing_policy"),
+                    parsed_orders.append(
+                        _create_stealth_order_request(
+                            entry,
+                            force_root=True,
+                            # Preserve the current import/export contract. The
+                            # separate protocol cleanup will add the currently
+                            # omitted hotpoint field end to end.
+                            include_hotpoint=False,
+                        )
                     )
-                    results.append({
-                        "status": "success",
-                        "requested_id": requested_id,
-                        "stealth_order_id": str(new_id),
-                        "product_id": entry.get("product_id"),
-                        "side": entry.get("side"),
-                    })
-                    success_count += 1
-                except Exception as e:
-                    logger.exception(
-                        f"Import failed for stealth order {requested_id}: {e}"
-                    )
-                    results.append({
+                    parsed_indexes.append(index)
+                except Exception as exc:
+                    preflight_errors[index] = {
                         "status": "error",
-                        "requested_id": requested_id,
+                        "requested_id": entry.get("stealth_order_id"),
                         "product_id": entry.get("product_id"),
                         "side": entry.get("side"),
-                        "error": str(e),
-                    })
+                        "error": str(exc),
+                    }
+
+            outcome = EXECUTION_CORE.import_stealth_orders(
+                ImportStealthOrdersRequest(orders=tuple(parsed_orders))
+            )
+            admitted, import_result = await _admitted_value(
+                websocket,
+                msg_type,
+                outcome,
+            )
+            if not admitted:
+                return
+
+            results_by_index = dict(preflight_errors)
+            for index, result in zip(parsed_indexes, import_result.orders):
+                if result.succeeded:
+                    results_by_index[index] = {
+                        "status": "success",
+                        "requested_id": result.requested_client_order_id,
+                        "stealth_order_id": result.client_order_id,
+                        "product_id": result.product_id,
+                        "side": result.side.value,
+                    }
+                else:
+                    results_by_index[index] = {
+                        "status": "error",
+                        "requested_id": result.requested_client_order_id,
+                        "product_id": result.product_id,
+                        "side": result.side.value,
+                        "error": result.error,
+                    }
+                    logger.warning(
+                        "Import failed for stealth order %s: %s",
+                        result.requested_client_order_id,
+                        result.error,
+                    )
+
+            results = [
+                results_by_index[index]
+                for index in range(len(orders_to_import))
+            ]
+            success_count = import_result.imported_count
 
             response = {
                 "type": "import_stealth_orders_response",
@@ -812,7 +909,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "error": "Missing or invalid span data",
                 }))
                 return
-            if not stealth_order_bridge:
+            if EXECUTION_CORE is None or not stealth_order_bridge:
                 await _send_dashboard_message(websocket, json.dumps({
                     "type": "stealth_order_span_result",
                     "span_id": span_id,
@@ -827,7 +924,16 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 return
 
             try:
-                result = stealth_order_bridge.create_stealth_order_span(span)
+                outcome = EXECUTION_CORE.create_stealth_order_span(
+                    CreateStealthOrderSpanRequest(span=span)
+                )
+                admitted, result = await _admitted_value(
+                    websocket,
+                    msg_type,
+                    outcome,
+                )
+                if not admitted:
+                    return
                 response = {
                     "type": "stealth_order_span_result",
                     **result,
@@ -892,34 +998,25 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 await _send_dashboard_message(websocket, json.dumps(response))
                 return
             
-            if not stealth_order_bridge:
+            if EXECUTION_CORE is None or not stealth_order_bridge:
                 response = {
                     "type": "error",
-                    "message": "Stealth order system not initialized"
+                    "message": "Execution core or stealth order system not initialized"
                 }
                 await _send_dashboard_message(websocket, json.dumps(response))
                 return
             
             try:
-                stealth_id = stealth_order_bridge.create_stealth_order(
-                    stealth_order_id=order.get('stealth_order_id'),  # Allow UI to provide UUID
-                    product_id=order['product_id'],
-                    side=order['side'],
-                    total_size=order['total_size'],
-                    limit_price=order['limit_price'],
-                    reveal_condition=order['reveal_condition'],
-                    reveal_pricing_policy=order.get('reveal_pricing_policy'),
-                    sizing_strategy=order.get('sizing_strategy', {}),
-                    parent_order_id=order.get('parent_order_id'),  # Support parent-child relationships for order spans
-                    follow_up_reveal_direction=order.get('follow_up_reveal_direction', FollowUpRevealDirection.OPPOSITE.value),
-                    notes=order.get('notes', ''),
-                    max_order_replacements=order.get('max_order_replacements'),
-                    target_movement=order.get('target_movement', 0.002),
-                    target_movement_type=order.get('target_movement_type', 'P'),
-                    allow_partial_fills=bool(order.get('allow_partial_fills', True)),
-                    anchor_repricing_policy=order.get('anchor_repricing_policy'),
-                    enable_hotpoint_replication=bool(order.get('enable_hotpoint_replication', False)),
+                outcome = EXECUTION_CORE.create_stealth_order(
+                    _create_stealth_order_request(order)
                 )
+                admitted, stealth_id = await _admitted_value(
+                    websocket,
+                    msg_type,
+                    outcome,
+                )
+                if not admitted:
+                    return
                 
                 # Get the created order data and serialize for JSON
                 order_data = stealth_order_bridge.stealth_manager.in_memory_orders.get(stealth_id)
@@ -973,11 +1070,21 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
             try:
                 if not isinstance(stealth_order_id, str) or not stealth_order_id.strip():
                     raise ValueError("Missing or invalid stealth_order_id")
-                if not stealth_order_bridge:
-                    raise RuntimeError("Stealth order system is not initialized")
-                # The bridge owns readiness, atomic admission, and same-order
-                # serialization. Acceptance is not confirmation of cancellation.
-                if not stealth_order_bridge.rehide_stealth_order(stealth_order_id):
+                if EXECUTION_CORE is None:
+                    raise RuntimeError("Execution core is not initialized")
+                outcome = EXECUTION_CORE.rehide_stealth_order(
+                    RehideStealthOrderRequest(client_order_id=stealth_order_id)
+                )
+                admitted, accepted = await _admitted_value(
+                    websocket,
+                    msg_type,
+                    outcome,
+                )
+                if not admitted:
+                    return
+                # The bridge owns readiness and same-order serialization.
+                # Acceptance is not confirmation of cancellation.
+                if not accepted:
                     raise ValueError("Rehide request was not accepted; refresh the order and retry")
             except Exception as exc:
                 response["error"] = str(exc)
@@ -997,7 +1104,11 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
             # Immediately trigger anchor repricing for a single stealth order,
             # bypassing the next_reprice_at cooldown.
             stealth_order_id = data.get("stealth_order_id")
-            if not stealth_order_id or not stealth_order_bridge:
+            if (
+                not stealth_order_id
+                or not stealth_order_bridge
+                or EXECUTION_CORE is None
+            ):
                 await _send_dashboard_message(websocket, json.dumps({
                     "type": "error",
                     "message": "Missing stealth_order_id or system not initialised"
@@ -1038,9 +1149,18 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
 
                 # The bridge owns manual anchor scheduling so the persisted
                 # next_reprice_at and disposable heap deadline cannot diverge.
-                processed = stealth_order_bridge.reprice_stealth_order_now(
-                    stealth_order_id
+                outcome = EXECUTION_CORE.reprice_stealth_order_now(
+                    RepriceStealthOrderRequest(
+                        client_order_id=stealth_order_id
+                    )
                 )
+                admitted, processed = await _admitted_value(
+                    websocket,
+                    msg_type,
+                    outcome,
+                )
+                if not admitted:
+                    return
 
                 add_log_entry("INFO", f"Manual reprice triggered for {stealth_order_id}: processed={processed}")
                 logger.info(f"[REPRICE-NOW] {stealth_order_id} processed={processed}")
@@ -1074,7 +1194,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
             #     "reason":  "manual_user_move" | "operator_reprice",  # optional
             #     "notes":   "...",                                    # optional
             #     "new_target_movement": 0.2,                          # optional
-            #     "new_target_movement_type": "P" | "$"                # optional
+            #     "new_target_movement_type": "P" | "A"                # optional
             #   }
             stealth_order_id = data.get("stealth_order_id")
             new_limit_price = data.get("new_limit_price")
@@ -1083,7 +1203,11 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
             new_target_movement = data.get("new_target_movement")
             new_target_movement_type = data.get("new_target_movement_type")
 
-            if not stealth_order_id or new_limit_price is None or not stealth_order_bridge:
+            if (
+                not stealth_order_id
+                or new_limit_price is None
+                or EXECUTION_CORE is None
+            ):
                 await _send_dashboard_message(websocket, json.dumps({
                     "type": "stealth_order_moved",
                     "stealth_order_id": stealth_order_id,
@@ -1094,7 +1218,6 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 return
 
             try:
-                from core.enums import StealthMoveReason
                 from core.exceptions import StealthMoveError
 
                 # Resolve reason enum at the boundary (P2 rule #5: enums, not magic strings).
@@ -1116,23 +1239,52 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                         }))
                         return
 
-                mgr = stealth_order_bridge.stealth_manager
-                plan = mgr.build_stealth_move_plan(
-                    stealth_order_id,
-                    safe_float(new_limit_price, default=0.0),
-                    new_target_movement=(
-                        safe_float(new_target_movement, default=None)
-                        if new_target_movement is not None else None
-                    ),
-                    new_target_movement_type=new_target_movement_type,
-                    reason=reason_enum,
-                    notes=notes,
+                target_movement_type = None
+                if new_target_movement_type is not None:
+                    try:
+                        target_movement_type = TargetMovementType(
+                            new_target_movement_type
+                        )
+                    except ValueError:
+                        await _send_dashboard_message(websocket, json.dumps({
+                            "type": "stealth_order_moved",
+                            "stealth_order_id": stealth_order_id,
+                            "success": False,
+                            "error": (
+                                f"unknown target movement type "
+                                f"{new_target_movement_type!r}; expected one "
+                                f"of: {[item.value for item in TargetMovementType]}"
+                            ),
+                            "stage": "validate",
+                        }))
+                        return
+
+                outcome = EXECUTION_CORE.move_revealed_stealth_order(
+                    MoveRevealedStealthOrderRequest(
+                        client_order_id=stealth_order_id,
+                        new_limit_price=safe_float(
+                            new_limit_price,
+                            default=0.0,
+                        ),
+                        new_target_movement=(
+                            safe_float(new_target_movement, default=None)
+                            if new_target_movement is not None
+                            else None
+                        ),
+                        new_target_movement_type=target_movement_type,
+                        reason=reason_enum,
+                        notes=notes,
+                    )
                 )
-                # execute_stealth_move returns a StealthMoveResult with
-                # both the internal client_order_id (used for tracking,
-                # per AGENTS.md) and the exchange order_id (shown to the
-                # operator so they can cross-reference on Coinbase).
-                result = mgr.execute_stealth_move(plan)
+                admitted, move_result = await _admitted_value(
+                    websocket,
+                    msg_type,
+                    outcome,
+                )
+                if not admitted:
+                    return
+                plan = move_result.plan
+                result = move_result.result
 
                 add_log_entry(
                     "INFO",

@@ -24,6 +24,7 @@ import pytest
 
 from core.enums import EngineState
 from core.runtime_controller import (
+    INFLIGHT_APPLICATION_COMMAND,
     INFLIGHT_DB_WRITE,
     INFLIGHT_FILL_PROCESSING,
     INFLIGHT_REST_CANCEL,
@@ -64,7 +65,11 @@ class TestStartupTransitions:
     def test_starting_admission_matrix(self):
         runtime = RuntimeController()
 
-        for category in (INFLIGHT_REST_PLACE, INFLIGHT_STEALTH_REVEAL):
+        for category in (
+            INFLIGHT_APPLICATION_COMMAND,
+            INFLIGHT_REST_PLACE,
+            INFLIGHT_STEALTH_REVEAL,
+        ):
             with pytest.raises(EngineNotAdmittingError) as exc_info:
                 runtime.check_admission(category)
             assert exc_info.value.state is EngineState.STARTING
@@ -339,6 +344,7 @@ class TestAdmissionGate:
         # Should not raise.
         controller.check_admission(INFLIGHT_REST_PLACE)
         controller.check_admission(INFLIGHT_STEALTH_REVEAL)
+        controller.check_admission(INFLIGHT_APPLICATION_COMMAND)
 
     @pytest.mark.regression
     def test_originating_work_rejected_when_paused(self, controller):

@@ -16,7 +16,8 @@ from business.stealth_order_span import (
     StealthSpanValidationError,
     plan_stealth_order_span,
 )
-from core.enums import EngineState
+from core.execution_core import ExecutionCore
+from core.runtime_controller import RuntimeController
 
 
 pytestmark = pytest.mark.regression
@@ -293,14 +294,22 @@ def test_dashboard_span_message_returns_one_aggregate_result():
         "failed_count": 0,
         "orders": [],
     }
-    controller = Mock()
-    controller.is_admitting.return_value = True
-    controller.state = EngineState.RUNNING
+    controller = RuntimeController()
+    assert controller.complete_startup() is True
+    execution_core = ExecutionCore(
+        runtime_controller=controller,
+        stealth_commands=bridge,
+        stealth_queries=bridge,
+    )
 
     with patch.object(dashboard_server, "stealth_order_bridge", bridge), patch.object(
         dashboard_server,
         "get_runtime_controller",
         return_value=controller,
+    ), patch.object(
+        dashboard_server,
+        "EXECUTION_CORE",
+        execution_core,
     ), patch.object(dashboard_server, "broadcast_state", new=AsyncMock()) as broadcast, patch.object(
         dashboard_server,
         "add_log_entry",

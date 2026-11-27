@@ -3,16 +3,20 @@
 ## Status
 
 - Last updated (ET): 2026-11-27.
-- Current committed baseline: local `prod` and `origin/prod` are at `d15b2a0c`.
+- Current committed baseline: local `prod` and `origin/prod` are at `c84d3b0d`.
   It contains modular-monolith checklist items 1 through 4, the durable
-  design-spec framework, and validated Execution Core stage 5.1.
-- Current operator-approved implementation objective: the supported operator
-  surface is reduced to `ui_stealth_orders_manager.html` and
-  `ui_order_span_builder.html`. Abandoned browser pages, terminal consoles,
-  dashboard handlers, chart/calibration helpers, and their tests are removed.
-  Hotpoint remains available, defaults disabled per strategy, and uses
-  `enable_hotpoint_replication` as its sole enablement gate; there is no global
-  kill switch. No later Execution Core stage is approved for source changes.
+  design-spec framework, validated Execution Core stage 5.1, and the approved
+  operator-surface cleanup.
+- Current operator-approved implementation objective: close out Execution Core
+  stage 5.2. All six dashboard-originating strategy commands now use one typed,
+  atomic application admission/in-flight boundary; deterministic pause,
+  shutdown, drain, exception, and non-nested Rehide coverage passes. Stages
+  5.3-5.6 are not approved for source changes.
+- Accepted but not active: replace the two current prototype pages with one
+  unified TypeScript/Vite operator console. The complete Node/npm prerequisite,
+  locked build, static-delivery, setup, release, and deployment contract is in
+  `design_specs/OPERATOR_CONSOLE.md`; no frontend/build-chain source has been
+  added yet.
 - Completed implementation objective: make `main.py` the sole process
   composition root and make configuration imports passive. One REST adapter,
   one shared `OrderBook`, and explicit consumer readers are now wired in
@@ -61,9 +65,10 @@
 
 ## Modular Monolith Boundary Checklist
 
-Items 1 through 4 are complete. Every later item requires a focused source/test
-search, blast-radius evaluation, context discussion, and separate operator
-approval before code changes.
+Items 1 through 4 are complete. Item 5 stages 5.1-5.2 are approved and
+implemented; later stages still require a focused source/test search,
+blast-radius evaluation, context discussion, and separate operator approval
+before code changes.
 
 1. Remove the abandoned `StateManager` and generic repository implementation:
    complete and validated; canonical product-type coverage is retained.
@@ -81,11 +86,13 @@ approval before code changes.
 5. Add an Execution Core command/query facade while retaining lifecycle and
    transactional writes under one owner. The reviewed proposal and staged blast
    radius are recorded in `design_specs/EXECUTION_CORE.md`; its status is
-   `IMPLEMENTING`. Stage 5.1 is complete and validated: the typed facade exposes
-   runtime status/pause/resume and detached active-order queries, is composed in
-   `main.py`, and exposes no originating command. Ordinary placement remains
-   managed limit-only with immediate reveal for conventional timing, but its
-   facade command waits for the separately approved atomic-admission stage 5.2.
+   `IMPLEMENTING`. Stages 5.1-5.2 are complete and validated: the typed facade
+   exposes runtime status/pause/resume, detached active-order queries, and six
+   explicit originating commands. `main.py` composes and installs the one
+   facade; every originating command uses one atomic
+   `application_command` registration, while cancellation/query/wind-down and
+   autonomous worker guards retain their existing contracts. Ordinary placement
+   remains managed limit-only with immediate reveal for conventional timing.
    Other exchange order types remain deferred. The dormant
    `ConditionalExecutionWrapper` and its exclusive persistence surface will be
    removed rather than ported in its later approved stage.
@@ -138,6 +145,13 @@ approval before code changes.
   repository-graph build/check reported 468 files, 7,590 symbols, 1,568 indexed
   tests, 183 semantic records, no parse findings, no fatal errors, and no
   mismatches.
+- Execution Core stage 5.2 routes single create, span, import, Rehide, manual
+  reprice, and revealed-order move through one atomic application command
+  boundary. The complete local non-external gate passed 1,842 tests with 17
+  skipped and 11 external tests deselected. Python compilation and
+  `git diff --check` passed. Repository-graph build/check reported 454 files,
+  7,347 symbols, 1,515 indexed tests, 181 semantic records, no parse findings,
+  no fatal errors, and no mismatches.
 - The approved operator-surface cleanup removed five abandoned HTML pages,
   both obsolete terminal consoles, unused dashboard routes/helpers, and their
   obsolete coverage. The complete local non-external gate passed 1,823 tests

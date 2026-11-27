@@ -3,8 +3,8 @@ WebSocket handler.
 
 Covers:
 
-1. Message type is registered in ``_ORIGINATING_MSG_TYPES`` (so it is
-   correctly admission-gated when the engine is paused / draining).
+1. Message type is registered in ``_ORIGINATING_MSG_TYPES`` and routes through
+   the Execution Core atomic admission boundary.
 2. Happy path → ``stealth_order_moved`` success response with new
    exchange order id and broadcasts to all connected clients.
 3. ``StealthMoveError`` raised by the executor surfaces the failing
@@ -27,6 +27,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from core.execution_core import ExecutionCore
+from core.runtime_controller import RuntimeController
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -40,13 +43,19 @@ def _make_websocket() -> MagicMock:
     return ws
 
 
-def _admitting_controller() -> MagicMock:
+def _admitting_controller() -> RuntimeController:
     """Runtime controller that admits originating work."""
-    ctrl = MagicMock()
-    ctrl.is_admitting.return_value = True
-    ctrl.is_stopping.return_value = False
-    ctrl.state = MagicMock(value="RUNNING")
+    ctrl = RuntimeController()
+    assert ctrl.complete_startup() is True
     return ctrl
+
+
+def _execution_core(controller: RuntimeController, bridge) -> ExecutionCore:
+    return ExecutionCore(
+        runtime_controller=controller,
+        stealth_commands=bridge,
+        stealth_queries=bridge,
+    )
 
 
 def _sent_payloads(ws: MagicMock) -> list[dict]:
@@ -65,16 +74,12 @@ def _run(coro):
 @pytest.mark.regression
 def test_move_revealed_is_registered_as_originating_msg_type():
     """The handler creates new exchange work (cancel + place), so it
-    must be admission-gated by the runtime controller. If this fact
-    regresses, paused / draining engines would silently accept moves
-    and burn through the inflight cap during shutdown."""
+    must remain classified as an Execution Core originating command."""
     import dashboard_server
 
     assert "move_revealed_stealth_order" in dashboard_server._ORIGINATING_MSG_TYPES, (
-        "move_revealed_stealth_order must be in _ORIGINATING_MSG_TYPES so "
-        "it is gated on EngineState.RUNNING. Without this, a move can be "
-        "issued while the engine is paused or draining, leaking exchange "
-        "work past the admission boundary."
+        "move_revealed_stealth_order must remain in the originating command "
+        "inventory"
     )
 
 
@@ -98,12 +103,12 @@ def test_handler_happy_path_returns_success_and_broadcasts():
 
     from core.models import StealthMoveResult
     bridge = MagicMock()
-    bridge.stealth_manager.build_stealth_move_plan.return_value = plan
-    bridge.stealth_manager.execute_stealth_move.return_value = StealthMoveResult(
+    bridge.move_revealed_stealth_order.return_value = (plan, StealthMoveResult(
         new_placement_client_order_id="new_placement_coid_456",
         new_exchange_order_id="new_ex_789",
         new_submitted_price=101.5,
-    )
+    ))
+    controller = _admitting_controller()
 
     message = json.dumps({
         "type": "move_revealed_stealth_order",
@@ -115,17 +120,18 @@ def test_handler_happy_path_returns_success_and_broadcasts():
 
     with patch.object(dashboard_server, "stealth_order_bridge", bridge), \
          patch.object(dashboard_server, "get_runtime_controller",
-                      return_value=_admitting_controller()), \
+                      return_value=controller), \
+         patch.object(dashboard_server, "EXECUTION_CORE",
+                      _execution_core(controller, bridge)), \
          patch.object(dashboard_server, "connected_clients", {ws, other_client}), \
          patch.object(dashboard_server, "add_log_entry"):
         _run(dashboard_server.handle_client_message(ws, message))
 
-    # Build + execute called with the correct sid + price.
-    bridge.stealth_manager.build_stealth_move_plan.assert_called_once()
-    build_args = bridge.stealth_manager.build_stealth_move_plan.call_args
+    # The application boundary reaches one explicit bridge mutation method.
+    bridge.move_revealed_stealth_order.assert_called_once()
+    build_args = bridge.move_revealed_stealth_order.call_args
     assert build_args.args[0] == "sid_happy"
     assert build_args.args[1] == 101.5
-    bridge.stealth_manager.execute_stealth_move.assert_called_once_with(plan)
 
     # Broadcast — both clients received the success payload.
     for client in (ws, other_client):
@@ -165,11 +171,12 @@ def test_handler_surfaces_stealth_move_error_stage_to_ui(stage):
     bridge = MagicMock()
     # Either build or execute can raise; exercise via build to keep the test
     # simple. The handler treats both call sites identically.
-    bridge.stealth_manager.build_stealth_move_plan.side_effect = StealthMoveError(
+    bridge.move_revealed_stealth_order.side_effect = StealthMoveError(
         f"forced {stage} failure",
         stealth_order_id="sid_fail",
         stage=stage,
     )
+    controller = _admitting_controller()
 
     message = json.dumps({
         "type": "move_revealed_stealth_order",
@@ -179,7 +186,9 @@ def test_handler_surfaces_stealth_move_error_stage_to_ui(stage):
 
     with patch.object(dashboard_server, "stealth_order_bridge", bridge), \
          patch.object(dashboard_server, "get_runtime_controller",
-                      return_value=_admitting_controller()), \
+                      return_value=controller), \
+         patch.object(dashboard_server, "EXECUTION_CORE",
+                      _execution_core(controller, bridge)), \
          patch.object(dashboard_server, "connected_clients", {ws}), \
          patch.object(dashboard_server, "add_log_entry"):
         _run(dashboard_server.handle_client_message(ws, message))
@@ -213,9 +222,10 @@ def test_handler_rejects_unknown_reason_with_validate_stage():
 
     bridge = MagicMock()
     # If the bridge is invoked at all, the test fails.
-    bridge.stealth_manager.build_stealth_move_plan.side_effect = AssertionError(
-        "build_stealth_move_plan must NOT be called when reason is invalid"
+    bridge.move_revealed_stealth_order.side_effect = AssertionError(
+        "move_revealed_stealth_order must NOT be called when reason is invalid"
     )
+    controller = _admitting_controller()
 
     message = json.dumps({
         "type": "move_revealed_stealth_order",
@@ -226,7 +236,9 @@ def test_handler_rejects_unknown_reason_with_validate_stage():
 
     with patch.object(dashboard_server, "stealth_order_bridge", bridge), \
          patch.object(dashboard_server, "get_runtime_controller",
-                      return_value=_admitting_controller()), \
+                      return_value=controller), \
+         patch.object(dashboard_server, "EXECUTION_CORE",
+                      _execution_core(controller, bridge)), \
          patch.object(dashboard_server, "connected_clients", {ws}), \
          patch.object(dashboard_server, "add_log_entry"):
         _run(dashboard_server.handle_client_message(ws, message))
@@ -238,7 +250,7 @@ def test_handler_rejects_unknown_reason_with_validate_stage():
     assert body["success"] is False
     assert body["stage"] == "validate"
     assert "totally_made_up" in body["error"]
-    bridge.stealth_manager.build_stealth_move_plan.assert_not_called()
+    bridge.move_revealed_stealth_order.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -260,10 +272,13 @@ def test_handler_rejects_missing_required_fields(missing):
         "new_limit_price": 100.0,
     }
     payload.pop(missing)
+    controller = _admitting_controller()
 
     with patch.object(dashboard_server, "stealth_order_bridge", bridge), \
          patch.object(dashboard_server, "get_runtime_controller",
-                      return_value=_admitting_controller()), \
+                      return_value=controller), \
+         patch.object(dashboard_server, "EXECUTION_CORE",
+                      _execution_core(controller, bridge)), \
          patch.object(dashboard_server, "connected_clients", {ws}), \
          patch.object(dashboard_server, "add_log_entry"):
         _run(dashboard_server.handle_client_message(ws, json.dumps(payload)))
@@ -273,7 +288,7 @@ def test_handler_rejects_missing_required_fields(missing):
     assert len(move_payloads) == 1
     assert move_payloads[0]["success"] is False
     assert move_payloads[0]["stage"] == "validate"
-    bridge.stealth_manager.build_stealth_move_plan.assert_not_called()
+    bridge.move_revealed_stealth_order.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -336,15 +351,14 @@ def _make_real_manager_with_revealed_order(stealth_order_id: str = "sid_smoke"):
 
 @pytest.mark.regression
 def test_smoke_handler_drives_real_build_and_execute_end_to_end():
-    """End-to-end smoke: dashboard handler → real bridge.stealth_manager
+    """End-to-end smoke: dashboard → ExecutionCore → real bridge method
     → real build_stealth_move_plan → real execute_stealth_move →
     REST cancel + place (mocked) → audit insert (mocked) → success
     response sent on the websocket.
 
     What this catches that the unit tests don't:
-      * Bridge plumbing: the WS handler reaches into
-        ``stealth_order_bridge.stealth_manager`` and invokes the same
-        method names the executor exposes.
+      * Bridge plumbing: the WS handler cannot reach through the bridge to
+        invoke manager mutation methods directly.
       * Argument shape: handler-to-builder positional/kw signature
         agreement.
       * No surprise dependencies in the real executor that the bridge
@@ -352,10 +366,12 @@ def test_smoke_handler_drives_real_build_and_execute_end_to_end():
         that the build path can't construct).
     """
     import dashboard_server
+    from bridges.stealth_order_bridge import StealthOrderBridge
 
     mgr, order = _make_real_manager_with_revealed_order()
-    bridge = MagicMock()
-    bridge.stealth_manager = mgr  # REAL manager, not a Mock.
+    bridge = object.__new__(StealthOrderBridge)
+    bridge.stealth_manager = mgr
+    controller = _admitting_controller()
 
     ws = _make_websocket()
 
@@ -369,7 +385,9 @@ def test_smoke_handler_drives_real_build_and_execute_end_to_end():
 
     with patch.object(dashboard_server, "stealth_order_bridge", bridge), \
          patch.object(dashboard_server, "get_runtime_controller",
-                      return_value=_admitting_controller()), \
+                      return_value=controller), \
+         patch.object(dashboard_server, "EXECUTION_CORE",
+                      _execution_core(controller, bridge)), \
          patch.object(dashboard_server, "connected_clients", {ws}), \
          patch.object(dashboard_server, "add_log_entry"), \
          patch.object(mgr, "_get_stealth_order", return_value=order), \

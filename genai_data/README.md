@@ -45,7 +45,8 @@ This is a multithreaded Coinbase trading engine with:
 - Runtime lifecycle control (`STARTING`, `RUNNING`, transitional `PAUSING`, `PAUSED`, `DRAINING`, `STOPPED`) via `core/runtime_controller.py`.
 - Startup and periodic reconciliation against exchange truth (`core/startup_reconciler.py`, `core/periodic_reconciler.py`).
 - Fill ledger + cross-source fill reconciliation (`business/fill_ledger.py`, `business/fill_reconciler.py`).
-- Dashboard WebSocket server (`dashboard_server.py`) plus two browser consumers.
+- Dashboard WebSocket adapter (`dashboard_server.py`) over the typed Execution
+  Core plus two current prototype browser consumers.
 - Durable market telemetry (`market_tick`, `market_candle_1m`) retained for
   engine use and future analysis.
 - Cross-venue support libraries remain under `market_intel/` and `external/`,
@@ -88,9 +89,8 @@ A stealth order is a local execution plan, not a normal exchange order. It may s
   standalone process entrypoint.
 - `core/order_engine.py` - event ingestion, order lifecycle, follow-up logic.
 - `core/execution_core.py` - transport-neutral application shell. Its current
-  stage exposes typed runtime status/pause/resume and detached active stealth
-  queries; originating commands remain unavailable until atomic admission is
-  implemented in a separately approved stage.
+  stages expose typed runtime status/pause/resume, detached active stealth
+  queries, and six atomic originating strategy commands used by the dashboard.
 - `core/user_feed_processor.py` - private-feed generations, reduction,
   backpressure, per-order FIFO dispatch, and runtime metrics.
 - `core/stealth_order_manager.py` - stealth lifecycle and reveal/reprice/move logic.
@@ -99,6 +99,8 @@ A stealth order is a local execution plan, not a normal exchange order. It may s
 ## UI and Ops Entry Points
 
 - Browser UIs: `ui_stealth_orders_manager.html` and `ui_order_span_builder.html`.
+  They remain current until the accepted unified TypeScript/Vite console is
+  implemented and cut over; see `design_specs/OPERATOR_CONSOLE.md`.
 - Hotpoint replication is configured per strategy/span and defaults off; no
   global Hotpoint control surface is supported.
 - Risk utility script: `__dangerous_delete_all_tables__.py` (destructive manual

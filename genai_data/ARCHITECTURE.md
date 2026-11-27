@@ -15,7 +15,8 @@ The runtime is centered on a single `OrderEngine` instance (`core/order_engine.p
   evaluation, deadline scheduling, and reveal orchestration.
 - `core/runtime_controller.py`: lifecycle admission gate and inflight drain coordinator.
 - `core/execution_core.py`: typed in-process application boundary for runtime
-  administration and detached execution queries.
+  administration, detached execution queries, and atomic operator-originated
+  strategy commands.
 - `core/startup_reconciler.py` + `core/periodic_reconciler.py`: exchange-vs-local drift audits.
 - `calculation/fee_manager.py`: dynamic maker/taker fee telemetry and adaptive factors.
 
@@ -31,13 +32,16 @@ installs graceful shutdown hooks. It assumes the database-only
 implementation successfully and does not run full schema DDL during process
 startup.
 
-The first Execution Core stage is intentionally non-originating. It exposes
-typed runtime status, pause, and resume operations plus enum-filtered deep
-snapshots of active stealth state. Snapshot callers cannot mutate authoritative
-nested order data through their result, but the snapshot is not a
-transactionally coherent multi-order database view. Placement, cancellation,
-and strategy mutation remain on their existing paths until their later staged
-reviews; the dashboard is not yet an Execution Core adapter.
+Execution Core exposes typed runtime status, pause, and resume operations plus
+enum-filtered deep snapshots of active stealth state. Snapshot callers cannot
+mutate authoritative nested order data through their result, but the snapshot
+is not a transactionally coherent multi-order database view. Its six
+originating methods cover single create, span, import, Rehide, manual reprice,
+and revealed-order move. Each uses one atomic
+`INFLIGHT_APPLICATION_COMMAND` admission/in-flight registration; the embedded
+dashboard is an adapter over those methods. Cancellation, queries, and wind-down
+remain available under their existing non-originating contracts. Lifecycle and
+persistence mutations remain owned by the bridge, manager, and engine.
 
 ## Runtime Layers
 
@@ -504,7 +508,7 @@ daemon thread inside the canonical process. `main()` reads
 `DASHBOARD_SERVER_HOST` (falling back to `HOSTNAME`, then `localhost`) and
 integer `DASHBOARD_SERVER_PORT` (default `8765`) and passes both explicitly to
 `start_dashboard_server()`. The transport imports passively and receives the
-shared `OrderBook`, state-publish interval, and stealth bridge from the
+shared `OrderBook`, state-publish interval, `ExecutionCore`, and stealth bridge from the
 composition root; direct script execution exits with `python -m main`
 guidance. Browser clients choose their own endpoints; changing the listener
 does not reconfigure clients or serve HTML. See
@@ -519,6 +523,8 @@ does not reconfigure clients or serve HTML. See
 The only supported browser clients are `ui_stealth_orders_manager.html` and
 `ui_order_span_builder.html`. Hotpoint replication is an off-by-default
 per-strategy field; there is no independent global kill switch or manager UI.
+Their approved replacement is the not-yet-implemented unified TypeScript/Vite
+console in `design_specs/OPERATOR_CONSOLE.md`.
 
 Broadcast model:
 - shared in-memory `engine_state`

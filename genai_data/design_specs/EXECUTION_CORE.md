@@ -3,14 +3,14 @@
 | Field | Value |
 |---|---|
 | Status | `IMPLEMENTING` |
-| Operator approval | Accepted 2026-11-26; stage 5.1 approved 2026-11-27; later stages require separate approval |
+| Operator approval | Accepted 2026-11-26; stages 5.1 and 5.2 approved 2026-11-27; stages 5.3-5.6 require separate approval |
 | Checklist or objective | Modular-monolith boundary checklist item 5 |
-| Last evidence review | 2026-11-27, current worktree based on `d15b2a0c` |
-| Implementation | Stage 5.1 implemented and validated; approved operator-surface cleanup reconciled; stages 5.2-5.6 not started |
+| Last evidence review | 2026-11-27, current worktree based on `c84d3b0d` |
+| Implementation | Stages 5.1 and 5.2 implemented and validated; stages 5.3-5.6 not started |
 
 > This spec records the accepted item-5 design. Current behavior is established
-> only by the implementation mapping and tests below. Approval of stage 5.1
-> does not authorize any later implementation stage.
+> only by the implementation mapping and tests below. Approval through stage
+> 5.2 does not authorize stages 5.3-5.6.
 
 ## Problem
 
@@ -40,10 +40,10 @@ rules.
   parent/child execution behavior, while directly importing dashboard
   publication functions, integration registries, persistence helpers, and the
   external WebSocket implementation.
-- `RuntimeController.track_admitted_inflight` provides the required atomic
-  admission-and-registration boundary. The unsupported dashboard raw-placement
-  path has been removed; migrating the remaining originating strategy commands
-  to a transport-neutral atomic boundary remains stage 5.2 work.
+- `RuntimeController.track_admitted_inflight` provides the atomic
+  admission-and-registration boundary. Stage 5.2 routes all six supported
+  dashboard-originating strategy commands through it under one application
+  command category; the unsupported raw-placement path remains removed.
 - `dashboard_server.py` currently handles 17 supported request types; six are
   classified locally as originating work.
 - `module_boundaries.toml` assigns 15 exact reverse imports to checklist item 5.
@@ -230,6 +230,8 @@ focused tests, documentation, and graph records.
 
 ### 5.2 Atomic application admission
 
+Status: implemented and validated 2026-11-27.
+
 Route originating facade commands through the controller's atomic admission
 boundary. Preserve the intentional paused/draining availability of cancellation,
 queries, and wind-down operations. Audit internal guards to prevent double
@@ -323,7 +325,7 @@ stage may return the spec to review rather than silently widening its scope.
 
 ## Implementation Mapping
 
-Stage 5.1 is mapped as follows:
+Stages 5.1 and 5.2 are mapped as follows:
 
 - `core/execution_core.py::ExecutionCore` owns the narrow transport-neutral
   shell. It exposes typed runtime status and transition results plus an
@@ -337,20 +339,46 @@ Stage 5.1 is mapped as follows:
   delegates to that one snapshot path and accepts `StealthOrderStatus`, not an
   untyped status string.
 - `main.py::build_application_runtime` constructs one `ExecutionCore` from the
-  shared bridge and `RuntimeController` and retains it in `ApplicationRuntime`.
-  The dashboard is not migrated or given another global in this stage.
+  shared bridge and `RuntimeController`, retains it in `ApplicationRuntime`,
+  and explicitly installs that same instance in the embedded dashboard.
 - `tests/regression/test_execution_core_contract.py` verifies immutable admin
   results, rejection-as-data, enum filtering, nested detachment, internal
-  client-ID indexing, serializable snapshot isolation, and composition.
+  client-ID indexing, serializable snapshot isolation, composition, all six
+  command admission outcomes, drain accounting, and exception cleanup.
 
-No originating command, atomic-admission category, lifecycle mutation,
-database/exchange call, dashboard handler, or item-5 reverse-import debt entry
-changes in stage 5.1.
+Stage 5.2 adds:
+
+- `ExecutionCore` typed requests and explicit methods for single create, span,
+  import, Rehide, manual reprice, and revealed-order move. Every method crosses
+  the same `INFLIGHT_APPLICATION_COMMAND` registration exactly once.
+- `dashboard_server.py` parses transport payloads into those request types and
+  translates typed admission rejection back to `admission_rejected`. Its former
+  check-then-act lifecycle precheck is removed.
+- `StealthOrderBridge.move_revealed_stealth_order` is the explicit move
+  mutation capability. Dashboard code no longer reaches through the bridge to
+  invoke manager move methods.
+- `StealthOrderBridge.rehide_stealth_order` retains readiness checks and the
+  per-`client_order_id` action lock but no longer performs a nested admission
+  registration. An already-admitted Rehide may therefore finish if pause wins
+  while it waits for that lock.
+- Autonomous reveal, anchor-repricing, and Hotpoint admission guards are
+  unchanged; they remain separate worker-originated operations.
+- Import retains its documented partial-result behavior but the validated
+  batch occupies one application admission registration. The previously found
+  import/export omission of `enable_hotpoint_replication` is deliberately not
+  changed in this stage and remains assigned to operator-protocol cleanup.
+
+No lifecycle state machine, database schema, exchange adapter, worker admission
+guard, or item-5 reverse-import debt entry changes in stage 5.2.
 
 Validation: the complete local non-external gate passed 1,883 tests with 17
 skipped and 11 external tests deselected. Repository-graph build/check passed
 with 468 files, 7,590 symbols, 1,568 indexed tests, 183 semantic records, no
 parse findings, no fatal errors, and no check mismatches.
+
+Stage 5.2 validation: the complete local non-external gate passed 1,842 tests
+with 17 skipped and 11 external tests deselected. Graph evidence is reconciled
+in the stage closeout change.
 
 Relevant current navigation:
 
@@ -362,4 +390,4 @@ Relevant current navigation:
 - `core/stealth_order_manager.py::StealthOrderManager.create_stealth_order`
 - `bridges/stealth_order_bridge.py::StealthOrderBridge`
 - `core/order_engine.py::OrderEngine`
-- `dashboard_server.py::handler`
+- `dashboard_server.py::handle_client_message`

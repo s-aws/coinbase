@@ -32,7 +32,8 @@ applies.
 
 | Spec | Status | Scope | Read when |
 |---|---|---|---|
-| [Execution Core](EXECUTION_CORE.md) | `IMPLEMENTING` | Modular-monolith checklist item 5; stage 5.1 implemented | Reviewing commands, queries, execution ownership, dependency inversion, or future dashboard/CLI command paths |
+| [Execution Core](EXECUTION_CORE.md) | `IMPLEMENTING` | Modular-monolith checklist item 5; stages 5.1-5.2 implemented | Reviewing commands, queries, execution ownership, dependency inversion, or future dashboard/CLI command paths |
+| [Operator Console](OPERATOR_CONSOLE.md) | `ACCEPTED` | Unified TypeScript/Vite operator workflow, protocol, and deployment contract; implementation not started | Reviewing operator UI, dashboard protocol, frontend tooling, static delivery, or deployment prerequisites |
 
 Read only the task-relevant spec. Do not bulk-load this directory.
 

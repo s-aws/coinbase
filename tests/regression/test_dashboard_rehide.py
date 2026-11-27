@@ -11,7 +11,9 @@ import pytest
 
 import dashboard_server
 from core.enums import EngineState, StealthOrderStatus
+from core.execution_core import AdmissionRejection, OriginatingCommandResult
 from core.runtime_controller import EngineNotAdmittingError
+from core.runtime_controller import INFLIGHT_APPLICATION_COMMAND
 
 
 pytestmark = pytest.mark.regression
@@ -35,8 +37,29 @@ def _invoke(bridge, *, state=EngineState.RUNNING, stealth_id=STEALTH_ID):
         },
     }
     original = deepcopy(cache)
+    application_core = None
+    if bridge is not None:
+        application_core = Mock(name="execution_core")
+        if state is EngineState.RUNNING:
+            application_core.rehide_stealth_order.side_effect = (
+                lambda request: OriginatingCommandResult(
+                    value=bridge.rehide_stealth_order(
+                        request.client_order_id
+                    )
+                )
+            )
+        else:
+            application_core.rehide_stealth_order.return_value = (
+                OriginatingCommandResult(
+                    rejection=AdmissionRejection(
+                        state=state,
+                        category=INFLIGHT_APPLICATION_COMMAND,
+                    )
+                )
+            )
     with (
         patch.object(dashboard_server, "stealth_order_bridge", bridge),
+        patch.object(dashboard_server, "EXECUTION_CORE", application_core),
         patch.object(dashboard_server, "get_runtime_controller", return_value=controller),
         patch.object(dashboard_server, "engine_state", cache),
         patch.object(dashboard_server, "add_log_entry"),

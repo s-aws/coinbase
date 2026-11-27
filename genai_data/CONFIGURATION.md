@@ -80,7 +80,8 @@ per-product failures are logged and may leave optional history incomplete.
 The supported `python -m main` path resolves listener settings while loading
 `RuntimeSettings`, then passes them explicitly to the embedded dashboard
 transport. `dashboard_server.py` does not read the environment or construct a
-standalone runtime:
+standalone runtime. `main.py` also installs the one composed `ExecutionCore`;
+originating handlers fail closed if that dependency is absent:
 
 | Setting | Resolution | Notes |
 | --- | --- | --- |

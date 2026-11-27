@@ -11,6 +11,7 @@ import pytest
 from bridges.stealth_order_bridge import StealthOrderBridge
 from business.stealth_condition_evaluator import TimeDelayEvaluator
 from core.enums import EngineState, RevealConditionType, StealthMutationKind, StealthOrderStatus
+from core.execution_core import ExecutionCore, RehideStealthOrderRequest
 from core.runtime_controller import RuntimeController
 from core.stealth_order_manager import resolve_stealth_chain_root
 from tests.regression.test_anchor_reprice_phantom_parent import _manager_for, _revealed_order
@@ -337,21 +338,22 @@ def rehide_bridge(rehide_case):
     bridge.scheduler.stop()
 
 
-@pytest.mark.parametrize("blocker", ("startup", "paused"))
-def test_bridge_rehide_requires_readiness_and_running_admission(rehide_bridge, blocker):
+def test_bridge_rehide_requires_decision_readiness(rehide_bridge):
     bridge, manager, controller = rehide_bridge
-    if blocker == "startup":
-        bridge._decisions_ready.clear()
-    else:
-        controller.request_pause()
+    bridge._decisions_ready.clear()
     with pytest.raises(RuntimeError):
         bridge.rehide_stealth_order(SID)
     manager.rehide_revealed_order.assert_not_called()
     assert controller.total_inflight() == 0
 
 
-def test_bridge_rehide_tracks_admitted_work_inside_sid_lock(rehide_bridge):
+def test_execution_core_registers_rehide_once_outside_sid_lock(rehide_bridge):
     bridge, manager, controller = rehide_bridge
+    execution_core = ExecutionCore(
+        runtime_controller=controller,
+        stealth_commands=bridge,
+        stealth_queries=bridge,
+    )
     lock_held = False
     original_lock = bridge._get_order_action_lock(SID)
 
@@ -374,14 +376,26 @@ def test_bridge_rehide_tracks_admitted_work_inside_sid_lock(rehide_bridge):
 
     bridge._get_order_action_lock = action_lock
     manager.rehide_revealed_order.side_effect = rehide
-    assert bridge.rehide_stealth_order(SID) is True
+    outcome = execution_core.rehide_stealth_order(
+        RehideStealthOrderRequest(client_order_id=SID)
+    )
+    assert outcome.admitted is True
+    assert outcome.value is True
     assert controller.total_inflight() == 0
     assert lock_held is False
 
 
 @pytest.mark.parametrize("blocker", ("readiness", "pause"))
-def test_bridge_rechecks_gates_after_waiting_for_sid_lock(rehide_bridge, blocker):
+def test_admitted_rehide_rechecks_readiness_but_may_finish_after_pause(
+    rehide_bridge,
+    blocker,
+):
     bridge, manager, controller = rehide_bridge
+    execution_core = ExecutionCore(
+        runtime_controller=controller,
+        stealth_commands=bridge,
+        stealth_queries=bridge,
+    )
 
     @contextmanager
     def delayed_lock(_sid):
@@ -392,7 +406,18 @@ def test_bridge_rechecks_gates_after_waiting_for_sid_lock(rehide_bridge, blocker
         yield
 
     bridge._get_order_action_lock = delayed_lock
-    with pytest.raises(RuntimeError):
-        bridge.rehide_stealth_order(SID)
-    manager.rehide_revealed_order.assert_not_called()
+    if blocker == "readiness":
+        with pytest.raises(RuntimeError):
+            execution_core.rehide_stealth_order(
+                RehideStealthOrderRequest(client_order_id=SID)
+            )
+        manager.rehide_revealed_order.assert_not_called()
+    else:
+        outcome = execution_core.rehide_stealth_order(
+            RehideStealthOrderRequest(client_order_id=SID)
+        )
+        assert outcome.admitted is True
+        assert outcome.value is True
+        manager.rehide_revealed_order.assert_called_once_with(SID)
+        assert controller.state is EngineState.PAUSED
     assert controller.total_inflight() == 0
