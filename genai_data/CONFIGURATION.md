@@ -105,11 +105,8 @@ Keep this operator API off untrusted networks.
 
 Client endpoint selection is independent of server environment variables:
 
-- `ui_console.py`: `--host` and `--port`, defaulting to `localhost` and `8765`.
-- `ui_stealth_orders_manager.html` and `ui_hotpoint_manager.html`: page hostname
-  or `localhost`, fixed port `8765`, plain `ws`.
-- Chart, spread, calibration, and repricing pages: page
-  hostname or `localhost`, fixed port `8765`; HTTPS pages select `wss`.
+- `ui_stealth_orders_manager.html`: page hostname or `localhost`, fixed port
+  `8765`, plain `ws`.
 - `ui_order_span_builder.html`: page host/port and matching `ws`/`wss` when
   served, otherwise `ws://localhost:8765`.
 
@@ -298,8 +295,7 @@ export DISABLE_RECONCILER=1
 export DASHBOARD_SERVER_HOST=localhost
 export DASHBOARD_SERVER_PORT=9000
 ./.venv/bin/python3.14 -m main
-# In another terminal, point the console at the same endpoint
-./.venv/bin/python3.14 ui_console.py --host localhost --port 9000
+# Serve/proxy the retained browser page so its endpoint rule reaches this port.
 
 # Use fibonacci metrics windows (optional)
 export MARKET_METRICS_WINDOWS=fibonacci

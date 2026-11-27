@@ -307,12 +307,6 @@ Downsampled ticker persistence (typically <= 1 row/sec/product).
 - `data: engine_state`
 - `timestamp`
 
-### Slide calibration summary
-`slide_calibration_summary` payload includes:
-- window metadata
-- per-product fill + stealth + reprice metrics
-- totals and target progress values
-
 ### Stealth create/import payload
 `create_stealth_order` and active-stealth import payloads can include:
 - `anchor_repricing_policy`

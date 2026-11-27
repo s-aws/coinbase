@@ -1,16 +1,15 @@
-"""Persistent market-tick recorder for slide-calibration analytics.
+"""Persistent market-tick recorder for engine-observed market history.
 
 Subscribes to the existing WebSocket ticker fan-out in ``core/order_engine``
 and writes one downsampled row per product per second to ``market_tick``.
-Used by the slide-calibration chart to draw a market-mid
-reference line and a "miss-distance" band around the anchor.
+The retained history supports future diagnostics without reconstructing what
+the engine observed from exchange trade prints.
 
 Why this module exists
 ----------------------
 * The engine already receives ticker updates many times per second per
-  product (Coinbase's ticker channel), but doesn't persist them. The
-  slide-calibration view needs a market reference to compare against
-  ``stealth_orders.anchor_repricing_state_json -> reprice_history``.
+  product (Coinbase's ticker channel), but otherwise does not retain the
+  exact market reference seen by runtime policies.
 * We deliberately downsample at the recorder rather than backfilling
   from the public REST API: persisting what *the engine actually saw*
   matches the prices the anchor reacted to, while REST trades/candles

@@ -5,14 +5,9 @@ Provides simplified CRUD operations optimized for WebSocket dashboard requests.
 
 from decimal import Decimal
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Mapping, Optional
+from typing import Any, Callable, Dict, Mapping, Optional
 from database.order import (
-    get_parent_orders,
     get_parent_order,
-    insert_order_parent,
-    update_order_parent_status,
-    STEALTH_UNRESOLVED_SQL,
-    STEALTH_TERMINAL_STATUSES,
 )
 from calculation.price_validation import normalize_price_for_product
 from core.enums import PriceRoundingPolicy
@@ -45,20 +40,6 @@ def _serialize_for_json(obj: Any) -> Any:
         return obj
 
 
-def get_all_parent_orders() -> List[Dict[str, Any]]:
-    """Get all parent orders formatted for dashboard display.
-    
-    Returns:
-        List of parent order dicts with all fields (Decimals converted to float).
-    """
-    try:
-        orders = get_parent_orders()
-        return [_serialize_for_json(o) for o in orders]
-    except Exception as e:
-        print(f"Error fetching parent orders: {e}")
-        return []
-
-
 def get_parent_order_by_client_id(client_order_id: str) -> Optional[Dict[str, Any]]:
     """Get a single parent order by client_order_id.
     
@@ -73,60 +54,6 @@ def get_parent_order_by_client_id(client_order_id: str) -> Optional[Dict[str, An
         return _serialize_for_json(order) if order else None
     except Exception as e:
         print(f"Error fetching parent order {client_order_id}: {e}")
-        return None
-
-
-def insert_parent_order(
-    client_order_id: str,
-    product_id: str,
-    side: str,
-    size: float,
-    price: float,
-    target_movement: Optional[float] = None,
-    max_order_replacement: int = 0,
-    status: str = "OPEN",
-    *,
-    metadata_reader: Callable[[str], Mapping[str, Any]],
-) -> Optional[int]:
-    """Insert a new parent order.
-    
-    Args:
-        client_order_id: Unique order ID.
-        product_id: Product to trade.
-        side: BUY or SELL.
-        size: Order size.
-        price: Order price.
-        target_movement: Target profit/movement.
-        max_order_replacement: Max follow-ups.
-        status: Order status.
-        
-    Returns:
-        Inserted order ID, or None on failure.
-    """
-    try:
-        price_check = normalize_price_for_product(
-            price,
-            product_id=product_id,
-            side=side,
-            policy=PriceRoundingPolicy.SIDE_CONSERVATIVE,
-            metadata_reader=metadata_reader,
-        )
-        if not price_check.ok or price_check.effective_price is None:
-            raise ValueError(
-                f"Parent order rejected at price boundary: {price_check.reason}"
-            )
-        return insert_order_parent(
-            client_order_id=client_order_id,
-            product_id=product_id,
-            side=side,
-            size=float(size),
-            price=float(price_check.effective_price),
-            target_movement=float(target_movement) if target_movement else 0.0,
-            max_order_replacement=int(max_order_replacement),
-            status=status
-        )
-    except Exception as e:
-        print(f"Error inserting parent order: {e}")
         return None
 
 
@@ -203,47 +130,4 @@ def update_parent_order(
         
     except Exception as e:
         print(f"Error updating parent order: {e}")
-        return False
-
-
-def delete_parent_order(client_order_id: str) -> bool:
-    """Delete a parent only when no unresolved stealth state depends on it.
-    
-    Args:
-        client_order_id: The order to delete.
-        
-    Returns:
-        True if successful, False otherwise.
-    """
-    try:
-        from database.database import PostgresDB
-        db_client = PostgresDB()
-        
-        query = f"""
-            DELETE FROM order_parent p
-            WHERE p.client_order_id = %s
-              AND NOT EXISTS (
-                SELECT 1 FROM stealth_orders s
-                WHERE {STEALTH_UNRESOLVED_SQL}
-                  AND (
-                    s.stealth_order_id::text = p.client_order_id::text
-                    OR s.parent_order_id::text = p.client_order_id::text
-                    OR s.anchor_repricing_state_json->>'active_placement_client_order_id' = p.client_order_id::text
-                    OR s.anchor_repricing_state_json->'pending_rearm'->>'placement_client_order_id' = p.client_order_id::text
-                    OR EXISTS (
-                        SELECT 1 FROM jsonb_array_elements(COALESCE(s.revealed_orders, '[]'::jsonb)) AS r
-                        WHERE r->>'placement_client_order_id' = p.client_order_id::text
-                           OR r->>'placed_order_id' = p.client_order_id::text
-                    )
-                  )
-              )
-        """
-        with db_client.get_cursor() as cursor:
-            cursor.execute("LOCK TABLE stealth_orders IN SHARE MODE")
-            cursor.execute(query, (client_order_id, *STEALTH_TERMINAL_STATUSES))
-            result = cursor.rowcount
-        return result > 0
-        
-    except Exception as e:
-        print(f"Error deleting parent order: {e}")
         return False

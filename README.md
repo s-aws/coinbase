@@ -83,13 +83,12 @@ tracks the corresponding Coinbase placement.
 - PostgreSQL persistence for parent/child state, stealth lifecycle, reveal and
   move history, fill ledger, event stream, partial-fill progress, and market
   telemetry.
-- Browser tools for stealth management, order-span creation, repricing,
-  calibration, spread monitoring, hotpoint control, and general dashboard
-  state, plus a Rich terminal console.
+- Two browser tools: stealth management and order-span creation, both backed by
+  the embedded dashboard state/command transport.
 - Optional hotpoint auto-replication with per-order opt-in, rate limiting,
-  decay cleanup, and a runtime kill switch.
-- Optional fail-soft cross-venue market intelligence for terminal display; it
-  does not mutate trading state.
+  and decay cleanup. Per-strategy opt-in is the sole enablement gate.
+- Optional fail-soft cross-venue market-intelligence libraries remain for
+  future reviewed consumers; they do not mutate trading state.
 
 ## Getting Started
 
@@ -223,8 +222,8 @@ port to an untrusted network. See [dashboard configuration](genai_data/CONFIGURA
 for parsing rules and Python overrides.
 
 Clients select their endpoints independently; changing the server environment
-does not update browser URLs or console defaults. Most browser pages use the
-page hostname (or `localhost` for local files) and fixed port `8765`. The span
+does not update browser URLs. The manager page uses the page hostname (or
+`localhost` for a local file) and fixed port `8765`. The span
 builder instead uses the page host/port when served over HTTP(S).
 For a custom listener, match the client URL to a reachable server address and
 port, or configure a proxy for the page's expected endpoint. A wildcard bind
@@ -239,20 +238,13 @@ Open one of the local HTML files directly in a browser:
 - `ui_order_span_builder.html` — create a ladder/span of stealth orders with a
   fixed 200 ms batch-send cadence and a configurable price-hold duration,
   including zero seconds. Open it only after the engine reports `RUNNING`.
-- `ui_stealth_repricing_chart.html`, `ui_slide_calibration_chart.html`, and
-  `ui_spread_monitor.html` — focused market and strategy views.
 
-For a terminal client, run:
-
-```bash
-./.venv/bin/python3.14 ui_console.py
-
-# Match a custom server address/port (the console defaults remain localhost:8765).
-./.venv/bin/python3.14 ui_console.py --host <reachable-server-address> --port 9000
-```
+Hotpoint replication is an off-by-default option on each created strategy (or
+span). That checkbox is the only enablement control; there is no global
+Hotpoint kill switch or separate Hotpoint manager.
 
 Use `Ctrl+C` in the engine terminal for the ordinary cooperative drain and
-stop. The tracked HTML and console clients do not currently expose the
+stop. The tracked HTML clients do not currently expose the
 `admin_shutdown` protocol command.
 
 ## Validation

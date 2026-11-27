@@ -69,10 +69,10 @@ verifies dashboard health while remaining attached to the process.
 
 ### `dashboard_server.py`
 WebSocket server for operator commands and state broadcasts.
-Owns message contract for browser and terminal UIs.
+Owns the message contract for the two supported browser UIs.
 It is an embedded transport, not a process composition root: `main.py`
-installs the shared REST adapter, `OrderBook`, refresh callback, publish
-interval, and stealth bridge. Direct script execution exits with canonical
+installs the shared `OrderBook`, publish interval, and stealth bridge. Direct
+script execution exits with canonical
 entrypoint guidance. `main()` owns environment resolution and passes the host
 and port explicitly; direct `run_websocket_server()` defaults remain
 `localhost:8765`. See `CONFIGURATION.md` for listener and independent client
@@ -89,10 +89,6 @@ snapshots plus atomic product-cache serialization.
 Composition adapters for constructing the Coinbase REST wrapper and fetching
 startup product/position snapshots. It owns exchange response validation but
 does not retain process-global runtime state.
-
-### `ui_console.py`
-Terminal dashboard consumer of `state_update` broadcast.
-Can display cross-venue metrics using `market_intel` and external ws feeds.
 
 ## `core/` (Engine and Domain State)
 
@@ -350,10 +346,8 @@ schema work to `database.schema`, and never starts the trading engine.
 Dashboard `admin_status` poller used by deployment. A healthy result requires
 `PAUSED`, admission closed, no stop transition, and zero in-flight work.
 
-### Dashboard and Analytics helpers
+### Dashboard and market-data persistence helpers
 - `database/order_dashboard_helpers.py`
-- `database/slide_calibration_helpers.py`
-- `database/market_chart_helpers.py`
 - `database/market_candle_store.py`
 
 ## `external/` (Exchange and External Feed Clients)

@@ -12,9 +12,9 @@ with a simple, repeatable execution policy.
 
 ## Current Inventory (2026-11-26)
 
-- `tests/unit/`: 38 test files
+- `tests/unit/`: 37 test files
 - `tests/integration/`: 7 test files
-- `tests/regression/`: 84 test files
+- `tests/regression/`: 82 test files
 - `tests/e2e/`: 2 test files
 - `tests/external/`: 1 test file
 - `tests/` root: 2 test files

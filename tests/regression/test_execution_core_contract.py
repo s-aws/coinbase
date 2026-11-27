@@ -241,11 +241,6 @@ def test_main_composes_one_execution_core_from_existing_owners(
     monkeypatch.setattr(main, "ExecutionCore", execution_core_factory)
     monkeypatch.setattr(
         main,
-        "_catalog_refresh_callback",
-        Mock(return_value=object()),
-    )
-    monkeypatch.setattr(
-        main,
         "configure_runtime_dependencies",
         configure_dashboard,
     )
@@ -261,4 +256,7 @@ def test_main_composes_one_execution_core_from_existing_owners(
     assert runtime.stealth_bridge is bridge
     assert bridge.order_engine is engine
     assert manager.profit_validator is engine.profit_validator
-    configure_dashboard.assert_called_once()
+    configure_dashboard.assert_called_once_with(
+        orderbook=orderbook,
+        state_publish_interval_seconds=1.0,
+    )

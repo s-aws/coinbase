@@ -7,7 +7,7 @@ These tests pin down:
  - delta_pct sign (current vs avg)
  - empty-product / unknown-window behavior
  - producer/consumer contract — keys returned by ``snapshot()`` are exactly
-   what ``ui_console.render_market_metrics_panel`` reads. If you rename
+   what the dashboard ``state_update.market_metrics`` payload publishes. If you rename
    any of these, both ends must move together (P2 rule #12).
 """
 
@@ -60,9 +60,9 @@ def test_record_and_snapshot_single_product(tracker):
 def test_snapshot_keys_match_consumer_contract(tracker):
     """Producer/consumer contract guard.
 
-    ``ui_console.render_market_metrics_panel`` reads these exact keys.
+    The dashboard state payload publishes these exact keys.
     If this test fails, you renamed a field on the producer side and
-    must update the console consumer too.
+    must update its consumer contract too.
     """
     tracker.record("ETH-USDC", 50.0, ts=_ts_minute(0))
     snap = tracker.snapshot(now_ts=_ts_minute(0))

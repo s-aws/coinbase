@@ -27,7 +27,7 @@ Threading model
   never held across I/O so contention is bounded.
 
 Data shape returned by ``snapshot()`` (verified shape — keep aligned with
-``ui_console.render_market_metrics_panel`` and any other consumer)::
+the dashboard ``state_update.market_metrics`` payload)::
 
     {
         "BTC-USDC": {
@@ -60,8 +60,8 @@ from typing import Dict, List, Optional
 # regression test in ``tests/regression/test_market_metrics_tracker.py``.
 STANDARD_WINDOWS_MINUTES: tuple = (1, 5, 15, 30, 60, 240, 1440, 10080)
 
-# Legacy Fibonacci preset, ascending. Capped at 7 days (10080m) — the
-# longest window the original console showed. Not a default; selectable
+# Legacy Fibonacci preset, ascending. Capped at 7 days (10080m), matching the
+# retained historical maximum. Not a default; selectable
 # via the ``MARKET_METRICS_WINDOWS=fibonacci`` env var.
 FIBONACCI_WINDOWS_MINUTES: tuple = (
     1, 2, 3, 5, 8, 13, 21, 34, 55, 89,
@@ -69,7 +69,7 @@ FIBONACCI_WINDOWS_MINUTES: tuple = (
 )
 
 # Registry of selectable presets. Single source of truth — the resolver
-# below and every consumer (server snapshot builder, console grid) MUST
+# below and every consumer (currently the server snapshot builder) MUST
 # go through ``resolve_windows_preset()`` so a new preset added here
 # becomes available everywhere automatically.
 _PRESETS = {

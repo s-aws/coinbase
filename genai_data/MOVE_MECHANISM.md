@@ -1,6 +1,6 @@
 # Order Movement and Rearm
 
-Reconciled on 2026-10-09. The checkout has three distinct existing behaviors;
+Reconciled on 2026-11-27. The checkout has three distinct existing behaviors;
 none permits reparenting a child beneath another child.
 
 ## Cancelled parent move
@@ -13,9 +13,10 @@ children are not automatically moved or reparented.
 
 Premarking records a pending move (`move_on_cancel=true`) before cancellation.
 The engine cancellation handler checks that pending move before normal
-replacement logic. `main.py` supplies the current engine/bridge wiring;
-`dashboard_server.py` handles `move_order`, `premark_move`, and
-`request_move_history`. This cancelled-parent mechanism is separate from a
+replacement logic. `main.py` supplies the current engine/bridge wiring. The
+abandoned dashboard CRUD/history commands were removed; `MoveManager` remains
+the single lifecycle implementation for existing internal callers and future
+reviewed command surfaces. This cancelled-parent mechanism is separate from a
 revealed stealth placement move.
 
 ## Revealed stealth move

@@ -12,8 +12,7 @@ order leaves the engine. These tests pin:
 
 Producer/consumer contract: callers supply product metadata containing
 ``base_increment``, ``base_min_size``, ``quote_min_size``. If you
-rename any of these, both the dashboard's
-``update_products_json_from_api`` populator AND this validator must
+rename any of these, both the startup product-document builder and this validator must
 move together (P2 rule #12).
 """
 
@@ -222,9 +221,9 @@ def test_result_is_truthy_only_when_ok():
     assert not bool(SizeValidationResult(False, 0.0, "x"))
 
 
-def test_metadata_keys_match_dashboard_populator():
-    """Producer/consumer contract guard. The dashboard's
-    ``update_products_json_from_api`` writes these exact keys; the
+def test_metadata_keys_match_startup_product_document():
+    """Producer/consumer contract guard. Startup product persistence
+    writes these exact keys; the
     validator reads them. If either side renames a key, this guard
     will trip (P2 rule #12)."""
     import inspect

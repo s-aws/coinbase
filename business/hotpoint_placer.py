@@ -2,17 +2,16 @@
 
 Sequence:
 
-1. Check kill switch (``HOTPOINT_AUTO_PLACE_ENABLED``). If False, no-op.
-2. Acquire a slot from :class:`HotpointRateLimiter`. If denied, no-op.
-3. Derive the limit price per :class:`HotpointPlacementPolicy`.
-4. Normalize price through the canonical runtime ``price_increment`` boundary
+1. Acquire a slot from :class:`HotpointRateLimiter`. If denied, no-op.
+2. Derive the limit price per :class:`HotpointPlacementPolicy`.
+3. Normalize price through the canonical runtime ``price_increment`` boundary
    and size to ``base_increment`` / ``base_min_size`` of the product.
-5. Submit a GTC limit via ``REST_CLIENT.limit_order_gtc``.
-6. On success: insert ``order_parent`` row with
+4. Submit a GTC limit via ``REST_CLIENT.limit_order_gtc``.
+5. On success: insert ``order_parent`` row with
    ``auto_placed_by_hotpoint=TRUE``, ``enable_hotpoint_replication=FALSE``,
    ``parent_order_id=NULL`` (auto-placed orders are their own roots; they do
    not inherit chain membership), then commit the rate-limiter slot.
-7. Before exchange acceptance, failures roll back the slot. After confirmed
+6. Before exchange acceptance, failures roll back the slot. After confirmed
    acceptance, local persistence failure commits the slot and is reported as
    a local-finalization error; the live order must not be resubmitted.
 
@@ -43,7 +42,6 @@ logger = logging.getLogger(__name__)
 
 
 # Status string constants returned by :func:`place_hotpoint_order`.
-STATUS_KILL_SWITCH_OFF = "kill_switch_off"
 STATUS_RATE_LIMITED = "rate_limited"
 STATUS_PRODUCT_META_MISSING = "product_meta_missing"
 STATUS_INVALID_PRICE = "invalid_price"
@@ -86,11 +84,10 @@ def place_hotpoint_order(
     policy: HotpointPlacementPolicy,
     rest_client: Any,
     insert_order_parent_fn: Callable[..., Optional[int]],
-    kill_switch_enabled: bool,
     log_callback: Optional[Callable[[str, Any], None]] = None,
     now_epoch: Optional[float] = None,
 ) -> HotpointPlacementResult:
-    """Drive one full kill-switch -> place sequence for a trigger event.
+    """Drive one full rate-limited placement sequence for a trigger event.
 
     Args:
         event: The trigger from the detector.
@@ -106,10 +103,6 @@ def place_hotpoint_order(
         insert_order_parent_fn: Callable matching
             :func:`database.order.insert_order_parent`. Injected so tests
             can supply a stub without DB I/O.
-        kill_switch_enabled: Pre-evaluated runtime flag (caller reads
-            ``core.constants.HOTPOINT_AUTO_PLACE_ENABLED`` or its
-            engine-level override). The placer NEVER reads the flag itself
-            — that gives the engine one place to override at runtime.
         log_callback: Optional ``(level, msg_or_payload) -> None`` for
             structured logging into the engine's event log. When omitted,
             the module logger is used.
@@ -120,9 +113,6 @@ def place_hotpoint_order(
     """
     log = log_callback or (lambda level, msg: getattr(logger, level, logger.info)(msg))
     now_epoch = float(now_epoch) if now_epoch is not None else time.time()
-
-    if not kill_switch_enabled:
-        return HotpointPlacementResult(status=STATUS_KILL_SWITCH_OFF)
 
     # 1. Rate-limit slot acquisition.
     decision = rate_limiter.try_acquire(

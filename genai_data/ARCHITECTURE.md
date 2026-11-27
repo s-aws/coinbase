@@ -79,8 +79,9 @@ reviews; the dashboard is not yet an Execution Core adapter.
   non-atomic; durable delivery is deferred to the process-boundary/outbox work.
 
 5. **Presentation Layer**
-- Dashboard state broadcast (`state_update`) for HTML and terminal consumers.
-- Analytics endpoints for slide calibration and market chart views.
+- Dashboard state, ticker, and spread broadcasts for the two retained HTML
+  consumers.
+- Supported stealth strategy commands and admin lifecycle control.
 
 ## Enforced In-Process Boundaries
 
@@ -94,10 +95,11 @@ modules, new reverse-zone imports, new import cycles, new broad/untyped
 constructor capability surfaces, and new reflection mechanisms that can hide
 those surfaces.
 
-The contract records 29 reverse-zone import edges, no strongly connected
-runtime import component, 35 broad constructor capability surfaces, and eight
+The contract records 23 reverse-zone import edges, no strongly connected
+runtime import component, 35 broad constructor capability surfaces, and seven
 reflection/namespace escape signatures. Item 4 retired the configuration
-edges and former import cycle; remaining exact debt is assigned to
+edges and former import cycle; the supported operator-surface cleanup retired
+six more import-debt edges and one reflection signature. Remaining exact debt is assigned to
 modular-monolith checklist items 5-8 and is not a package-wide permission for
 additional coupling.
 
@@ -502,18 +504,21 @@ daemon thread inside the canonical process. `main()` reads
 `DASHBOARD_SERVER_HOST` (falling back to `HOSTNAME`, then `localhost`) and
 integer `DASHBOARD_SERVER_PORT` (default `8765`) and passes both explicitly to
 `start_dashboard_server()`. The transport imports passively and receives the
-shared REST adapter, `OrderBook`, and product-refresh callback from the
+shared `OrderBook`, state-publish interval, and stealth bridge from the
 composition root; direct script execution exits with `python -m main`
-guidance. Browser and terminal clients choose their own endpoints; changing
-the listener does not reconfigure clients or serve HTML. See
+guidance. Browser clients choose their own endpoints; changing the listener
+does not reconfigure clients or serve HTML. See
 `CONFIGURATION.md` for the endpoint matrix and local-only binding guidance.
 
 `dashboard_server.py` exposes command handlers for:
 - runtime admin (`admin_status`, `admin_pause`, `admin_resume`, `admin_shutdown`)
-- parent CRUD, single/span stealth creation, update/cancel/Rehide/move/reprice, and import/export
-- chart and calibration reads
-- products list refresh
-- move history and premark flows
+- single/span stealth creation, managed cancel/Rehide/move/reprice, and import/export
+- price-threshold, parent-target, and supported parent-order updates
+- active-order reads and guarded clear-all cleanup
+
+The only supported browser clients are `ui_stealth_orders_manager.html` and
+`ui_order_span_builder.html`. Hotpoint replication is an off-by-default
+per-strategy field; there is no independent global kill switch or manager UI.
 
 Broadcast model:
 - shared in-memory `engine_state`
@@ -529,7 +534,7 @@ Broadcast model:
 Current scope is intentionally narrow and fail-soft:
 - no mutation of trading state
 - consumers treat missing intel as no-signal fallback
-- terminal UI (`ui_console.py`) can display cross-venue premium/lead indicators
+- no supported operator client currently consumes these libraries
 
 ## Known implementation boundaries
 
@@ -537,10 +542,6 @@ Current scope is intentionally narrow and fail-soft:
   same-SID order_parent projection PENDING and omits the CANCELLED lifecycle
   event. This is a durable audit/projection gap, not an active reveal plan;
   startup reconciliation does not repair it.
-- Dashboard direct placement checks admission before REST and uses plain
-  in-flight accounting. It does not share the scheduler's atomic admitted-work
-  boundary, so a later pause can race that direct path. Manual hotpoint-test
-  placement similarly has an initial gate and no uniform atomic boundary.
 - Pending rearm requires one fully accounted zero-fill placement. Multi-live
   exposure fails closed rather than treating hidden remaining_size as exposure.
 - Span creation uses the existing per-order persistence transaction for each
@@ -549,9 +550,6 @@ Current scope is intentionally narrow and fail-soft:
 - Cumulative-volume compatibility evaluation expects trade-volume fields that
   the ticker bridge does not supply and retains evaluator-lifetime limitations.
   Its presence in the factory is not evidence of correct live accumulation.
-- The legacy single-order cancel wrapper and unmapped dashboard fallback do not
-  inspect exact per-order terminal confirmation. Managed stealth withdrawal uses
-  its persisted exact-order recovery contract.
 
 ## Key Architectural Invariants
 

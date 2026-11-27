@@ -243,7 +243,6 @@ def test_hotpoint_uses_source_stop_guard_and_does_not_skip_fill_ledger(monkeypat
     engine._hotpoint_rate_limiter = Mock()
     engine._hotpoint_policy = Mock()
     engine._get_parent_enable_hotpoint_replication = Mock(return_value=True)
-    engine.is_hotpoint_auto_place_enabled = Mock(return_value=True)
     engine.fill_repo = Mock()
     engine._append_derived_fill_with_hooks = Mock()
     engine._maybe_create_partial_fill_follow_up = Mock()

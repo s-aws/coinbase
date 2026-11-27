@@ -26,9 +26,9 @@ validator approved.
 Honest scope notes
 ------------------
 * ``base_min_size`` and ``quote_min_size`` come from
-  ``products.json::metadata`` which is populated by
-  ``dashboard_server.update_products_json_from_api``. If the dashboard
-  has never updated products (fresh checkout, mock environment), the
+  ``products.json::metadata`` and the live product catalog populated by
+  the composition root during startup. If product discovery has never
+  populated metadata (fresh checkout, mock environment), the
   metadata strings are empty and validation degrades to *quantize-only*
   with a warning hook. This matches the existing price-quantize
   behavior \u2014 missing metadata means no enforcement, never a crash.

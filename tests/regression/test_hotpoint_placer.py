@@ -10,7 +10,6 @@ from business.hotpoint_detector import HotpointTriggerEvent
 from business.hotpoint_placer import (
     STATUS_DB_INSERT_FAILED,
     STATUS_INVALID_PRICE,
-    STATUS_KILL_SWITCH_OFF,
     STATUS_PLACED,
     STATUS_PRODUCT_META_MISSING,
     STATUS_RATE_LIMITED,
@@ -75,7 +74,6 @@ def _make_call(**overrides):
         policy=HotpointPlacementPolicy.WINDOW_CENTER,
         rest_client=rest,
         insert_order_parent_fn=insert,
-        kill_switch_enabled=True,
         log_callback=MagicMock(),
         now_epoch=0.0,
     )
@@ -135,17 +133,8 @@ def test_quantize_price_to_tick():
 
 
 # ----------------------------------------------------------------------------
-# Gates
+# Rate-limit gate
 # ----------------------------------------------------------------------------
-
-def test_kill_switch_off_skips_everything():
-    result, rl, rest, insert = _make_call(kill_switch_enabled=False)
-    assert result.status == STATUS_KILL_SWITCH_OFF
-    rest.limit_order_gtc.assert_not_called()
-    insert.assert_not_called()
-    # Slot was never acquired.
-    assert rl.current_count(product_id="BTC-USDC", side="BUY", bucket_id=42, now=0.0) == 0
-
 
 def test_rate_limit_blocks_placement():
     rl = HotpointRateLimiter(cap_n=1, window_seconds=60)

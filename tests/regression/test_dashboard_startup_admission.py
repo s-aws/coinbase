@@ -31,6 +31,17 @@ def _run(coro):
     return asyncio.run(coro)
 
 
+def test_originating_surface_contains_only_supported_strategy_commands() -> None:
+    assert dashboard_server._ORIGINATING_MSG_TYPES == frozenset({
+        "create_stealth_order",
+        "create_stealth_order_span",
+        "reprice_now_stealth_order",
+        "rehide_stealth_order",
+        "move_revealed_stealth_order",
+        "import_stealth_orders",
+    })
+
+
 def test_every_originating_message_is_rejected_while_starting() -> None:
     controller = RuntimeController()
 
@@ -59,43 +70,6 @@ def test_every_originating_message_is_rejected_while_starting() -> None:
         return_value=controller,
     ), patch.object(dashboard_server, "add_log_entry"):
         _run(exercise())
-
-
-def test_hotpoint_test_order_cannot_preinsert_or_submit_while_starting() -> None:
-    controller = RuntimeController()
-    websocket = _websocket()
-    parent_insert = Mock(name="insert_order_parent")
-    rest_client = Mock(name="rest_client")
-    message = json.dumps(
-        {
-            "type": "place_hotpoint_test_order",
-            "order": {
-                "product_id": "BTC-USDC",
-                "side": "BUY",
-                "price": 100.0,
-                "size": 0.001,
-            },
-        }
-    )
-
-    assert "place_hotpoint_test_order" in dashboard_server._ORIGINATING_MSG_TYPES
-    with patch.object(
-        dashboard_server,
-        "get_runtime_controller",
-        return_value=controller,
-    ), patch.object(
-        dashboard_server,
-        "REST_CLIENT",
-        rest_client,
-    ), patch(
-        "database.order.insert_order_parent",
-        parent_insert,
-    ), patch.object(dashboard_server, "add_log_entry"):
-        _run(dashboard_server.handle_client_message(websocket, message))
-
-    assert _payloads(websocket)[0]["type"] == "admission_rejected"
-    parent_insert.assert_not_called()
-    rest_client.limit_order_gtc.assert_not_called()
 
 
 def test_admin_pause_is_visible_and_sticky_during_startup() -> None:

@@ -5,8 +5,8 @@
 | Status | `IMPLEMENTING` |
 | Operator approval | Accepted 2026-11-26; stage 5.1 approved 2026-11-27; later stages require separate approval |
 | Checklist or objective | Modular-monolith boundary checklist item 5 |
-| Last evidence review | 2026-11-27, current worktree based on `89c72573` |
-| Implementation | Stage 5.1 implemented and validated; stages 5.2-5.6 not started |
+| Last evidence review | 2026-11-27, current worktree based on `d15b2a0c` |
+| Implementation | Stage 5.1 implemented and validated; approved operator-surface cleanup reconciled; stages 5.2-5.6 not started |
 
 > This spec records the accepted item-5 design. Current behavior is established
 > only by the implementation mapping and tests below. Approval of stage 5.1
@@ -41,11 +41,11 @@ rules.
   publication functions, integration registries, persistence helpers, and the
   external WebSocket implementation.
 - `RuntimeController.track_admitted_inflight` provides the required atomic
-  admission-and-registration boundary. The dashboard raw `place_order` branch
-  instead performs an optimistic message-level check followed by
-  `track_inflight`, leaving a pause race.
-- `dashboard_server.py` currently handles 36 command/query/admin message types;
-  11 are classified locally as originating work.
+  admission-and-registration boundary. The unsupported dashboard raw-placement
+  path has been removed; migrating the remaining originating strategy commands
+  to a transport-neutral atomic boundary remains stage 5.2 work.
+- `dashboard_server.py` currently handles 17 supported request types; six are
+  classified locally as originating work.
 - `module_boundaries.toml` assigns 15 exact reverse imports to checklist item 5.
 - Constructor changes are broad even when production wiring is small:
   `OrderEngine` construction appears in 22 Python files and
@@ -170,11 +170,10 @@ stage. All methods follow these rules:
   `OrderInterceptionLayer` if it still has no independent production caller;
   fill-ledger behavior, the managed `ProfitValidator`, and the managed stealth
   lifecycle remain in scope for preservation.
-- Retirement or migration of the dashboard's raw placement handler when the
-  operator transport adopts the facade. The target contract excludes raw
-  placement; the implementation-stage review must assign the change to item 5
-  or the systematic dashboard extraction in item 7 without leaving two
-  supported behaviors.
+- The dashboard raw-placement handler has been retired by the approved
+  operator-surface cleanup. The future facade ordinary-placement contract
+  remains managed limit-only and must not reintroduce arbitrary exchange
+  configuration forwarding.
 - Focused tests, complete-suite validation, living documentation, boundary-debt
   updates, and repository-graph reconciliation.
 

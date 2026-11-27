@@ -100,9 +100,8 @@ class RepricingState(TypedDict, total=False):
                                       (``adaptive``, ``slide_step``,
                                       ``blocked_unprofitable``, ...).
         reprice_history:              Append-only list of ISO timestamps,
-                                      one per successful reprice. Used by
-                                      slide-calibration analytics — see
-                                      ``database/slide_calibration_helpers.py``.
+                                      one per successful reprice for lifecycle
+                                      diagnostics and future analytics.
         last_profitability_block_reason:
             Set when the reveal-time profitability gate blocks a reprice.
             Cleared on the next successful reprice.

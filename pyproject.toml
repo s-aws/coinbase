@@ -20,13 +20,11 @@ version = "0.1.0"
 description = "Coinbase Advanced Trading engine: stealth orders, fills, lifecycle controller."
 requires-python = ">=3.14"
 # Direct runtime dependencies used by the tracked origin/prod source tree.
-# Keep websockets below 14 because the prod dashboard and console import the
+# Keep websockets below 14 because the production dashboard imports the
 # legacy ``websockets.server`` compatibility module.
 dependencies = [
     "coinbase-advanced-py>=1.8,<2",
-    "prompt-toolkit>=3,<4",
     "psycopg2>=2.9,<3",
-    "rich>=13,<16",
     "tabulate>=0.9,<1",
     "websockets>=13,<14",
 ]

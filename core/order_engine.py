@@ -163,8 +163,8 @@ except ImportError:
     def record_spread_tick(*args, **kwargs): pass
 
 # Market-tick persistence (optional - degrades to no-op if module fails to
-# import, e.g. in DB-less smoke tests). Used by the slide-calibration view
-# to draw the market-mid reference line. See business/market_tick_recorder.py.
+# import, e.g. in DB-less smoke tests). Retained for durable market analysis.
+# See business/market_tick_recorder.py.
 try:
     from business.market_tick_recorder import (
         get_recorder as _get_market_tick_recorder,
@@ -176,8 +176,8 @@ except ImportError:
     def _get_market_tick_recorder(): return None
     def _init_market_tick_recorder(*args, **kwargs): return None
 
-# In-memory Fibonacci-window market metrics. Read by the dashboard (and
-# console UI) at broadcast time; written here on every ticker tick. No DB,
+# In-memory Fibonacci-window market metrics. Read by the dashboard at
+# broadcast time; written here on every ticker tick. No DB,
 # no I/O, bounded memory. Keep this hook in lock-step with
 # ``business/market_metrics.py::FIBONACCI_WINDOWS_MINUTES``.
 try:
@@ -560,17 +560,10 @@ class OrderEngine:
         :meth:`start_background_threads` once DB and REST are reachable.
 
         Failures are logged and the subsystem is marked disabled rather
-        than aborting engine startup. The kill switch remains queryable
-        either way.
+        than aborting engine startup.
         """
         from core import constants as _constants
 
-        # Start with constants-defined runtime kill switch. Operator can
-        # flip via ``set_hotpoint_auto_place_enabled(bool)`` without a
-        # restart.
-        self._hotpoint_auto_place_enabled = bool(
-            getattr(_constants, "HOTPOINT_AUTO_PLACE_ENABLED", False)
-        )
         self._hotpoint_detector = None
         self._hotpoint_rate_limiter = None
         self._hotpoint_decay_sweeper = None
@@ -611,155 +604,14 @@ class OrderEngine:
                 self._hotpoint_policy = HotpointPlacementPolicy.WINDOW_CENTER
             self.log_message(
                 "info",
-                f"[HOTPOINT] Subsystem initialized: enabled={self._hotpoint_auto_place_enabled}, "
-                f"width_pct={self._hotpoint_width_pct}, policy={self._hotpoint_policy.value}",
+                f"[HOTPOINT] Subsystem initialized: width_pct={self._hotpoint_width_pct}, "
+                f"policy={self._hotpoint_policy.value}",
             )
         except Exception as e:
             self.log_message(
                 "warning",
                 f"[HOTPOINT] Subsystem init failed (feature disabled): {type(e).__name__}: {e}",
             )
-
-    # ------------------------------------------------------------------
-    # Hotpoint Auto-Replicate â€” runtime API
-    # ------------------------------------------------------------------
-
-    def set_hotpoint_auto_place_enabled(self, enabled: bool) -> None:
-        """Runtime kill-switch toggle. Effective immediately for new triggers.
-
-        Detector continues to record fills regardless (so when re-enabled,
-        the recent history is intact). Only the placer gates on this flag.
-        """
-        self._hotpoint_auto_place_enabled = bool(enabled)
-        self.log_message(
-            "info",
-            f"[HOTPOINT] Auto-place {'ENABLED' if enabled else 'DISABLED'} via runtime toggle",
-        )
-
-    def is_hotpoint_auto_place_enabled(self) -> bool:
-        """Return current runtime kill-switch state."""
-        return bool(getattr(self, "_hotpoint_auto_place_enabled", False))
-
-    def get_hotpoint_state_snapshot(self) -> dict:
-        """Return a UI-friendly snapshot of the hotpoint subsystem.
-
-        Used by the dashboard's hotpoint manager page. All values are
-        plain JSON-safe types (dict / list / str / int / float / bool).
-
-        Returned shape:
-            {
-              "enabled": bool,                 # runtime kill switch
-              "subsystem_initialized": bool,   # detector + limiter exist
-              "config": {
-                "width_pct": float,
-                "trigger_n": int,
-                "trigger_window_seconds": float,
-                "rate_limit_n": int,
-                "rate_limit_window_seconds": float,
-                "decay_sweep_interval_seconds": float,
-                "default_policy": str,
-              },
-              "active_buckets": [
-                {
-                  "product_id", "side", "bucket_id",
-                  "bucket_center", "fills_in_window",
-                },
-                ...
-              ],
-              "recent_auto_placements": [
-                {
-                  "client_order_id", "product_id", "side",
-                  "price", "epoch_seconds",
-                },
-                ...
-              ],
-            }
-
-        Active-bucket enumeration walks the detector's internal state
-        under its lock; the cost is O(n_buckets), which is bounded by
-        the number of product/side/bucket triples ever seen since
-        startup. Practical bounds are tiny (single-digit triples per
-        active product).
-        """
-        from core import constants as _constants
-
-        out = {
-            "enabled": self.is_hotpoint_auto_place_enabled(),
-            "subsystem_initialized": bool(
-                getattr(self, "_hotpoint_detector", None)
-                and getattr(self, "_hotpoint_rate_limiter", None)
-            ),
-            "config": {
-                "width_pct": float(getattr(self, "_hotpoint_width_pct", 0.0)),
-                "trigger_n": int(getattr(_constants, "HOTPOINT_TRIGGER_N", 0)),
-                "trigger_window_seconds": float(
-                    getattr(_constants, "HOTPOINT_TRIGGER_WINDOW_SECONDS", 0)
-                ),
-                "rate_limit_n": int(
-                    getattr(_constants, "HOTPOINT_RATE_LIMIT_N", 0)
-                ),
-                "rate_limit_window_seconds": float(
-                    getattr(self, "_hotpoint_rate_window_seconds", 0.0)
-                ),
-                "decay_sweep_interval_seconds": float(
-                    getattr(_constants, "HOTPOINT_DECAY_SWEEP_INTERVAL_SECONDS", 0)
-                ),
-                "default_policy": getattr(
-                    self._hotpoint_policy, "value", "WINDOW_CENTER",
-                ) if getattr(self, "_hotpoint_policy", None) else "WINDOW_CENTER",
-            },
-            "active_buckets": [],
-            "recent_auto_placements": [],
-        }
-
-        # Snapshot active buckets from the detector.
-        det = getattr(self, "_hotpoint_detector", None)
-        if det is not None:
-            try:
-                from business.hotpoint_detector import bucket_center_price
-                width = float(self._hotpoint_width_pct)
-                # Reach into the detector under its lock for a consistent view.
-                with det._lock:  # noqa: SLF001 - intentional internal access
-                    keys = list(det._buckets.keys())  # noqa: SLF001
-                for product_id, side, bucket_id in keys:
-                    n = det.fills_in_window(
-                        product_id=product_id, side=side, bucket_id=bucket_id,
-                    )
-                    if n <= 0:
-                        continue
-                    out["active_buckets"].append({
-                        "product_id": product_id,
-                        "side": side,
-                        "bucket_id": bucket_id,
-                        "bucket_center": bucket_center_price(bucket_id, width),
-                        "fills_in_window": n,
-                    })
-            except Exception as e:
-                self.log_message(
-                    "warning",
-                    f"[HOTPOINT] active-bucket snapshot failed: {type(e).__name__}: {e}",
-                )
-
-        # Recent auto-placements from DB.
-        try:
-            from database.order import get_recent_auto_placed_hotpoint_rows
-            window = int(out["config"]["rate_limit_window_seconds"]) or 300
-            rows = get_recent_auto_placed_hotpoint_rows(window)
-            for r in rows:
-                out["recent_auto_placements"].append({
-                    "client_order_id": r.get("client_order_id"),
-                    "product_id": r.get("product_id"),
-                    "side": r.get("side"),
-                    "price": float(r.get("price") or 0.0),
-                    "epoch_seconds": float(r.get("epoch_seconds") or 0.0),
-                })
-        except Exception as e:
-            self.log_message(
-                "warning",
-                f"[HOTPOINT] recent-placements snapshot failed: {type(e).__name__}: {e}",
-            )
-
-        return out
 
     def _start_hotpoint_background(self) -> None:
         """Restart-rebuild the rate limiter and start the decay sweeper.
@@ -914,7 +766,6 @@ class OrderEngine:
                             policy=policy,
                             rest_client=self.rest_client,
                             insert_order_parent_fn=insert_order_parent,
-                            kill_switch_enabled=self.is_hotpoint_auto_place_enabled(),
                             log_callback=self.log_message,
                         )
             except EngineNotAdmittingError as admission_error:
@@ -6002,8 +5853,8 @@ class OrderEngine:
                                 if best_bid > 0 and best_ask > 0 and product_id:
                                     record_spread_tick(product_id, best_bid, best_ask)
 
-                                # Persist a downsampled copy for slide-calibration
-                                # analytics. Best-effort: throttled to <=1 row/s/product
+                                # Persist a downsampled copy for market analysis.
+                                # Best-effort: throttled to <=1 row/s/product
                                 # by the recorder; any DB error is logged inside
                                 # record() and never raised.
                                 tick_recorder = _get_market_tick_recorder()
@@ -6016,8 +5867,8 @@ class OrderEngine:
                                     )
 
                                 # Fold into the in-memory Fibonacci-window
-                                # tracker consumed by the dashboard / console
-                                # UI. Pure in-process; no I/O.
+                                # tracker consumed by dashboard state snapshots.
+                                # Pure in-process; no I/O.
                                 if MARKET_METRICS_AVAILABLE and price > 0 and product_id:
                                     metrics_tracker = _get_market_metrics_tracker()
                                     if metrics_tracker is not None:

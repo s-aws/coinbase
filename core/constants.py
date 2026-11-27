@@ -177,12 +177,6 @@ ALL_PRODUCT_IDS = SPOT_PRODUCT_IDS + DERIVATIVES_PRODUCT_IDS
 # ============================================================================
 # HOTPOINT AUTO-REPLICATE
 # ============================================================================
-# Runtime kill switch. Operator-flippable without restart via
-# OrderEngine.set_hotpoint_auto_place_enabled(bool). Defaults TRUE per spec
-# (live from day one). Flip to FALSE to halt all auto-placement immediately;
-# detector + decay continue running, only the placer gates on this flag.
-HOTPOINT_AUTO_PLACE_ENABLED = True
-
 # Bucket width as % of price. Buckets are log-spaced and deterministic:
 #   bucket_id = floor(log(price) / log(1 + HOTPOINT_WIDTH_PCT))
 # At 0.5%, BTC ~$100k buckets are ~$500 wide; ETH ~$3k buckets are ~$15 wide.

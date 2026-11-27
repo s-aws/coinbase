@@ -79,34 +79,25 @@ does not construct or run a partial standalone runtime. `main()` loads
 `start_dashboard_server()`.
 `run_websocket_server()` called directly still defaults to `localhost:8765`.
 Client URLs are selected separately. See `genai_data/CONFIGURATION.md` for
-listener precedence and browser/console endpoint limits. The operator API is
+listener precedence and browser endpoint limits. The operator API is
 unauthenticated, so bind explicitly to loopback for local-only access.
 
 ### Primary UIs and consumers
 - `ui_stealth_orders_manager.html`
 - `ui_order_span_builder.html`
-- `ui_hotpoint_manager.html`
-- `ui_slide_calibration_chart.html`
-- `ui_stealth_repricing_chart.html`
-- `ui_spread_monitor.html`
-- `ui_console.py` (terminal consumer of dashboard state)
 
 ### WebSocket request message types currently handled
 - `admin_status`, `admin_pause`, `admin_resume`, `admin_shutdown`
-- `place_order`, `cancel_order`
 - `request_stealth_orders`, `create_stealth_order`, `create_stealth_order_span`, `cancel_stealth_order`, `rehide_stealth_order`
-- `update_stealth_target_movement`, `update_stealth_price_threshold`
+- `update_stealth_price_threshold`
 - `reprice_now_stealth_order`, `move_revealed_stealth_order`
-- `request_slide_calibration_summary`, `request_market_chart_history`
 - `export_active_stealth_orders`, `import_stealth_orders`
 - `clear_all_stealth_orders`
-- `request_parent_orders`, `create_parent_order`, `update_parent_order`, `delete_parent_order`
-- `update_parent_target_movement`
-- `request_products`, `update_products_list`
-- `request_hotpoint_state`, `set_hotpoint_kill_switch`, `place_hotpoint_test_order`
-- `request_move_history`, `move_order`, `premark_move`
-- `request_storyboard_products`, `request_investor_storyboard`
-- `ping`
+- `update_parent_target_movement`, `update_parent_order`
+
+Hotpoint replication is enabled only by the per-strategy
+`enable_hotpoint_replication` field in the two creation UIs. There is no
+global Hotpoint kill switch or separate manager page.
 
 When extending UI behavior, update both dashboard handler logic and the corresponding docs in `genai_data/API_REFERENCE.md`.
 
@@ -170,5 +161,5 @@ Workflow:
 - Python 3.14
 - Coinbase Advanced Trade API (REST + WebSocket)
 - PostgreSQL (localhost/test-container patterns)
-- Rich terminal UI (`ui_console.py`)
+- Browser operator UIs (plain HTML/JavaScript)
 - Patterns: Bridge/Orchestrator, Repository, Strategy, Runtime state machine

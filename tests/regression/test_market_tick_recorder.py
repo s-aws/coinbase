@@ -1,6 +1,6 @@
 """Regression: market-tick recorder throttle, table creation, and retention.
 
-The recorder feeds the slide-calibration chart. Its contract is:
+The recorder retains engine-observed market history. Its contract is:
 1. Throttle: at most one row per ``min_interval_seconds`` per product.
 2. Lazy DDL: ``market_tick`` table is created on first ``record()`` call,
    not at import time.

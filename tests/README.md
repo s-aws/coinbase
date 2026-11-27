@@ -48,9 +48,9 @@ fencing and database-backed process restart recovery.
 
 | Directory | Test files | Purpose |
 | --- | ---: | --- |
-| `unit/` | 38 | Component logic, concurrency primitives, graph contracts |
+| `unit/` | 37 | Component logic, concurrency primitives, graph contracts |
 | `integration/` | 7 | Cross-module workflows and bridge wiring |
-| `regression/` | 84 | Lifecycle, persistence, deployment, architecture, UI, ID, and race boundaries |
+| `regression/` | 82 | Lifecycle, persistence, deployment, architecture, UI, ID, and race boundaries |
 | `e2e/` | 2 | In-process trading/user-message workflows |
 | `external/` | 1 | Opt-in Coinbase contracts and network smoke |
 | `tests/` root | 2 | Exception and lot-tracking integration checks |

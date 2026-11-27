@@ -45,9 +45,11 @@ This is a multithreaded Coinbase trading engine with:
 - Runtime lifecycle control (`STARTING`, `RUNNING`, transitional `PAUSING`, `PAUSED`, `DRAINING`, `STOPPED`) via `core/runtime_controller.py`.
 - Startup and periodic reconciliation against exchange truth (`core/startup_reconciler.py`, `core/periodic_reconciler.py`).
 - Fill ledger + cross-source fill reconciliation (`business/fill_ledger.py`, `business/fill_reconciler.py`).
-- Dashboard WebSocket server (`dashboard_server.py`) plus browser/terminal consumers.
-- Market telemetry for slide calibration and charting (`market_tick`, `market_candle_1m`, `database/*_helpers.py`).
-- Optional cross-venue intelligence (`market_intel/*`, `ui_console.py`).
+- Dashboard WebSocket server (`dashboard_server.py`) plus two browser consumers.
+- Durable market telemetry (`market_tick`, `market_candle_1m`) retained for
+  engine use and future analysis.
+- Cross-venue support libraries remain under `market_intel/` and `external/`,
+  but currently have no supported operator entrypoint.
 
 ## Stealth Orders in One Paragraph
 
@@ -96,8 +98,9 @@ A stealth order is a local execution plan, not a normal exchange order. It may s
 
 ## UI and Ops Entry Points
 
-- Browser UIs: `ui_stealth_orders_manager.html`, `ui_slide_calibration_chart.html`, `ui_stealth_repricing_chart.html`, `ui_order_span_builder.html`, `ui_hotpoint_manager.html`, `ui_spread_monitor.html`.
-- Terminal UI: `ui_console.py`.
+- Browser UIs: `ui_stealth_orders_manager.html` and `ui_order_span_builder.html`.
+- Hotpoint replication is configured per strategy/span and defaults off; no
+  global Hotpoint control surface is supported.
 - Risk utility script: `__dangerous_delete_all_tables__.py` (destructive manual
   reset only). Its recreation phase delegates to `database/schema.py`; it does
   preserve the existing best-effort Coinbase candle backfill afterward, whose

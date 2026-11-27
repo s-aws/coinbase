@@ -19,11 +19,9 @@ runtime_packages = [
 runtime_root_modules = [
     "configuration",
     "dashboard_server",
-    "engine_console",
     "logging_service",
     "main",
     "order",
-    "ui_console",
 ]
 
 expected_import_cycles = []
@@ -79,7 +77,6 @@ reflection_debt = [
     "business.order_progress:OrderProgressTracker.get_record|direct-reflection|record.__dict__|count=1",
     "core.order_engine:OrderEngine._configured_event_channels|dynamic-attribute|getattr(self.subscription, attribute)|count=1",
     "core.order_engine:OrderEngine._get_user_feed_processor|direct-reflection|self.__dict__|count=2",
-    "dashboard_server:handle_client_message|reflection-call|locals|count=9",
     "logging_service:DashboardHandler.emit|direct-reflection|record.__dict__|count=1",
     "main:_install_shutdown_signal_handlers|dynamic-attribute|getattr(_signal, signal_name)|count=1",
 ]
@@ -88,9 +85,7 @@ reflection_debt = [
 "main" = "composition"
 "configuration" = "composition"
 "dashboard_server" = "operator"
-"engine_console" = "operator"
 "order" = "operator"
-"ui_console" = "operator"
 "logging_service" = "logging"
 "bridges" = "execution"
 "bridges.*" = "execution"
@@ -163,16 +158,10 @@ item_6_market_data_component = [
     "business.market_tick_recorder -> database.order",
     "core.order_engine -> business.market_metrics",
     "core.order_engine -> business.market_tick_recorder",
-    "ui_console -> external.binance_perp_ws",
-    "ui_console -> external.bybit_perp_ws",
-    "ui_console -> external.okx_swap_ws",
 ]
 item_7_operator_transport = [
-    "dashboard_server -> database.database",
-    "dashboard_server -> database.market_chart_helpers",
     "dashboard_server -> database.order",
     "dashboard_server -> database.order_dashboard_helpers",
-    "dashboard_server -> database.slide_calibration_helpers",
 ]
 item_8_reconciliation = [
     "core.startup_reconciler -> database.database",

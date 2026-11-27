@@ -1,6 +1,6 @@
 # Test Files Index
 
-Generated from the current checkout on 2026-11-26. Module summaries
+Generated from the current checkout on 2026-11-27. Module summaries
 describe test intent, not measured coverage. Case counts vary with parametrization.
 Run the complete gate from [README.md](README.md); focused selections require
 an explicit user request.
@@ -12,7 +12,7 @@ an explicit user request.
 | [test_exceptions.py](test_exceptions.py) | 33 | Comprehensive tests for custom exception system. |
 | [test_lot_tracking_integration.py](test_lot_tracking_integration.py) | 9 | Integration tests for lot-based profit-aware execution system. |
 
-## tests/unit (38 files)
+## tests/unit (37 files)
 
 | File | Defined test functions | Module intent |
 | --- | ---: | --- |
@@ -22,7 +22,6 @@ an explicit user request.
 | [test_condition_evaluators.py](unit/test_condition_evaluators.py) | 22 | Unit tests for condition evaluators. |
 | [test_cross_venue_aggregator.py](unit/test_cross_venue_aggregator.py) | 14 | Unit tests for market_intel.cross_venue_aggregator. |
 | [test_database.py](unit/test_database.py) | 21 | Unit tests for database operations and repositories. |
-| [test_engine_console.py](unit/test_engine_console.py) | 12 | Unit tests for engine_console filter and rendering logic. |
 | [test_fee_regime_adaptation.py](unit/test_fee_regime_adaptation.py) | 7 | Unit tests for adaptive fee and target-movement regime integration. |
 | [test_fill_ledger_append_derived.py](unit/test_fill_ledger_append_derived.py) | 5 | Unit tests for FillLedgerRepository.append_derived_fill. |
 | [test_fill_reconciler.py](unit/test_fill_reconciler.py) | 8 | Unit tests for FillReconciler — Step 5 of the WS-derived-fill design plan. |
@@ -67,7 +66,7 @@ an explicit user request.
 | [test_order_processing.py](integration/test_order_processing.py) | 13 | Integration tests for complete order processing workflows. |
 | [test_stealth_order_workflow.py](integration/test_stealth_order_workflow.py) | 6 | Integration tests for stealth order workflows. |
 
-## tests/regression (84 files)
+## tests/regression (82 files)
 
 | File | Defined test functions | Module intent |
 | --- | ---: | --- |
@@ -79,13 +78,13 @@ an explicit user request.
 | [test_core_functionality.py](regression/test_core_functionality.py) | 10 | Regression tests - Critical path tests that must always pass before deployment. |
 | [test_create_limit_order_span_smoke.py](regression/test_create_limit_order_span_smoke.py) | 8 | Smoke tests for order.create_limit_order_span. |
 | [test_cross_source_reconciliation.py](regression/test_cross_source_reconciliation.py) | 30 | Regression tests for cross-source reconciliation (Phase 3). |
-| [test_cross_venue_monitor.py](regression/test_cross_venue_monitor.py) | 6 | Regression tests for the ui_console CrossVenueMonitor lifecycle. |
 | [test_dashboard_move_revealed_handler.py](regression/test_dashboard_move_revealed_handler.py) | 6 | Regression tests for the move_revealed_stealth_order dashboard |
 | [test_dashboard_rehide.py](regression/test_dashboard_rehide.py) | 6 | Manual Rehide uses the bridge and reports intent, never inferred exchange truth. |
 | [test_dashboard_startup_admission.py](regression/test_dashboard_startup_admission.py) | 9 | Dashboard admission remains fail-closed through runtime startup. |
 | [test_database_schema_bootstrap.py](regression/test_database_schema_bootstrap.py) | 9 | Complete schema provisioning plus guarded fresh-runtime deployment validation. |
 | [test_db_cursor_thread_safety.py](regression/test_db_cursor_thread_safety.py) | 2 | Regression: PostgresDB.get_cursor() must serialize cursor access across threads. |
 | [test_deployment_automation.py](regression/test_deployment_automation.py) | 6 | Release/deployment composition, exclusions, and stable paused-health contracts. |
+| [test_execution_core_contract.py](regression/test_execution_core_contract.py) | 4 | Contract coverage for the transport-neutral execution boundary. |
 | [test_exception_kwargs_signature.py](regression/test_exception_kwargs_signature.py) | 11 | Regression: every exception class accepts the kwargs that real call sites use. |
 | [test_fee_manager_lifecycle.py](regression/test_fee_manager_lifecycle.py) | 5 | Fee refresh publication remains stop-dominant during engine startup. |
 | [test_fee_multiplier_by_product_type.py](regression/test_fee_multiplier_by_product_type.py) | 6 | Regression: fee schedule and cushion must both be product-type aware. |
@@ -96,9 +95,9 @@ an explicit user request.
 | [test_follow_up_retreat.py](regression/test_follow_up_retreat.py) | 14 | Regression: RepricingPolicy.compute_follow_up_price (post-fill |
 | [test_hotpoint_decay_sweeper.py](regression/test_hotpoint_decay_sweeper.py) | 8 | Tests for business.hotpoint_decay_sweeper. |
 | [test_hotpoint_detector.py](regression/test_hotpoint_detector.py) | 14 | Tests for business.hotpoint_detector. |
-| [test_hotpoint_engine_integration.py](regression/test_hotpoint_engine_integration.py) | 14 | Integration: OrderEngine._maybe_dispatch_hotpoint end-to-end with mocks. |
+| [test_hotpoint_engine_integration.py](regression/test_hotpoint_engine_integration.py) | 9 | Integration: OrderEngine._maybe_dispatch_hotpoint end-to-end with mocks. |
 | [test_hotpoint_opt_in_plumbing.py](regression/test_hotpoint_opt_in_plumbing.py) | 3 | Regression: enable_hotpoint_replication is plumbed end-to-end. |
-| [test_hotpoint_placer.py](regression/test_hotpoint_placer.py) | 15 | Tests for business.hotpoint_placer. |
+| [test_hotpoint_placer.py](regression/test_hotpoint_placer.py) | 14 | Tests for business.hotpoint_placer. |
 | [test_hotpoint_rate_limiter.py](regression/test_hotpoint_rate_limiter.py) | 12 | Tests for business.hotpoint_rate_limiter. |
 | [test_product_type_resolution.py](regression/test_product_type_resolution.py) | 5 | Canonical product-type resolution must not depend on month substrings. |
 | [test_list_fills_param_mapping.py](regression/test_list_fills_param_mapping.py) | 3 | Regression: 2026-04-30 list_fills parameter-name mismatch. |
@@ -106,13 +105,12 @@ an explicit user request.
 | [test_main_startup_gate.py](regression/test_main_startup_gate.py) | 43 | Fail-closed startup ordering for stealth decision activation. |
 | [test_maker_taker_fee_selection.py](regression/test_maker_taker_fee_selection.py) | 5 | Regression: maker/taker selection is schedule-specific and post-only driven. |
 | [test_manual_stealth_rehide.py](regression/test_manual_stealth_rehide.py) | 16 | Manual Rehide reuses authenticated rearm without repricing or duplication. |
-| [test_market_chart_data.py](regression/test_market_chart_data.py) | 6 | Regression: 1m candle store + chart-history reader. |
 | [test_market_metrics_tracker.py](regression/test_market_metrics_tracker.py) | 17 | Regression tests for business.market_metrics.MarketMetricsTracker. |
 | [test_market_tick_recorder.py](regression/test_market_tick_recorder.py) | 9 | Regression: market-tick recorder throttle, table creation, and retention. |
 | [test_module_boundaries.py](regression/test_module_boundaries.py) | 4 | Source-only module direction, import-cycle, broad capability, and reflection-debt contracts. |
-| [test_nonmanager_price_boundaries.py](regression/test_nonmanager_price_boundaries.py) | 13 | Regression coverage for exchange-bound prices outside the stealth manager. |
-| [test_operator_cancel_dashboard.py](regression/test_operator_cancel_dashboard.py) | 9 | Operator commands retain cancellation truth until exchange confirmation. |
-| [test_operator_cancel_deletion_guards.py](regression/test_operator_cancel_deletion_guards.py) | 3 | Destructive cleanup keeps durable cancellation and parent recovery evidence. |
+| [test_nonmanager_price_boundaries.py](regression/test_nonmanager_price_boundaries.py) | 4 | Regression coverage for exchange-bound prices outside the stealth manager. |
+| [test_operator_cancel_dashboard.py](regression/test_operator_cancel_dashboard.py) | 6 | Operator commands retain cancellation truth until exchange confirmation. |
+| [test_operator_cancel_deletion_guards.py](regression/test_operator_cancel_deletion_guards.py) | 2 | Destructive cleanup keeps durable cancellation and parent recovery evidence. |
 | [test_operator_cancel_followups.py](regression/test_operator_cancel_followups.py) | 9 | An accepted project cancel stops new automation, not exchange accounting. |
 | [test_operator_cancel_lifecycle.py](regression/test_operator_cancel_lifecycle.py) | 15 | Intentional stealth cancellation stops automation without losing venue truth. |
 | [test_order_id_regression.py](regression/test_order_id_regression.py) | 3 | Regression guards for critical order ID and hierarchy behavior. |
@@ -127,7 +125,7 @@ an explicit user request.
 | [test_post_only_retry.py](regression/test_post_only_retry.py) | 16 | Regression: post-only retry loop with 1-tick safer reprice. |
 | [test_post_only_retry_no_orphan.py](regression/test_post_only_retry_no_orphan.py) | 5 | Regression: post-only retry must not orphan the placement from |
 | [test_price_camouflage.py](regression/test_price_camouflage.py) | 14 | Regression tests for calculation.price_camouflage. |
-| [test_price_normalization.py](regression/test_price_normalization.py) | 10 | Regression coverage for the canonical exchange-price grid boundary. |
+| [test_price_normalization.py](regression/test_price_normalization.py) | 9 | Regression coverage for the canonical exchange-price grid boundary. |
 | [test_process_user_order_per_coid_lock.py](regression/test_process_user_order_per_coid_lock.py) | 5 | Regression: per-COID serialisation in process_user_order. |
 | [test_profitability_failure_throttling.py](regression/test_profitability_failure_throttling.py) | 16 | Regression: profitability-validation failures must be log-throttled |
 | [test_profitability_fee_quote_consistency.py](regression/test_profitability_fee_quote_consistency.py) | 2 | Regression coverage for atomic profitability fee sampling. |
@@ -143,7 +141,6 @@ an explicit user request.
 | [test_seed_child_placement_from_db.py](regression/test_seed_child_placement_from_db.py) | 7 | Regression: stealth reveal-placement persisted as a child must seed correctly. |
 | [test_shutdown_followups.py](regression/test_shutdown_followups.py) | 12 | Regression tests for graceful-shutdown follow-up pieces. |
 | [test_size_validation.py](regression/test_size_validation.py) | 16 | Regression tests for calculation.size_validation. |
-| [test_slide_calibration_summary.py](regression/test_slide_calibration_summary.py) | 12 | Regression: slide-calibration summary aggregates and goal math. |
 | [test_span_builder_anchor_repricing_ui.py](regression/test_span_builder_anchor_repricing_ui.py) | 8 | Regression contracts for optional per-rung span repricing policies. |
 | [test_stealth_order_span.py](regression/test_stealth_order_span.py) | 10 | Canonical planning, resumable bridge coordination, and dashboard span result contracts. |
 | [test_stealth_move_revealed.py](regression/test_stealth_move_revealed.py) | 24 | Regression test pinning the v1 contract for "move REVEALED stealth order". |

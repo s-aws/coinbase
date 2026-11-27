@@ -176,7 +176,7 @@ standalone runtime entrypoint.
 The API is unauthenticated; local-only deployments should explicitly bind
 to loopback. Client URLs are configured separately and do not inherit the
 server environment. See [listener and client configuration](CONFIGURATION.md#dashboard-websocket-listener-dashboard_serverpy)
-for precedence, parsing, and browser/console endpoint behavior.
+for precedence, parsing, and browser endpoint behavior.
 
 ### Client request message types
 
@@ -186,45 +186,12 @@ Runtime/admin:
 - `admin_resume`
 - `admin_shutdown`
 
-General order actions:
-- `place_order`
-- `cancel_order`
-
-Parent order views and CRUD:
-- `request_parent_orders`
-- `create_parent_order`
-- `update_parent_order`
-- `delete_parent_order`
-- `update_parent_target_movement`
-
-`create_parent_order` is local dashboard/database CRUD only. It creates an
-`order_parent` row and does not submit a Coinbase order. Live dashboard
-submission uses `place_order`.
-
-`place_order` currently generates a `client_order_id`, normalizes a supplied
-limit price through `normalize_price_for_product`, quantizes a supplied base
-size through `validate_and_quantize_size`, and then calls
-`REST_CLIENT.create_order`. It does not pre-insert an `order_parent` row. A
-successful response returns the Coinbase `order_id`; error responses include
-the generated `client_order_id` when available. Market and quote-sized shapes
-are not categorically rejected by this handler, although only supplied base
-size and limit-price fields pass through those two validators.
-
-`cancel_order` resolves a managed logical or placement `client_order_id` to its
-stealth identity and uses the same bridge cancellation path as
-`cancel_stealth_order`. Its `cancel_response` includes `accepted`,
-`exchange_cancel_pending`, and the authoritative `order` for managed requests;
-success acknowledges a persisted automation stop, not exchange confirmation.
-Unmapped orders retain the legacy direct REST compatibility path, which passes
-the supplied client ID in `order_ids=[...]` to `REST_CLIENT.cancel_orders`.
-
 Stealth views/actions:
 - `request_stealth_orders`
 - `create_stealth_order`
 - `create_stealth_order_span`
 - `cancel_stealth_order`
 - `rehide_stealth_order`
-- `update_stealth_target_movement`
 - `update_stealth_price_threshold`
 - `reprice_now_stealth_order`
 - `move_revealed_stealth_order`
@@ -232,36 +199,21 @@ Stealth views/actions:
 - `export_active_stealth_orders`
 - `import_stealth_orders`
 
-Move and product utilities:
-- `request_move_history`
-- `move_order`
-- `premark_move`
-- `request_products`
-- `update_products_list`
+Supported parent projection updates:
+- `update_parent_target_movement`
+- `update_parent_order`
 
-Hotpoint manager:
-- `request_hotpoint_state`
-- `set_hotpoint_kill_switch`
-- `place_hotpoint_test_order`
+The originating-work admission set is exactly `create_stealth_order`,
+`create_stealth_order_span`, `reprice_now_stealth_order`,
+`rehide_stealth_order`, `move_revealed_stealth_order`, and
+`import_stealth_orders`. During process startup or any non-admitting state,
+those requests receive `admission_rejected`; reads, managed cancellation,
+cleanup, and admin control remain available.
 
-`place_hotpoint_test_order` submits a live GTC limit order with
-`enable_hotpoint_replication=True`. Send `order` containing `product_id`,
-`side`, `price`, and `size`. The handler validates positive price/size and side,
-normalizes the price, pre-inserts a PENDING parent with zero normal replacement
-budget, and calls `REST_CLIENT.limit_order_gtc(post_only=False)`. Acceptance is
-classified explicitly. It has no Admin API command-service, capability-policy,
-or account-condition guard in this checkout. Its initial dashboard admission
-check is separate from its REST call; it does not use atomic admitted-inflight
-registration. This is an operator live-test surface, not an isolated test.
-
-Analytics/storyboard:
-- `request_slide_calibration_summary`
-- `request_market_chart_history`
-- `request_storyboard_products`
-- `request_investor_storyboard`
-
-Connectivity:
-- `ping`
+Hotpoint replication has no dashboard command surface. It is enabled only by
+the off-by-default `enable_hotpoint_replication` field on a created strategy
+or span. Auto-created Hotpoint orders persist that field as false to prevent
+cascades. There is no global Hotpoint kill switch or manual live-test command.
 
 ### Server response message types
 
@@ -272,24 +224,12 @@ Administrative:
 - `admin_shutdown_response`
 - `admission_rejected`
 
-During process startup, originating dashboard requests receive
-`admission_rejected` with `engine_state="STARTING"`. `admin_status_response`,
-`admin_pause_response`, and `admin_resume_response` expose
-`startup_pause_pending`. A startup pause leaves state `STARTING` until runtime
-readiness; resume cannot open admission during that interval.
-
-Order/parent responses:
-- `order_response`
-- `cancel_response`
-- `parent_orders_list`
-- `parent_order_created`
+Parent/stealth responses:
 - `parent_order_updated`
-- `parent_order_deleted`
 - `parent_target_movement_updated`
-
-Stealth responses:
 - `stealth_orders_snapshot`
 - `stealth_order_created`
+- `stealth_order_span_result`
 - `stealth_order_rehide_result`
 - `stealth_order_updated`
 - `stealth_order_cancel_result`
@@ -302,6 +242,19 @@ Stealth responses:
 - `stealth_orders_cleared`
 - `stealth_orders_clear_result`
 
+Automatic state/data messages:
+- `products_list` (sent when a client registers)
+- `state_update`
+- `ticker`
+- `spread_snapshot`
+- `update_success`
+- `error`
+
+`admin_status_response`, `admin_pause_response`, and
+`admin_resume_response` expose `startup_pause_pending`. A startup pause
+leaves state `STARTING` until runtime readiness; resume cannot open admission
+during that interval.
+
 `update_stealth_price_threshold` accepts only a root price strategy. The
 manager serializes the edit across that root and its editable `HIDDEN`/
 `PENDING` children: initial Parent+Children members keep the shared absolute
@@ -309,27 +262,6 @@ threshold, while derived follow-ups preserve their child-relative percentage
 inversion. `stealth_threshold_updated` includes `affected_conditions`, keyed by
 `stealth_order_id`, so clients can replace every materialized condition
 immediately. A committed `TRIGGERED` snapshot is not rewritten.
-
-Move/product/analytics responses:
-- `move_history_list`
-- `order_moved`
-- `order_premarked`
-- `products_list`
-- `products_list_updated`
-- `hotpoint_state`
-- `hotpoint_kill_switch_response`
-- `place_hotpoint_test_order_response`
-- `slide_calibration_summary`
-- `market_chart_history`
-- `storyboard_products`
-- `spread_snapshot`
-
-Common/global:
-- `state_update`
-- `update_success`
-- `error`
-- `pong`
-- `ticker`
 
 Dashboard delivery is latest-state and bounded. Concurrent order, position,
 status, and log mutations coalesce behind one `state_update` publisher; a

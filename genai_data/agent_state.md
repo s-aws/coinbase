@@ -3,14 +3,16 @@
 ## Status
 
 - Last updated (ET): 2026-11-27.
-- Current committed baseline: local `prod` and `origin/prod` are at `89c72573`
-  (`execution core`), containing modular-monolith checklist items 1 through 4,
-  the durable design-spec framework, and the accepted item-5 design.
-- Current operator-approved implementation objective: Execution Core stage 5.1
-  is complete and validated in the current working tree. It adds only a
-  non-originating typed facade shell, detached active-order queries, explicit
-  `main.py` composition, contract coverage, and matching documentation and
-  graph evidence. No later stage is approved for source changes.
+- Current committed baseline: local `prod` and `origin/prod` are at `d15b2a0c`.
+  It contains modular-monolith checklist items 1 through 4, the durable
+  design-spec framework, and validated Execution Core stage 5.1.
+- Current operator-approved implementation objective: the supported operator
+  surface is reduced to `ui_stealth_orders_manager.html` and
+  `ui_order_span_builder.html`. Abandoned browser pages, terminal consoles,
+  dashboard handlers, chart/calibration helpers, and their tests are removed.
+  Hotpoint remains available, defaults disabled per strategy, and uses
+  `enable_hotpoint_replication` as its sole enablement gate; there is no global
+  kill switch. No later Execution Core stage is approved for source changes.
 - Completed implementation objective: make `main.py` the sole process
   composition root and make configuration imports passive. One REST adapter,
   one shared `OrderBook`, and explicit consumer readers are now wired in
@@ -71,9 +73,9 @@ approval before code changes.
 3. Declare and enforce the in-process module dependency map: complete and
    validated.
 4. Make `main.py` the sole explicit composition root and make configuration
-   imports passive: complete and validated. The source-only contract now
-   freezes 29 reverse-zone import edges, no runtime import cycle, 35
-   broad/untyped constructor capability surfaces, and eight
+   imports passive: complete and validated. After the approved operator-surface
+   cleanup, the source-only contract freezes 23 reverse-zone import edges, no
+   runtime import cycle, 35 broad/untyped constructor capability surfaces, and seven
    reflection/namespace escape signatures. It explicitly does not claim to
    prove arbitrary runtime aliases or dynamic dispatch.
 5. Add an Execution Core command/query facade while retaining lifecycle and
@@ -136,6 +138,14 @@ approval before code changes.
   repository-graph build/check reported 468 files, 7,590 symbols, 1,568 indexed
   tests, 183 semantic records, no parse findings, no fatal errors, and no
   mismatches.
+- The approved operator-surface cleanup removed five abandoned HTML pages,
+  both obsolete terminal consoles, unused dashboard routes/helpers, and their
+  obsolete coverage. The complete local non-external gate passed 1,823 tests
+  with 17 skipped and 11 external tests deselected. Repository-graph build
+  reported 453 files, 7,275 symbols, 1,511 indexed tests, 180 semantic records,
+  no parse findings, no fatal errors, and no check mismatches. The final suite
+  and graph validation both passed after the source, documentation, and graph
+  reconciliation were complete.
 - Historical fresh-target proof at rollout time: all 12 trading tables contained
   zero rows before bootstrap; only `market_candle_1m` and `market_tick` retained
   operator-created telemetry/backfill data.
@@ -167,11 +177,15 @@ approval before code changes.
 ## Runtime Boundaries
 
 Current boundaries are documented in `ARCHITECTURE.md` and graph hazards:
-pre-reveal parent projection after a logical stop, direct dashboard admission
-races, legacy direct cancel evidence, compatibility volume evaluation, and
-single-placement zero-fill rearm limits. External-test sandbox settings do not
-establish SDK endpoint routing. Behavioral fixes or live validation require a
-separate operator-approved objective.
+pre-reveal parent projection after a logical stop, the lack of one atomic
+admission scope across every retained dashboard-originating command,
+compatibility volume evaluation, hook-path-dependent lifecycle auditing, and
+single-placement zero-fill rearm limits. The raw dashboard placement/cancel
+paths and their identifier hazard are removed. Dormant cross-venue and deeper
+orphan packages remain in the tree pending a separate focused review rather
+than being inferred safe to delete from UI reachability alone. External-test
+sandbox settings do not establish SDK endpoint routing. Behavioral fixes or
+live validation require a separate operator-approved objective.
 
 The guarded bootstrap requires all five explicit `COINBASE_DB_*` variables and
 derives the target solely from them. It verifies identity and fresh trading

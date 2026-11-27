@@ -27,8 +27,7 @@ The contract covers the installed runtime packages plus these supported root
 modules:
 
 - composition: `main.py`, `configuration.py`;
-- operator modules: `dashboard_server.py`, `engine_console.py`, `order.py`,
-  `ui_console.py`;
+- operator modules: `dashboard_server.py`, `order.py`;
 - shared logging adapter: `logging_service.py`.
 
 Tests, `genai_tools/`, repository-graph tooling, scripts, and unsupported root

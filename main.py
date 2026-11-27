@@ -192,52 +192,6 @@ def _load_startup_positions(rest_client: Any) -> dict[str, dict[str, Any]]:
         return {}
 
 
-def _catalog_refresh_callback(
-    *,
-    rest_client: Any,
-    settings: RuntimeSettings,
-    orderbook: OrderBook,
-):
-    """Return the dashboard-triggered refresh adapter owned by composition."""
-
-    def refresh() -> dict[str, Any]:
-        products = fetch_products(rest_client, settings.products.product_ids)
-        if not products:
-            raise RuntimeError("Coinbase returned an empty product catalog")
-
-        # Preserve the existing refresh transaction boundary: a cache-write
-        # failure must not report an error after silently changing the live
-        # runtime catalog.
-        persist_product_configuration(
-            products,
-            ticker_to_trading=settings.products.ticker_to_trading,
-            path=settings.products.path,
-        )
-        orderbook.set_products(products)
-        orderbook.set_mandatory_fee_per_contract(
-            _mandatory_fee_offsets(products)
-        )
-
-        derivatives_count = sum(
-            str(product.get("product_type") or "").upper()
-            in {ProductType.FUTURE.value, "PERPETUAL_FUTURE"}
-            for product in products.values()
-        )
-        spot_count = len(products) - derivatives_count
-        return {
-            "success": True,
-            "message": (
-                "Successfully updated products.json with "
-                f"{len(products)} products"
-            ),
-            "derivatives_count": derivatives_count,
-            "spot_count": spot_count,
-            "metadata_count": len(products),
-        }
-
-    return refresh
-
-
 def build_application_runtime(settings: RuntimeSettings) -> ApplicationRuntime:
     """Construct and wire every live application resource explicitly."""
 
@@ -288,13 +242,7 @@ def build_application_runtime(settings: RuntimeSettings) -> ApplicationRuntime:
     )
 
     configure_runtime_dependencies(
-        rest_client=rest_client,
         orderbook=orderbook,
-        product_catalog_refresher=_catalog_refresh_callback(
-            rest_client=rest_client,
-            settings=settings,
-            orderbook=orderbook,
-        ),
         state_publish_interval_seconds=(
             settings.dashboard_state_publish_interval_seconds
         ),
