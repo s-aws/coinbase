@@ -129,6 +129,7 @@ logger = get_logger("DashboardServer")
 
 # Global state
 connected_clients: Set[WebSocketServerProtocol] = set()
+_bootstrap_pending_clients: Set[WebSocketServerProtocol] = set()
 state_lock = Lock()
 engine_state = {
     "orders": {},  # order_id -> order_data
@@ -251,9 +252,20 @@ def _build_market_metrics_payload() -> Dict[str, Any]:
         return {}
 
 
+def _discard_dashboard_client(
+    websocket: WebSocketServerProtocol,
+) -> None:
+    """Remove one socket from transport and notification eligibility."""
+
+    connected_clients.discard(websocket)
+    _bootstrap_pending_clients.discard(websocket)
+
+
 async def register_client(websocket: WebSocketServerProtocol):
-    """Register a client without sending uncorrelated bootstrap fragments."""
+    """Register a socket behind the initial-bootstrap notification barrier."""
+
     connected_clients.add(websocket)
+    _bootstrap_pending_clients.add(websocket)
     logger.info(f"Client connected. Total clients: {len(connected_clients)}")
 
 
@@ -298,7 +310,7 @@ def _runtime_status_payload() -> Dict[str, Any]:
 
 async def unregister_client(websocket: WebSocketServerProtocol):
     """Unregister a disconnected client."""
-    connected_clients.discard(websocket)
+    _discard_dashboard_client(websocket)
     logger.info(f"Client disconnected. Total clients: {len(connected_clients)}")
 
 
@@ -314,7 +326,7 @@ async def _send_dashboard_message(
             timeout=_DASHBOARD_CLIENT_SEND_TIMEOUT_SECONDS,
         )
     except asyncio.TimeoutError:
-        connected_clients.discard(client)
+        _discard_dashboard_client(client)
         logger.warning("Dropping dashboard client after send timeout")
         try:
             await asyncio.wait_for(
@@ -328,12 +340,27 @@ async def _send_dashboard_message(
             pass
         raise
     except websockets.exceptions.ConnectionClosed:
-        connected_clients.discard(client)
+        _discard_dashboard_client(client)
         raise
     except Exception as exc:
-        connected_clients.discard(client)
+        _discard_dashboard_client(client)
         logger.debug(f"Dashboard client broadcast failed: {exc}")
         raise
+
+
+async def _send_dashboard_notification(
+    client: WebSocketServerProtocol,
+    message: str,
+) -> bool:
+    """Send a notification only after this socket completes bootstrap."""
+
+    if (
+        client not in connected_clients
+        or client in _bootstrap_pending_clients
+    ):
+        return False
+    await _send_dashboard_message(client, message)
+    return True
 
 
 async def _broadcast_dashboard_message(message: str) -> None:
@@ -341,7 +368,7 @@ async def _broadcast_dashboard_message(message: str) -> None:
 
     for client in connected_clients.copy():
         try:
-            await _send_dashboard_message(client, message)
+            await _send_dashboard_notification(client, message)
         except Exception:
             # One dead or lagging browser must not block other clients.
             pass
@@ -472,7 +499,7 @@ def _trigger_broadcast():
 async def broadcast_state(websocket: WebSocketServerProtocol = None):
     """Broadcast current engine state to all connected clients."""
     if websocket:
-        await _send_dashboard_message(
+        await _send_dashboard_notification(
             websocket,
             _build_state_update_message(),
         )
@@ -1862,6 +1889,45 @@ _RPC_HANDLERS: Dict[OperatorRpcMethod, _RpcHandler] = {
 }
 
 
+async def _activate_bootstrapped_client(
+    websocket: WebSocketServerProtocol,
+) -> None:
+    """Send fresh catch-up, then open live notifications after bootstrap."""
+
+    if websocket not in connected_clients:
+        return
+
+    catch_up_notifications = (
+        (
+            "runtime",
+            _build_state_update_message,
+        ),
+        (
+            "stealth-order",
+            lambda: encode_notification(
+                OperatorNotificationMethod.STEALTH_ORDERS_PROJECTION,
+                _stealth_orders_snapshot_payload(),
+            ),
+        ),
+    )
+    for projection_name, build_message in catch_up_notifications:
+        if websocket not in connected_clients:
+            return
+        try:
+            await _send_dashboard_message(
+                websocket,
+                build_message(),
+            )
+        except Exception:
+            logger.exception(
+                "Bootstrap succeeded but %s catch-up publication failed",
+                projection_name,
+            )
+
+    if websocket in connected_clients:
+        _bootstrap_pending_clients.discard(websocket)
+
+
 async def handle_client_message(
     websocket: WebSocketServerProtocol,
     message: str,
@@ -1931,6 +1997,9 @@ async def handle_client_message(
         websocket,
         response_message,
     )
+
+    if request.method is OperatorRpcMethod.SESSION_BOOTSTRAP:
+        await _activate_bootstrapped_client(websocket)
 
     await _publish_requested_rpc_projections(dispatch_result)
 
@@ -2266,7 +2335,7 @@ def _stealth_orders_snapshot_payload() -> Dict[str, Any]:
 async def send_stealth_orders_snapshot(websocket: WebSocketServerProtocol):
     """Send the current canonical stealth-order projection notification."""
     try:
-        await _send_dashboard_message(
+        await _send_dashboard_notification(
             websocket,
             encode_notification(
                 OperatorNotificationMethod.STEALTH_ORDERS_PROJECTION,

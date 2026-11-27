@@ -77,6 +77,9 @@ becomes one correlated indeterminate internal error rather than an untyped
 success. Once that error is sent, the adapter still attempts each projection
 requested by the completed handler; those attempts are independent and best
 effort.
+New connections remain outside all notification fanout until their bootstrap
+success is on the wire, then receive targeted runtime and stealth catch-up
+projections. Correlated administrative reads remain available while barred.
 It is an embedded transport, not a process composition root: `main.py`
 installs the shared `OrderBook`, publish interval, `ExecutionCore`, and stealth
 bridge. Six originating methods are parsed into typed facade commands;

@@ -82,8 +82,9 @@ Examples include:
   results for all 18 methods; missing/extra/wrong-type/invalid-format producer
   failures; post-handler error-before-projection ordering and independent
   projection-failure isolation; span/cancel discriminants; one-response
-  correlation; current notification-builder conformance; browser cutover; and
-  backup-version contracts
+  correlation; response-first bootstrap notification gating, catch-up, failure
+  retention, and bootstrap-free health reads; current notification-builder
+  conformance; browser cutover; and backup-version contracts
 - missed-fill reconciliation behavior
 - fresh-database enforcement, release validation, foreground paused deployment,
   and authoritative dashboard-health contracts

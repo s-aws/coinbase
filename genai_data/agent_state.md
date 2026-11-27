@@ -16,7 +16,10 @@
   discriminants are asserted; producer defects fail closed as one correlated
   indeterminate internal error. The adapter sends that error before attempting
   each projection requested by the completed handler; projection failures are
-  isolated and never change the terminal response.
+  isolated and never change the terminal response. Newly registered sockets
+  receive no notifications until a valid bootstrap response is sent, then get
+  fresh targeted runtime and stealth catch-up projections. Direct correlated
+  runtime-health reads remain available without notification activation.
 - Accepted but not active: Operator Console Stage 2B and stages 3-6. The pinned
   Node/npm prerequisite, future generated-binding requirement, locked
   TypeScript/Vite build, static-delivery, setup, release, and deployment
@@ -171,10 +174,10 @@ before code changes.
 - Operator Console stage 2A completes the executable contract for all 18
   method params/results and all four notification payloads, and validates each
   JSON-normalized handler result against its originating method before success
-  emission. The complete local non-external gate passed 1,891 tests with 17
+  emission. The complete local non-external gate passed 1,893 tests with 17
   skipped and 11 external tests deselected. Python compilation, schema smoke
   validation, and `git diff --check` passed. Repository-graph build/check
-  reported 460 files, 8,623 symbols, 1,538 indexed tests, and 185 semantic
+  reported 460 files, 8,631 symbols, 1,540 indexed tests, and 185 semantic
   records with no parse findings, fatal errors, or check mismatches.
 - The approved operator-surface cleanup removed five abandoned HTML pages,
   both obsolete terminal consoles, unused dashboard routes/helpers, and their

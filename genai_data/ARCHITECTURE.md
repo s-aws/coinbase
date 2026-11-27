@@ -53,6 +53,10 @@ persistence mutations remain owned by the bridge, manager, and engine.
   `WSUserClient` connection and are owned by its `UserFeedProcessor`.
 - Operator JSON-RPC requests flow through `operator_api.protocol` validation
   into the explicit `dashboard_server.handle_client_message` dispatcher.
+- A newly registered operator socket is excluded from notification fanout until
+  its validated bootstrap response is sent. It then receives fresh targeted
+  runtime and stealth catch-up projections; direct correlated reads, including
+  deployment health, do not require notification eligibility.
 - After dispatch, handler success payloads flow back through the originating
   method's closed result schema before serialization. A producer-contract
   mismatch fails closed as one correlated indeterminate internal error; it is

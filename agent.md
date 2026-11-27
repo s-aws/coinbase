@@ -98,7 +98,9 @@ parallel encoder.
 Server projections use `OperatorNotificationMethod` and method-specific
 notification schemas; legacy ad-hoc `type` messages, batches, and client
 notifications are unsupported. Current clients must complete
-`v1.session.bootstrap` before mutations. See `genai_data/API_REFERENCE.md`.
+`v1.session.bootstrap` before mutations. New sockets remain behind the
+notification barrier until a valid bootstrap response has been sent; direct
+correlated read responses remain available. See `genai_data/API_REFERENCE.md`.
 
 Hotpoint replication is enabled only by the per-strategy
 `enable_hotpoint_replication` field in the two creation UIs. There is no

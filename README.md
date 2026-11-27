@@ -245,8 +245,11 @@ Open one of the local HTML files directly in a browser:
 Both pages first call `v1.session.bootstrap`; mutation requests remain disabled
 until that response supplies runtime state, products, capabilities, and the
 authoritative stealth projection. Every request has a caller UUID and exactly
-one correlated terminal response. Server state, ticker, and spread updates are
-separate named notifications. Legacy ad-hoc `type` messages are unsupported.
+one correlated terminal response. A new socket is excluded from server
+notifications until its successful bootstrap response is sent; it then gets
+fresh runtime and stealth catch-up projections before normal live updates.
+Correlated read responses such as deployment health remain available without
+bootstrap. Legacy ad-hoc `type` messages are unsupported.
 
 Hotpoint replication is an off-by-default option on each created strategy (or
 span). That checkbox is the only enablement control; there is no global

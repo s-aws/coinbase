@@ -48,7 +48,8 @@ This is a multithreaded Coinbase trading engine with:
 - Versioned dashboard JSON-RPC adapter (`dashboard_server.py` and
   `operator_api/`) over the typed Execution Core, with complete method
   param/result and notification schemas plus method-correlated producer
-  validation, and two current prototype browser consumers.
+  validation, a response-first bootstrap notification barrier, and two current
+  prototype browser consumers.
 - Durable market telemetry (`market_tick`, `market_candle_1m`) retained for
   engine use and future analysis.
 - Cross-venue support libraries remain under `market_intel/` and `external/`,

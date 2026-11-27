@@ -297,9 +297,18 @@ and object `params`, but never an `id`, `result`, or `error`.
 | `v1.market.ticker` | Newest unsent ticker per product |
 | `v1.market.spread_snapshot` | One-second bounded spread aggregate |
 
-Connection registration sends no uncorrelated bootstrap fragments. The
-bootstrap response is the initial coherent client entry point; later
-notifications are distinct from command responses.
+Connection registration places the socket behind a notification barrier. All
+four notification methods skip it until a valid `v1.session.bootstrap` result
+has been sent successfully. The socket is then activated and receives targeted
+fresh runtime and stealth-order projections before ordinary live fanout.
+Ticker and spread notifications begin with the next live update and are not
+replayed. A failed bootstrap remains barred. Direct correlated responses are
+not gated, so deployment health can continue to request `v1.runtime.status`
+without joining notification fanout.
+
+This barrier establishes response-before-notification ordering; it is not a
+lossless stream-resume protocol. Notifications carry no sequence cursor, and
+the server does not replay market events that occurred before activation.
 
 Dashboard delivery remains latest-state and bounded. Concurrent order,
 position, status, and log mutations coalesce behind one runtime projection

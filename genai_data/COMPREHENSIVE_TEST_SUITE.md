@@ -75,8 +75,9 @@ test cases unless the user explicitly requests them.
   discriminated span/cancel states, realistic hydrated projections,
   one-response correlation, post-handler error-before-projection ordering,
   independent projection-failure isolation, method-specific notification
-  builders, browser bootstrap/cutover, and lossless versioned backup/import
-  behavior
+  builders, response-first bootstrap notification gating and catch-up,
+  bootstrap-free health reads, browser cutover, and lossless versioned
+  backup/import behavior
 - stop-dominant initial fee refresh, coherent sampled dashboard status with
   stop-dominant publication, websocket disconnect ownership, and retryable
   engine cleanup

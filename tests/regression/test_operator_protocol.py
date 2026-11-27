@@ -796,11 +796,20 @@ def test_runtime_status_returns_one_correlated_terminal_response():
     controller.inflight_snapshot.return_value = {}
     controller.total_inflight.return_value = 0
     request_id = str(uuid4())
+    pending_clients = {websocket}
 
     with patch.object(
         dashboard_server,
         "get_runtime_controller",
         return_value=controller,
+    ), patch.object(
+        dashboard_server,
+        "connected_clients",
+        {websocket},
+    ), patch.object(
+        dashboard_server,
+        "_bootstrap_pending_clients",
+        pending_clients,
     ):
         asyncio.run(dashboard_server.handle_client_message(
             websocket,
@@ -816,6 +825,130 @@ def test_runtime_status_returns_one_correlated_terminal_response():
     result = rpc_result(payload)
     assert result["outcome"] == OperatorOutcome.SUCCEEDED.value
     assert result["engine_state"] == EngineState.PAUSED.value
+    assert websocket in pending_clients
+
+
+def test_bootstrap_response_precedes_activation_and_catch_up_notifications():
+    events = []
+
+    async def record_pending_send(message):
+        payload = json.loads(message)
+        if "id" in payload:
+            events.append("bootstrap_response")
+        else:
+            events.append(payload["method"])
+
+    pending_client = Mock(send=AsyncMock(side_effect=record_pending_send))
+    ready_client = Mock(send=AsyncMock())
+    runtime_notification = encode_notification(
+        OperatorNotificationMethod.RUNTIME_PROJECTION,
+        {
+            "state": _dashboard_state(),
+            "timestamp": TIMESTAMP,
+        },
+    )
+    handler = AsyncMock(return_value=dashboard_server._RpcDispatchResult(
+        payload=deepcopy(
+            _result_fixtures()[OperatorRpcMethod.SESSION_BOOTSTRAP]
+        ),
+    ))
+    request_id = str(uuid4())
+
+    async def exercise_barrier():
+        await dashboard_server._broadcast_dashboard_message(
+            runtime_notification
+        )
+        await dashboard_server.handle_client_message(
+            pending_client,
+            rpc_request(
+                OperatorRpcMethod.SESSION_BOOTSTRAP,
+                request_id=request_id,
+            ),
+        )
+        await dashboard_server._broadcast_dashboard_message(
+            runtime_notification
+        )
+
+    with patch.object(
+        dashboard_server,
+        "connected_clients",
+        {pending_client, ready_client},
+    ), patch.object(
+        dashboard_server,
+        "_bootstrap_pending_clients",
+        {pending_client},
+    ), patch.object(
+        dashboard_server,
+        "_build_state_update_message",
+        return_value=runtime_notification,
+    ), patch.object(
+        dashboard_server,
+        "_stealth_orders_snapshot_payload",
+        return_value=_stealth_projection(),
+    ), patch.dict(
+        dashboard_server._RPC_HANDLERS,
+        {OperatorRpcMethod.SESSION_BOOTSTRAP: handler},
+    ):
+        asyncio.run(exercise_barrier())
+
+        assert pending_client not in dashboard_server._bootstrap_pending_clients
+
+    assert events == [
+        "bootstrap_response",
+        OperatorNotificationMethod.RUNTIME_PROJECTION.value,
+        OperatorNotificationMethod.STEALTH_ORDERS_PROJECTION.value,
+        OperatorNotificationMethod.RUNTIME_PROJECTION.value,
+    ]
+    ready_client.send.assert_awaited()
+    assert ready_client.send.await_count == 2
+
+
+def test_failed_bootstrap_keeps_client_behind_notification_barrier():
+    websocket = Mock(send=AsyncMock())
+    runtime_notification = encode_notification(
+        OperatorNotificationMethod.RUNTIME_PROJECTION,
+        {
+            "state": _dashboard_state(),
+            "timestamp": TIMESTAMP,
+        },
+    )
+    handler = AsyncMock(side_effect=OperatorRpcError(
+        OperatorRpcErrorCode.APPLICATION_FAILED,
+        "Bootstrap failed",
+        reason=OperatorErrorReason.UNAVAILABLE,
+        data={"retryable": True},
+    ))
+
+    async def exercise_failed_bootstrap():
+        await dashboard_server.handle_client_message(
+            websocket,
+            rpc_request(OperatorRpcMethod.SESSION_BOOTSTRAP),
+        )
+        await dashboard_server._broadcast_dashboard_message(
+            runtime_notification
+        )
+
+    with patch.object(
+        dashboard_server,
+        "connected_clients",
+        {websocket},
+    ), patch.object(
+        dashboard_server,
+        "_bootstrap_pending_clients",
+        {websocket},
+    ), patch.dict(
+        dashboard_server._RPC_HANDLERS,
+        {OperatorRpcMethod.SESSION_BOOTSTRAP: handler},
+    ):
+        asyncio.run(exercise_failed_bootstrap())
+
+        assert websocket in dashboard_server._bootstrap_pending_clients
+
+    websocket.send.assert_awaited_once()
+    payload = json.loads(websocket.send.await_args.args[0])
+    assert payload["error"]["data"]["reason"] == (
+        OperatorErrorReason.UNAVAILABLE.value
+    )
 
 
 def test_invalid_handler_result_returns_one_correlated_internal_error():

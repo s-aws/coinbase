@@ -43,6 +43,11 @@ def dashboard_burst_case(monkeypatch):
     client.close = AsyncMock()
     monkeypatch.setattr(dashboard_server, "engine_state", _fresh_dashboard_state())
     monkeypatch.setattr(dashboard_server, "connected_clients", {client})
+    monkeypatch.setattr(
+        dashboard_server,
+        "_bootstrap_pending_clients",
+        set(),
+    )
     monkeypatch.setattr(dashboard_server, "server_event_loop", object())
     monkeypatch.setattr(dashboard_server, "_state_publish_scheduled", False)
     monkeypatch.setattr(dashboard_server, "_state_publish_dirty", False)
@@ -155,6 +160,7 @@ def test_lagging_dashboard_client_is_disconnected_after_send_timeout(
     monkeypatch,
 ):
     client = dashboard_burst_case
+    dashboard_server._bootstrap_pending_clients.add(client)
     send_started = asyncio.Event()
 
     async def stalled_send(_message):
@@ -177,6 +183,7 @@ def test_lagging_dashboard_client_is_disconnected_after_send_timeout(
         runner.run(exercise_timeout())
 
     assert client not in dashboard_server.connected_clients
+    assert client not in dashboard_server._bootstrap_pending_clients
     client.close.assert_awaited_once_with(
         code=1013,
         reason="Dashboard client could not keep up",
@@ -244,6 +251,12 @@ def test_stealth_snapshot_releases_state_lock_before_parent_lookup(monkeypatch):
     client.send = AsyncMock()
     monkeypatch.setattr(dashboard_server, "state_lock", observed_lock)
     monkeypatch.setattr(dashboard_server, "engine_state", _fresh_dashboard_state())
+    monkeypatch.setattr(dashboard_server, "connected_clients", {client})
+    monkeypatch.setattr(
+        dashboard_server,
+        "_bootstrap_pending_clients",
+        set(),
+    )
     dashboard_server.engine_state["stealth_orders"] = {
         "root-order": {"stealth_order_id": "root-order"},
     }

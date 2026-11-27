@@ -3,10 +3,10 @@
 | Field | Value |
 |---|---|
 | Status | `IMPLEMENTED` |
-| Operator approval | Stage 1 and Stage 2A approved 2026-11-27 |
+| Operator approval | Stage 1, Stage 2A, and outbound bootstrap notification barrier approved 2026-11-27 |
 | Checklist or objective | Normalize the operator transport and complete its bidirectional schema before TypeScript generation |
 | Last evidence review | 2026-11-27, current worktree |
-| Implementation | Stage 1 framing plus Stage 2A method params/results, notification contracts, producer validation, tests, living docs, and graph implemented and validated |
+| Implementation | Stage 1 framing, Stage 2A bidirectional contracts and producer validation, plus response-first bootstrap notification gating and catch-up implemented and validated |
 
 ## Decision
 
@@ -49,9 +49,14 @@ reflection or by transforming untrusted method strings into attribute access.
 
 `v1.session.bootstrap` is the initial client gate. It returns protocol
 capabilities, runtime status, products, dashboard state, and the enriched
-stealth-order projection. Connection registration emits no uncorrelated
-bootstrap fragments. Current clients keep mutations unavailable until bootstrap
-succeeds.
+stealth-order projection. Registration places a socket behind a notification
+barrier: no server notification is delivered until the validated bootstrap
+response has been sent. The server then activates that socket and sends fresh
+targeted runtime and stealth-order projections. Ticker and spread delivery
+begins with later live updates and is not replayed. A failed bootstrap leaves
+the socket barred. Direct correlated responses remain available, preserving
+the deployment healthcheck's bootstrap-free `v1.runtime.status` query. Current
+clients keep mutations unavailable until bootstrap succeeds.
 
 Requests permit only `jsonrpc`, `id`, `method`, and `params`. Unknown versions,
 methods, variants, top-level fields, or method params fail visibly. Parse and
@@ -144,6 +149,10 @@ indeterminate until a correlated response or authoritative projection proves
 the outcome. Clients must not automatically retry a non-idempotent request
 merely with a new JSON-RPC ID.
 
+The bootstrap notification barrier provides response-first ordering, not a
+lossless event-stream handoff. Notifications have no sequence cursor; market
+updates before activation are intentionally not buffered or replayed.
+
 ## Scope and Non-Goals
 
 In scope:
@@ -177,12 +186,15 @@ Not in scope:
   methods, legacy identifier names, and invalid params fail structurally.
 - One request produces one response with the same UUID; notifications have no
   ID.
+- Pending sockets receive no notifications; successful bootstrap sends its
+  response before targeted catch-up and live fanout, while failure stays
+  barred. Correlated runtime health reads remain available while pending.
 - Both retained pages bootstrap, correlate requests, use `client_order_id`, and
   contain no legacy `data.type`/ghost branches.
 - Runtime deployment health uses `v1.runtime.status`.
 - Backup v2 round-trips `enable_hotpoint_replication`; explicit v1 and
   historical unversioned migration contracts are tested.
-- The complete non-external suite passed on 2026-11-27 with 1,891 tests,
+- The complete non-external suite passed on 2026-11-27 with 1,893 tests,
   17 skipped tests, and 11 external tests deselected. Python compilation,
   schema smoke checks, diff validation, living documentation, and the
   repository graph were reconciled in the same change.
