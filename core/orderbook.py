@@ -1,6 +1,8 @@
 ﻿"""Instance-scoped, thread-safe order book.
 
-The canonical state implementation wrapped by ``configuration.OrderBook``.
+This is the sole runtime orderbook implementation. Its legacy attribute
+properties remain temporarily available to ``OrderEngine`` while callers are
+migrated to the typed methods on this class.
 
 Thread-safety contract
 ----------------------
@@ -38,6 +40,7 @@ from dataclasses import asdict, dataclass, field
 from types import MappingProxyType, ModuleType
 from typing import TYPE_CHECKING, Any, Iterator, Mapping
 
+from core.constants import DEFAULT_MAX_ORDER_REPLACEMENT
 from core.enums import OrderStatus
 
 if TYPE_CHECKING:  # pragma: no cover - typing-only
@@ -281,6 +284,7 @@ class OrderBook:
         mandatory_fee_per_contract: Mapping[str, dict] | None = None,
         should_replace: Mapping[str, bool] | None = None,
         positions: Mapping[str, Mapping[str, dict]] | None = None,
+        ticker_to_trading: Mapping[str, str] | None = None,
         db_module: "ModuleType | None" = None,
         read_only: bool = False,
     ) -> None:
@@ -297,7 +301,9 @@ class OrderBook:
         self._should_replace: dict[str, bool] = dict(
             should_replace or {"FILLED": True, "CANCELLED": True}
         )
+        self._ticker_to_trading: dict[str, str] = dict(ticker_to_trading or {})
         self._db_module = db_module
+        self.default_max_order_replacement = DEFAULT_MAX_ORDER_REPLACEMENT
 
         # Mutable runtime state â€” instance-scoped (NOT class-level).
         self._orders: dict[str, dict] = {}
@@ -350,6 +356,65 @@ class OrderBook:
             raise OrderBookReadOnlyError(
                 f"OrderBook is read-only; refusing {op}()"
             )
+
+    # ------------------------------------------------------------------
+    # Transitional legacy attribute surface
+    # ------------------------------------------------------------------
+
+    @property
+    def order(self):
+        return MappingProxyType(self._orders) if self._read_only else self._orders
+
+    @order.setter
+    def order(self, value) -> None:
+        self._check_writable("order=")
+        with self._lock:
+            self._orders = dict(value)
+
+    @property
+    def parent_order_ids(self):
+        return MappingProxyType(self._parents) if self._read_only else self._parents
+
+    @parent_order_ids.setter
+    def parent_order_ids(self, value) -> None:
+        self._check_writable("parent_order_ids=")
+        with self._lock:
+            self._parents = {
+                client_order_id: dict(entry)
+                for client_order_id, entry in dict(value).items()
+            }
+
+    @property
+    def child_order_ids(self):
+        return (
+            MappingProxyType(self._child_to_parent)
+            if self._read_only
+            else self._child_to_parent
+        )
+
+    @child_order_ids.setter
+    def child_order_ids(self, value) -> None:
+        self._check_writable("child_order_ids=")
+        with self._lock:
+            self._child_to_parent = dict(value)
+
+    @property
+    def positions(self):
+        return MappingProxyType(self._positions) if self._read_only else self._positions
+
+    @positions.setter
+    def positions(self, value) -> None:
+        self._check_writable("positions=")
+        with self._lock:
+            self._positions = dict(value)
+
+    @property
+    def product(self):
+        return MappingProxyType(self._products) if self._read_only else self._products
+
+    @product.setter
+    def product(self, value) -> None:
+        self.set_products(value)
 
     # ------------------------------------------------------------------
     # Live orders
@@ -621,16 +686,13 @@ class OrderBook:
     def apply_position_update(self, position_update: dict | None) -> None:
         """Apply a position update produced by ``calculate_new_order_move_from_snapshot``.
 
-        Wraps ``configuration.apply_calculated_position_update`` under the
-        lock so callers don't need to import it separately.  Imported lazily
-        to avoid an import cycle (``configuration`` constructs an OrderBook).
+        The pure calculator is applied under this orderbook's lock.
         """
 
         if not position_update:
             return
         self._check_writable("apply_position_update")
-        # Late import to avoid a circular dependency with ``configuration``.
-        from configuration import apply_calculated_position_update
+        from calculation.order_movement import apply_calculated_position_update
 
         with self._lock:
             apply_calculated_position_update(self._positions, position_update)
@@ -651,8 +713,7 @@ class OrderBook:
     def get_position_side(self, product_id: str) -> str | None:
         """Return current position side ('LONG' / 'SHORT') or ``None`` when closed.
 
-        Preserves the exact semantics of the legacy method in
-        ``configuration.OrderBook.get_position_side``: returns ``None`` when
+        Preserves the exact semantics of the pre-v2 runtime method: returns ``None`` when
         ``number_of_contracts`` is at or near zero so callers know the next
         order will OPEN a new position.
         """
@@ -681,22 +742,63 @@ class OrderBook:
     def profit(self) -> Mapping[str, dict]:
         return MappingProxyType(self._profit)
 
+    @profit.setter
+    def profit(self, value: Mapping[str, dict]) -> None:
+        self.set_profit(value)
+
     @property
     def mandatory_fee_per_contract(self) -> Mapping[str, dict]:
         return MappingProxyType(self._mandatory_fee_per_contract)
+
+    @mandatory_fee_per_contract.setter
+    def mandatory_fee_per_contract(self, value: Mapping[str, dict]) -> None:
+        self.set_mandatory_fee_per_contract(value)
 
     @property
     def should_replace(self) -> Mapping[str, bool]:
         return MappingProxyType(self._should_replace)
 
+    @should_replace.setter
+    def should_replace(self, value: Mapping[str, bool]) -> None:
+        self.set_should_replace(value)
+
     @property
     def db_module(self) -> "ModuleType | None":
         return self._db_module
+
+    @db_module.setter
+    def db_module(self, value: "ModuleType | None") -> None:
+        self.set_db_module(value)
 
     def set_products(self, products: Mapping[str, dict]) -> None:
         self._check_writable("set_products")
         with self._lock:
             self._products = deepcopy(dict(products))
+
+    def get_trading_product_id(self, product_id: str) -> str:
+        """Resolve a ticker symbol to its configured trading symbol."""
+
+        with self._lock:
+            return self._ticker_to_trading.get(product_id, product_id)
+
+    def get_product_metadata(self, product_id: str) -> dict[str, Any]:
+        """Return isolated metadata for a ticker or trading product id."""
+
+        if not product_id:
+            return {}
+        with self._lock:
+            trading_product_id = self._ticker_to_trading.get(product_id, product_id)
+            metadata = (
+                self._products.get(product_id)
+                or self._products.get(trading_product_id)
+                or {}
+            )
+            return deepcopy(dict(metadata))
+
+    def set_ticker_to_trading(self, mapping: Mapping[str, str]) -> None:
+        self._check_writable("set_ticker_to_trading")
+        with self._lock:
+            self._ticker_to_trading = dict(mapping)
 
     def set_profit(self, profit: Mapping[str, dict]) -> None:
         self._check_writable("set_profit")
@@ -742,3 +844,21 @@ class OrderBook:
                 "parent_order_ids": deepcopy(self._parents),
                 "child_order_ids": dict(self._child_to_parent),
             }
+
+    def calculate_new_order_move(
+        self,
+        order_id: str,
+        target_movement: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Calculate a follow-up template and apply its position update."""
+
+        from calculation.order_movement import calculate_new_order_move_from_snapshot
+
+        with self._lock:
+            result = calculate_new_order_move_from_snapshot(
+                self.diagnostic_snapshot(),
+                order_id,
+                target_movement=target_movement,
+            )
+            self.apply_position_update(result.pop("position_update", None))
+            return result

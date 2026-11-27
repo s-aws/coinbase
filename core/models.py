@@ -675,8 +675,7 @@ class RepricingPolicy:
         because consumers that read already-stored policies shouldn't have
         their config silently collapsed by a re-read.
         """
-        # Local import keeps models.py free of calculation-layer cycles.
-        from configuration import safe_float
+        from calculation.formatter import safe_float
 
         policy = dict(raw or {})
         if not bool(policy.get('enabled')):

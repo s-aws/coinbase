@@ -155,10 +155,11 @@ def build_local_spot_pnl_report(
 
     cost_basis = {}
     if os.getenv("COINBASE_API_KEY") and os.getenv("COINBASE_API_SECRET"):
-        import configuration
+        from configuration import load_runtime_settings
+        from external.runtime import build_rest_client
 
         cost_basis = fetch_coinbase_average_cost_records(
-            rest_client=configuration.get_rest_client(),
+            rest_client=build_rest_client(load_runtime_settings()),
             products=products,
         )
 

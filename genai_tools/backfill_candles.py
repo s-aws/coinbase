@@ -31,8 +31,9 @@ if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
 from logging_service import get_logger
-from configuration import REST_CLIENT, DERIVATIVES_PRODUCT_IDS, SPOT_PRODUCT_IDS
+from configuration import load_runtime_settings
 from database.market_candle_store import upsert_candles
+from external.runtime import build_rest_client
 
 logger = get_logger("BackfillCandles")
 
@@ -62,13 +63,22 @@ def _parse_args(argv: List[str]) -> argparse.Namespace:
     return p.parse_args(argv)
 
 
-def _resolve_products(requested: List[str] | None) -> List[str]:
+def _resolve_products(
+    requested: List[str] | None,
+    configured_products: tuple[str, ...],
+) -> List[str]:
     if requested:
         return list(requested)
-    return list(DERIVATIVES_PRODUCT_IDS) + list(SPOT_PRODUCT_IDS)
+    return list(configured_products)
 
 
-def _backfill_product(product_id: str, start: int, end: int, dry_run: bool) -> int:
+def _backfill_product(
+    rest_client,
+    product_id: str,
+    start: int,
+    end: int,
+    dry_run: bool,
+) -> int:
     """Page through ``[start, end]`` in <=300-minute chunks; returns row count."""
     chunk_seconds = _CHUNK_MINUTES * 60
     cursor = start
@@ -84,7 +94,7 @@ def _backfill_product(product_id: str, start: int, end: int, dry_run: bool) -> i
             )
         else:
             try:
-                candles = REST_CLIENT.get_candles(
+                candles = rest_client.get_candles(
                     product_id=product_id,
                     start=cursor,
                     end=window_end,
@@ -110,9 +120,15 @@ def _backfill_product(product_id: str, start: int, end: int, dry_run: bool) -> i
 
 def main(argv: List[str] | None = None) -> int:
     args = _parse_args(argv if argv is not None else sys.argv[1:])
+    settings = load_runtime_settings()
     end = int(time.time())
     start = end - int(args.hours * 3600)
-    products = _resolve_products(args.products)
+    products = _resolve_products(args.products, settings.products.product_ids)
+    rest_client = (
+        None
+        if args.dry_run
+        else build_rest_client(settings.api_key, settings.api_secret)
+    )
 
     logger.info(
         f"Backfill plan: {len(products)} product(s), "
@@ -123,7 +139,13 @@ def main(argv: List[str] | None = None) -> int:
     grand_total = 0
     for pid in products:
         try:
-            grand_total += _backfill_product(pid, start, end, args.dry_run)
+            grand_total += _backfill_product(
+                rest_client,
+                pid,
+                start,
+                end,
+                args.dry_run,
+            )
         except Exception as e:
             logger.error(f"{pid}: backfill aborted: {type(e).__name__}: {e}")
 

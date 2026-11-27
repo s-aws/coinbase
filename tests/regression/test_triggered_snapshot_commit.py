@@ -93,6 +93,7 @@ def _make_manager_with_triggered_order(condition_now_false: bool):
     """Build a StealthOrderManager with one TRIGGERED order whose live
     condition currently evaluates to ``not condition_now_false``."""
     mgr = StealthOrderManager.__new__(StealthOrderManager)
+    mgr._product_metadata_reader = lambda _product_id: {"price_increment": "5"}
     mgr.in_memory_orders = {
         "sid-1": {
             "stealth_order_id": "sid-1",

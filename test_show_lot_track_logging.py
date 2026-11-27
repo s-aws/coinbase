@@ -9,7 +9,7 @@ import sys
 import logging
 from database.database import PostgresDB
 from database.order import insert_order_parent
-from configuration import OrderBook
+from core.orderbook import OrderBook
 from core.order_engine import OrderEngine
 from logging_service import get_logger
 

@@ -10,10 +10,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
+from collections.abc import Callable, Mapping
 from typing import Any, Optional
 
 from calculation.formatter import quantize_to_increment
-from configuration import get_product_metadata
 from core.enums import (
     OrderSide,
     PriceRoundingPolicy,
@@ -94,6 +94,8 @@ def normalize_price_for_product(
     product_id: str,
     side: Any = None,
     policy: PriceRoundingPolicy = PriceRoundingPolicy.SIDE_CONSERVATIVE,
+    product_metadata: Optional[Mapping[str, Any]] = None,
+    metadata_reader: Optional[Callable[[str], Mapping[str, Any]]] = None,
 ) -> PriceNormalizationResult:
     """Normalize one exchange-bound price against authoritative metadata.
 
@@ -153,7 +155,13 @@ def normalize_price_for_product(
             "product_id is required for price normalization",
         )
 
-    metadata = get_product_metadata(str(product_id))
+    metadata = (
+        dict(product_metadata)
+        if product_metadata is not None
+        else dict(metadata_reader(str(product_id)))
+        if metadata_reader is not None
+        else {}
+    )
     increment_value = metadata.get("price_increment")
     if increment_value in (None, ""):
         return PriceNormalizationResult(

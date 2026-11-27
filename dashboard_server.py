@@ -3,16 +3,11 @@
 Provides real-time order updates, engine status, and manual order placement.
 Runs as a separate thread alongside the main trading engine.
 
-Usage:
-    Set DASHBOARD_SERVER_HOST and DASHBOARD_SERVER_PORT before launch.
-    python dashboard_server.py  # Standalone dashboard/demo, not the trading engine
-    Then open a current operator client such as ui_stealth_orders_manager.html.
-
-start_dashboard_server defaults: DASHBOARD_SERVER_HOST -> HOSTNAME -> localhost;
-DASHBOARD_SERVER_PORT -> 8765 (integer). Both are captured at import time.
-Browser/console endpoints are selected separately; see genai_data/CONFIGURATION.md.
+Runtime resources are installed by ``main.py``. Importing this transport does
+not read environment variables, create exchange clients, or start a partial
+trading runtime. Browser/console endpoints remain documented in
+``genai_data/CONFIGURATION.md``.
 """
-from os import environ
 import asyncio
 import json
 import uuid
@@ -22,23 +17,21 @@ from datetime import datetime, timezone
 from pathlib import Path
 from threading import Thread, Lock
 from queue import Queue
-from typing import Set, Dict, Any, Optional
+from typing import Any, Callable, Dict, Optional, Set
 import websockets
 from websockets.server import WebSocketServerProtocol
 
-DASHBOARD_SERVER_HOST = environ.get("DASHBOARD_SERVER_HOST", environ.get("HOSTNAME", "localhost"))
-DASHBOARD_SERVER_PORT = int(environ.get("DASHBOARD_SERVER_PORT", 8765))
-DASHBOARD_STATE_PUBLISH_INTERVAL_SECONDS = max(
-    0.01,
-    float(environ.get("DASHBOARD_STATE_PUBLISH_INTERVAL_SECONDS", "0.25")),
-)
+DASHBOARD_SERVER_HOST = "localhost"
+DASHBOARD_SERVER_PORT = 8765
+DASHBOARD_STATE_PUBLISH_INTERVAL_SECONDS = 0.25
 
-# Import REST client for order placement
-try:
-    from configuration import REST_CLIENT, rest_get_products, update_product_metadata
-    REST_CLIENT_AVAILABLE = True
-except ImportError:
-    REST_CLIENT_AVAILABLE = False
+# Transitional transport adapters installed explicitly by the process
+# composition root. Item 7 will replace these globals with an application
+# command/query facade; they must never construct their own runtime resources.
+REST_CLIENT = None
+REST_CLIENT_AVAILABLE = False
+ORDERBOOK = None
+_product_catalog_refresher: Optional[Callable[[], Dict[str, Any]]] = None
 
 # Use custom logging service
 from logging_service import get_logger
@@ -191,6 +184,43 @@ server_event_loop = None
 
 # Stealth order bridge reference (set during integration)
 stealth_order_bridge = None
+
+
+def configure_runtime_dependencies(
+    *,
+    rest_client: Any,
+    orderbook: Any,
+    product_catalog_refresher: Callable[[], Dict[str, Any]],
+    state_publish_interval_seconds: float,
+) -> None:
+    """Install the live adapters owned and constructed by ``main.py``."""
+
+    if rest_client is None:
+        raise ValueError("rest_client is required")
+    if orderbook is None:
+        raise ValueError("orderbook is required")
+    if not callable(product_catalog_refresher):
+        raise TypeError("product_catalog_refresher must be callable")
+    interval = max(0.01, float(state_publish_interval_seconds))
+
+    global REST_CLIENT
+    global REST_CLIENT_AVAILABLE
+    global ORDERBOOK
+    global _product_catalog_refresher
+    global DASHBOARD_STATE_PUBLISH_INTERVAL_SECONDS
+    REST_CLIENT = rest_client
+    REST_CLIENT_AVAILABLE = True
+    ORDERBOOK = orderbook
+    _product_catalog_refresher = product_catalog_refresher
+    DASHBOARD_STATE_PUBLISH_INTERVAL_SECONDS = interval
+
+
+def _product_metadata_reader(product_id: str) -> Dict[str, Any]:
+    """Read metadata through the explicitly installed runtime orderbook."""
+
+    if ORDERBOOK is None:
+        return {}
+    return ORDERBOOK.get_product_metadata(product_id)
 
 
 # In-memory Fibonacci-window market metrics tracker. Optional dependency
@@ -876,6 +906,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                         product_id=product_id,
                         side=order_params.get("side"),
                         policy=PriceRoundingPolicy.SIDE_CONSERVATIVE,
+                        metadata_reader=_product_metadata_reader,
                     )
                     if not price_check:
                         raise OrderCreationError(
@@ -892,6 +923,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                         raw_size,
                         product_id=product_id,
                         price=effective_price,
+                        metadata_reader=_product_metadata_reader,
                     )
                     if not size_check:
                         raise OrderCreationError(
@@ -2200,6 +2232,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     product_id=product_id,
                     side=side,
                     policy=PriceRoundingPolicy.SIDE_CONSERVATIVE,
+                    metadata_reader=_product_metadata_reader,
                 )
                 if not price_check:
                     raise OrderCreationError(
@@ -2463,7 +2496,8 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     price=float(order.get('price', 0)),
                     target_movement=float(order.get('target_movement')) if order.get('target_movement') else None,
                     max_order_replacement=int(order.get('max_order_replacement', 0)),
-                    status=order.get('status', 'OPEN')
+                    status=order.get('status', 'OPEN'),
+                    metadata_reader=_product_metadata_reader,
                 )
                 if result is None:
                     raise OrderCreationError(
@@ -2510,7 +2544,11 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     'status': order.get('status', 'OPEN')
                 }
                 
-                if not update_parent_order(client_order_id, update_data):
+                if not update_parent_order(
+                    client_order_id,
+                    update_data,
+                    metadata_reader=_product_metadata_reader,
+                ):
                     raise OrderCreationError(
                         "Parent order update failed boundary or persistence validation",
                         client_order_id=client_order_id,
@@ -2628,7 +2666,6 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
             # Execute a manual move (immediate)
             try:
                 from business.move_manager import MoveManager
-                from configuration import OrderBook
                 
                 move_data = data.get("move", {})
                 original_parent_id = move_data.get('original_parent_client_order_id')
@@ -2637,7 +2674,9 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 notes = move_data.get('notes')
                 
                 # Create move manager and execute move
-                move_manager = MoveManager(OrderBook())
+                if ORDERBOOK is None:
+                    raise RuntimeError("Dashboard runtime is not configured")
+                move_manager = MoveManager(ORDERBOOK)
                 result = move_manager.move_order(
                     original_parent_client_order_id=original_parent_id,
                     new_order_details=new_order_details,
@@ -2687,7 +2726,6 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
             # Pre-mark an order for automatic move (when cancelled)
             try:
                 from business.move_manager import MoveManager
-                from configuration import ORDERBOOK
                 
                 move_data = data.get("move", {})
                 parent_id = move_data.get('parent_client_order_id')
@@ -2697,6 +2735,8 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 
                 # Route through the same validated/normalized move boundary
                 # used by every other pending-move creation path.
+                if ORDERBOOK is None:
+                    raise RuntimeError("Dashboard runtime is not configured")
                 result = MoveManager(ORDERBOOK).pre_mark_for_move(
                     original_parent_client_order_id=parent_id,
                     new_order_details=new_order_details,
@@ -2890,114 +2930,24 @@ def add_log_entry(level: str, message: str, context: Dict[str, Any] = None):
 
 
 def update_products_json_from_api() -> Dict[str, Any]:
-    """Update products.json with the latest data from Coinbase REST API.
-    
-    Fetches current product metadata for derivatives and spot products,
-    organizes them by type, and updates the products.json file while
-    preserving the ticker_to_trading mapping if it exists.
-    
-    Returns:
-        Dictionary with status information:
-        {
-            "success": bool,
-            "message": str,
-            "derivatives_count": int,
-            "spot_count": int,
-            "metadata_count": int
-        }
-    
-    Raises:
-        Exception: If REST API call fails
-    """
-    try:
-        # Fetch all products from REST API
-        api_products = rest_get_products()
-        logger.info(f"Fetched {len(api_products)} products from REST API")
-        
-        # Separate derivatives and spot products
-        derivatives = []
-        spot = []
-        metadata = {}
-        
-        for product_id, product_data in api_products.items():
-            # Determine product type
-            product_type = product_data.get("product_type", "").upper()
-            
-            if product_type == "PERPETUAL_FUTURE" or product_type == "FUTURE":
-                derivatives.append(product_id)
-            else:
-                # Default to SPOT for any other type
-                spot.append(product_id)
-            
-            # Extract metadata for this product
-            metadata[product_id] = {
-                "type": product_type if product_type in ["SPOT", "FUTURE", "PERPETUAL_FUTURE"] else "UNKNOWN",
-                "base_currency": product_data.get("base_currency"),
-                "quote_currency": product_data.get("quote_currency"),
-                "base_increment": str(product_data.get("base_increment", "")),
-                "quote_increment": str(product_data.get("quote_increment", "")),
-                "price_increment": str(product_data.get("price_increment", "")),
-                # Min order sizes from the API. Persisted so the size-validation
-                # path (calculation/size_validation.py) can reject too-small
-                # orders before they hit the exchange. If the API returns
-                # nothing the field is preserved as an empty string and
-                # validators treat it as "no minimum advertised".
-                "base_min_size": str(product_data.get("base_min_size", "")),
-                "quote_min_size": str(product_data.get("quote_min_size", "")),
-                "display_name": product_data.get("display_name"),
-                "status": product_data.get("status"),
-                "mid_price": product_data.get("mid_price"),
-                "trading_disabled": product_data.get("trading_disabled", False),
-                "contract_size": str(product_data.get("contract_size", "")) if "contract_size" in product_data else None,
-                "expiry": product_data.get("expiry"),
-            }
-        
-        # Load existing products.json to preserve ticker_to_trading mapping
-        products_file = Path(__file__).parent / "products.json"
-        existing_data = {}
-        
-        if products_file.exists():
-            try:
-                with open(products_file, 'r') as f:
-                    existing_data = json.load(f)
-            except Exception as e:
-                logger.warning(f"Could not read existing products.json: {e}")
-        
-        # Build the updated products data with desired key order
-        # Put spot and derivatives at the top (human-managed), then metadata
-        updated_data = {}
-        updated_data["spot"] = sorted(spot)
-        updated_data["derivatives"] = sorted(derivatives)
-        
-        # Preserve ticker_to_trading mapping if it exists
-        if "ticker_to_trading" in existing_data:
-            updated_data["ticker_to_trading"] = existing_data["ticker_to_trading"]
-        
-        # Add metadata last
-        updated_data["metadata"] = metadata
-        
-        # Write updated data to products.json (preserve key order, don't sort)
-        with open(products_file, 'w') as f:
-            json.dump(updated_data, f, indent=2)
+    """Request a catalog refresh through the callback installed by ``main``."""
 
-        # Keep the running engine on the same authoritative tick/minimum
-        # snapshot that was just persisted.  The updater installs the complete
-        # catalog atomically; it never performs a database write.
-        update_product_metadata(metadata)
-        
-        logger.info(f"Updated products.json: {len(derivatives)} derivatives, {len(spot)} spot, {len(metadata)} metadata entries")
-        
-        return {
-            "success": True,
-            "message": f"Successfully updated products.json with {len(api_products)} products",
-            "derivatives_count": len(derivatives),
-            "spot_count": len(spot),
-            "metadata_count": len(metadata),
-        }
-        
-    except Exception as e:
-        error_msg = f"Failed to update products.json: {str(e)}"
+    if _product_catalog_refresher is None:
+        error_msg = "Product catalog refresher is not configured"
         logger.error(error_msg)
+        return {
+            "success": False,
+            "message": error_msg,
+            "derivatives_count": 0,
+            "spot_count": 0,
+            "metadata_count": 0,
+        }
+
+    try:
+        return dict(_product_catalog_refresher())
+    except Exception as exc:
+        error_msg = f"Failed to update products.json: {exc}"
+        logger.exception(error_msg)
         return {
             "success": False,
             "message": error_msg,
@@ -3417,21 +3367,11 @@ async def _spread_broadcast_loop():
 
 
 async def run_websocket_server(host: str = "localhost", port: int = 8765):
-    """Start plain WebSocket transport; direct calls default to localhost:8765."""
+    """Start configured WebSocket transport on ``host`` and ``port``."""
     global server_event_loop
     server_event_loop = asyncio.get_event_loop()
     
     logger.info(f"Starting WebSocket server on ws://{host}:{port}")
-    
-    # Update products from REST API on startup
-    logger.info("Updating products list from REST API on startup...")
-    update_result = update_products_json_from_api()
-    if update_result["success"]:
-        logger.info(f"Initial products update: {update_result['derivatives_count']} derivatives, {update_result['spot_count']} spot products loaded")
-        add_log_entry("INFO", f"Products loaded: {update_result['derivatives_count']} derivatives, {update_result['spot_count']} spot")
-    else:
-        logger.warning(f"Initial products update failed: {update_result['message']}")
-        add_log_entry("WARNING", f"Products update failed: {update_result['message']}")
     
     # Start spread broadcast loop as background task
     asyncio.create_task(_spread_broadcast_loop())
@@ -3445,7 +3385,7 @@ async def run_websocket_server(host: str = "localhost", port: int = 8765):
 
 
 def start_dashboard_server(host: str = DASHBOARD_SERVER_HOST, port: int = DASHBOARD_SERVER_PORT):
-    """Start a daemon thread with import-time env defaults or explicit overrides."""
+    """Start the configured transport in a daemon thread."""
     
     def run():
         loop = asyncio.new_event_loop()
@@ -3460,14 +3400,10 @@ def start_dashboard_server(host: str = DASHBOARD_SERVER_HOST, port: int = DASHBO
 
 def set_stealth_order_bridge(bridge):
     """Set the stealth order bridge reference for WebSocket handlers and order placement.
-    
-    Call this from main.py after initializing the stealth order bridge:
-    
-    Example:
-        >>> from dashboard_server import set_stealth_order_bridge
-        >>> stealth_manager = StealthOrderManager(DB_CLIENT)
-        >>> stealth_bridge = StealthOrderBridge(stealth_manager, None)
-        >>> set_stealth_order_bridge(stealth_bridge)
+
+    The :mod:`main` composition root calls this after constructing the fully
+    wired bridge.  ``dashboard_server.py`` is not a supported standalone
+    runtime entrypoint.
     """
     global stealth_order_bridge
     stealth_order_bridge = bridge
@@ -3482,24 +3418,8 @@ def set_stealth_order_bridge(bridge):
         logger.warning("Could not register stealth bridge with order.py")
 
 
-# Demo/testing
 if __name__ == "__main__":
-    import time
-    
-    start_dashboard_server()
-    
-    # Simulate some data
-    update_engine_status({
-        "running": False,
-        "engine_state": EngineState.STARTING.value,
-        "threads_active": 0,
-        "event_queue_depth": 3,
-    })
-    
-    add_log_entry("INFO", "Dashboard demo started without trading engine")
-    
-    try:
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        logger.info("Shutting down dashboard server")
+    raise SystemExit(
+        "dashboard_server.py is an embedded transport. Start the trading "
+        "runtime with: python -m main"
+    )

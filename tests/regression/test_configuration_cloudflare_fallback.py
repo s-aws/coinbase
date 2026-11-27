@@ -4,34 +4,40 @@ import logging
 
 import pytest
 
-import configuration
+import main
+from configuration import ProductConfiguration
 from core.exceptions import CoinbaseAPIError
+from core.orderbook import OrderBook
+from external.runtime import fetch_products
 
 
-def test_rest_get_products_rejects_malformed_gateway_response(monkeypatch):
+def _product_configuration(tmp_path, *, metadata):
+    return ProductConfiguration(
+        spot_product_ids=("BTC-USDC",),
+        derivatives_product_ids=(),
+        metadata=metadata,
+        ticker_to_trading={},
+        path=tmp_path / "products.json",
+    )
+
+
+def test_rest_get_products_rejects_malformed_gateway_response():
     class MalformedRestClient:
         @staticmethod
         def get_product_dict(_product_id):
             return None
 
-    monkeypatch.setattr(configuration, "REST_CLIENT", MalformedRestClient())
-    monkeypatch.setattr(configuration, "DERIVATIVES_PRODUCT_IDS", ["TEST-CDE"])
-    monkeypatch.setattr(configuration, "SPOT_PRODUCT_IDS", [])
-
     with pytest.raises(CoinbaseAPIError, match="malformed product response"):
-        configuration.rest_get_products()
+        fetch_products(MalformedRestClient(), ("TEST-CDE",))
 
 
-def test_orderbook_falls_back_to_cached_products_on_gateway_failure(
-    monkeypatch,
+def test_composition_falls_back_to_cached_products_on_gateway_failure(
+    tmp_path,
     caplog,
 ):
-    monkeypatch.setattr(configuration, "DERIVATIVES_PRODUCT_IDS", [])
-    monkeypatch.setattr(configuration, "SPOT_PRODUCT_IDS", ["BTC-USDC"])
-    monkeypatch.setattr(
-        configuration,
-        "PRODUCT_METADATA",
-        {
+    settings = _product_configuration(
+        tmp_path,
+        metadata={
             "BTC-USDC": {
                 "type": "SPOT",
                 "base_increment": "0.00000001",
@@ -41,28 +47,31 @@ def test_orderbook_falls_back_to_cached_products_on_gateway_failure(
         },
     )
 
-    def unavailable_products():
-        raise CoinbaseAPIError("temporary upstream failure", status_code=502)
+    class UnavailableRestClient:
+        @staticmethod
+        def get_product_dict(_product_id):
+            raise CoinbaseAPIError("temporary upstream failure", status_code=502)
 
-    def unavailable_positions():
-        raise CoinbaseAPIError("temporary upstream failure", status_code=502)
+        @staticmethod
+        def list_futures_positions():
+            raise CoinbaseAPIError("temporary upstream failure", status_code=502)
 
-    monkeypatch.setattr(configuration, "rest_get_products", unavailable_products)
-    monkeypatch.setattr(configuration, "get_futures_positions", unavailable_positions)
-
+    rest_client = UnavailableRestClient()
     with caplog.at_level(logging.WARNING):
-        orderbook = configuration.OrderBook()
+        products = main._load_startup_products(rest_client, settings)
+        positions = main._load_startup_positions(rest_client)
 
+    orderbook = OrderBook(products=products, positions={"FUTURE": positions})
     assert orderbook.product["BTC-USDC"]["product_type"] == "SPOT"
-    assert orderbook.product["BTC-USDC"]["price_increment"] == "0.01"
+    assert orderbook.get_product_metadata("BTC-USDC")["price_increment"] == "0.01"
     assert orderbook.positions == {"FUTURE": {}}
     assert "using cached products.json metadata" in caplog.text
     assert "starting with an empty position snapshot" in caplog.text
 
 
-def test_orderbook_installs_live_catalog_for_canonical_price_reads(monkeypatch):
+def test_composition_installs_live_catalog_for_canonical_price_reads(tmp_path):
     live_product = {
-        "product_id": "TEST-USD",
+        "product_id": "BTC-USDC",
         "product_type": "SPOT",
         "base_increment": "0.01",
         "base_min_size": "0.01",
@@ -70,19 +79,18 @@ def test_orderbook_installs_live_catalog_for_canonical_price_reads(monkeypatch):
         "price_increment": "5",
         "trading_disabled": False,
     }
-    monkeypatch.setattr(
-        configuration,
-        "PRODUCT_METADATA",
-        {"TEST-USD": {"price_increment": "0.01"}},
+    settings = _product_configuration(
+        tmp_path,
+        metadata={"BTC-USDC": {"price_increment": "0.01"}},
     )
-    monkeypatch.setattr(
-        configuration,
-        "rest_get_products",
-        lambda: {"TEST-USD": live_product},
-    )
-    monkeypatch.setattr(configuration, "get_futures_positions", lambda: {})
 
-    orderbook = configuration.OrderBook()
+    class LiveRestClient:
+        @staticmethod
+        def get_product_dict(_product_id):
+            return live_product
 
-    assert orderbook.product["TEST-USD"]["price_increment"] == "5"
-    assert configuration.get_product_metadata("TEST-USD")["price_increment"] == "5"
+    products = main._load_startup_products(LiveRestClient(), settings)
+    orderbook = OrderBook(products=products)
+
+    assert orderbook.product["BTC-USDC"]["price_increment"] == "5"
+    assert orderbook.get_product_metadata("BTC-USDC")["price_increment"] == "5"

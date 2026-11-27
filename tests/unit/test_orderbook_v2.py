@@ -1,9 +1,7 @@
 ﻿"""Unit tests for the v2 :mod:`core.orderbook` module.
 
-These tests exercise the new instance-scoped, thread-safe ``OrderBook`` class
-in isolation.  They are intentionally independent of the legacy
-``configuration.OrderBook`` shim â€” the shim has its own integration tests in
-the wider regression suite.
+These tests exercise the instance-scoped, thread-safe, sole runtime
+``OrderBook`` class in isolation.
 
 Coverage targets every public method on :class:`core.orderbook.OrderBook` and
 the :class:`core.orderbook.ParentOrderEntry` dataclass.

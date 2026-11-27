@@ -305,6 +305,7 @@ def _make_real_manager_with_revealed_order(stealth_order_id: str = "sid_smoke"):
     from logging_service import get_logger
 
     mgr = StealthOrderManager.__new__(StealthOrderManager)
+    mgr._product_metadata_reader = lambda _product_id: {"price_increment": "0.01"}
     mgr._mutation_claims = ClaimLedger(StealthMutationKind)
     mgr._placed_order_index = {}
     mgr.log_callback = lambda *a, **k: None
@@ -376,7 +377,7 @@ def test_smoke_handler_drives_real_build_and_execute_end_to_end():
          patch.object(mgr, "_record_reveal_event"), \
          patch.object(mgr, "_get_current_market_data",
                       return_value={"source": "ticker", "bid": 99.5, "ask": 100.5, "price": 100.0}), \
-         patch("configuration.REST_CLIENT") as rest_mock, \
+         patch.object(mgr, "rest_client", create=True) as rest_mock, \
          patch("core.stealth_order_manager.insert_order_parent"), \
          patch("core.stealth_order_manager.resolve_stealth_chain_root",
                return_value="root_parent_coid"), \

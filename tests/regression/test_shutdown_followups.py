@@ -249,9 +249,8 @@ class TestWsPendingFillSuppression:
              patch("core.startup_reconciler._fetch_client_order_ids_for_exchange_order_ids",
                    return_value={"EXCH-1": "COID-1"}), \
              patch("core.startup_reconciler._fetch_ws_pending_qty_by_client_order_id",
-                   return_value={"COID-1": 10.0}), \
-             patch("configuration.REST_CLIENT", rest_client):
-            report = sr.audit_missed_fills()
+                   return_value={"COID-1": 10.0}):
+            report = sr.audit_missed_fills(rest_client=rest_client)
 
         assert report is not None
         assert report.rest_fills_examined == 2
@@ -282,9 +281,8 @@ class TestWsPendingFillSuppression:
              patch("core.startup_reconciler._fetch_client_order_ids_for_exchange_order_ids",
                    return_value={"EXCH-2": "COID-2"}), \
              patch("core.startup_reconciler._fetch_ws_pending_qty_by_client_order_id",
-                   return_value={"COID-2": 4.0}), \
-             patch("configuration.REST_CLIENT", rest_client):
-            report = sr.audit_missed_fills()
+                   return_value={"COID-2": 4.0}):
+            report = sr.audit_missed_fills(rest_client=rest_client)
 
         assert report is not None
         assert len(report.missed) == 1, (

@@ -6,7 +6,7 @@ from unittest.mock import Mock
 from calculation.fee_manager import FeeManager
 from core.order_engine import OrderEngine
 from core.enums import ContractExpiryType, ProductType, ProductVenue
-from configuration import OrderBook
+from core.orderbook import OrderBook
 
 
 class StubRestClient:

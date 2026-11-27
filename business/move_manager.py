@@ -12,7 +12,7 @@ Key Concepts:
 - All child orders of the original parent are NOT automatically moved
 
 Example:
-    >>> manager = MoveManager()
+    >>> manager = MoveManager(orderbook)
     >>> 
     >>> # Move a cancelled parent order to a new one
     >>> result = manager.move_order(
@@ -45,7 +45,8 @@ from database.order import (
     execute_pending_move,
     get_order_moves_by_new_parent,
 )
-from configuration import OrderBook, DEFAULT_MAX_ORDER_REPLACEMENT
+from core.constants import DEFAULT_MAX_ORDER_REPLACEMENT
+from core.orderbook import OrderBook
 from calculation.price_validation import normalize_price_for_product
 from core.enums import OrderStatus, PriceRoundingPolicy
 
@@ -60,17 +61,18 @@ class MoveManager:
         orderbook: Reference to the OrderBook for state management.
     """
 
-    def __init__(self, orderbook: Optional[OrderBook] = None):
+    def __init__(self, orderbook: OrderBook):
         """Initialize MoveManager.
         
         Args:
-            orderbook: OrderBook instance for state tracking. If None, uses
-                      the default OrderBook from configuration.
+            orderbook: The runtime's shared OrderBook instance.
         """
-        self.orderbook = orderbook or OrderBook()
+        if orderbook is None:
+            raise ValueError("MoveManager requires an explicit orderbook")
+        self.orderbook = orderbook
 
-    @staticmethod
     def _normalize_new_order_details(
+        self,
         new_order_details: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Return a copy with the configured price on the product tick grid."""
@@ -80,6 +82,7 @@ class MoveManager:
             product_id=normalized.get("product_id"),
             side=normalized.get("side"),
             policy=PriceRoundingPolicy.SIDE_CONSERVATIVE,
+            metadata_reader=self.orderbook.get_product_metadata,
         )
         if not price_check.ok or price_check.effective_price is None:
             raise ValueError(
@@ -103,7 +106,7 @@ class MoveManager:
             Tuple of (can_move: bool, reason: str).
             
         Example:
-            >>> manager = MoveManager()
+            >>> manager = MoveManager(orderbook)
             >>> can_move, reason = manager.can_move_order("parent_uuid")
             >>> if not can_move:
             ...     print(f"Cannot move: {reason}")

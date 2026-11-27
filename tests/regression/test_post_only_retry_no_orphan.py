@@ -70,7 +70,7 @@ def test_pre_insert_called_from_inside_retry_loop():
     )
     loop_start = _STEALTH_MANAGER_SRC.index(loop_marker)
     # Find the next REST call after the loop start.
-    rest_call_marker = "REST_CLIENT.place_limit_order("
+    rest_call_marker = "rest_client.place_limit_order("
     rest_idx = _STEALTH_MANAGER_SRC.index(rest_call_marker, loop_start)
     # The pre-insert call must appear between loop start and REST call.
     body = _STEALTH_MANAGER_SRC[loop_start:rest_idx]

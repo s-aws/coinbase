@@ -21,7 +21,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from business.order_progress import OrderSnapshotDelta
-from configuration import OrderBook
+from core.orderbook import OrderBook
 import core.order_engine as order_engine_module
 from core.order_engine import OrderEngine
 from core.enums import EngineState
@@ -177,12 +177,8 @@ def test_three_fills_from_optin_parent_trigger_placement():
     }
     fake_insert = Mock(return_value=1)
 
-    with patch("configuration.REST_CLIENT", fake_rest), \
-         patch("database.order.insert_order_parent", fake_insert), \
-         patch(
-             "calculation.price_validation.get_product_metadata",
-             return_value=engine.orderbook.product["BTC-USDC"],
-         ):
+    engine.rest_client = fake_rest
+    with patch("database.order.insert_order_parent", fake_insert):
         for _ in range(3):
             engine._maybe_dispatch_hotpoint(_delta(price=100.0))
 
@@ -215,12 +211,8 @@ def test_starting_trigger_is_skipped_and_later_fill_can_place_when_ready(
     }
     fake_insert = Mock(return_value=1)
 
-    with patch("configuration.REST_CLIENT", fake_rest), \
-         patch("database.order.insert_order_parent", fake_insert), \
-         patch(
-             "calculation.price_validation.get_product_metadata",
-             return_value=engine.orderbook.product["BTC-USDC"],
-         ):
+    engine.rest_client = fake_rest
+    with patch("database.order.insert_order_parent", fake_insert):
         for _ in range(3):
             engine._maybe_dispatch_hotpoint(_delta(price=100.0))
 
@@ -254,8 +246,8 @@ def test_kill_switch_off_blocks_placement_but_records_fills():
     fake_rest = Mock()
     fake_insert = Mock(return_value=1)
 
-    with patch("configuration.REST_CLIENT", fake_rest), \
-         patch("database.order.insert_order_parent", fake_insert):
+    engine.rest_client = fake_rest
+    with patch("database.order.insert_order_parent", fake_insert):
         for _ in range(3):
             engine._maybe_dispatch_hotpoint(_delta(price=100.0))
 

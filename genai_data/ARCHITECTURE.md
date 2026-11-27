@@ -17,11 +17,17 @@ The runtime is centered on a single `OrderEngine` instance (`core/order_engine.p
 - `core/startup_reconciler.py` + `core/periodic_reconciler.py`: exchange-vs-local drift audits.
 - `calculation/fee_manager.py`: dynamic maker/taker fee telemetry and adaptive factors.
 
-`main.py` wires these together and installs graceful shutdown hooks. It assumes
-the database-only `scripts/bootstrap_runtime_database.sh` step (normally
-composed by `scripts/deploy_runtime.sh`) has already run the additive
-`database.schema` implementation successfully and does not run full schema DDL
-during process startup.
+`main.py` is the sole process composition root. `main()` loads the environment
+and product-file settings; `build_application_runtime()` constructs one REST
+adapter, one shared `OrderBook`, the manager/bridge/engine graph, and the
+dashboard and reconciliation adapters. Consumer modules receive narrow REST,
+metadata, product-resolution, or position readers instead of importing live
+objects from configuration. The composition root also installs graceful
+shutdown hooks. It assumes the database-only
+`scripts/bootstrap_runtime_database.sh` step (normally composed by
+`scripts/deploy_runtime.sh`) has already run the additive `database.schema`
+implementation successfully and does not run full schema DDL during process
+startup.
 
 ## Runtime Layers
 
@@ -78,12 +84,12 @@ modules, new reverse-zone imports, new import cycles, new broad/untyped
 constructor capability surfaces, and new reflection mechanisms that can hide
 those surfaces.
 
-The contract freezes current debt without changing runtime wiring. It records
-43 reverse-zone import edges, one six-module strongly connected import
-component, broad constructor dependency surfaces, and reflection/namespace
-escape signatures. Existing debt is exact and assigned to modular-monolith
-checklist items 4-8; it is not a package-wide permission for additional
-coupling.
+The contract records 29 reverse-zone import edges, no strongly connected
+runtime import component, 35 broad constructor capability surfaces, and eight
+reflection/namespace escape signatures. Item 4 retired the configuration
+edges and former import cycle; remaining exact debt is assigned to
+modular-monolith checklist items 5-8 and is not a package-wide permission for
+additional coupling.
 
 Static inspection cannot prove arbitrary Python aliasing, monkeypatching,
 returned objects, or runtime dispatch. Full component isolation requires the
@@ -482,14 +488,15 @@ deployment guard, and their existing rows do not make a trading target stale.
 ## Dashboard and Operator Interface
 
 `dashboard_server.py` runs a plain, unauthenticated WebSocket listener in a
-daemon thread. `main.py` calls `start_dashboard_server()` with import-time
-environment defaults: `DASHBOARD_SERVER_HOST`, falling back to `HOSTNAME`
-then `localhost`, and integer `DASHBOARD_SERVER_PORT`, defaulting to `8765`.
-Explicit function arguments override these values; direct
-`run_websocket_server()` calls retain literal `localhost:8765` defaults.
-Browser and terminal clients choose their own endpoints; changing the listener
-does not reconfigure clients or serve HTML. See `CONFIGURATION.md` for the
-endpoint matrix and local-only binding guidance.
+daemon thread inside the canonical process. `main()` reads
+`DASHBOARD_SERVER_HOST` (falling back to `HOSTNAME`, then `localhost`) and
+integer `DASHBOARD_SERVER_PORT` (default `8765`) and passes both explicitly to
+`start_dashboard_server()`. The transport imports passively and receives the
+shared REST adapter, `OrderBook`, and product-refresh callback from the
+composition root; direct script execution exits with `python -m main`
+guidance. Browser and terminal clients choose their own endpoints; changing
+the listener does not reconfigure clients or serve HTML. See
+`CONFIGURATION.md` for the endpoint matrix and local-only binding guidance.
 
 `dashboard_server.py` exposes command handlers for:
 - runtime admin (`admin_status`, `admin_pause`, `admin_resume`, `admin_shutdown`)

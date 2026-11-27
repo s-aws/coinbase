@@ -16,7 +16,7 @@ from unittest.mock import MagicMock, patch
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.order_engine import OrderEngine
-from configuration import OrderBook
+from core.orderbook import OrderBook
 from core.constants import DEFAULT_MAX_ORDER_REPLACEMENT
 
 

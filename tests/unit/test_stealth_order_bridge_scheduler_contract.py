@@ -376,6 +376,8 @@ def _new_bridge(
     bridge = bridge_module.StealthOrderBridge(
         manager,
         order_engine=None,
+        rest_client=object(),
+        trading_product_resolver=lambda product_id: product_id,
         scheduler=scheduler,
     )
     # Most tests exercise the handler contract directly without bridge.start().
@@ -1489,6 +1491,8 @@ def test_stale_invalidation_overflow_uses_existing_continuity_recovery() -> None
     bridge = bridge_module.StealthOrderBridge(
         manager,
         order_engine=None,
+        rest_client=object(),
+        trading_product_resolver=lambda product_id: product_id,
         scheduler=scheduler,
     )
     bridge._decisions_ready.set()
@@ -1593,6 +1597,8 @@ def test_fifo_overflow_replaces_backlog_and_resets_hold_before_newest_tick() -> 
     bridge = bridge_module.StealthOrderBridge(
         manager,
         order_engine=None,
+        rest_client=object(),
+        trading_product_resolver=lambda product_id: product_id,
         scheduler=scheduler,
     )
     bridge._decisions_ready.set()
@@ -1646,6 +1652,8 @@ def test_fifo_overflow_resets_every_product_whose_events_are_discarded() -> None
     bridge = bridge_module.StealthOrderBridge(
         manager,
         order_engine=None,
+        rest_client=object(),
+        trading_product_resolver=lambda product_id: product_id,
         scheduler=scheduler,
     )
     bridge._decisions_ready.set()
@@ -2567,6 +2575,8 @@ def test_pre_activation_ticker_cannot_claim_due_anchor(monkeypatch) -> None:
     bridge = bridge_module.StealthOrderBridge(
         manager,
         order_engine=None,
+        rest_client=object(),
+        trading_product_resolver=lambda product_id: product_id,
         scheduler=scheduler,
     )
     controller = MutableRuntimeController(EngineState.RUNNING)
@@ -2683,6 +2693,8 @@ def test_pre_deadline_ticker_cannot_claim_anchor_after_handler_delay(
     bridge = bridge_module.StealthOrderBridge(
         manager,
         order_engine=None,
+        rest_client=object(),
+        trading_product_resolver=lambda product_id: product_id,
         scheduler=scheduler,
     )
     bridge._decisions_ready.set()
@@ -2731,6 +2743,8 @@ def test_worker_anchor_handoff_retains_original_deadline_eligibility(
     bridge = bridge_module.StealthOrderBridge(
         manager,
         order_engine=None,
+        rest_client=object(),
+        trading_product_resolver=lambda product_id: product_id,
         scheduler=scheduler,
     )
     bridge._decisions_ready.set()
@@ -3303,11 +3317,13 @@ def test_passive_reconciliation_does_not_recover_pending_rearms(
     bridge = bridge_module.StealthOrderBridge(
         manager,
         order_engine=engine,
+        rest_client=object(),
+        trading_product_resolver=lambda product_id: product_id,
         scheduler=scheduler,
     )
     bridge._decisions_ready.clear()
     rest_client = Mock()
-    monkeypatch.setattr("configuration.REST_CLIENT", rest_client)
+    bridge.rest_client = rest_client
 
     assert bridge._reconcile_stealth_orders() is False
 
@@ -3337,6 +3353,8 @@ def test_pending_rearm_reconciliation_routes_exact_terminal_order(
     bridge = bridge_module.StealthOrderBridge(
         manager,
         order_engine=engine,
+        rest_client=object(),
+        trading_product_resolver=lambda product_id: product_id,
         scheduler=scheduler,
     )
     rest_client = Mock()
@@ -3356,7 +3374,7 @@ def test_pending_rearm_reconciliation_routes_exact_terminal_order(
         },
     }
     rest_client.get_order.return_value = {"order": venue_order}
-    monkeypatch.setattr("configuration.REST_CLIENT", rest_client)
+    bridge.rest_client = rest_client
 
     assert bridge._reconcile_pending_anchor_rearms() is True
 
@@ -3431,6 +3449,8 @@ def test_pending_rearm_reconciliation_routes_fill_while_not_admitting(
     bridge = bridge_module.StealthOrderBridge(
         manager,
         order_engine=engine,
+        rest_client=object(),
+        trading_product_resolver=lambda product_id: product_id,
         scheduler=scheduler,
     )
     rest_client = Mock()
@@ -3449,7 +3469,7 @@ def test_pending_rearm_reconciliation_routes_fill_while_not_admitting(
             },
         }
     }
-    monkeypatch.setattr("configuration.REST_CLIENT", rest_client)
+    bridge.rest_client = rest_client
 
     assert bridge._reconcile_pending_anchor_rearms() is True
 
@@ -3467,6 +3487,8 @@ def test_pending_rearm_reconciliation_retains_malformed_terminal(
     bridge = bridge_module.StealthOrderBridge(
         manager,
         order_engine=engine,
+        rest_client=object(),
+        trading_product_resolver=lambda product_id: product_id,
         scheduler=scheduler,
     )
     rest_client = Mock()
@@ -3485,7 +3507,7 @@ def test_pending_rearm_reconciliation_retains_malformed_terminal(
             },
         }
     }
-    monkeypatch.setattr("configuration.REST_CLIENT", rest_client)
+    bridge.rest_client = rest_client
 
     assert bridge._reconcile_pending_anchor_rearms() is False
 
@@ -3514,7 +3536,7 @@ def test_pending_rearm_reconciliation_reissues_same_cancel_when_open(
             "status": OrderStatus.OPEN.value,
         }
     }
-    monkeypatch.setattr("configuration.REST_CLIENT", rest_client)
+    bridge.rest_client = rest_client
 
     assert bridge._reconcile_pending_anchor_rearms() is False
 
@@ -3693,6 +3715,8 @@ def test_admission_retry_wake_has_one_100ms_successor(
     bridge = bridge_module.StealthOrderBridge(
         manager,
         order_engine=None,
+        rest_client=object(),
+        trading_product_resolver=lambda product_id: product_id,
         scheduler=scheduler,
     )
     bridge._decisions_ready.set()
@@ -3945,6 +3969,8 @@ def test_due_time_persistence_failure_never_reveals_and_rebuilds_wake(
     bridge = bridge_module.StealthOrderBridge(
         manager,
         order_engine=None,
+        rest_client=object(),
+        trading_product_resolver=lambda product_id: product_id,
         scheduler=scheduler,
     )
     bridge._decisions_ready.set()
@@ -4028,6 +4054,8 @@ def test_real_manager_continuous_hold_rebuilds_and_reveals_on_next_tick(
     bridge = bridge_module.StealthOrderBridge(
         manager,
         order_engine=None,
+        rest_client=object(),
+        trading_product_resolver=lambda product_id: product_id,
         scheduler=scheduler,
     )
     bridge.record_reveal_event = Mock()

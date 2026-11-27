@@ -22,21 +22,11 @@ runtime_root_modules = [
     "engine_console",
     "logging_service",
     "main",
-    "main_place_order",
     "order",
     "ui_console",
 ]
 
-expected_import_cycles = [
-    [
-        "calculation.resolver",
-        "configuration",
-        "core.models",
-        "core.orderbook",
-        "external",
-        "external.coinbase_client",
-    ],
-]
+expected_import_cycles = []
 
 # Broad means that the constructor parameter is unannotated or is annotated as
 # Any, object, or ModuleType and is stored directly on the instance.  Each row
@@ -66,13 +56,14 @@ broad_capability_debt = [
     "core.order_engine:OrderEngine.max_rotate_seen_events_bucket_seconds<-max_rotate_seen_events_bucket_seconds|members=-|call=false|dynamic=false|passes=EventBridge,self._shutdown_event.wait",
     "core.order_engine:OrderEngine.max_seen_event_buckets<-max_seen_event_buckets|members=-|call=false|dynamic=false|passes=EventBridge",
     "core.order_engine:OrderEngine.order_post_only<-order_post_only|members=-|call=false|dynamic=false|passes=-",
-    "core.order_engine:OrderEngine.orderbook<-orderbook|members=atomic_replace_links,child_order_ids,complete_follow_up,db_module,default_max_order_replacement,diagnostic_snapshot,discard_completed_follow_up,order,parent_order_ids,positions,product,profit,release_follow_up,should_replace,try_claim_follow_up|call=false|dynamic=false|passes=FeeManager,MoveManager,ProfitValidator",
+    "core.order_engine:OrderEngine.orderbook<-orderbook|members=atomic_replace_links,child_order_ids,complete_follow_up,db_module,default_max_order_replacement,diagnostic_snapshot,discard_completed_follow_up,get_trading_product_id,order,parent_order_ids,positions,product,profit,release_follow_up,should_replace,try_claim_follow_up|call=false|dynamic=false|passes=FeeManager,MoveManager,ProfitValidator",
     "core.order_engine:OrderEngine.queue_maxsize<-queue_maxsize|members=-|call=false|dynamic=false|passes=Queue,UserFeedProcessor",
     "core.order_engine:OrderEngine.stealth_order_bridge<-stealth_order_bridge|members=consume_anchor_rearm_cancellation,create_follow_up_stealth_order,guard_follow_up_creation,is_anchor_rearm_placement_tombstoned,process_due_anchor_repricing,publish_market_continuity_reset,publish_ticker_update,stealth_manager,sync_exchange_order_id_for_placed_order,update_execution|call=false|dynamic=false|passes=-",
     "core.order_engine:OrderEngine.subscription<-subscription|members=channels,private_channels,product_ids,public_channels|call=false|dynamic=true|passes=-",
     "core.order_engine:OrderEngine.websocket_thread_maximum<-websocket_thread_maximum|members=-|call=false|dynamic=false|passes=range",
     "core.stealth_order_manager:StealthOrderManager.db_client<-db_client|members=execute_query,execute_update|call=false|dynamic=false|passes=-",
     "core.stealth_order_manager:StealthOrderManager.log_callback<-log_callback|members=-|call=true|dynamic=false|passes=-",
+    "core.stealth_order_manager:StealthOrderManager._product_metadata_reader<-product_metadata_reader|members=-|call=true|dynamic=false|passes=-",
     "core.stealth_order_manager:StealthOrderManager.order_placement_hooks<-order_placement_hooks|members=call_post_submission_hooks,call_pre_submission_hooks|call=false|dynamic=false|passes=-",
     "core.stealth_order_manager:StealthOrderManager.profit_validator<-profit_validator|members=_resolve_product_context,derive_follow_up_price_from_target,orderbook,validate_order_profitability|call=false|dynamic=false|passes=-",
     "external.coinbase_websocket:CoinbaseWebSocketClient._client<-sdk_client|members=close,on_close,on_error,on_message,on_open,open,sleep_with_exception_check,subscribe,unsubscribe|call=false|dynamic=false|passes=<return>",
@@ -90,7 +81,7 @@ reflection_debt = [
     "core.order_engine:OrderEngine._get_user_feed_processor|direct-reflection|self.__dict__|count=2",
     "dashboard_server:handle_client_message|reflection-call|locals|count=9",
     "logging_service:DashboardHandler.emit|direct-reflection|record.__dict__|count=1",
-    "main:_install_shutdown_signal_handlers|dynamic-attribute|getattr(_signal, _signame)|count=1",
+    "main:_install_shutdown_signal_handlers|dynamic-attribute|getattr(_signal, signal_name)|count=1",
 ]
 
 [module_zones]
@@ -98,7 +89,6 @@ reflection_debt = [
 "configuration" = "composition"
 "dashboard_server" = "operator"
 "engine_console" = "operator"
-"main_place_order" = "operator"
 "order" = "operator"
 "ui_console" = "operator"
 "logging_service" = "logging"
@@ -149,22 +139,7 @@ logging = ["logging"]
 # them.  The regression contract requires equality: removals must delete stale
 # entries, and additions cannot pass unnoticed.
 [import_debt]
-item_4_passive_configuration = [
-    "bridges.stealth_order_bridge -> configuration",
-    "business.move_manager -> configuration",
-    "business.stealth_order_span -> configuration",
-    "calculation.fee_manager -> configuration",
-    "calculation.price_validation -> configuration",
-    "calculation.profit_validator -> configuration",
-    "calculation.size_validation -> configuration",
-    "core.models -> configuration",
-    "core.order_engine -> configuration",
-    "core.orderbook -> configuration",
-    "core.startup_reconciler -> configuration",
-    "core.stealth_order_manager -> configuration",
-    "dashboard_server -> configuration",
-    "order -> configuration",
-]
+item_4_passive_configuration = []
 item_5_execution_facade = [
     "bridges.stealth_order_bridge -> database.order",
     "business.conditional_execution -> database.order",

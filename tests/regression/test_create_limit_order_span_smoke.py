@@ -33,33 +33,24 @@ from business.stealth_order_span import plan_stealth_order_span
 from order import create_limit_order_span
 
 
-@pytest.fixture(autouse=True)
-def canonical_product_metadata():
-    metadata = {
+@pytest.fixture
+def fake_bridge():
+    bridge = MagicMock()
+    bridge.product_metadata = {
         "price_increment": "1",
         "base_increment": "0.1",
         "base_min_size": "0",
         "quote_min_size": "0",
     }
-    with patch(
-        "calculation.price_validation.get_product_metadata",
-        return_value=metadata,
-    ), patch(
-        "calculation.size_validation.get_product_metadata",
-        return_value=metadata,
-    ), patch(
-        "business.stealth_order_span.get_product_metadata",
-        return_value=metadata,
-    ):
-        yield
-
-
-@pytest.fixture
-def fake_bridge():
-    bridge = MagicMock()
+    bridge.stealth_manager.get_product_metadata.side_effect = (
+        lambda _product_id: dict(bridge.product_metadata)
+    )
 
     def create_span(request):
-        plan = plan_stealth_order_span(request)
+        plan = plan_stealth_order_span(
+            request,
+            metadata_reader=bridge.stealth_manager.get_product_metadata,
+        )
         return {
             **plan.to_dict(),
             "status": "success",
@@ -117,16 +108,12 @@ def test_off_grid_price_is_normalized_before_bridge_and_response(
     side,
     expected_price,
 ):
-    with patch.object(order_module, "get_stealth_order_bridge", return_value=fake_bridge), \
-         patch(
-             "calculation.price_validation.get_product_metadata",
-             return_value={
-                 "price_increment": "5",
-                 "base_increment": "0.1",
-                 "base_min_size": "0",
-                 "quote_min_size": "0",
-             },
-         ):
+    fake_bridge.product_metadata["price_increment"] = "5"
+    with patch.object(
+        order_module,
+        "get_stealth_order_bridge",
+        return_value=fake_bridge,
+    ):
         result = create_limit_order_span(
             product_id="BTC-USDC",
             side=side,
@@ -145,9 +132,11 @@ def test_camouflage_actually_shifts_price(fake_bridge):
     computed ``effective_start_price`` but the bridge call still
     received the raw ``start_price``. With the fix, opting in must
     move the price off the magnet."""
-    fake_metadata = {"BTC-USDC": {"price_increment": "1"}}
-    with patch.object(order_module, "get_stealth_order_bridge", return_value=fake_bridge), \
-         patch("configuration.PRODUCT_METADATA", fake_metadata):
+    with patch.object(
+        order_module,
+        "get_stealth_order_bridge",
+        return_value=fake_bridge,
+    ):
         create_limit_order_span(
             product_id="BTC-USDC",
             side="SELL",
@@ -165,9 +154,11 @@ def test_camouflaged_price_echoed_in_response(fake_bridge):
     """The response dict's ``price`` field must report what was
     actually sent to the bridge, not the operator's raw input —
     otherwise downstream consumers see a phantom price."""
-    fake_metadata = {"BTC-USDC": {"price_increment": "1"}}
-    with patch.object(order_module, "get_stealth_order_bridge", return_value=fake_bridge), \
-         patch("configuration.PRODUCT_METADATA", fake_metadata):
+    with patch.object(
+        order_module,
+        "get_stealth_order_bridge",
+        return_value=fake_bridge,
+    ):
         result = create_limit_order_span(
             product_id="BTC-USDC",
             side="SELL",

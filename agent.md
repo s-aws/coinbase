@@ -72,9 +72,11 @@ When adding order lifecycle behavior, validate flat hierarchy explicitly.
 ## Runtime and Dashboard Surface
 
 Dashboard transport is plain WebSocket via `dashboard_server.py`.
-`start_dashboard_server()` defaults to import-time `DASHBOARD_SERVER_HOST`
-(fallback `HOSTNAME`, then `localhost`) and integer `DASHBOARD_SERVER_PORT`
-(default `8765`); explicit Python arguments override those defaults.
+The supported process entrypoint is `python -m main`; `dashboard_server.py`
+does not construct or run a partial standalone runtime. `main()` loads
+`DASHBOARD_SERVER_HOST` (fallback `HOSTNAME`, then `localhost`) and integer
+`DASHBOARD_SERVER_PORT` (default `8765`) and passes them explicitly to
+`start_dashboard_server()`.
 `run_websocket_server()` called directly still defaults to `localhost:8765`.
 Client URLs are selected separately. See `genai_data/CONFIGURATION.md` for
 listener precedence and browser/console endpoint limits. The operator API is

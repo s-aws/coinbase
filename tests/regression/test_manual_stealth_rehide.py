@@ -43,7 +43,7 @@ def rehide_case(monkeypatch):
     manager._update_stealth_order = MagicMock(return_value=True)
     rest_client = MagicMock()
     rest_client.cancel_orders.return_value = [{"success": True, "order_id": "exchange-1"}]
-    monkeypatch.setattr("configuration.REST_CLIENT", rest_client)
+    manager.rest_client = rest_client
     controller = RuntimeController()
     assert controller.complete_startup() is True
     monkeypatch.setattr("core.stealth_order_manager.get_runtime_controller", lambda: controller)
@@ -326,7 +326,12 @@ def rehide_bridge(rehide_case):
     _, _, _, controller = rehide_case
     manager = MagicMock()
     manager.rehide_revealed_order.return_value = True
-    bridge = StealthOrderBridge(manager, order_engine=None)
+    bridge = StealthOrderBridge(
+        manager,
+        order_engine=None,
+        rest_client=object(),
+        trading_product_resolver=lambda product_id: product_id,
+    )
     bridge._decisions_ready.set()
     yield bridge, manager, controller
     bridge.scheduler.stop()

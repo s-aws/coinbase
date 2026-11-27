@@ -25,6 +25,11 @@ The living reference set is:
 - `PARTIAL_FILLS.md`, `MOVE_MECHANISM.md`, `PROFIT_TRACKING_SYSTEM.md`
 - `DEBUGGING_STRATEGY.md`, `TESTING_STRATEGY.md`, `COMPREHENSIVE_TEST_SUITE.md`
 
+Current design work is routed separately through
+`design_specs/README.md`. Never bulk-load that directory: read only the spec
+named for the active task. A design spec describes intended change and cannot
+establish current runtime behavior.
+
 Agent process files:
 - `AGENT_CONSISTENCY_PROTOCOL.md`
 - `agent_state.md`
@@ -61,7 +66,9 @@ A stealth order is a local execution plan, not a normal exchange order. It may s
 
 ## Main Runtime Entry Points
 
-- `main.py` - starts dashboard, stealth bridge, order engine, runtime controller, and reconciler.
+- `main.py` - sole process composition root; loads settings and explicitly
+  wires the REST adapter, shared orderbook, dashboard transport, stealth
+  bridge/manager, order engine, runtime controller, and reconcilers.
 - `scripts/validate_release.sh` - clean-worktree full-suite, graph, and diff
   gate with no live/runtime mutation.
 - `scripts/deploy_runtime.sh` - foreground deployment owner that validates the
@@ -73,7 +80,9 @@ A stealth order is a local execution plan, not a normal exchange order. It may s
 - `database/schema.py` - canonical additive runtime-schema implementation and
   fresh-state/required-table verification shared by deployment, test
   provisioning, and destructive reset recreation.
-- `dashboard_server.py` - WebSocket state hub and operator command surface.
+- `dashboard_server.py` - embedded WebSocket state hub and operator command
+  transport; it receives runtime dependencies from `main.py` and is not a
+  standalone process entrypoint.
 - `core/order_engine.py` - event ingestion, order lifecycle, follow-up logic.
 - `core/user_feed_processor.py` - private-feed generations, reduction,
   backpressure, per-order FIFO dispatch, and runtime metrics.
@@ -102,10 +111,14 @@ A stealth order is a local execution plan, not a normal exchange order. It may s
 
 ## Documentation Scope
 
-The living references above describe this checkout. Remove superseded notes,
-completed handoffs, incident reports, and unimplemented design documents
-rather than retaining archives. `genai_tools/` remains an opt-in toolbox,
-never implementation authority.
+The living references above describe this checkout. Current design specs may
+describe proposed or partially implemented work when their status and authority
+are explicit. A `DRAFT` authorizes no implementation; an `ACCEPTED` spec records
+operator-approved intent but still does not prove current behavior. Remove
+rejected or superseded specs, superseded notes, completed handoffs, and incident
+reports from the active tree rather than retaining a second archive; Git history
+preserves them. `genai_tools/` remains an opt-in toolbox, never implementation
+authority.
 
 API fixtures in `api_reference/` and `websocket_reference/` are stored samples,
 not a guarantee of current Coinbase behavior. The code graph is checked and

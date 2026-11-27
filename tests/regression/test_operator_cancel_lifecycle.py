@@ -48,7 +48,7 @@ def cancel_case(monkeypatch):
     manager = _manager_with_order(order)
     rest_client = MagicMock()
     rest_client.cancel_orders.return_value = [{"success": True, "order_id": EXCHANGE_ID}]
-    monkeypatch.setattr("configuration.REST_CLIENT", rest_client)
+    manager.rest_client = rest_client
     controller = RuntimeController()
     assert controller.complete_startup() is True
     monkeypatch.setattr("core.stealth_order_manager.get_runtime_controller", lambda: controller)

@@ -6,7 +6,7 @@ window. Settles the question: does Coinbase publish public-channel
 ticker data for CDE futures, or does the subscription silently drop?
 
 Usage:
-    .\\.venv\\Scripts\\python.exe genai_tools\\probe_ticker_channel.py [--seconds 30]
+    .venv/bin/python genai_tools/probe_ticker_channel.py [--seconds 30]
 """
 from __future__ import annotations
 
@@ -19,18 +19,14 @@ from threading import Lock
 
 from coinbase.websocket import WSClient
 
-from configuration import (
-    API_KEY,
-    API_SECRET,
-    DERIVATIVES_PRODUCT_IDS,
-    SPOT_PRODUCT_IDS,
-)
+from configuration import load_runtime_settings
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--seconds", type=int, default=20)
     args = parser.parse_args()
+    settings = load_runtime_settings()
 
     counts: Counter = Counter()
     first_seen: dict = {}
@@ -57,7 +53,7 @@ def main() -> int:
                     counts[pid] += 1
                     first_seen.setdefault(pid, round(time.time() - start, 2))
 
-    products = list(DERIVATIVES_PRODUCT_IDS) + list(SPOT_PRODUCT_IDS)
+    products = list(settings.products.product_ids)
     print(f"Subscribing to {len(products)} products on 'ticker' channel:")
     for p in products:
         print(f"  - {p}")
@@ -65,8 +61,8 @@ def main() -> int:
 
     client = WSClient(
         verbose=False,
-        api_key=API_KEY,
-        api_secret=API_SECRET,
+        api_key=settings.api_key,
+        api_secret=settings.api_secret,
         on_message=on_message,
     )
     client.open()

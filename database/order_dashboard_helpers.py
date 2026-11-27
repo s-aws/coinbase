@@ -5,7 +5,7 @@ Provides simplified CRUD operations optimized for WebSocket dashboard requests.
 
 from decimal import Decimal
 from datetime import datetime
-from typing import Dict, List, Any, Optional
+from typing import Any, Callable, Dict, List, Mapping, Optional
 from database.order import (
     get_parent_orders,
     get_parent_order,
@@ -84,7 +84,9 @@ def insert_parent_order(
     price: float,
     target_movement: Optional[float] = None,
     max_order_replacement: int = 0,
-    status: str = "OPEN"
+    status: str = "OPEN",
+    *,
+    metadata_reader: Callable[[str], Mapping[str, Any]],
 ) -> Optional[int]:
     """Insert a new parent order.
     
@@ -107,6 +109,7 @@ def insert_parent_order(
             product_id=product_id,
             side=side,
             policy=PriceRoundingPolicy.SIDE_CONSERVATIVE,
+            metadata_reader=metadata_reader,
         )
         if not price_check.ok or price_check.effective_price is None:
             raise ValueError(
@@ -129,7 +132,9 @@ def insert_parent_order(
 
 def update_parent_order(
     client_order_id: str,
-    update_data: Dict[str, Any]
+    update_data: Dict[str, Any],
+    *,
+    metadata_reader: Callable[[str], Mapping[str, Any]],
 ) -> bool:
     """Update a parent order with new data.
     
@@ -163,6 +168,7 @@ def update_parent_order(
                 product_id=existing_order.get('product_id'),
                 side=existing_order.get('side'),
                 policy=PriceRoundingPolicy.SIDE_CONSERVATIVE,
+                metadata_reader=metadata_reader,
             )
             if not price_check.ok or price_check.effective_price is None:
                 raise ValueError(

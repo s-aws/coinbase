@@ -10,7 +10,7 @@ Demonstrates that filled_size is now properly extracted from:
 import uuid
 from database.database import PostgresDB
 from database.order import insert_order_parent
-from configuration import OrderBook
+from core.orderbook import OrderBook
 from core.order_engine import OrderEngine
 from logging_service import get_logger
 

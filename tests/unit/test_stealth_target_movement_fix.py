@@ -11,7 +11,7 @@ from decimal import Decimal
 
 from core.order_engine import OrderEngine
 from core.enums import OrderStatus, OrderSide
-from configuration import OrderBook
+from core.orderbook import OrderBook
 
 
 def test_stealth_revealed_order_preserves_target_movement():

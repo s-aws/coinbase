@@ -16,9 +16,17 @@ def test_futures_fee_calculation():
     """Test that futures percentage fee is correctly adjusted for contract_size."""
 
     # Initialize validator with fee manager
-    from configuration import REST_CLIENT
-    fee_manager = FeeManager(rest_client=REST_CLIENT)
-    validator = ProfitValidator(fee_manager=fee_manager)
+    from configuration import load_runtime_settings
+    from core.orderbook import OrderBook
+    from external.runtime import build_rest_client
+
+    settings = load_runtime_settings()
+    orderbook = OrderBook()
+    fee_manager = FeeManager(
+        rest_client=build_rest_client(settings.api_key, settings.api_secret),
+        orderbook=orderbook,
+    )
+    validator = ProfitValidator(fee_manager=fee_manager, orderbook=orderbook)
 
     # Test case from logs: BIP-20DEC30-CDE
     # Parent BUY filled at $78,200, Follow-up SELL at $78,375

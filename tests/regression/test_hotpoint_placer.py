@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -80,12 +80,7 @@ def _make_call(**overrides):
         now_epoch=0.0,
     )
     defaults.update(overrides)
-    product_meta = defaults["product_meta"]
-    with patch(
-        "calculation.price_validation.get_product_metadata",
-        return_value=product_meta,
-    ):
-        result = place_hotpoint_order(**defaults)
+    result = place_hotpoint_order(**defaults)
     return result, rl, rest, insert
 
 

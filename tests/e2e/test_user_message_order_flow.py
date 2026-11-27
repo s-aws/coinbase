@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from unittest.mock import Mock
 
-from configuration import OrderBook
+from core.orderbook import OrderBook
 from core.order_engine import OrderEngine
 
 

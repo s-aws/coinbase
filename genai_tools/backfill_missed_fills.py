@@ -26,9 +26,8 @@ Design constraints (honored intentionally):
   ON CONFLICT case where a row already existed but was not yet
   promoted).
 
-Run:
-    & C:/Users/heisg/AppData/Local/Programs/Python/Python313/python.exe \
-        genai_tools/backfill_missed_fills.py
+Run from the repository root on Linux:
+    .venv/bin/python genai_tools/backfill_missed_fills.py
 """
 
 from __future__ import annotations
@@ -48,8 +47,10 @@ from core.startup_reconciler import (
     audit_missed_fills,
     _fetch_client_order_ids_for_exchange_order_ids,
 )
+from configuration import load_runtime_settings
 from database.database import PostgresDB
 from database.order import insert_fill_record
+from external.runtime import build_rest_client
 from logging_service import get_logger
 
 
@@ -168,7 +169,9 @@ def _confirm() -> bool:
 
 def main() -> int:
     print("Running missed-fills audit (this hits REST historical/fills)...")
-    report = audit_missed_fills()
+    settings = load_runtime_settings()
+    rest_client = build_rest_client(settings.api_key, settings.api_secret)
+    report = audit_missed_fills(rest_client=rest_client)
     if report is None:
         print("REST client unavailable; cannot run backfill.", file=sys.stderr)
         return 2

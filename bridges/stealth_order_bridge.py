@@ -16,7 +16,7 @@ import uuid
 from contextlib import ExitStack, contextmanager
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
-from typing import Dict, Any, Iterator, Mapping, Optional, Tuple
+from typing import Any, Callable, Dict, Iterator, Mapping, Optional, Protocol, Tuple
 
 from bridges.stealth_event_deadline_scheduler import (
     DeadlineWake,
@@ -52,6 +52,13 @@ from logging_service import get_logger
 logger = get_logger("StealthOrderBridge")
 
 
+class BridgeRestClient(Protocol):
+    """Exchange capability needed only by reconciliation in this bridge."""
+
+    def get_order(self, order_id: str) -> Any:
+        """Return one exchange-native order response."""
+
+
 class StealthOrderBridge:
     """Bridges StealthOrderManager with OrderEngine.
     
@@ -80,6 +87,8 @@ class StealthOrderBridge:
         stealth_manager: StealthOrderManager,
         order_engine,
         *,
+        rest_client: BridgeRestClient,
+        trading_product_resolver: Callable[[str], str],
         scheduler: Optional[StealthEventDeadlineScheduler] = None,
     ):
         """
@@ -91,6 +100,8 @@ class StealthOrderBridge:
         """
         self.stealth_manager = stealth_manager
         self.order_engine = order_engine
+        self.rest_client = rest_client
+        self._trading_product_resolver = trading_product_resolver
         # Pass order_engine's log_message to stealth_manager for consistent logging
         if hasattr(order_engine, 'log_message'):
             self.stealth_manager.log_callback = order_engine.log_message
@@ -1586,8 +1597,6 @@ class StealthOrderBridge:
                     )
                     continue
 
-                from configuration import REST_CLIENT
-
                 try:
                     # Keep shutdown from publishing STOPPED while this exact
                     # completion check is still resolving. The pending intent
@@ -1595,7 +1604,7 @@ class StealthOrderBridge:
                     with get_runtime_controller().track_inflight(
                         INFLIGHT_REST_PLACE
                     ):
-                        response = REST_CLIENT.get_order(
+                        response = self.rest_client.get_order(
                             str(exchange_order_id)
                         )
                     payload = (
@@ -1839,10 +1848,8 @@ class StealthOrderBridge:
             product_id: Product that was updated (may be ticker product like BTC-USD)
             ticker_data: Latest ticker data from Coinbase
         """
-        from configuration import get_trading_product_id
-        
         # Convert ticker product to trading product if necessary
-        trading_product_id = get_trading_product_id(product_id)
+        trading_product_id = self._trading_product_resolver(product_id)
         
         market_data = self._build_ticker_market_snapshot(
             trading_product_id,
@@ -1949,9 +1956,7 @@ class StealthOrderBridge:
     ) -> str:
         """Publish a fail-closed marker for ticker loss upstream of this bridge."""
 
-        from configuration import get_trading_product_id
-
-        trading_product_id = get_trading_product_id(product_id)
+        trading_product_id = self._trading_product_resolver(product_id)
         marker = {
             "product_id": trading_product_id,
             "price": 0.0,
@@ -2009,8 +2014,6 @@ class StealthOrderBridge:
         always rebuilds that order's disposable anchor deadline afterward.
         """
 
-        from configuration import get_trading_product_id
-
         # The startup barrier is authoritative inside the bridge, not merely
         # an assumption about main.py ordering. Pre-activation heap entries
         # must remain untouched until reconciliation and strict scheduling
@@ -2034,7 +2037,7 @@ class StealthOrderBridge:
         if not controller.is_admitting():
             return 0
 
-        trading_product_id = get_trading_product_id(product_id)
+        trading_product_id = self._trading_product_resolver(product_id)
         market_data = self._build_ticker_market_snapshot(
             trading_product_id,
             ticker_data,
@@ -2283,8 +2286,6 @@ class StealthOrderBridge:
     ) -> str:
         """Compatibility wrapper for callers using the historical method."""
 
-        from configuration import get_trading_product_id
-
         received_monotonic = time.monotonic()
         disposition = self.publish_ticker_update(product_id, ticker_data)
         if disposition == TickerPublicationDisposition.ACCEPTED:
@@ -2293,7 +2294,7 @@ class StealthOrderBridge:
                 ticker_data,
                 received_monotonic=received_monotonic,
             )
-        return get_trading_product_id(product_id)
+        return self._trading_product_resolver(product_id)
     
     def record_reveal_event(self, stealth_order_id: str, client_order_id: str, reason: str):
         """Record a reveal event to the database."""
@@ -2438,7 +2439,10 @@ class StealthOrderBridge:
 
         from business.stealth_order_span import plan_stealth_order_span
 
-        plan = plan_stealth_order_span(span_request)
+        plan = plan_stealth_order_span(
+            span_request,
+            metadata_reader=self.stealth_manager.get_product_metadata,
+        )
         results = []
         created_count = 0
         existing_count = 0

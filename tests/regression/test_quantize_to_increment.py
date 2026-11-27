@@ -1,7 +1,7 @@
 """Regression tests for the canonical quantize_to_increment.
 
-The function had two parallel implementations (calculation/formatter.py
-and configuration.py), both built on float modulo, which silently
+The function once had parallel implementations in calculation and runtime
+configuration, both built on float modulo, which silently
 shaved a full tick off values like 0.123 % 0.001 -> ~0.000999...
 
 These tests pin three things:
@@ -11,8 +11,8 @@ These tests pin three things:
 2. There is exactly ONE source-level definition of the function in
    the codebase. Re-exports via ``from ... import quantize_to_increment``
    are fine; a second ``def quantize_to_increment`` is not (P2 #1: DRY).
-3. ``configuration.quantize_to_increment`` and
-   ``calculation.formatter.quantize_to_increment`` are the same object.
+3. Runtime configuration remains passive and does not re-export calculation
+   behavior.
 """
 
 import inspect
@@ -22,15 +22,10 @@ from pathlib import Path
 import pytest
 
 from calculation.formatter import quantize_to_increment as canonical
-import configuration as configuration_module
 from calculation import formatter as formatter_module
 
 
-def test_re_export_is_same_object():
-    """configuration.quantize_to_increment must be the same function
-    object as calculation.formatter.quantize_to_increment, not a copy.
-    If it's a copy, drift between the two will return."""
-    assert configuration_module.quantize_to_increment is canonical
+def test_formatter_exports_the_canonical_function():
     assert formatter_module.quantize_to_increment is canonical
 
 

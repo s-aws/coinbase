@@ -86,7 +86,7 @@ def test_direct_limit_uses_one_normalized_price_for_validation_and_rest():
              "get_runtime_controller",
              return_value=_admitting_controller(),
          ), \
-         patch("calculation.price_validation.get_product_metadata",
+         patch.object(dashboard_server, "_product_metadata_reader",
                return_value={"price_increment": "5"}), \
          patch.object(dashboard_server, "add_log_entry"):
         _run(dashboard_server.handle_client_message(
@@ -121,7 +121,7 @@ def test_direct_limit_explicit_rejection_is_an_error_response():
              "get_runtime_controller",
              return_value=_admitting_controller(),
          ), \
-         patch("calculation.price_validation.get_product_metadata",
+         patch.object(dashboard_server, "_product_metadata_reader",
                return_value={"price_increment": "5"}), \
          patch.object(dashboard_server, "add_log_entry"):
         _run(dashboard_server.handle_client_message(
@@ -151,7 +151,7 @@ def test_direct_limit_missing_tick_fails_before_rest_with_error_response():
              "get_runtime_controller",
              return_value=_admitting_controller(),
          ), \
-         patch("calculation.price_validation.get_product_metadata",
+         patch.object(dashboard_server, "_product_metadata_reader",
                return_value={}), \
          patch.object(dashboard_server, "add_log_entry"):
         _run(dashboard_server.handle_client_message(
@@ -182,7 +182,7 @@ def test_hotpoint_test_order_persists_and_submits_the_same_price():
          patch.object(dashboard_server, "REST_CLIENT", rest), \
          patch("database.order.insert_order_parent", insert_parent), \
          patch("database.order.update_order_parent_status") as update_status, \
-         patch("calculation.price_validation.get_product_metadata",
+         patch.object(dashboard_server, "_product_metadata_reader",
                return_value={"price_increment": "5"}), \
          patch.object(dashboard_server, "add_log_entry"):
         _run(dashboard_server.handle_client_message(
@@ -218,7 +218,7 @@ def test_hotpoint_test_rejection_marks_preinserted_parent_failed():
          patch.object(dashboard_server, "REST_CLIENT", rest), \
          patch("database.order.insert_order_parent", insert_parent), \
          patch("database.order.update_order_parent_status") as update_status, \
-         patch("calculation.price_validation.get_product_metadata",
+         patch.object(dashboard_server, "_product_metadata_reader",
                return_value={"price_increment": "5"}), \
          patch.object(dashboard_server, "add_log_entry"):
         _run(dashboard_server.handle_client_message(
@@ -252,7 +252,7 @@ def test_hotpoint_test_missing_tick_fails_before_db_and_rest():
          patch.object(dashboard_server, "REST_CLIENT", rest), \
          patch("database.order.insert_order_parent", insert_parent), \
          patch("database.order.update_order_parent_status") as update_status, \
-         patch("calculation.price_validation.get_product_metadata",
+         patch.object(dashboard_server, "_product_metadata_reader",
                return_value={}), \
          patch.object(dashboard_server, "add_log_entry"):
         _run(dashboard_server.handle_client_message(
@@ -283,7 +283,7 @@ def test_hotpoint_test_parent_insert_failure_prevents_rest_submission():
          patch.object(dashboard_server, "REST_CLIENT", rest), \
          patch("database.order.insert_order_parent", insert_parent), \
          patch("database.order.update_order_parent_status") as update_status, \
-         patch("calculation.price_validation.get_product_metadata",
+         patch.object(dashboard_server, "_product_metadata_reader",
                return_value={"price_increment": "5"}), \
          patch.object(dashboard_server, "add_log_entry"):
         _run(dashboard_server.handle_client_message(
@@ -310,7 +310,10 @@ def test_move_manager_normalizes_pending_parent_price_before_db_write():
     from business.move_manager import MoveManager
 
     manager = MoveManager.__new__(MoveManager)
-    manager.orderbook = None
+    manager.orderbook = MagicMock()
+    manager.orderbook.get_product_metadata.return_value = {
+        "price_increment": "5"
+    }
     insert_parent = MagicMock(return_value=11)
 
     with patch.object(
@@ -319,9 +322,7 @@ def test_move_manager_normalizes_pending_parent_price_before_db_write():
              return_value=(True, "eligible"),
          ), \
          patch("business.move_manager.insert_order_parent", insert_parent), \
-         patch("business.move_manager.insert_order_move", return_value=22), \
-         patch("calculation.price_validation.get_product_metadata",
-               return_value={"price_increment": "5"}):
+         patch("business.move_manager.insert_order_move", return_value=22):
         result = manager.move_order(
             "original-parent",
             {
@@ -341,14 +342,15 @@ def test_pending_move_configuration_is_normalized_before_db_write():
     from business.move_manager import MoveManager
 
     manager = MoveManager.__new__(MoveManager)
-    manager.orderbook = None
+    manager.orderbook = MagicMock()
+    manager.orderbook.get_product_metadata.return_value = {
+        "price_increment": "5"
+    }
     create_pending = MagicMock(return_value=12)
 
     with patch("business.move_manager.get_parent_order", return_value={"id": 1}), \
          patch("business.move_manager.has_pending_move", return_value=False), \
-         patch("business.move_manager.create_pending_move", create_pending), \
-         patch("calculation.price_validation.get_product_metadata",
-               return_value={"price_increment": "5"}):
+         patch("business.move_manager.create_pending_move", create_pending):
         result = manager.pre_mark_for_move(
             "original-parent",
             {
@@ -371,15 +373,14 @@ def test_dashboard_parent_insert_normalizes_before_repository_write():
     import database.order_dashboard_helpers as helpers
 
     insert_parent = MagicMock(return_value=1)
-    with patch.object(helpers, "insert_order_parent", insert_parent), \
-         patch("calculation.price_validation.get_product_metadata",
-               return_value={"price_increment": "5"}):
+    with patch.object(helpers, "insert_order_parent", insert_parent):
         result = helpers.insert_parent_order(
             client_order_id="parent-id",
             product_id="TEST-USD",
             side="BUY",
             size=1,
             price=101.9,
+            metadata_reader=lambda _product_id: {"price_increment": "5"},
         )
 
     assert result == 1
@@ -396,12 +397,11 @@ def test_dashboard_parent_update_normalizes_before_repository_write():
              "get_parent_order",
              return_value={"product_id": "TEST-USD", "side": "SELL"},
          ), \
-         patch("database.database.PostgresDB", return_value=db), \
-         patch("calculation.price_validation.get_product_metadata",
-               return_value={"price_increment": "5"}):
+         patch("database.database.PostgresDB", return_value=db):
         result = helpers.update_parent_order(
             "parent-id",
             {"price": 101.9},
+            metadata_reader=lambda _product_id: {"price_increment": "5"},
         )
 
     assert result is True
@@ -446,6 +446,7 @@ def test_dashboard_premark_routes_through_canonical_move_manager():
              "get_runtime_controller",
              return_value=_admitting_controller(),
          ), \
+         patch.object(dashboard_server, "ORDERBOOK", object()), \
          patch.object(dashboard_server, "connected_clients", {websocket}), \
          patch.object(dashboard_server, "add_log_entry"):
         _run(dashboard_server.handle_client_message(websocket, message))

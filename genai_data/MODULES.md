@@ -37,16 +37,21 @@ cycles, broad/untyped injected capability surfaces, and dependency-obscuring
 reflection. Later modular-monolith work must reduce those exact debt sets while
 preserving one behavior path and the current lifecycle owner.
 
-The checker does not import application modules and therefore cannot trigger
-`configuration.py` startup side effects. It also does not claim to prove
-arbitrary runtime aliases or callbacks; new cross-component collaboration must
-use a narrow annotated protocol or facade. See `MODULE_DEPENDENCIES.md` for the
-zone matrix and limits.
+The checker does not import application modules. `configuration.py` is now
+passive as well, but source-only inspection keeps the architecture gate
+independent of environment, database, and exchange availability. The checker
+does not claim to prove arbitrary runtime aliases or callbacks; new
+cross-component collaboration must use a narrow annotated protocol or facade.
+See `MODULE_DEPENDENCIES.md` for the zone matrix and limits.
 
 ## Root Entry Points
 
 ### `main.py`
 Bootstraps:
+- one immutable settings snapshot and authenticated REST adapter
+- one shared `core.orderbook.OrderBook` product/position/runtime-state owner
+- explicit REST, metadata, product-resolution, and position readers for
+  execution, dashboard, and reconciliation consumers
 - initial non-admitting runtime state and default-on startup-pause latch
 - stealth bridge
 - order engine
@@ -65,11 +70,25 @@ verifies dashboard health while remaining attached to the process.
 ### `dashboard_server.py`
 WebSocket server for operator commands and state broadcasts.
 Owns message contract for browser and terminal UIs.
-Owns the import-time `DASHBOARD_SERVER_HOST`/`DASHBOARD_SERVER_PORT` defaults
-used by `start_dashboard_server()` (`HOSTNAME` then `localhost` host fallback,
-port `8765` fallback). Explicit Python arguments override them; direct
-`run_websocket_server()` defaults remain `localhost:8765`. See
-`CONFIGURATION.md` for listener and independent client endpoint settings.
+It is an embedded transport, not a process composition root: `main.py`
+installs the shared REST adapter, `OrderBook`, refresh callback, publish
+interval, and stealth bridge. Direct script execution exits with canonical
+entrypoint guidance. `main()` owns environment resolution and passes the host
+and port explicitly; direct `run_websocket_server()` defaults remain
+`localhost:8765`. See `CONFIGURATION.md` for listener and independent client
+endpoint settings.
+
+### `configuration.py`
+Passive configuration model and loader. Importing it performs no environment,
+file, network, or runtime-object construction. `load_runtime_settings()` reads
+the environment and `products.json` only when called by `main()`. It also owns
+the immutable `RuntimeSettings`, `ProductConfiguration`, and `Subscription`
+snapshots plus atomic product-cache serialization.
+
+### `external/runtime.py`
+Composition adapters for constructing the Coinbase REST wrapper and fetching
+startup product/position snapshots. It owns exchange response validation but
+does not retain process-global runtime state.
 
 ### `ui_console.py`
 Terminal dashboard consumer of `state_update` broadcast.
@@ -167,7 +186,11 @@ Responsibilities:
 Background deep audit loop wrapper around startup reconciler behavior.
 
 ### `core/orderbook.py`
-Thread-safe in-memory orderbook v2 with claim ledgers and legacy compatibility surface.
+Sole thread-safe runtime `OrderBook` implementation. It owns the installed
+product catalog, ticker-to-trading mapping, positions, parent/child caches,
+claim ledgers, and the retained legacy property surface. Product metadata and
+symbol resolution are instance readers injected into consumers; there is no
+`configuration.OrderBook` shim or process-global metadata authority.
 
 ### `core/models.py`
 Typed models and planning dataclasses.

@@ -4,7 +4,7 @@ This verifies that fill_repo is initialized and ready.
 """
 
 from database.database import PostgresDB
-from configuration import OrderBook
+from core.orderbook import OrderBook
 import json
 
 # Mock configuration for testing

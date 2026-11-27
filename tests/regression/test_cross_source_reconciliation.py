@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import threading
 import time
+from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -65,7 +66,7 @@ class _FakeRestClient:
 
 @pytest.fixture
 def patch_rest_and_ledger():
-    """Helper context: patch REST_CLIENT + local ledger snapshot.
+    """Helper context: patch the local ledger snapshots.
 
     Also stubs the order_id->client_order_id resolver and WS-pending
     qty resolver so audit tests don't need a live database. By default
@@ -77,7 +78,7 @@ def patch_rest_and_ledger():
 
     def _apply(rest_client, local_entry_ids, *, oid_to_coid=None,
                ws_pending=None):
-        rest_patch = patch("configuration.REST_CLIENT", rest_client)
+        rest_patch = nullcontext()
         ledger_patch = patch(
             "core.startup_reconciler._fetch_local_recorded_entry_ids",
             return_value=set(local_entry_ids),
@@ -112,7 +113,7 @@ class TestAuditMissedFills:
         )
         rp, lp, op, wp = patch_rest_and_ledger(rest, {"a", "b"})
         with rp, lp, op, wp:
-            report = audit_missed_fills()
+            report = audit_missed_fills(rest_client=rest)
         assert isinstance(report, MissedFillsReport)
         assert report.has_missed_fills is False
         assert report.rest_fills_examined == 2
@@ -131,7 +132,7 @@ class TestAuditMissedFills:
         # up as a real WARNING-eligible miss.
         rp, lp, op, wp = patch_rest_and_ledger(rest, {"a"})
         with rp, lp, op, wp:
-            report = audit_missed_fills()
+            report = audit_missed_fills(rest_client=rest)
         assert report.has_missed_fills is True
         assert [f["entry_id"] for f in report.missed] == ["b"]
         assert report.already_recorded == 1
@@ -149,7 +150,7 @@ class TestAuditMissedFills:
         )
         rp, lp, op, wp = patch_rest_and_ledger(rest, set())
         with rp, lp, op, wp:
-            report = audit_missed_fills()
+            report = audit_missed_fills(rest_client=rest)
         assert report.rest_fills_examined == 3
         assert len(rest.calls) == 3
         # Subsequent calls passed the prior cursor.
@@ -162,7 +163,7 @@ class TestAuditMissedFills:
         rest.list_fills.side_effect = RuntimeError("API down")
         rp, lp, op, wp = patch_rest_and_ledger(rest, set())
         with rp, lp, op, wp:
-            report = audit_missed_fills()
+            report = audit_missed_fills(rest_client=rest)
         assert report is not None
         assert report.failed_pages == 1
         # No fills examined and no missed-fills false positives.
@@ -188,7 +189,10 @@ class TestAuditMissedFills:
 
         with rp, lp, op, wp:
             report = audit_missed_fills(
-                since=since, until=until, product_id="BTC-USDC"
+                rest_client=rest,
+                since=since,
+                until=until,
+                product_id="BTC-USDC",
             )
 
         assert report.rest_fills_examined == 2
@@ -212,7 +216,7 @@ class TestAuditMissedFills:
         )
         rp, lp, op, wp = patch_rest_and_ledger(rest, set())
         with rp, lp, op, wp:
-            audit_missed_fills()
+            audit_missed_fills(rest_client=rest)
         assert rest.calls, "expected at least one REST call"
         # ``start_date`` must be present and parseable as ISO-8601.
         start = rest.calls[0]["start_date"]
@@ -254,7 +258,7 @@ class TestAuditMissedFills:
         # Empty oid_to_coid -> every fill is "unowned".
         rp, lp, op, wp = patch_rest_and_ledger(rest, set(), oid_to_coid={})
         with rp, lp, op, wp, caplog.at_level("INFO", logger="StartupReconciler"):
-            report = audit_missed_fills()
+            report = audit_missed_fills(rest_client=rest)
 
         # After ownership partition, nothing is missed in the audit
         # sense (we only flag gaps for orders we own).
@@ -292,7 +296,7 @@ class TestAuditMissedFills:
             oid_to_coid={"owned-1": "coid-1", "owned-2": "coid-2"},
         )
         with rp, lp, op, wp, caplog.at_level("WARNING", logger="StartupReconciler"):
-            report = audit_missed_fills()
+            report = audit_missed_fills(rest_client=rest)
 
         assert report.has_missed_fills is True
         assert len(report.missed) == 2
@@ -313,13 +317,13 @@ class TestPeriodicReconciler:
     @pytest.mark.regression
     def test_rejects_non_positive_interval(self):
         with pytest.raises(ValueError):
-            PeriodicReconciler(interval_seconds=0)
+            PeriodicReconciler(rest_client=MagicMock(), interval_seconds=0)
         with pytest.raises(ValueError):
-            PeriodicReconciler(interval_seconds=-5)
+            PeriodicReconciler(rest_client=MagicMock(), interval_seconds=-5)
 
     @pytest.mark.regression
     def test_start_is_idempotent(self):
-        r = PeriodicReconciler(interval_seconds=60)
+        r = PeriodicReconciler(rest_client=MagicMock(), interval_seconds=60)
         try:
             r.start()
             t1 = r._thread
@@ -332,7 +336,7 @@ class TestPeriodicReconciler:
     def test_stop_signals_thread_to_exit_promptly(self):
         # 60s interval; after stop() the wait inside _run must wake
         # immediately, so the thread should die well within 1s.
-        r = PeriodicReconciler(interval_seconds=60)
+        r = PeriodicReconciler(rest_client=MagicMock(), interval_seconds=60)
         r.start()
         time.sleep(0.05)
         r.stop()
@@ -356,7 +360,7 @@ class TestPeriodicReconciler:
             "core.periodic_reconciler.run_startup_reconciliation",
             side_effect=fake_audit,
         ):
-            r = PeriodicReconciler(interval_seconds=1)
+            r = PeriodicReconciler(rest_client=MagicMock(), interval_seconds=1)
             r.start()
             try:
                 deadline = time.monotonic() + 4.0
@@ -389,7 +393,7 @@ class TestPeriodicReconciler:
             "core.periodic_reconciler.run_startup_reconciliation",
             side_effect=fake_audit,
         ):
-            r = PeriodicReconciler(interval_seconds=1)
+            r = PeriodicReconciler(rest_client=MagicMock(), interval_seconds=1)
             r.start()
             try:
                 deadline = time.monotonic() + 4.0

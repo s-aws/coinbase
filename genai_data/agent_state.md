@@ -3,22 +3,25 @@
 ## Status
 
 - Last updated (ET): 2026-11-26.
-- Repository baseline before the current uncommitted item-3 work: local `prod`
-  and `origin/prod` are at `f88d1111`; that commit completed removal of the
-  superseded `OrderInventory` and dormant `OrderStateHookRegistry` surfaces.
-- Completed operator-approved objective: freeze all statically observable
-  module dependency and broad capability debt without changing runtime wiring.
-  `module_boundaries.toml` now classifies every supported runtime module and
-  records exact reverse-zone imports, the current strongly connected import
-  component, broad/untyped constructor capability surfaces, and reflection
-  escape signatures. The regression contract rejects expansion or stale debt.
+- Repository baseline before the current uncommitted item-4 work: local `prod`
+  and `origin/prod` are at `1a451f1d` (`modernization`).
+- Current operator-approved documentation objective: establish the durable
+  design-spec lifecycle and capture the Execution Core review as a `DRAFT`.
+  No checklist-item-5 source implementation is approved by that draft.
+- Completed implementation objective: make `main.py` the sole process
+  composition root and make configuration imports passive. One REST adapter,
+  one shared `OrderBook`, and explicit consumer readers are now wired in
+  `main`; `dashboard_server.py` is embedded, `main_place_order.py` is removed,
+  and the former configuration import cycle and all item-4 forbidden edges are
+  retired.
 - Completed implementation sequence: follow-up reveal-direction persistence,
   parent/child strategy authority, percentage-relative follow-up threshold
   inversion, programmatic span consistency, deterministic span planning, and
   durable execution-ownership status projection are committed through
   `4651848d`.
-- Retention policy: current documentation and handoff only; remove superseded
-  material instead of archiving it.
+- Retention policy: current documentation, handoff, and design specs only;
+  remove rejected or superseded material from the active tree and rely on Git
+  history as the durable archive.
 - Deployment boundary: `__dangerous_delete_all_tables__.py` is an operator-only
   development/reset utility and is never a deployment command. Deployment will
   not run over an existing instance; it uses the guarded additive bootstrap on
@@ -53,7 +56,7 @@
 
 ## Modular Monolith Boundary Checklist
 
-Items 1 through 3 are complete. Every later item requires a focused source/test
+Items 1 through 4 are complete. Every later item requires a focused source/test
 search, blast-radius evaluation, context discussion, and separate operator
 approval before code changes.
 
@@ -63,16 +66,18 @@ approval before code changes.
    `OrderStateHookRegistry`; retain and accurately document best-effort stealth
    lifecycle auditing: complete and validated.
 3. Declare and enforce the in-process module dependency map: complete and
-   validated. The source-only contract freezes 43 reverse-zone import edges,
-   one six-module strongly connected import component, 34 broad/untyped
-   constructor capability surfaces, and eight reflection/namespace escape
-   signatures. It explicitly does not claim to prove arbitrary runtime aliases
-   or dynamic dispatch.
+   validated.
 4. Make `main.py` the sole explicit composition root and make configuration
-   imports passive: next; focused review and blast-radius discussion are
-   required before implementation approval.
+   imports passive: complete and validated. The source-only contract now
+   freezes 29 reverse-zone import edges, no runtime import cycle, 35
+   broad/untyped constructor capability surfaces, and eight
+   reflection/namespace escape signatures. It explicitly does not claim to
+   prove arbitrary runtime aliases or dynamic dispatch.
 5. Add an Execution Core command/query facade while retaining lifecycle and
-   transactional writes under one owner.
+   transactional writes under one owner. The reviewed proposal and staged blast
+   radius are recorded in `design_specs/EXECUTION_CORE.md`; its status is
+   `DRAFT`, its two material design decisions remain open, and no source
+   implementation is yet approved.
 6. Extract public market-data ownership into an in-process component.
 7. Separate operator WebSocket transport from application commands and read
    projections.
@@ -105,6 +110,17 @@ approval before code changes.
   package re-export; the reviewed baseline was corrected to one six-module
   strongly connected component. The final complete local non-external gate
   passed 1,878 tests with 17 skipped and 11 external tests deselected.
+- Item-4 first removed the service-locator globals and then migrated every
+  production consumer, test fixture, stress harness, and missed-fill operator
+  tool to explicit dependencies. The complete local non-external gate passed
+  1,879 tests with 17 skipped and 11 external tests deselected after the final
+  catalog-refresh failure-atomicity regression was added. Python compilation
+  and `git diff --check` also passed; repository-graph closeout is recorded in
+  the staged item-4 change.
+- The durable design-spec policy, index, template, and item-5 Execution Core
+  draft changed documentation and context only. The complete local non-external
+  gate still passed 1,879 tests with 17 skipped and 11 external tests
+  deselected; the draft does not authorize item-5 source work.
 - Historical fresh-target proof at rollout time: all 12 trading tables contained
   zero rows before bootstrap; only `market_candle_1m` and `market_tick` retained
   operator-created telemetry/backfill data.

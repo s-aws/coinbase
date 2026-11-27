@@ -69,15 +69,12 @@ from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from threading import RLock
-from typing import Callable, Dict, Any, Iterable, Iterator, Mapping, Optional, Tuple, List
+from typing import Callable, Dict, Any, Iterable, Iterator, Mapping, Optional, Protocol, Tuple, List
 
-from configuration import (
-    DEFAULT_MAX_ORDER_REPLACEMENT,
-    get_product_metadata,
-    safe_float,
-)
+from calculation.formatter import safe_float
 from calculation.price_validation import normalize_price_for_product
 from business.placement_response import classify_placement_response
+from core.constants import DEFAULT_MAX_ORDER_REPLACEMENT
 from core.enums import (
     Direction,
     FollowUpRevealDirection,
@@ -125,6 +122,14 @@ _REVEAL_CONDITION_PRICE_FIELDS_BY_TYPE: Dict[str, Tuple[str, ...]] = {
     RevealConditionType.PRICE_THRESHOLD.value: ("price_threshold",),
     RevealConditionType.CUMULATIVE_VOLUME.value: ("price_level",),
 }
+
+
+class StealthRestClient(Protocol):
+    """Exchange capabilities required by the stealth lifecycle owner."""
+
+    def cancel_orders(self, *, order_ids: list[str]) -> Any: ...
+
+    def place_limit_order(self, **kwargs) -> Any: ...
 
 # A follow-up condition is an execution-specific materialization of its root
 # strategy, not a new strategy definition.  Persist the minimum derivation
@@ -243,7 +248,17 @@ class StealthOrderManager:
         ... )
     """
     
-    def __init__(self, db_client, log_callback=None, order_placement_hooks=None, profit_validator=None):
+    def __init__(
+        self,
+        db_client,
+        log_callback=None,
+        order_placement_hooks=None,
+        profit_validator=None,
+        rest_client: Optional[StealthRestClient] = None,
+        product_metadata_reader: Optional[
+            Callable[[str], Mapping[str, Any]]
+        ] = None,
+    ):
         """
         Initialize StealthOrderManager.
         
@@ -279,6 +294,8 @@ class StealthOrderManager:
         # without becoming another source of lifecycle truth.
         self._schedule_invalidation_callback: Optional[Callable[[str], None]] = None
         self.profit_validator = profit_validator
+        self.rest_client = rest_client
+        self._product_metadata_reader = product_metadata_reader
         # Throttle map for the "reveal returned size=0" diagnostic. Keyed
         # by stealth_order_id, value is the unix-timestamp of the last
         # emitted log line. See ``_maybe_log_no_slice``.
@@ -306,6 +323,23 @@ class StealthOrderManager:
 
         # Ensure database schema is up to date with all migrations
         self._ensure_schema_migrations()
+
+    def get_product_metadata(self, product_id: str) -> dict[str, Any]:
+        """Return a detached product-metadata snapshot for ``product_id``."""
+
+        if self._product_metadata_reader is None:
+            return {}
+        return dict(self._product_metadata_reader(product_id) or {})
+
+    # Compatibility delegate for the internal call sites that predate the
+    # public reader used by the bridge and legacy order adapter.
+    def _get_product_metadata(self, product_id: str) -> dict[str, Any]:
+        return self.get_product_metadata(product_id)
+
+    def _require_rest_client(self) -> StealthRestClient:
+        if self.rest_client is None:
+            raise RuntimeError("StealthOrderManager REST client is not configured")
+        return self.rest_client
     
     def _ensure_schema_migrations(self):
         """Ensure stealth_orders table has all required columns including recent migrations.
@@ -1097,6 +1131,7 @@ class StealthOrderManager:
             product_id=str(product_id or ""),
             side=normalized_side,
             policy=rounding_policy,
+            metadata_reader=self._get_product_metadata,
         )
         if not result.ok or result.effective_price is None:
             raise ValueError(result.reason or "price normalization failed")
@@ -1112,12 +1147,11 @@ class StealthOrderManager:
 
     def _get_price_increment(self, product_id: str) -> Optional[str]:
         """Return the current authoritative price increment, when available."""
-        metadata = get_product_metadata(str(product_id or ""))
+        metadata = self._get_product_metadata(str(product_id or ""))
         increment = metadata.get("price_increment")
         return str(increment) if increment else None
 
-    @staticmethod
-    def _next_safer_tick(price: float, side: str, product_id: str) -> float:
+    def _next_safer_tick(self, price: float, side: str, product_id: str) -> float:
         """Return ``price`` moved one ``increment`` AWAY from the opposing
         touch, so a re-submitted post-only order will not cross the
         spread.
@@ -1135,6 +1169,7 @@ class StealthOrderManager:
             product_id=product_id,
             side=side,
             policy=PriceRoundingPolicy.NEAREST,
+            metadata_reader=self._get_product_metadata,
         )
         if (
             not normalized.ok
@@ -1158,6 +1193,7 @@ class StealthOrderManager:
             product_id=product_id,
             side=side,
             policy=PriceRoundingPolicy.NEAREST,
+            metadata_reader=self._get_product_metadata,
         )
         if not result.ok or result.effective_price is None:
             raise ValueError(result.reason or "price normalization failed")
@@ -2030,11 +2066,10 @@ class StealthOrderManager:
             )
             return False
 
-        from configuration import REST_CLIENT
-
+        rest_client = self._require_rest_client()
         try:
             with get_runtime_controller().track_inflight(INFLIGHT_REST_PLACE):
-                cancel_result = REST_CLIENT.cancel_orders(
+                cancel_result = rest_client.cancel_orders(
                     order_ids=[exchange_order_id]
                 )
         except Exception as cancel_exception:
@@ -3259,6 +3294,7 @@ class StealthOrderManager:
             product_id=str(order.get("product_id") or ""),
             side=order.get("side"),
             policy=PriceRoundingPolicy.SIDE_CONSERVATIVE,
+            metadata_reader=self._get_product_metadata,
         )
         if not price_check.ok or price_check.effective_price is None:
             raise StealthMoveError(
@@ -3367,7 +3403,6 @@ class StealthOrderManager:
         """
         from core.enums import StealthMutationKind, StealthOrderStatus
         from core.exceptions import StealthMoveError
-        from configuration import REST_CLIENT
 
         sid = plan.stealth_order_id
         if not self.try_claim_mutation(StealthMutationKind.MOVE, sid):
@@ -3406,6 +3441,7 @@ class StealthOrderManager:
                 product_id=str(order.get("product_id") or ""),
                 side=order.get("side"),
                 policy=PriceRoundingPolicy.SIDE_CONSERVATIVE,
+                metadata_reader=self._get_product_metadata,
             )
             if not price_check.ok or price_check.effective_price is None:
                 raise StealthMoveError(
@@ -3419,10 +3455,12 @@ class StealthOrderManager:
                 "anchor_repricing_state_json", {}
             ).get("active_placement_client_order_id")
 
+            rest_client = self._require_rest_client()
+
             # === CANCEL ===
             try:
                 with get_runtime_controller().track_inflight(INFLIGHT_REST_PLACE):
-                    REST_CLIENT.cancel_orders(order_ids=[plan.old_exchange_order_id])
+                    rest_client.cancel_orders(order_ids=[plan.old_exchange_order_id])
             except Exception as cancel_exc:
                 self.log_callback(
                     "error",
@@ -3518,7 +3556,7 @@ class StealthOrderManager:
             order_result = None
             try:
                 with get_runtime_controller().track_inflight(INFLIGHT_REST_PLACE):
-                    order_result = REST_CLIENT.place_limit_order(
+                    order_result = rest_client.place_limit_order(
                         product_id=order["product_id"],
                         side=order["side"],
                         limit_price=str(new_price),
@@ -4070,6 +4108,7 @@ class StealthOrderManager:
             product_id=str(order.get("product_id") or ""),
             side=side_raw,
             policy=PriceRoundingPolicy.SIDE_CONSERVATIVE,
+            metadata_reader=self._get_product_metadata,
         )
         if not price_check.ok or price_check.effective_price is None:
             raise RevealPricingError(
@@ -4904,6 +4943,7 @@ class StealthOrderManager:
             product_id=product_id,
             side=side,
             policy=PriceRoundingPolicy.SIDE_CONSERVATIVE,
+            metadata_reader=self._get_product_metadata,
         )
         if not price_check.ok or price_check.effective_price is None:
             raise OrderCreationError(
@@ -4938,6 +4978,7 @@ class StealthOrderManager:
             total_size,
             product_id=product_id,
             price=limit_price,
+            metadata_reader=self._get_product_metadata,
         )
         if not size_check.ok:
             raise OrderCreationError(
@@ -5678,7 +5719,7 @@ class StealthOrderManager:
         # Place the revealed slice directly on the exchange. A REST return is
         # not acceptance: every attempt is classified fail-closed before any
         # success bookkeeping is allowed to run.
-        from configuration import REST_CLIENT
+        rest_client = self._require_rest_client()
 
         market_data = self._get_current_market_data(order["product_id"]) or {}
         market_bid = reveal_plan.market_bid or market_data.get("bid")
@@ -5788,6 +5829,7 @@ class StealthOrderManager:
             product_id=order_for_submission["product_id"],
             side=order_for_submission["side"],
             policy=PriceRoundingPolicy.SIDE_CONSERVATIVE,
+            metadata_reader=self._get_product_metadata,
         )
         if not price_check.ok or price_check.effective_price is None:
             failure_reason = (
@@ -5923,7 +5965,7 @@ class StealthOrderManager:
             _pre_insert_placement_row(attempt_coid, attempt_price)
             try:
                 with get_runtime_controller().track_inflight(INFLIGHT_REST_PLACE):
-                    order_result = REST_CLIENT.place_limit_order(
+                    order_result = rest_client.place_limit_order(
                         product_id=order_for_submission["product_id"],
                         side=order_for_submission["side"],
                         limit_price=str(attempt_price),
@@ -7172,12 +7214,13 @@ class StealthOrderManager:
         # callers that replace ``create_stealth_order`` with another creation
         # boundary (including transaction wrappers and contract tests); the
         # real creation path will still reject missing metadata fail-closed.
-        if get_product_metadata(str(product_id)).get("price_increment"):
+        if self._get_product_metadata(str(product_id)).get("price_increment"):
             normalized_target = normalize_price_for_product(
                 anchored_limit_price,
                 product_id=product_id,
                 side=side,
                 policy=PriceRoundingPolicy.SIDE_CONSERVATIVE,
+                metadata_reader=self._get_product_metadata,
             )
             if (
                 not normalized_target.ok
@@ -7272,13 +7315,14 @@ class StealthOrderManager:
         ownership/status and carry a diagnostic instead of being reclassified.
         """
         product_id = str(order.get("product_id") or "")
-        metadata = get_product_metadata(product_id)
+        metadata = self._get_product_metadata(product_id)
         metadata_available = metadata.get("price_increment") not in (None, "")
         result = normalize_price_for_product(
             order.get("limit_price"),
             product_id=product_id,
             side=order.get("side"),
             policy=PriceRoundingPolicy.SIDE_CONSERVATIVE,
+            metadata_reader=self._get_product_metadata,
         )
         if result.ok and not result.adjusted:
             order.pop("_price_validation_pending", None)
@@ -7342,14 +7386,14 @@ class StealthOrderManager:
         })
         return False
 
-    @staticmethod
-    def _require_canonical_persisted_price(order: Dict[str, Any]) -> None:
+    def _require_canonical_persisted_price(self, order: Dict[str, Any]) -> None:
         """Reject, but never repair, an invalid price at the DB boundary."""
         result = normalize_price_for_product(
             order.get("limit_price"),
             product_id=str(order.get("product_id") or ""),
             side=order.get("side"),
             policy=PriceRoundingPolicy.SIDE_CONSERVATIVE,
+            metadata_reader=self._get_product_metadata,
         )
         if result.ok and not result.adjusted:
             return

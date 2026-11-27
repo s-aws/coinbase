@@ -107,7 +107,7 @@ def test_fully_revealed_reprice_persists_cancel_intent_without_replacement(
     manager._update_stealth_order = MagicMock(side_effect=persist)
     rest_client = MagicMock()
     rest_client.cancel_orders.side_effect = cancel_orders
-    monkeypatch.setattr("configuration.REST_CLIENT", rest_client)
+    manager.rest_client = rest_client
 
     result = manager._apply_revealed_anchor_reprice(
         order=order,
@@ -151,7 +151,7 @@ def test_reprice_skips_terminal_fill_truth(monkeypatch):
     manager = _manager_for(order)
     manager._update_stealth_order = MagicMock(return_value=True)
     rest_client = MagicMock()
-    monkeypatch.setattr("configuration.REST_CLIENT", rest_client)
+    manager.rest_client = rest_client
 
     result = manager._apply_revealed_anchor_reprice(
         order,
@@ -179,7 +179,7 @@ def test_reprice_refuses_to_hide_when_one_cancel_cannot_cover_revealed_size(
     manager = _manager_for(order)
     manager._update_stealth_order = MagicMock(return_value=True)
     rest_client = MagicMock()
-    monkeypatch.setattr("configuration.REST_CLIENT", rest_client)
+    manager.rest_client = rest_client
 
     result = manager._apply_revealed_anchor_reprice(
         order,
@@ -220,7 +220,7 @@ def test_cancel_outcome_retains_intent_until_exact_terminal_truth(
         rest_client.cancel_orders.side_effect = cancel_outcome
     else:
         rest_client.cancel_orders.return_value = cancel_outcome
-    monkeypatch.setattr("configuration.REST_CLIENT", rest_client)
+    manager.rest_client = rest_client
 
     result = manager._apply_revealed_anchor_reprice(
         order,
@@ -629,7 +629,7 @@ def test_late_fill_cancels_a_newer_live_placement_before_stopping(
     rest_client.cancel_orders.return_value = [
         {"success": True, "order_id": "exchange-2"}
     ]
-    monkeypatch.setattr("configuration.REST_CLIENT", rest_client)
+    manager.rest_client = rest_client
 
     assert manager.consume_anchor_rearm_cancellation(
         "placement-1",
@@ -742,7 +742,7 @@ def test_operator_cancel_persists_rearm_supersession_before_rest(monkeypatch):
         return _parent_projection_result()
 
     manager._update_stealth_order = MagicMock(side_effect=persist)
-    monkeypatch.setattr("configuration.REST_CLIENT", rest_client)
+    manager.rest_client = rest_client
     monkeypatch.setattr(
         "core.stealth_order_manager.update_order_parent_execution_statuses",
         update_parent_status,
@@ -883,7 +883,7 @@ def test_operator_cancel_does_not_call_rest_if_supersession_write_fails(
     manager = _manager_for(order)
     manager._update_stealth_order = MagicMock(return_value=False)
     rest_client = MagicMock()
-    monkeypatch.setattr("configuration.REST_CLIENT", rest_client)
+    manager.rest_client = rest_client
     controller = RuntimeController()
     assert controller.complete_startup() is True
     monkeypatch.setattr(
@@ -922,7 +922,7 @@ def test_delayed_old_fill_keeps_new_placement_identity_and_fill_monotonic(
     rest_client.cancel_orders.return_value = [
         {"success": True, "order_id": "exchange-2"}
     ]
-    monkeypatch.setattr("configuration.REST_CLIENT", rest_client)
+    manager.rest_client = rest_client
     controller = RuntimeController()
     assert controller.complete_startup() is True
     monkeypatch.setattr(
@@ -1020,7 +1020,7 @@ def test_stale_fill_with_unprovable_active_identity_persists_error(
     manager._placed_order_index["placement-2"] = order
     manager._update_stealth_order = MagicMock(return_value=True)
     rest_client = MagicMock()
-    monkeypatch.setattr("configuration.REST_CLIENT", rest_client)
+    manager.rest_client = rest_client
     controller = RuntimeController()
     assert controller.complete_startup() is True
     monkeypatch.setattr(

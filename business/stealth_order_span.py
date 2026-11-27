@@ -12,12 +12,11 @@ from copy import deepcopy
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation, ROUND_DOWN
 import math
-from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Mapping, Optional, Sequence, Tuple
 import uuid
 
 from calculation.price_validation import normalize_price_for_product
 from calculation.size_validation import validate_and_quantize_size
-from configuration import get_product_metadata
 from core.enums import (
     Direction,
     FollowUpRevealDirection,
@@ -217,8 +216,9 @@ def _allocate_sizes(
     total_size: Decimal,
     prices: Sequence[float],
     weights: Sequence[int],
+    product_metadata: Mapping[str, Any],
 ) -> Tuple[Tuple[float, ...], float]:
-    metadata = get_product_metadata(product_id) or {}
+    metadata = dict(product_metadata)
     increment_raw = metadata.get("base_increment")
     increment = None
     if increment_raw not in (None, ""):
@@ -246,6 +246,7 @@ def _allocate_sizes(
             float(size),
             product_id=product_id,
             price=price,
+            product_metadata=metadata,
         )
         if not result.ok:
             raise StealthSpanValidationError(
@@ -343,7 +344,11 @@ def _materialize_anchor_policy(
     return materialized
 
 
-def plan_stealth_order_span(raw: Mapping[str, Any]) -> StealthSpanPlan:
+def plan_stealth_order_span(
+    raw: Mapping[str, Any],
+    *,
+    metadata_reader: Callable[[str], Mapping[str, Any]],
+) -> StealthSpanPlan:
     """Validate and normalize a declarative span without mutating state."""
 
     if not isinstance(raw, Mapping):
@@ -358,6 +363,7 @@ def plan_stealth_order_span(raw: Mapping[str, Any]) -> StealthSpanPlan:
     product_id = str(raw.get("product_id") or "").strip()
     if not product_id:
         raise StealthSpanValidationError("product_id is required")
+    product_metadata = dict(metadata_reader(product_id) or {})
     try:
         side = OrderSide(str(raw.get("side") or "").upper())
     except ValueError as exc:
@@ -394,6 +400,7 @@ def plan_stealth_order_span(raw: Mapping[str, Any]) -> StealthSpanPlan:
             product_id=product_id,
             side=side,
             policy=PriceRoundingPolicy.SIDE_CONSERVATIVE,
+            product_metadata=product_metadata,
         )
         if not result.ok or result.effective_price is None:
             raise StealthSpanValidationError(
@@ -414,6 +421,7 @@ def plan_stealth_order_span(raw: Mapping[str, Any]) -> StealthSpanPlan:
         total_size=total_size,
         prices=prices,
         weights=_weights(count, distribution),
+        product_metadata=product_metadata,
     )
 
     base_condition = _validate_reveal_condition(raw.get("reveal_condition"))

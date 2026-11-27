@@ -43,10 +43,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
-from typing import Optional
+from collections.abc import Callable, Mapping
+from typing import Any, Optional
 
 from calculation.formatter import quantize_to_increment
-from configuration import get_product_metadata
 from core.enums import RoundingDirection
 
 
@@ -77,17 +77,14 @@ def _to_decimal(value, default: Optional[Decimal] = None) -> Optional[Decimal]:
         return default
 
 
-def _product_metadata(product_id: str) -> dict:
-    """Look up product metadata, with the same fallback the manager uses."""
-    return get_product_metadata(product_id)
-
-
 def validate_and_quantize_size(
     size: float,
     *,
     product_id: str,
     price: Optional[float] = None,
     direction: str = RoundingDirection.DOWN.value,
+    product_metadata: Optional[Mapping[str, Any]] = None,
+    metadata_reader: Optional[Callable[[str], Mapping[str, Any]]] = None,
 ) -> SizeValidationResult:
     """Snap ``size`` to ``base_increment`` and validate against minimums.
 
@@ -127,7 +124,13 @@ def validate_and_quantize_size(
     if size_f <= 0:
         return SizeValidationResult(False, size_f, f"size must be > 0, got {size_f}")
 
-    metadata = _product_metadata(product_id)
+    metadata = (
+        dict(product_metadata)
+        if product_metadata is not None
+        else dict(metadata_reader(product_id))
+        if metadata_reader is not None
+        else {}
+    )
     base_increment = metadata.get("base_increment")
 
     # --- quantize ----------------------------------------------------------

@@ -1,7 +1,11 @@
 """Inspect XTZ-USD and BTC-USDC fills from last 24h to figure out why
 they show commissions when the user didn't trade them."""
 from datetime import datetime, timedelta, timezone
-from configuration import REST_CLIENT
+from configuration import load_runtime_settings
+from external.runtime import build_rest_client
+
+_SETTINGS = load_runtime_settings()
+REST_CLIENT = build_rest_client(_SETTINGS.api_key, _SETTINGS.api_secret)
 
 until = datetime.now(timezone.utc)
 since = until - timedelta(hours=24)

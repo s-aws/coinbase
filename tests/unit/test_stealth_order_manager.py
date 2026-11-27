@@ -13,6 +13,20 @@ from core.models import RevealExecutionPlan
 from core.stealth_order_manager import StealthOrderManager
 
 
+_PRODUCT_METADATA = {
+    "BTC-USDC": {"price_increment": "0.01"},
+}
+
+
+def _manager(*, db_client=None, rest_client=None, **kwargs):
+    return StealthOrderManager(
+        db_client=db_client,
+        rest_client=rest_client,
+        product_metadata_reader=_PRODUCT_METADATA.get,
+        **kwargs,
+    )
+
+
 class TestStealthOrderCreation:
     """Test stealth order creation."""
     
@@ -38,18 +52,11 @@ class TestStealthOrderCreation:
         assert order["reveal_condition_json"] == custom_condition
 
     def test_create_stealth_order_normalizes_anchor_repricing_policy(self, monkeypatch):
-        from configuration import PRODUCT_METADATA
-
-        monkeypatch.setitem(
-            PRODUCT_METADATA,
-            "BTC-USDC",
-            {"price_increment": "0.01"},
-        )
         monkeypatch.setattr(
             "core.stealth_order_manager.insert_order_parent",
             lambda **kwargs: 1,
         )
-        manager = StealthOrderManager(db_client=None)
+        manager = _manager()
 
         stealth_order_id = manager.create_stealth_order(
             product_id="BTC-USDC",
@@ -71,18 +78,11 @@ class TestStealthOrderCreation:
         assert order["anchor_repricing_policy_json"]["reference_price_source"] == "midpoint"
 
     def test_created_lifecycle_precedes_scheduler_publication(self, monkeypatch):
-        from configuration import PRODUCT_METADATA
-
-        monkeypatch.setitem(
-            PRODUCT_METADATA,
-            "BTC-USDC",
-            {"price_increment": "0.01"},
-        )
         monkeypatch.setattr(
             "core.stealth_order_manager.insert_order_parent",
             lambda **kwargs: 1,
         )
-        manager = StealthOrderManager(db_client=None)
+        manager = _manager()
         sequence = []
         manager._dispatch_lifecycle_event = (
             lambda **kwargs: sequence.append(kwargs["event"])
@@ -153,7 +153,7 @@ class TestRevealConditions:
         assert condition["delay_seconds"] > 0
 
     def test_price_condition_ignores_non_ticker_market_cache(self):
-        manager = StealthOrderManager(db_client=None)
+        manager = _manager()
         stealth_order_id = "990e8400-e29b-41d4-a716-446655440000"
         manager.in_memory_orders[stealth_order_id] = {
             "stealth_order_id": stealth_order_id,
@@ -191,7 +191,7 @@ class TestRevealConditions:
         assert manager.in_memory_orders[stealth_order_id]["condition_confirmed_at"] is None
 
     def test_price_condition_triggers_with_ticker_market_cache(self):
-        manager = StealthOrderManager(db_client=None)
+        manager = _manager()
         stealth_order_id = "991e8400-e29b-41d4-a716-446655440000"
         manager.in_memory_orders[stealth_order_id] = {
             "stealth_order_id": stealth_order_id,
@@ -231,20 +231,13 @@ class TestRevealConditions:
 class TestAnchorRepricing:
     @pytest.fixture(autouse=True)
     def _product_price_metadata(self, monkeypatch):
-        from configuration import PRODUCT_METADATA
-
-        monkeypatch.setitem(
-            PRODUCT_METADATA,
-            "BTC-USDC",
-            {"price_increment": "0.01"},
-        )
         monkeypatch.setattr(
             "core.stealth_order_manager.insert_order_parent",
             lambda **kwargs: 1,
         )
 
     def test_hidden_order_reprices_from_midpoint_reference(self):
-        manager = StealthOrderManager(db_client=None)
+        manager = _manager()
         stealth_order_id = "a91e8400-e29b-41d4-a716-446655440000"
         manager.in_memory_orders[stealth_order_id] = {
             "stealth_order_id": stealth_order_id,
@@ -298,7 +291,7 @@ class TestAnchorRepricing:
         assert persisted_prices[-1] == 101.0
 
     def test_revealed_order_reprice_waits_for_cancel_before_rearming(self, monkeypatch):
-        manager = StealthOrderManager(db_client=None)
+        manager = _manager()
         stealth_order_id = "b91e8400-e29b-41d4-a716-446655440000"
         manager.in_memory_orders[stealth_order_id] = {
             "stealth_order_id": stealth_order_id,
@@ -354,13 +347,10 @@ class TestAnchorRepricing:
         manager._placed_order_index["placement-old"] = manager.in_memory_orders[stealth_order_id]
 
         cancelled = []
-        monkeypatch.setattr(
-            "configuration.REST_CLIENT",
-            SimpleNamespace(
-                cancel_orders=lambda order_ids: cancelled.append(list(order_ids)) or [],
-                place_limit_order=lambda **_kwargs: pytest.fail(
-                    "reprice must return to the canonical reveal path"
-                ),
+        manager.rest_client = SimpleNamespace(
+            cancel_orders=lambda order_ids: cancelled.append(list(order_ids)) or [],
+            place_limit_order=lambda **_kwargs: pytest.fail(
+                "reprice must return to the canonical reveal path"
             ),
         )
 
@@ -380,7 +370,7 @@ class TestAnchorRepricing:
 
     def test_reprice_tracks_reveal_condition_price_threshold_with_offset(self):
         """Reveal condition price_threshold tracks limit_price reprices, preserving original offset."""
-        manager = StealthOrderManager(db_client=None)
+        manager = _manager()
         stealth_order_id = "c91e8400-e29b-41d4-a716-446655440000"
         # Configured offset: threshold = limit + 5 (i.e., reveal when price reaches 5 above limit).
         manager.in_memory_orders[stealth_order_id] = {
@@ -452,7 +442,7 @@ class TestAnchorRepricing:
 
     def test_reprice_leaves_non_price_reveal_conditions_untouched(self):
         """Time-delay / spread / ratio conditions carry no absolute price; reprice must not mutate them."""
-        manager = StealthOrderManager(db_client=None)
+        manager = _manager()
         stealth_order_id = "d91e8400-e29b-41d4-a716-446655440000"
         manager.in_memory_orders[stealth_order_id] = {
             "stealth_order_id": stealth_order_id,
@@ -534,7 +524,7 @@ class TestExecutionLifecycleAuditing:
     """Test lifecycle dispatches emitted from execution updates."""
 
     def test_update_execution_dispatches_fill_received_then_executed(self):
-        manager = StealthOrderManager(db_client=None)
+        manager = _manager()
         stealth_order_id = "550e8400-e29b-41d4-a716-446655440000"
         manager.in_memory_orders[stealth_order_id] = {
             "stealth_order_id": stealth_order_id,
@@ -573,7 +563,7 @@ class TestExecutionLifecycleAuditing:
         assert dispatched_events[1][1]["placed_order_id"] == stealth_order_id
 
     def test_update_execution_dispatches_cancelled_for_cancel_path(self):
-        manager = StealthOrderManager(db_client=None)
+        manager = _manager()
         stealth_order_id = "660e8400-e29b-41d4-a716-446655440000"
         manager.in_memory_orders[stealth_order_id] = {
             "stealth_order_id": stealth_order_id,
@@ -609,14 +599,7 @@ class TestRevealAuditExchangeOrderId:
     """Test audit-only exchange_order_id capture during reveal placement."""
 
     def test_reveal_order_slice_records_exchange_order_id(self, monkeypatch):
-        from configuration import PRODUCT_METADATA
-
-        monkeypatch.setitem(
-            PRODUCT_METADATA,
-            "BTC-USDC",
-            {"price_increment": "0.01"},
-        )
-        manager = StealthOrderManager(db_client=None)
+        manager = _manager()
         stealth_order_id = "770e8400-e29b-41d4-a716-446655440000"
         manager.in_memory_orders[stealth_order_id] = {
             "stealth_order_id": stealth_order_id,
@@ -638,17 +621,14 @@ class TestRevealAuditExchangeOrderId:
 
         captured = {"reveal_event": None, "dispatch": None}
 
-        monkeypatch.setattr(
-            "configuration.REST_CLIENT",
-            SimpleNamespace(
-                place_limit_order=lambda **kwargs: {
-                    "success": True,
-                    "success_response": {
-                        "order_id": "exchange-oid-123",
-                        "client_order_id": stealth_order_id,
-                    }
+        manager.rest_client = SimpleNamespace(
+            place_limit_order=lambda **kwargs: {
+                "success": True,
+                "success_response": {
+                    "order_id": "exchange-oid-123",
+                    "client_order_id": stealth_order_id,
                 }
-            ),
+            }
         )
 
         manager.order_placement_hooks = SimpleNamespace(
@@ -690,7 +670,7 @@ class TestRevealAuditExchangeOrderId:
             ) or True,
         )
 
-        manager = StealthOrderManager(db_client=object())
+        manager = _manager(db_client=object())
         stealth_order_id = "880e8400-e29b-41d4-a716-446655440000"
         placed_order_id = stealth_order_id
         manager.in_memory_orders[stealth_order_id] = {
@@ -726,7 +706,7 @@ class TestLifecycleContextMarketFields:
     """Ensure lifecycle dispatch context includes current market fields."""
 
     def test_dispatch_lifecycle_event_includes_market_fields(self, monkeypatch):
-        manager = StealthOrderManager(db_client=None)
+        manager = _manager()
         captured = {}
 
         class FakeRegistry:
@@ -791,7 +771,7 @@ class TestRevealHistoryMarketPersistence:
                 captured["params"] = params
                 return 1
 
-        manager = StealthOrderManager(db_client=FakeDB())
+        manager = _manager(db_client=FakeDB())
 
         order = {
             "stealth_order_id": "990e8400-e29b-41d4-a716-446655440000",
@@ -846,7 +826,7 @@ class TestRevealProfitabilityValidation:
                 captured.update(kwargs)
                 return {"is_profitable": True, "net_profit": 12.34}
 
-        manager = StealthOrderManager(db_client=None, profit_validator=FakeProfitValidator())
+        manager = _manager(profit_validator=FakeProfitValidator())
         stealth_order_id = "aa1e8400-e29b-41d4-a716-446655440000"
         manager.in_memory_orders[stealth_order_id] = {
             "stealth_order_id": stealth_order_id,
@@ -893,7 +873,7 @@ class TestRevealProfitabilityValidation:
             def validate_order_profitability(self, **kwargs):
                 return {"is_profitable": False, "net_profit": -5.0}
 
-        manager = StealthOrderManager(db_client=None, profit_validator=FakeProfitValidator())
+        manager = _manager(profit_validator=FakeProfitValidator())
         stealth_order_id = "aa2e8400-e29b-41d4-a716-446655440000"
         manager.in_memory_orders[stealth_order_id] = {
             "stealth_order_id": stealth_order_id,

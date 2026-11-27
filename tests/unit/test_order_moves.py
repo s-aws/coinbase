@@ -14,7 +14,6 @@ import pytest
 import uuid
 from typing import Dict, Any
 
-import calculation.price_validation as price_validation
 from business.move_manager import MoveManager
 from database.order import (
     insert_order_parent,
@@ -25,29 +24,16 @@ from database.order import (
     has_order_moved,
     insert_order_move,
 )
-from configuration import OrderBook
+from core.orderbook import OrderBook
 from core.enums import OrderStatus
 
 
-@pytest.fixture(autouse=True)
-def _historical_product_price_increments(monkeypatch):
-    """Keep historical product fixtures on a deterministic price grid."""
-    configured_get_product_metadata = price_validation.get_product_metadata
-    test_price_increments = {
-        "BTC-USDC": "0.01",
-        "ETH-USDC": "0.01",
-    }
-
-    def get_product_metadata(product_id):
-        price_increment = test_price_increments.get(str(product_id))
-        if price_increment is None:
-            return configured_get_product_metadata(product_id)
-        return {"price_increment": price_increment}
-
-    monkeypatch.setattr(
-        price_validation,
-        "get_product_metadata",
-        get_product_metadata,
+def _orderbook() -> OrderBook:
+    return OrderBook(
+        products={
+            "BTC-USDC": {"price_increment": "0.01"},
+            "ETH-USDC": {"price_increment": "0.01"},
+        }
     )
 
 
@@ -57,7 +43,7 @@ class TestMoveManager:
     @pytest.fixture
     def move_manager(self):
         """Create a MoveManager instance for testing."""
-        return MoveManager(orderbook=OrderBook())
+        return MoveManager(orderbook=_orderbook())
 
     @pytest.fixture
     def original_parent_order(self):
@@ -393,7 +379,7 @@ class TestMoveIntegration:
         )
 
         # Move the order
-        move_manager = MoveManager()
+        move_manager = MoveManager(orderbook=_orderbook())
         result = move_manager.move_order(
             original_parent_client_order_id=original_id,
             new_order_details={
@@ -422,7 +408,7 @@ class TestMoveIntegration:
 
     def test_move_with_orderbook(self):
         """Test move updates orderbook state correctly."""
-        orderbook = OrderBook()
+        orderbook = _orderbook()
         move_manager = MoveManager(orderbook=orderbook)
 
         original_id = str(uuid.uuid4())
@@ -461,7 +447,7 @@ class TestPendingMoves:
     @pytest.fixture
     def move_manager(self):
         """Create a MoveManager instance for testing."""
-        return MoveManager(orderbook=OrderBook())
+        return MoveManager(orderbook=_orderbook())
 
     @pytest.fixture
     def parent_order(self):
@@ -599,7 +585,7 @@ class TestPendingMoves:
         """Test that pending move stores configuration for later execution."""
         from database.order import get_pending_move
 
-        move_manager = MoveManager()
+        move_manager = MoveManager(orderbook=_orderbook())
         
         config = {
             "product_id": "ETH-USDC",

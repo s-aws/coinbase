@@ -39,20 +39,14 @@ from core.enums import (
 )
 
 
-@pytest.fixture(autouse=True)
-def _btc_product_metadata(monkeypatch):
-    from configuration import PRODUCT_METADATA
-
-    monkeypatch.setitem(
-        PRODUCT_METADATA,
-        "BTC-USDC",
-        {
-            "price_increment": "1",
-            "base_increment": "0.00000001",
-            "base_min_size": "0.00000001",
-            "quote_min_size": "0",
-        },
-    )
+_PRODUCT_METADATA = {
+    "BTC-USDC": {
+        "price_increment": "1",
+        "base_increment": "0.00000001",
+        "base_min_size": "0.00000001",
+        "quote_min_size": "0",
+    }
+}
 
 
 def _bare_manager_with_order(order: dict, market_data: dict | None = None):
@@ -67,6 +61,7 @@ def _bare_manager_with_order(order: dict, market_data: dict | None = None):
     mgr._placed_order_index = {}
     mgr.in_memory_orders = {order["stealth_order_id"]: order}
     mgr._market_cache = {order["product_id"]: market_data} if market_data else {}
+    mgr._product_metadata_reader = _PRODUCT_METADATA.get
     mgr.log_callback = lambda *a, **k: None
     mgr.logger = get_logger("StealthOrderManager.test")
     # Stub target movement resolution so plan building doesn't touch DB.

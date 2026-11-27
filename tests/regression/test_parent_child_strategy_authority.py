@@ -7,7 +7,6 @@ from unittest.mock import Mock
 
 import pytest
 
-from configuration import PRODUCT_METADATA
 from core.enums import StealthOrderStatus
 from core.order_engine import OrderEngine
 from core.stealth_order_manager import StealthOrderManager
@@ -17,17 +16,16 @@ ROOT = "root-strategy"
 CHILD = "span-child"
 
 
-@pytest.fixture(autouse=True)
-def _product_metadata(monkeypatch):
-    monkeypatch.setitem(
-        PRODUCT_METADATA,
-        "BTC-USDC",
+def _product_metadata(product_id):
+    return (
         {
             "price_increment": "0.01",
             "base_increment": "0.00000001",
             "base_min_size": "0.00000001",
             "quote_min_size": "0",
-        },
+        }
+        if product_id == "BTC-USDC"
+        else {}
     )
 
 
@@ -69,7 +67,10 @@ def _price_order(
 
 @pytest.mark.regression
 def test_child_target_movement_resolves_current_root_definition(monkeypatch):
-    manager = StealthOrderManager(db_client=None)
+    manager = StealthOrderManager(
+        db_client=None,
+        product_metadata_reader=_product_metadata,
+    )
     root = _price_order(
         ROOT, limit_price=100, threshold=80, direction="below"
     )
@@ -139,7 +140,10 @@ def test_order_template_target_resolution_reads_current_root_row():
 
 @pytest.mark.regression
 def test_follow_up_threshold_mirrors_child_relative_percentage():
-    manager = StealthOrderManager(db_client=None)
+    manager = StealthOrderManager(
+        db_client=None,
+        product_metadata_reader=_product_metadata,
+    )
     root = _price_order(
         ROOT, limit_price=100, threshold=80, direction="below"
     )
@@ -179,7 +183,10 @@ def test_follow_up_threshold_mirrors_child_relative_percentage():
 
 @pytest.mark.regression
 def test_buy_follow_up_mirrors_above_threshold_below_new_target():
-    manager = StealthOrderManager(db_client=None)
+    manager = StealthOrderManager(
+        db_client=None,
+        product_metadata_reader=_product_metadata,
+    )
     root = _price_order(
         ROOT, limit_price=110, threshold=120, direction="above"
     )
@@ -213,7 +220,10 @@ def test_buy_follow_up_mirrors_above_threshold_below_new_target():
 
 @pytest.mark.regression
 def test_follow_up_threshold_uses_final_retreated_target():
-    manager = StealthOrderManager(db_client=None)
+    manager = StealthOrderManager(
+        db_client=None,
+        product_metadata_reader=_product_metadata,
+    )
     root = _price_order(
         ROOT, limit_price=100, threshold=80, direction="below"
     )
@@ -256,7 +266,10 @@ def test_follow_up_threshold_uses_final_retreated_target():
 
 @pytest.mark.regression
 def test_root_threshold_edit_updates_initial_and_derived_hidden_children():
-    manager = StealthOrderManager(db_client=None)
+    manager = StealthOrderManager(
+        db_client=None,
+        product_metadata_reader=_product_metadata,
+    )
     root = _price_order(
         ROOT, limit_price=100, threshold=80, direction="below"
     )

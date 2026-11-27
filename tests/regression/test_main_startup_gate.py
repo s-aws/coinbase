@@ -6,7 +6,6 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-import configuration
 import main
 import core.order_engine as order_engine_module
 from core import startup_reconciler
@@ -15,6 +14,9 @@ from core.runtime_controller import RuntimeController
 
 
 pytestmark = pytest.mark.regression
+
+
+TEST_REST_CLIENT = object()
 
 
 def _bare_order_engine() -> main.OrderEngine:
@@ -66,6 +68,7 @@ def test_unavailable_reconciliation_result_blocks_activation_and_engine(
             stealth_bridge=bridge,
             controller=controller,
             engine=engine,
+            rest_client=TEST_REST_CLIENT,
         )
 
     bridge.activate_decisions.assert_not_called()
@@ -87,6 +90,7 @@ def test_reconciliation_exception_blocks_activation_and_engine(monkeypatch) -> N
             stealth_bridge=bridge,
             controller=controller,
             engine=engine,
+            rest_client=TEST_REST_CLIENT,
         )
 
     bridge.activate_decisions.assert_not_called()
@@ -112,6 +116,7 @@ def test_activation_failure_blocks_periodic_reconciler_and_engine(monkeypatch) -
             stealth_bridge=bridge,
             controller=controller,
             engine=engine,
+            rest_client=TEST_REST_CLIENT,
         )
 
     periodic_factory.assert_not_called()
@@ -157,6 +162,7 @@ def test_successful_startup_crosses_each_gate_in_order(monkeypatch) -> None:
         stealth_bridge=bridge,
         controller=controller,
         engine=engine,
+        rest_client=TEST_REST_CLIENT,
     )
 
     assert events == [
@@ -168,7 +174,11 @@ def test_successful_startup_crosses_each_gate_in_order(monkeypatch) -> None:
         "complete_startup",
         "engine_wait",
     ]
-    periodic_factory.assert_called_once_with(auto_heal=True, audit_fills=True)
+    periodic_factory.assert_called_once_with(
+        rest_client=TEST_REST_CLIENT,
+        auto_heal=True,
+        audit_fills=True,
+    )
     controller.start_startup_component.assert_called_once_with(
         "periodic_reconciler",
         periodic_reconciler.start,
@@ -188,6 +198,7 @@ def test_explicit_reconciler_disable_is_the_only_bypass(monkeypatch) -> None:
         stealth_bridge=bridge,
         controller=controller,
         engine=engine,
+        rest_client=TEST_REST_CLIENT,
     )
 
     reconcile.assert_not_called()
@@ -232,7 +243,7 @@ def test_application_exposes_dashboard_only_inside_starting_barrier(
         lambda _controller: events.append("signals_installed"),
     )
 
-    def start_dashboard():
+    def start_dashboard(_host, _port):
         assert controller.state is EngineState.STARTING
         assert controller.is_admitting() is False
         events.append("dashboard_exposed")
@@ -259,6 +270,7 @@ def test_application_exposes_dashboard_only_inside_starting_barrier(
         stealth_bridge=bridge,
         controller=controller,
         engine=engine,
+        rest_client=TEST_REST_CLIENT,
     )
 
     assert events == [
@@ -326,6 +338,7 @@ def test_admin_pause_during_reconciliation_survives_readiness(monkeypatch) -> No
         stealth_bridge=bridge,
         controller=controller,
         engine=engine,
+        rest_client=TEST_REST_CLIENT,
     )
 
     assert controller.state is EngineState.PAUSED
@@ -353,6 +366,7 @@ def test_startup_failure_drains_every_started_component(monkeypatch) -> None:
             stealth_bridge=bridge,
             controller=controller,
             engine=engine,
+            rest_client=TEST_REST_CLIENT,
         )
 
     assert controller.state is EngineState.STOPPED
@@ -386,6 +400,7 @@ def test_hydration_failure_never_exposes_dashboard_or_later_stages(
             stealth_bridge=bridge,
             controller=controller,
             engine=engine,
+            rest_client=TEST_REST_CLIENT,
         )
 
     assert controller.state is EngineState.STOPPED
@@ -423,6 +438,7 @@ def test_explicit_reconciler_bypass_reaches_readiness_without_audit(
         stealth_bridge=bridge,
         controller=controller,
         engine=engine,
+        rest_client=TEST_REST_CLIENT,
     )
 
     assert controller.state is EngineState.RUNNING
@@ -458,6 +474,7 @@ def test_background_thread_start_failure_never_publishes_readiness(
             stealth_bridge=bridge,
             controller=controller,
             engine=engine,
+            rest_client=TEST_REST_CLIENT,
         )
 
     assert controller.state is EngineState.STOPPED
@@ -470,6 +487,7 @@ def test_shutdown_before_worker_readiness_cannot_reopen_admission(
     monkeypatch,
 ) -> None:
     controller = RuntimeController()
+    bridge = Mock(name="bridge")
     engine = Mock(name="engine")
     monkeypatch.setattr(main, "PeriodicReconciler", Mock(return_value=Mock()))
 
@@ -486,9 +504,10 @@ def test_shutdown_before_worker_readiness_cannot_reopen_admission(
     with pytest.raises(RuntimeError, match="readiness publication refused"):
         main._run_reconciled_engine(
             reconciler_disabled=True,
-            stealth_bridge=None,
+            stealth_bridge=bridge,
             controller=controller,
             engine=engine,
+            rest_client=TEST_REST_CLIENT,
         )
 
     assert controller.state is EngineState.DRAINING
@@ -527,6 +546,7 @@ def test_startup_exception_finishes_drain_even_if_state_is_already_draining(
             stealth_bridge=bridge,
             controller=controller,
             engine=engine,
+            rest_client=TEST_REST_CLIENT,
         )
 
     assert controller.state is EngineState.STOPPED
@@ -1253,13 +1273,15 @@ def test_local_open_query_failure_makes_reconciliation_unavailable(
     monkeypatch.setattr(
         startup_reconciler,
         "_fetch_exchange_open_client_order_ids",
-        lambda: {"exchange-coid"},
+        lambda _rest_client: {"exchange-coid"},
     )
     with patch(
         "database.database.PostgresDB",
         return_value=_QueryDB(error=RuntimeError("local DB unavailable")),
     ):
-        report = startup_reconciler.run_startup_reconciliation()
+        report = startup_reconciler.run_startup_reconciliation(
+            rest_client=TEST_REST_CLIENT,
+        )
 
     assert report is None
 
@@ -1270,7 +1292,7 @@ def test_all_local_id_query_failure_makes_reconciliation_unavailable(
     monkeypatch.setattr(
         startup_reconciler,
         "_fetch_exchange_open_client_order_ids",
-        lambda: {"known-coid"},
+        lambda _rest_client: {"known-coid"},
     )
     with patch(
         "database.database.PostgresDB",
@@ -1279,7 +1301,9 @@ def test_all_local_id_query_failure_makes_reconciliation_unavailable(
             _QueryDB(error=RuntimeError("all-local query unavailable")),
         ),
     ):
-        report = startup_reconciler.run_startup_reconciliation()
+        report = startup_reconciler.run_startup_reconciliation(
+            rest_client=TEST_REST_CLIENT,
+        )
 
     assert report is None
 
@@ -1306,24 +1330,25 @@ def test_malformed_exchange_response_cannot_be_treated_as_zero_open_orders(
     monkeypatch,
     response,
 ) -> None:
-    monkeypatch.setattr(configuration, "REST_CLIENT", _RestClient(response))
+    rest_client = _RestClient(response)
     auto_heal = Mock(name="apply_auto_heal")
     monkeypatch.setattr(startup_reconciler, "apply_auto_heal", auto_heal)
 
-    report = startup_reconciler.run_startup_reconciliation(auto_heal=True)
+    report = startup_reconciler.run_startup_reconciliation(
+        rest_client=rest_client,
+        auto_heal=True,
+    )
 
     assert report is None
     auto_heal.assert_not_called()
 
 
-def test_explicit_empty_exchange_orders_list_is_authoritative(monkeypatch) -> None:
-    monkeypatch.setattr(
-        configuration,
-        "REST_CLIENT",
-        _RestClient({"orders": []}),
-    )
+def test_explicit_empty_exchange_orders_list_is_authoritative() -> None:
+    rest_client = _RestClient({"orders": []})
 
-    assert startup_reconciler._fetch_exchange_open_client_order_ids() == set()
+    assert startup_reconciler._fetch_exchange_open_client_order_ids(
+        rest_client
+    ) == set()
 
 
 def test_exchange_open_orders_are_exhaustively_paginated(monkeypatch) -> None:
@@ -1350,9 +1375,7 @@ def test_exchange_open_orders_are_exhaustively_paginated(monkeypatch) -> None:
             return next(self.pages)
 
     rest_client = PagedRestClient()
-    monkeypatch.setattr(configuration, "REST_CLIENT", rest_client)
-
-    assert startup_reconciler._fetch_exchange_open_client_order_ids() == {
+    assert startup_reconciler._fetch_exchange_open_client_order_ids(rest_client) == {
         "coid-a",
         "coid-b",
     }
@@ -1373,7 +1396,7 @@ def test_malformed_exchange_pagination_fails_closed(
     monkeypatch,
     response,
 ) -> None:
-    monkeypatch.setattr(configuration, "REST_CLIENT", _RestClient(response))
+    rest_client = _RestClient(response)
 
     with pytest.raises(RuntimeError):
-        startup_reconciler._fetch_exchange_open_client_order_ids()
+        startup_reconciler._fetch_exchange_open_client_order_ids(rest_client)

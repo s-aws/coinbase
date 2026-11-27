@@ -35,7 +35,10 @@ import threading
 from datetime import timedelta
 from typing import Optional
 
-from core.startup_reconciler import run_startup_reconciliation
+from core.startup_reconciler import (
+    ReconciliationRestClient,
+    run_startup_reconciliation,
+)
 from logging_service import get_logger
 
 
@@ -64,6 +67,7 @@ class PeriodicReconciler:
     def __init__(
         self,
         *,
+        rest_client: ReconciliationRestClient,
         interval_seconds: int = DEFAULT_INTERVAL_SECONDS,
         auto_heal: bool = False,
         audit_fills: bool = False,
@@ -74,6 +78,7 @@ class PeriodicReconciler:
                 f"interval_seconds must be positive, got {interval_seconds}"
             )
         self.interval_seconds = interval_seconds
+        self.rest_client = rest_client
         self.auto_heal = auto_heal
         self.audit_fills = audit_fills
         self.fills_lookback = fills_lookback
@@ -136,6 +141,7 @@ class PeriodicReconciler:
             self._iterations += 1
             try:
                 run_startup_reconciliation(
+                    rest_client=self.rest_client,
                     fail_on_drift=False,
                     auto_heal=self.auto_heal,
                     audit_fills=self.audit_fills,

@@ -8,7 +8,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from business.move_manager import MoveManager
-from configuration import DEFAULT_MAX_ORDER_REPLACEMENT
+from core.constants import DEFAULT_MAX_ORDER_REPLACEMENT
 
 def test_move_manager_default():
     """Test that move_order uses DEFAULT_MAX_ORDER_REPLACEMENT when not provided."""

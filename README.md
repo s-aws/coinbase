@@ -187,10 +187,12 @@ remaining attached to the engine. Run the launcher under a foreground process
 supervisor for durability. It never resets data, resumes trading, places orders,
 pushes Git state, or daemonizes itself.
 
-`main` still owns the required runtime ordering: passive database hydration,
-startup reconciliation, stealth decision activation, background workers, and
-readiness publication. Running `dashboard_server.py` directly starts only its
-standalone dashboard/demo path.
+`main` is the sole process composition root. It loads settings, constructs one
+REST adapter and one shared `OrderBook`, injects them into the engine, stealth,
+dashboard, and reconciliation components, then owns passive database hydration,
+startup reconciliation, decision activation, background workers, and readiness
+publication. `dashboard_server.py` is an embedded transport and exits with
+guidance when run directly.
 
 Expected state progression is:
 
@@ -213,11 +215,11 @@ the exchange/local drift safety barrier.
 ### 5. Connect an operator UI
 
 With the configuration above, the engine exposes its unauthenticated dashboard
-protocol at `ws://localhost:8765`. The server reads `DASHBOARD_SERVER_HOST`,
-falling back to `HOSTNAME`, then `localhost`; `DASHBOARD_SERVER_PORT` defaults
-to `8765`. These values are captured when `dashboard_server.py` is imported,
-so set them before launch. Do not expose this operator port to an untrusted
-network. See [dashboard configuration](genai_data/CONFIGURATION.md#dashboard-websocket-listener-dashboard_serverpy)
+protocol at `ws://localhost:8765`. `main` reads `DASHBOARD_SERVER_HOST`, falling
+back to `HOSTNAME`, then `localhost`; `DASHBOARD_SERVER_PORT` defaults to
+`8765`. Settings are read when `main()` starts and are passed explicitly to the
+embedded transport. Set them before launch, and do not expose this operator
+port to an untrusted network. See [dashboard configuration](genai_data/CONFIGURATION.md#dashboard-websocket-listener-dashboard_serverpy)
 for parsing rules and Python overrides.
 
 Clients select their endpoints independently; changing the server environment
@@ -331,7 +333,7 @@ and verifies terminal cleanup without retained per-order state.
 | `scripts/validate_release.sh` | Clean-worktree full-suite, graph, and diff release gate |
 | `scripts/bootstrap_runtime_database.sh` | Guarded runtime identity/fresh-state check and schema deployment entry point |
 | `scripts/deploy_runtime.sh` | Foreground paused launcher with live dashboard health verification |
-| `dashboard_server.py` | Operator WebSocket command and state contract |
+| `dashboard_server.py` | Embedded operator WebSocket command and state transport; runtime dependencies are installed by `main.py` |
 
 Deeper architecture, configuration, and message-contract references are
 indexed by [ai-context.md](ai-context.md). Current code, schema, configuration,

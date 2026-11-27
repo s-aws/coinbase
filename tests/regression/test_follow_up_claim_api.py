@@ -2,7 +2,7 @@
 
 Background
 ----------
-On 2026-04-27, the strangler-fig refactor of :class:`configuration.OrderBook`
+On 2026-04-27, the strangler-fig refactor of the legacy runtime `OrderBook`
 removed several "dead" attributes (``filled``, ``cancelled``, ``active``,
 ``transaction_summary``, ``price``, ``db_client``) after a workspace-wide
 grep "confirmed" zero consumers.
@@ -35,7 +35,7 @@ from __future__ import annotations
 
 import pytest
 
-from configuration import OrderBook
+from core.orderbook import OrderBook
 from core.enums import FollowUpKind
 
 

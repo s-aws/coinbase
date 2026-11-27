@@ -10,6 +10,12 @@ CONTEXT_DIRECTORY=genai_data/
 - Current code, schema, configuration, and tests are the evidence for current
   behavior. Documentation describes intended design and navigation, but a
   behavioral claim must be verified before it drives a change.
+- Operator-accepted design specs are authoritative for approved intent, scope,
+  and constraints only. They never prove implementation, and a design spec does
+  not activate work unless `agent_state.md` names the implementation objective.
+- A `DRAFT` design spec records a proposal under discussion and authorizes no
+  implementation. Read only a task-relevant spec routed by the design-spec
+  index; do not bulk-load the directory.
 - Do not bulk-load `genai_data/`. Read only the current references relevant
   to the task.
 - `agent_state.md` is authoritative only when it explicitly names an active,
@@ -28,6 +34,8 @@ Then read only what the task needs:
 - `genai_data/MODULES.md` - Module ownership and where behavior lives
 - `genai_data/MODULE_DEPENDENCIES.md` - Enforced in-process dependency zones,
   frozen import/capability debt, and static-analysis limits
+- `genai_data/design_specs/README.md` - Design-spec authority, lifecycle, and
+  task routing; from there read only the named task-relevant spec
 - `genai_data/DATA_MODELS.md` - Dataclasses, enums, and database schema snapshots
 - `genai_data/CONFIGURATION.md` - Environment variables, products config, runtime knobs
 - `genai_data/API_REFERENCE.md` - REST wrapper and dashboard WebSocket message contracts
@@ -52,6 +60,7 @@ and never treat it as design authority. See `agent.md` section
 ## Current references
 
 The living references were reconciled with prod on 2026-11-26. The overview
-also routes to enum, exception, partial-fill, move/rearm, and fee references.
-Only current references and the current handoff are retained in this checkout.
-Do not create archives of superseded documentation or completed handoffs.
+also routes to enum, exception, partial-fill, move/rearm, fee, and current
+design-spec references. Retain only current references, the current handoff,
+and current design specs. Remove rejected or superseded specs and completed
+handoffs from the active tree; Git history is their durable archive.

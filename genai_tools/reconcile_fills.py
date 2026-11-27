@@ -44,12 +44,17 @@ from typing import Any, Dict, List, Optional
 sys.path.insert(0, "e:\\coinbase")
 
 from business.fill_reconciler import FillReconciler, ReconcileReport
-from configuration import REST_CLIENT
+from configuration import load_runtime_settings
 from database.database import PostgresDB
+from external.runtime import build_rest_client
 from logging_service import get_logger
 
 
 logger = get_logger("reconcile_fills")
+
+
+_SETTINGS = load_runtime_settings()
+REST_CLIENT = build_rest_client(_SETTINGS.api_key, _SETTINGS.api_secret)
 
 
 def _build_fills_fetcher():

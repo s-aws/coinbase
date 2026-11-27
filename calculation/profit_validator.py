@@ -13,7 +13,8 @@ and statement rounding are outside this decision path.
 from typing import Dict, Any, Optional
 import logging
 from calculation.formatter import safe_float
-from configuration import determine_open_close_sides
+from calculation.order_movement import determine_open_close_sides
+from calculation.resolver import normalize_product_type
 from core.constants import get_derivatives_per_side_fee
 from core.enums import (
     LiquidityAssumption,
@@ -109,15 +110,12 @@ class ProfitValidator:
         Returns:
             Dict with keys: product_type, contract_size, position_side.
         """
-        # Lazy import to avoid circular dependencies
-        from configuration import normalize_product_type as _normalize_product_type
-
         # Resolve product_type from order hint or orderbook fallback
         order_for_normalize = dict(order) if order else {}
         if product_id and "product_id" not in order_for_normalize:
             order_for_normalize["product_id"] = product_id
         products = self.orderbook.product if self.orderbook else None
-        product_type = _normalize_product_type(order_for_normalize, products=products)
+        product_type = normalize_product_type(order_for_normalize, products=products)
 
         contract_size: Optional[float] = None
         position_side: Optional[str] = None

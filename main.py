@@ -1,68 +1,90 @@
-﻿"""Main entry point for Coinbase Advanced API trading engine.
+"""Canonical composition root for the Coinbase trading runtime.
 
-This module provides the entry point for launching the multithreaded trading engine
-that manages real-time order processing with Coinbase.
-
-Architecture:
-    - OrderEngine: Main engine class (imported from core.order_engine)
-    - Background Threads:
-        * websocket_threads: Maintain connections to Coinbase (configurable count)
-        * event_workers: Process events from specific channels (ticker, user, heartbeats)
-        * reconciliation_thread: Periodically sync parent/child orders from database
-        * deduplication_thread: Rotate event deduplication buckets
-    - Event Processing:
-        * Thread-safe event queuing with deduplication using hash-based bucketing
-        * Processing flags prevent duplicate follow-up order creation
-        * Position updates applied atomically with order placements
-
-Run the application through this module so reconciliation and the readiness
-barrier cannot be bypassed::
+Importing this module is passive. ``main()`` is the only supported process
+entrypoint and explicitly loads configuration, constructs live adapters,
+wires application components, and crosses the reconciliation/readiness gate::
 
     python -m main
 """
 
+from __future__ import annotations
+
+from dataclasses import dataclass
 import logging
 import os
+from types import ModuleType
+from typing import Any, Mapping, Optional
 
-# Configure logging for all modules
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-
-logger = logging.getLogger(__name__)
-
-# Initialize custom logging service
-from logging_service import set_backend
-
+from bridges.stealth_order_bridge import StealthOrderBridge
 from configuration import (
+    ProductConfiguration,
+    RuntimeSettings,
     Subscription,
-    ORDERBOOK,
-    API_KEY,
-    API_SECRET,
-    ORDER_POST_ONLY,
+    load_runtime_settings,
+    persist_product_configuration,
 )
-
-import database.order as DB_MODULE
+from core.constants import get_derivatives_per_side_fee
+from core.enums import EngineState, ProductType
 from core.order_engine import OrderEngine
-from core.enums import EngineState
+from core.orderbook import OrderBook
 from core.periodic_reconciler import PeriodicReconciler
 from core.runtime_controller import get_runtime_controller
 from core.startup_reconciler import run_startup_reconciliation
-from dashboard_server import start_dashboard_server, set_stealth_order_bridge, update_order, update_position, add_log_entry, update_engine_status
+from core.stealth_order_manager import StealthOrderManager
+from dashboard_server import (
+    add_log_entry,
+    configure_runtime_dependencies,
+    set_stealth_order_bridge,
+    start_dashboard_server,
+)
+from database import order as order_db
+from external.runtime import (
+    build_rest_client,
+    fetch_futures_positions,
+    fetch_products,
+)
+from integration.order_placement_hooks import (
+    get_global_placement_hook_registry,
+)
+from logging_service import set_backend
 
-# Set up custom logging backend to use dashboard's add_log_entry function
-set_backend(add_log_entry)
 
+logger = logging.getLogger(__name__)
 
 _TRUE_ENV_VALUES = frozenset({"1", "true", "yes", "on"})
 _FALSE_ENV_VALUES = frozenset({"0", "false", "no", "off"})
 
+_DEFAULT_PROFIT_TARGETS = {
+    ProductType.SPOT.value: {"BUY": 0.001, "SELL": 0.001},
+    ProductType.FUTURE.value: {"BUY": 0.001, "SELL": 0.001},
+    "BIP-20DEC30-CDE": {"BUY": 0.001, "SELL": 0.001},
+}
 
-def _read_strict_boolean_env(name: str, *, default: bool) -> bool:
+
+@dataclass(frozen=True)
+class ApplicationRuntime:
+    """Fully wired resources owned by one invocation of ``main()``."""
+
+    settings: RuntimeSettings
+    rest_client: Any
+    db_module: ModuleType
+    orderbook: OrderBook
+    stealth_manager: StealthOrderManager
+    stealth_bridge: StealthOrderBridge
+    engine: OrderEngine
+    controller: Any
+
+
+def _read_strict_boolean_env(
+    name: str,
+    *,
+    default: bool,
+    environ: Optional[Mapping[str, str]] = None,
+) -> bool:
     """Read one boolean environment variable with an explicit safe default."""
 
-    configured_value = os.getenv(name)
+    source = os.environ if environ is None else environ
+    configured_value = source.get(name)
     if configured_value is None or not configured_value.strip():
         return default
 
@@ -77,7 +99,7 @@ def _read_strict_boolean_env(name: str, *, default: bool) -> bool:
     )
 
 
-def _raise_if_startup_is_stopping(controller, stage: str) -> None:
+def _raise_if_startup_is_stopping(controller: Any, stage: str) -> None:
     """Prevent a completed blocking stage from reviving a shutdown startup."""
 
     if controller.is_stopping():
@@ -86,19 +108,212 @@ def _raise_if_startup_is_stopping(controller, stage: str) -> None:
             f"{controller.state.value}"
         )
 
+
+def _mandatory_fee_offsets(
+    products: Mapping[str, Mapping[str, Any]],
+) -> dict[str, dict[str, float]]:
+    """Build the legacy round-trip fixed-fee price offsets once."""
+
+    offsets: dict[str, dict[str, float]] = {}
+    for product_id, product in products.items():
+        product_type = str(product.get("product_type") or "").upper()
+        if product_type == ProductType.FUTURE.value:
+            details = product.get("future_product_details")
+            contract_size = (
+                details.get("contract_size", 1)
+                if isinstance(details, Mapping)
+                else 1
+            )
+            try:
+                normalized_contract_size = float(contract_size)
+            except (TypeError, ValueError):
+                normalized_contract_size = 1.0
+            if normalized_contract_size <= 0:
+                normalized_contract_size = 1.0
+            fee = (
+                2.0 * get_derivatives_per_side_fee(product_id)
+            ) / normalized_contract_size
+        else:
+            fee = 0.0
+        offsets[product_id] = {"mandatory_fee_per_contract": fee}
+    return offsets
+
+
+def _load_startup_products(
+    rest_client: Any,
+    product_configuration: ProductConfiguration,
+) -> dict[str, dict[str, Any]]:
+    """Prefer one live catalog fetch and fail over to the cached snapshot."""
+
+    try:
+        products = fetch_products(
+            rest_client,
+            product_configuration.product_ids,
+        )
+        if not products:
+            raise RuntimeError("Coinbase returned an empty product catalog")
+    except Exception as exc:
+        products = product_configuration.local_products()
+        logger.warning(
+            "Coinbase product refresh unavailable during startup; using "
+            "cached products.json metadata (%s)",
+            type(exc).__name__,
+        )
+        return products
+
+    try:
+        persist_product_configuration(
+            products,
+            ticker_to_trading=product_configuration.ticker_to_trading,
+            path=product_configuration.path,
+        )
+    except Exception:
+        # The live in-memory catalog remains usable; persistence is a cache.
+        logger.warning(
+            "Live product catalog loaded but products.json persistence failed",
+            exc_info=True,
+        )
+    return products
+
+
+def _load_startup_positions(rest_client: Any) -> dict[str, dict[str, Any]]:
+    """Load futures positions without making catalog startup unavailable."""
+
+    try:
+        return fetch_futures_positions(rest_client)
+    except Exception as exc:
+        logger.error(
+            "Coinbase futures positions unavailable during startup; starting "
+            "with an empty position snapshot (%s)",
+            type(exc).__name__,
+        )
+        return {}
+
+
+def _catalog_refresh_callback(
+    *,
+    rest_client: Any,
+    settings: RuntimeSettings,
+    orderbook: OrderBook,
+):
+    """Return the dashboard-triggered refresh adapter owned by composition."""
+
+    def refresh() -> dict[str, Any]:
+        products = fetch_products(rest_client, settings.products.product_ids)
+        if not products:
+            raise RuntimeError("Coinbase returned an empty product catalog")
+
+        # Preserve the existing refresh transaction boundary: a cache-write
+        # failure must not report an error after silently changing the live
+        # runtime catalog.
+        persist_product_configuration(
+            products,
+            ticker_to_trading=settings.products.ticker_to_trading,
+            path=settings.products.path,
+        )
+        orderbook.set_products(products)
+        orderbook.set_mandatory_fee_per_contract(
+            _mandatory_fee_offsets(products)
+        )
+
+        derivatives_count = sum(
+            str(product.get("product_type") or "").upper()
+            in {ProductType.FUTURE.value, "PERPETUAL_FUTURE"}
+            for product in products.values()
+        )
+        spot_count = len(products) - derivatives_count
+        return {
+            "success": True,
+            "message": (
+                "Successfully updated products.json with "
+                f"{len(products)} products"
+            ),
+            "derivatives_count": derivatives_count,
+            "spot_count": spot_count,
+            "metadata_count": len(products),
+        }
+
+    return refresh
+
+
+def build_application_runtime(settings: RuntimeSettings) -> ApplicationRuntime:
+    """Construct and wire every live application resource explicitly."""
+
+    rest_client = build_rest_client(settings.api_key, settings.api_secret)
+    db_module = order_db
+    products = _load_startup_products(rest_client, settings.products)
+    positions = _load_startup_positions(rest_client)
+    orderbook = OrderBook(
+        products=products,
+        profit=_DEFAULT_PROFIT_TARGETS,
+        mandatory_fee_per_contract=_mandatory_fee_offsets(products),
+        should_replace={"FILLED": True, "CANCELLED": True},
+        positions={ProductType.FUTURE.value: positions},
+        ticker_to_trading=settings.products.ticker_to_trading,
+        db_module=db_module,
+    )
+
+    placement_hooks = get_global_placement_hook_registry()
+    stealth_manager = StealthOrderManager(
+        db_module.DB_CLIENT,
+        order_placement_hooks=placement_hooks,
+        rest_client=rest_client,
+        product_metadata_reader=orderbook.get_product_metadata,
+    )
+    stealth_bridge = StealthOrderBridge(
+        stealth_manager,
+        None,
+        rest_client=rest_client,
+        trading_product_resolver=orderbook.get_trading_product_id,
+    )
+    engine = OrderEngine(
+        orderbook=orderbook,
+        db_module=db_module,
+        subscription=Subscription.from_products(settings.products),
+        api_key=settings.api_key,
+        api_secret=settings.api_secret,
+        order_post_only=settings.order_post_only,
+        stealth_order_bridge=stealth_bridge,
+        rest_client=rest_client,
+        futures_positions_reader=lambda: fetch_futures_positions(rest_client),
+    )
+    stealth_bridge.order_engine = engine
+    stealth_manager.profit_validator = engine.profit_validator
+
+    configure_runtime_dependencies(
+        rest_client=rest_client,
+        orderbook=orderbook,
+        product_catalog_refresher=_catalog_refresh_callback(
+            rest_client=rest_client,
+            settings=settings,
+            orderbook=orderbook,
+        ),
+        state_publish_interval_seconds=(
+            settings.dashboard_state_publish_interval_seconds
+        ),
+    )
+
+    return ApplicationRuntime(
+        settings=settings,
+        rest_client=rest_client,
+        db_module=db_module,
+        orderbook=orderbook,
+        stealth_manager=stealth_manager,
+        stealth_bridge=stealth_bridge,
+        engine=engine,
+        controller=get_runtime_controller(),
+    )
+
+
 def _run_reconciled_engine(
     *,
-    reconciler_disabled,
-    stealth_bridge,
-    controller,
-    engine,
-):
-    """Cross the startup safety barrier, then run the engine.
-
-    ``DISABLE_RECONCILER`` is the sole explicit bypass. Otherwise an
-    unavailable reconciliation result, a raised reconciliation error, or a
-    failed stealth scheduler activation is fatal.
-    """
+    reconciler_disabled: bool,
+    stealth_bridge: StealthOrderBridge,
+    controller: Any,
+    engine: OrderEngine,
+    rest_client: Any,
+) -> None:
+    """Cross the startup safety barrier, then run the engine."""
 
     if reconciler_disabled:
         logger.warning(
@@ -107,6 +322,7 @@ def _run_reconciled_engine(
         )
     else:
         report = run_startup_reconciliation(
+            rest_client=rest_client,
             fail_on_drift=False,
             auto_heal=True,
             audit_fills=True,
@@ -117,14 +333,12 @@ def _run_reconciled_engine(
             )
 
     _raise_if_startup_is_stopping(controller, "startup reconciliation")
-
-    if stealth_bridge is not None:
-        stealth_bridge.activate_decisions()
-
+    stealth_bridge.activate_decisions()
     _raise_if_startup_is_stopping(controller, "stealth decision activation")
 
     if not reconciler_disabled:
         periodic_reconciler = PeriodicReconciler(
+            rest_client=rest_client,
             auto_heal=True,
             audit_fills=True,
         )
@@ -143,8 +357,6 @@ def _run_reconciled_engine(
     def _publish_startup_readiness() -> None:
         if controller.complete_startup():
             return
-        # Shutdown won while workers were being launched. Raising lets the
-        # engine unwind its short lifecycle commit before canonical cleanup.
         raise RuntimeError(
             "Startup readiness publication refused in engine state "
             f"{controller.state.value}"
@@ -155,54 +367,50 @@ def _run_reconciled_engine(
     )
 
 
-def _install_shutdown_signal_handlers(controller) -> None:
+def _install_shutdown_signal_handlers(controller: Any) -> None:
     """Install bounded graceful-shutdown handlers for this controller."""
 
     import signal as _signal
 
     def _shutdown_signal_handler(signum, _frame):
-        # This assignment must be the first handler action. It closes
-        # admission without re-entering a lock that the interrupted main
-        # thread may already own.
         controller.request_shutdown_from_signal()
         signame = (
             _signal.Signals(signum).name
             if signum in _signal.Signals.__members__.values()
             else str(signum)
         )
-        logger.warning(f"Received {signame}; initiating graceful shutdown")
-        # Keep lock-taking lifecycle work off the Python signal handler. An
-        # RLock acquisition here can re-enter an interrupted state transition
-        # on the main thread. The single-owner drain thread performs cleanup.
+        logger.warning("Received %s; initiating graceful shutdown", signame)
         from threading import Thread as _Thread
+
         _Thread(
             target=controller.drain_and_stop,
             kwargs={"timeout_seconds": 30.0},
-            daemon=False,  # block process exit until drain completes
+            daemon=False,
             name="signal-shutdown-drain",
         ).start()
 
-    # SIGINT and SIGTERM exist on both POSIX and Windows; SIGBREAK is
-    # Windows-specific (Ctrl+Break). Register defensively.
-    for _signame in ("SIGINT", "SIGTERM", "SIGBREAK"):
-        _sig = getattr(_signal, _signame, None)
-        if _sig is None:
+    for signal_name in ("SIGINT", "SIGTERM", "SIGBREAK"):
+        candidate = getattr(_signal, signal_name, None)
+        if candidate is None:
             continue
         try:
-            _signal.signal(_sig, _shutdown_signal_handler)
-        except (ValueError, OSError) as _exc:
-            logger.debug(f"Could not install handler for {_signame}: {_exc}")
+            _signal.signal(candidate, _shutdown_signal_handler)
+        except (ValueError, OSError) as exc:
+            logger.debug("Could not install handler for %s: %s", signal_name, exc)
 
 
 def _run_application(
     *,
-    reconciler_disabled,
-    start_paused,
-    stealth_bridge,
-    controller,
-    engine,
-):
-    """Own the testable startup barrier from passive hydration to readiness."""
+    reconciler_disabled: bool,
+    start_paused: bool,
+    stealth_bridge: StealthOrderBridge,
+    controller: Any,
+    engine: OrderEngine,
+    rest_client: Any,
+    dashboard_host: str = "localhost",
+    dashboard_port: int = 8765,
+) -> None:
+    """Own the startup barrier from passive hydration to readiness."""
 
     if controller.state is not EngineState.STARTING:
         raise RuntimeError(
@@ -213,122 +421,63 @@ def _run_application(
     if start_paused and not controller.request_pause():
         raise RuntimeError("Could not latch ENGINE_START_PAUSED during startup")
 
-    # Prevent incomplete startup from activating workers while a bounded
-    # bridge join delays full engine cleanup. Once background startup is
-    # complete, this hook preserves the established producer-before-consumer
-    # order: it publishes DRAINING status but leaves fill/event workers alive
-    # until bridge cleanup returns and the later engine.stop hook runs.
     controller.register_stop_hook(
         "order_engine_quiesce",
         engine.prepare_for_global_drain,
     )
-    if stealth_bridge is not None:
-        controller.register_stop_hook("stealth_bridge", stealth_bridge.stop)
+    controller.register_stop_hook("stealth_bridge", stealth_bridge.stop)
     controller.register_stop_hook("order_engine", engine.stop)
 
     try:
-        # Signals must close admission even while passive bridge hydration is
-        # blocked. Hooks already exist, so the delegated drain owns every
-        # component that could have partially started.
         _install_shutdown_signal_handlers(controller)
+        set_stealth_order_bridge(stealth_bridge)
+        stealth_bridge.start()
+        _raise_if_startup_is_stopping(controller, "stealth bridge hydration")
 
-        # Passive DB hydration precedes dashboard exposure. Decisions remain
-        # disabled until _run_reconciled_engine crosses the strict barrier.
-        if stealth_bridge is not None:
-            set_stealth_order_bridge(stealth_bridge)
-            stealth_bridge.start()
-            _raise_if_startup_is_stopping(
-                controller,
-                "stealth bridge hydration",
-            )
-
-        start_dashboard_server()
-
+        start_dashboard_server(dashboard_host, dashboard_port)
         _run_reconciled_engine(
             reconciler_disabled=reconciler_disabled,
             stealth_bridge=stealth_bridge,
             controller=controller,
             engine=engine,
+            rest_client=rest_client,
         )
     except Exception:
-        # Always join or become the single drain owner. DRAINING alone does not
-        # prove that the asynchronous admin/signal worker was successfully
-        # created, while an existing owner returns one shared terminal result.
         controller.drain_and_stop(timeout_seconds=30.0)
         raise
 
 
-if __name__ == "__main__":
-    _start_paused = _read_strict_boolean_env(
-        "ENGINE_START_PAUSED",
-        default=True,
+def main(*, environ: Optional[Mapping[str, str]] = None) -> None:
+    """Load settings, compose one runtime, and run it until shutdown."""
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
-    _reconciler_disabled = os.getenv(
-        "DISABLE_RECONCILER", ""
-    ).strip().lower() in ("1", "true", "yes", "on")
-    
-    # Initialize stealth order system first (before OrderEngine)
-    from bridges.stealth_order_bridge import StealthOrderBridge
-    from core.stealth_order_manager import StealthOrderManager
+    set_backend(add_log_entry)
+    source = os.environ if environ is None else environ
+    settings = load_runtime_settings(environ=source)
+    runtime = build_application_runtime(settings)
 
-    stealth_manager = StealthOrderManager(DB_MODULE.DB_CLIENT)
-    stealth_bridge = StealthOrderBridge(
-        stealth_manager,
-        None,
-    )  # engine will be set later
-    
-    engine = OrderEngine(
-        orderbook=ORDERBOOK,
-        db_module=DB_MODULE,
-        subscription=Subscription,
-        api_key=API_KEY,
-        api_secret=API_SECRET,
-        order_post_only=ORDER_POST_ONLY,
-        stealth_order_bridge=stealth_bridge,
-    )
-    
-    # Update stealth bridge with engine reference if it exists
-    if stealth_bridge:
-        stealth_bridge.order_engine = engine
-        # Use the engine's shared ProfitValidator for reveal-time revalidation.
-        if hasattr(engine, "profit_validator"):
-            stealth_bridge.stealth_manager.profit_validator = engine.profit_validator
-            logger.info("StealthOrderManager wired with OrderEngine profit_validator")
-
-    # ------------------------------------------------------------------
-    # Lifecycle controller, signal handlers, startup reconciliation.
-    # Industry-standard ordering: register stop hooks BEFORE the first
-    # signal can fire; reconcile exchange vs DB BEFORE accepting work.
-    # ------------------------------------------------------------------
-    controller = get_runtime_controller()
-
-    # Reconcile against the exchange BEFORE running.
-    #
-    # auto_heal=True: marks the safe drift bucket
-    # (closed-on-exchange / open-locally) as RECONCILED_CLOSED so they
-    # stop being treated as live. Risky buckets (unknown to local /
-    # terminal locally but open on exchange) are NEVER auto-healed â€”
-    # those are logged for operator review only.
-    #
-    # audit_fills=True: cross-checks REST historical fills against the
-    # local fill_ledger to surface any fills the WS pipeline missed.
-    # Read-only â€” operators decide whether to backfill.
-    #
-    # Set fail_on_drift=True in stricter environments to block startup
-    # when ANY drift is detected.
-    #
-    # Operator escape hatch: set ``DISABLE_RECONCILER=1`` in the env to
-    # skip BOTH the startup pass and the periodic background audits.
-    # Useful when REST is flaky (e.g. backup-ISP day) and reconciler
-    # noise is hiding the real problem. WS-driven state still works;
-    # you just lose the periodic drift sweep until you flip it back.
-    # _run_application performs passive hydration before dashboard exposure.
-    # Only a completed startup reconciliation (or the explicit operator
-    # bypass) can activate decisions; worker launch then publishes readiness.
     _run_application(
-        reconciler_disabled=_reconciler_disabled,
-        start_paused=_start_paused,
-        stealth_bridge=stealth_bridge,
-        controller=controller,
-        engine=engine,
+        reconciler_disabled=_read_strict_boolean_env(
+            "DISABLE_RECONCILER",
+            default=False,
+            environ=source,
+        ),
+        start_paused=_read_strict_boolean_env(
+            "ENGINE_START_PAUSED",
+            default=True,
+            environ=source,
+        ),
+        stealth_bridge=runtime.stealth_bridge,
+        controller=runtime.controller,
+        engine=runtime.engine,
+        rest_client=runtime.rest_client,
+        dashboard_host=settings.dashboard_host,
+        dashboard_port=settings.dashboard_port,
     )
+
+
+if __name__ == "__main__":
+    main()

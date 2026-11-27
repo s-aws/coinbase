@@ -19,26 +19,12 @@ import sys
 import threading
 import time
 import tracemalloc
-from types import ModuleType
 from typing import Any
 from uuid import NAMESPACE_URL, uuid5
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
-
-# dashboard_server imports these configuration symbols for operator commands.
-# This harness never executes those commands, and importing the real
-# configuration module would perform Coinbase startup reads before the stress
-# workload begins. Install the narrow interface the dashboard import requires
-# so this process is provably exchange-free.
-if "configuration" not in sys.modules:
-    offline_configuration = ModuleType("configuration")
-    offline_configuration.REST_CLIENT = None
-    offline_configuration.rest_get_products = lambda: {}
-    offline_configuration.update_product_metadata = lambda _metadata: None
-    offline_configuration.get_product_metadata = lambda _product_id: None
-    sys.modules["configuration"] = offline_configuration
 
 import dashboard_server  # noqa: E402
 from core.enums import OrderStatus  # noqa: E402

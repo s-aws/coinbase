@@ -11,7 +11,9 @@ This document describes active configuration sources in the current codebase.
 - `COINBASE_API_KEY`
 - `COINBASE_API_SECRET`
 
-Loaded in `configuration.py` and used to initialize `REST_CLIENT`.
+Read by `configuration.load_runtime_settings()` when `main()` starts. The
+composition root passes them to `external.runtime.build_rest_client()`; importing
+configuration does not read credentials or construct a client.
 
 ### Database connection (`database/database.py`)
 - `COINBASE_DB_HOST` (default `127.0.0.1`)
@@ -75,22 +77,25 @@ per-product failures are logged and may leave optional history incomplete.
 
 ### Dashboard WebSocket listener (`dashboard_server.py`)
 
-`main.py` and the standalone dashboard/demo call `start_dashboard_server()`
-without arguments. Its defaults are captured at module import:
+The supported `python -m main` path resolves listener settings while loading
+`RuntimeSettings`, then passes them explicitly to the embedded dashboard
+transport. `dashboard_server.py` does not read the environment or construct a
+standalone runtime:
 
 | Setting | Resolution | Notes |
 | --- | --- | --- |
 | Host | `DASHBOARD_SERVER_HOST` -> `HOSTNAME` -> `localhost` | Fallback applies only when a variable is absent, not when it is blank. `HOSTNAME` is an environment value, not a system-hostname lookup. |
-| Port | `int(DASHBOARD_SERVER_PORT)`; `8765` if absent | Blank or non-integer values raise `ValueError` during import. No explicit port-range validation is performed; binding can reject invalid values. |
-| State publish interval | `float(DASHBOARD_STATE_PUBLISH_INTERVAL_SECONDS)`; `0.25` if absent | Full latest-state snapshots are emitted at most once per interval during bursts. Values below `0.01` are clamped to `0.01`; invalid values raise `ValueError` during import. Ticker messages use their separate latest-value publisher. |
+| Port | `int(DASHBOARD_SERVER_PORT)`; `8765` if absent | Blank or non-integer values raise `ValueError` while `main()` loads settings. No explicit port-range validation is performed; binding can reject invalid values. |
+| State publish interval | `float(DASHBOARD_STATE_PUBLISH_INTERVAL_SECONDS)`; `0.25` if absent | Full latest-state snapshots are emitted at most once per interval during bursts. Values below `0.01` are clamped to `0.01`; invalid values raise `ValueError` while loading settings. Ticker messages use their separate latest-value publisher. |
 
-Set these variables before launching the process; changing them after import
-does not update function defaults. Explicit `start_dashboard_server(host=...,
-port=...)` arguments override the captured defaults and are forwarded to
-`run_websocket_server`. Calling `run_websocket_server()` directly without
-arguments still uses its own literal `localhost:8765` defaults. Startup logs
-show the supplied host and port; a wildcard bind address is not a usable
-browser destination, and port `0` does not report its OS-assigned port.
+Set these variables before launching the process. A `RuntimeSettings` snapshot
+does not change after loading. `main()` forwards its host and port to
+`start_dashboard_server()`, which forwards them to `run_websocket_server`.
+Calling `run_websocket_server()` directly without arguments still uses its own
+literal `localhost:8765` defaults, but this is not a supported trading-process
+entrypoint. Startup logs show the supplied host and port; a wildcard bind
+address is not a usable browser destination, and port `0` does not report its
+OS-assigned port.
 
 The listener uses plain `ws` and has no application authentication. A
 `HOSTNAME` fallback may select a non-loopback interface; use an explicit
@@ -160,21 +165,25 @@ Contains:
 - `derivatives`: derivatives product ids
 - `ticker_to_trading`: ticker product id to trading product id mapping
 - `metadata`: per-product increments/min sizes/type data. Metadata may carry
-  API-style `type`; `configuration.py` normalizes this into canonical
-  `product_type` values for runtime consumers.
-Loaded by `configuration.py` into:
-- `SPOT_PRODUCT_IDS`
-- `DERIVATIVES_PRODUCT_IDS`
-- `PRODUCT_METADATA`
-- `TICKER_TO_TRADING`
+  API-style `type`; `ProductConfiguration.local_products()` normalizes this
+  into canonical `product_type` values for cached-startup consumers.
+
+`load_product_configuration()` copies these fields into one immutable
+`ProductConfiguration`. `main.py` prefers a validated live catalog, falls back
+to `ProductConfiguration.local_products()`, and installs one complete snapshot
+in the shared `core.orderbook.OrderBook`. Validators and strategy consumers
+receive its `get_product_metadata()` reader. A successful manual dashboard
+refresh atomically persists `products.json` before replacing the live snapshot;
+a cache-write failure leaves the runtime catalog unchanged.
 
 ### `pyproject.toml`
 Project/package metadata and package inclusion list.
 
 ## 3) Runtime Subscription Configuration
 
-Defined in `configuration.py::Subscription`:
-- `product_ids = DERIVATIVES_PRODUCT_IDS + SPOT_PRODUCT_IDS`
+Defined in `configuration.py::Subscription` and built from the immutable
+`ProductConfiguration`:
+- `product_ids = derivatives_product_ids + spot_product_ids`
 - `public_channels = [heartbeats, ticker]`
 - `private_channels = [heartbeats, user, futures_balance_summary]`
 - `channels`: deduplicated union derived from the two role lists for local
@@ -260,7 +269,9 @@ Do not introduce duplicate global settings when a per-order canonical field alre
   `calculation/price_validation.py::normalize_price_for_product`; it uses
   `calculation/formatter.py::quantize_to_increment` internally.
 - Size validation uses `calculation/size_validation.py::validate_and_quantize_size`.
-- Product increments/min sizes come from `PRODUCT_METADATA` (from `products.json`).
+- Product increments/min sizes come from the shared `OrderBook` catalog: live
+  Coinbase metadata when startup/refresh succeeds, otherwise the cached
+  `products.json` snapshot.
 - Spot ticker/trading mappings must only point to live tradable products. The
   default BTC spot path keeps `BTC-USD` as both ticker and trading product.
 

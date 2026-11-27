@@ -27,8 +27,8 @@ The contract covers the installed runtime packages plus these supported root
 modules:
 
 - composition: `main.py`, `configuration.py`;
-- operator entry points: `dashboard_server.py`, `engine_console.py`,
-  `main_place_order.py`, `order.py`, `ui_console.py`;
+- operator modules: `dashboard_server.py`, `engine_console.py`, `order.py`,
+  `ui_console.py`;
 - shared logging adapter: `logging_service.py`.
 
 Tests, `genai_tools/`, repository-graph tooling, scripts, and unsupported root
@@ -56,10 +56,12 @@ contract therefore classifies modules, with exact overrides, into these zones:
 | logging | shared logging adapter | logging |
 
 These directions describe the target modular monolith. Existing reverse edges
-are exact debt entries rather than broad package exemptions. They are grouped
-by the later checklist item expected to retire them:
+are exact debt entries rather than broad package exemptions. Item 4 retired
+every forbidden configuration edge and the former runtime import cycle; its
+empty group remains in the machine contract so regression is visible. The
+remaining edges are grouped by the later checklist item expected to retire
+them:
 
-- item 4: active `configuration` and composition imports;
 - item 5: direct execution-to-database/exchange/integration/dashboard edges;
 - item 6: market-data persistence and direct venue ownership;
 - item 7: operator transport directly reading persistence;
@@ -71,25 +73,11 @@ edge fails the regression contract.
 
 ## Frozen Cycles
 
-The runtime import graph currently has one six-module strongly connected
-component:
-
-- `calculation.resolver`;
-- `configuration`;
-- `core.models`;
-- `core.orderbook`;
-- the eager `external` package re-export;
-- `external.coinbase_client`.
-
-It contains the immediately visible `core.models` <-> `calculation.resolver`
-and `configuration` <-> `core.orderbook` subcycles. They are joined because
-`configuration` imports `CoinbaseRestClient` through `external`, whose eager
-package export loads `external.coinbase_client`, which imports `core.models`.
-
-The test compares strongly connected components exactly. A new member or new
-component fails. Removing part or all of this component also fails until its
-stale baseline entry is deliberately removed, keeping debt retirement
-reviewable.
+The covered runtime import graph currently has no strongly connected
+components. The former six-module cycle was retired by making configuration
+passive, moving exchange construction/fetching to `external/runtime.py`, and
+making `core/orderbook.py` the sole `OrderBook` implementation. The regression
+test compares the cycle set exactly, so any new cycle fails review.
 
 ## Capability and Reflection Debt
 

@@ -9,7 +9,12 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
-from configuration import REST_CLIENT
+from configuration import load_runtime_settings
+from external.runtime import build_rest_client
+
+
+_SETTINGS = load_runtime_settings()
+REST_CLIENT = build_rest_client(_SETTINGS.api_key, _SETTINGS.api_secret)
 
 
 def main() -> None:

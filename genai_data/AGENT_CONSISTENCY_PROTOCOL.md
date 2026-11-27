@@ -51,6 +51,11 @@ If a recommendation would land softer than the evidence warrants, the recommenda
    handoff agent must have recorded owner, purpose, and expected next action.
    Record the phase-end or milestone-closeout sweep result in the phase
    evidence, handoff, or closeout summary before advancing.
+9. For an operator-approved cross-cutting design, keep the durable rationale,
+   boundaries, stages, and acceptance criteria in the task-relevant file routed
+   by `genai_data/design_specs/README.md`. Keep `agent_state.md` limited to the
+   active objective, decisions, risks, and next actions; link the spec instead
+   of copying it.
 
 ## Session Start Checklist
 
@@ -75,6 +80,9 @@ If a recommendation would land softer than the evidence warrants, the recommenda
 4. If state is unclear, inspect the current branch, working tree, code, tests,
    and task-relevant docs. Only the current operator-approved objective
    authorizes work.
+5. Never infer implementation approval from the existence or status of a design
+   spec. `agent_state.md` must name the active implementation objective, and
+   every approval boundary required by the spec still applies.
 
 ## Handoff Standard
 

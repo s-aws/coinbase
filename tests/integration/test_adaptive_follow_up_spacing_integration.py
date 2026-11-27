@@ -3,7 +3,7 @@
 from unittest.mock import Mock
 
 from core.order_engine import OrderEngine
-from configuration import OrderBook
+from core.orderbook import OrderBook
 
 
 def _build_engine_with_mocked_orderbook() -> OrderEngine:

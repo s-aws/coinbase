@@ -13,7 +13,7 @@ import uuid
 from datetime import datetime
 from database.database import PostgresDB
 from database.order import insert_order_parent
-from configuration import OrderBook
+from core.orderbook import OrderBook
 from core.order_engine import OrderEngine
 from business.post_fill_hook import on_order_filled, trigger_lot_update
 from logging_service import get_logger

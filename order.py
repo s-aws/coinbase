@@ -59,7 +59,7 @@ import uuid
 from random import uniform as random
 import warnings
 
-from configuration import DEFAULT_MAX_ORDER_REPLACEMENT
+from core.constants import DEFAULT_MAX_ORDER_REPLACEMENT
 from core.enums import (
     FollowUpRevealDirection,
     OrderResponseType,
@@ -302,8 +302,12 @@ def create_limit_order_span(
     if camouflage_round_numbers:
         try:
             from calculation.price_camouflage import camouflage_round_price
-            from configuration import get_product_metadata
-            product_meta = get_product_metadata(product_id)
+            order_bridge = get_stealth_order_bridge()
+            product_meta = (
+                order_bridge.stealth_manager.get_product_metadata(product_id)
+                if order_bridge is not None
+                else {}
+            )
             price_increment = product_meta.get("price_increment")
             if price_increment:
                 effective_start_price = camouflage_round_price(

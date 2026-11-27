@@ -16,8 +16,13 @@ import json
 import sys
 from typing import Any, Dict
 
-from configuration import REST_CLIENT as client
+from configuration import load_runtime_settings
 from external.coinbase_client import coinbase_sdk_response_to_dict
+from external.runtime import build_rest_client
+
+
+_SETTINGS = load_runtime_settings()
+client = build_rest_client(_SETTINGS.api_key, _SETTINGS.api_secret)
 
 
 def _dump(label: str, payload: Any) -> None:

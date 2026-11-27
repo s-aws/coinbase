@@ -167,10 +167,12 @@ dispatch; failed admission desynchronizes and reconnects.
 ## 3) Dashboard WebSocket Contract
 
 Transport is JSON over plain WebSocket at the configured host and port.
-`start_dashboard_server()` uses import-time `DASHBOARD_SERVER_HOST` (fallback
-`HOSTNAME`, then `localhost`) and integer `DASHBOARD_SERVER_PORT` (default
-`8765`), with explicit Python arguments taking precedence. Direct
-`run_websocket_server()` calls retain literal `localhost:8765` defaults.
+The supported `python -m main` entrypoint reads `DASHBOARD_SERVER_HOST`
+(fallback `HOSTNAME`, then `localhost`) and integer `DASHBOARD_SERVER_PORT`
+(default `8765`) at startup and passes both explicitly to the embedded
+transport. Direct `run_websocket_server()` calls retain literal
+`localhost:8765` defaults, but `dashboard_server.py` is not a supported
+standalone runtime entrypoint.
 The API is unauthenticated; local-only deployments should explicitly bind
 to loopback. Client URLs are configured separately and do not inherit the
 server environment. See [listener and client configuration](CONFIGURATION.md#dashboard-websocket-listener-dashboard_serverpy)

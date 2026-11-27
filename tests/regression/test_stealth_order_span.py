@@ -22,25 +22,23 @@ from core.enums import EngineState
 pytestmark = pytest.mark.regression
 
 
-@pytest.fixture(autouse=True)
-def canonical_product_metadata():
-    metadata = {
+_PRODUCT_METADATA = {
         "price_increment": "1",
         "base_increment": "1",
         "base_min_size": "1",
         "quote_min_size": "0",
-    }
-    with patch(
-        "business.stealth_order_span.get_product_metadata",
-        return_value=metadata,
-    ), patch(
-        "calculation.price_validation.get_product_metadata",
-        return_value=metadata,
-    ), patch(
-        "calculation.size_validation.get_product_metadata",
-        return_value=metadata,
-    ):
-        yield
+}
+
+
+def _metadata_reader(_product_id):
+    return _PRODUCT_METADATA
+
+
+def _plan(request):
+    return plan_stealth_order_span(
+        request,
+        metadata_reader=_metadata_reader,
+    )
 
 
 def _request(**overrides):
@@ -77,8 +75,8 @@ def _request(**overrides):
 
 def test_planner_materializes_independent_thresholds_and_deterministic_ids():
     request = _request()
-    first = plan_stealth_order_span(request)
-    second = plan_stealth_order_span(request)
+    first = _plan(request)
+    second = _plan(request)
 
     assert [order.client_order_id for order in first.orders] == [
         order.client_order_id for order in second.orders
@@ -96,7 +94,7 @@ def test_planner_materializes_independent_thresholds_and_deterministic_ids():
 
 
 def test_parent_children_share_root_strategy_and_flat_parent_id():
-    plan = plan_stealth_order_span(
+    plan = _plan(
         _request(creation_mode="parent_children")
     )
 
@@ -111,7 +109,7 @@ def test_parent_children_share_root_strategy_and_flat_parent_id():
 
 
 def test_buy_span_steps_prices_downward():
-    plan = plan_stealth_order_span(_request(side="BUY"))
+    plan = _plan(_request(side="BUY"))
 
     assert [order.limit_price for order in plan.orders] == [100.0, 90.0, 80.0]
     assert all(
@@ -132,7 +130,7 @@ def test_anchor_distances_are_materialized_in_their_declared_units(
     max_distance,
     expected_targets,
 ):
-    plan = plan_stealth_order_span(
+    plan = _plan(
         _request(
             anchor_repricing_policy={
                 "enabled": True,
@@ -149,7 +147,7 @@ def test_anchor_distances_are_materialized_in_their_declared_units(
 
 
 def test_even_pyramid_has_exact_count_and_preserves_effective_total():
-    plan = plan_stealth_order_span(
+    plan = _plan(
         _request(order_count=4, total_size=6, size_distribution="pyramid")
     )
 
@@ -160,7 +158,7 @@ def test_even_pyramid_has_exact_count_and_preserves_effective_total():
 
 def test_effective_duplicate_prices_are_rejected_before_creation():
     with pytest.raises(StealthSpanValidationError, match="duplicate effective span prices"):
-        plan_stealth_order_span(_request(price_step=0))
+        _plan(_request(price_step=0))
 
 
 class _FakeSpanManager:
@@ -172,6 +170,9 @@ class _FakeSpanManager:
 
     def _get_stealth_order(self, client_order_id):
         return self.in_memory_orders.get(client_order_id)
+
+    def get_product_metadata(self, _product_id):
+        return _PRODUCT_METADATA
 
     def create_stealth_order(self, **kwargs):
         call_index = self.create_calls

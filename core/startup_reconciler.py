@@ -31,12 +31,22 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Protocol, Set
 
 from logging_service import get_logger
 
 
 logger = get_logger("StartupReconciler")
+
+
+class ReconciliationRestClient(Protocol):
+    """Read-only exchange capabilities required by reconciliation."""
+
+    def list_orders(self, **kwargs: Any) -> Any:
+        """Return one page of exchange orders."""
+
+    def list_fills(self, **kwargs: Any) -> Any:
+        """Return one page of historical fills."""
 
 
 # Local statuses that indicate the order is no longer open. Anything
@@ -166,15 +176,15 @@ class ReconciliationReport:
         }
 
 
-def _fetch_exchange_open_client_order_ids() -> Set[str]:
+def _fetch_exchange_open_client_order_ids(
+    rest_client: ReconciliationRestClient,
+) -> Set[str]:
     """Return the set of ``client_order_id`` values currently OPEN on Coinbase.
 
-    Uses ``REST_CLIENT.list_orders`` which is the same code path used
+    Uses the injected client's ``list_orders`` code path used
     elsewhere in the engine, so reconciliation reflects what the
     production code sees.
     """
-    from configuration import REST_CLIENT  # late import to avoid cycles
-
     ids: Set[str] = set()
     cursor: Optional[str] = None
     seen_cursors: Set[str] = set()
@@ -183,7 +193,7 @@ def _fetch_exchange_open_client_order_ids() -> Set[str]:
         request_kwargs = {"order_status": ["OPEN"]}
         if cursor is not None:
             request_kwargs["cursor"] = cursor
-        response = REST_CLIENT.list_orders(**request_kwargs)
+        response = rest_client.list_orders(**request_kwargs)
         raw = response.to_dict() if hasattr(response, "to_dict") else response
         if not isinstance(raw, dict):
             raise RuntimeError("Coinbase open-orders response was not a mapping")
@@ -268,6 +278,7 @@ def _fetch_local_open_client_order_ids() -> Set[str]:
 
 def run_startup_reconciliation(
     *,
+    rest_client: ReconciliationRestClient,
     fail_on_drift: bool = False,
     auto_heal: bool = False,
     audit_fills: bool = False,
@@ -310,7 +321,7 @@ def run_startup_reconciliation(
     logger.info("Startup reconciliation: starting (REST OPEN vs local DB)")
 
     try:
-        exchange_ids = _fetch_exchange_open_client_order_ids()
+        exchange_ids = _fetch_exchange_open_client_order_ids(rest_client)
     except Exception:
         logger.exception(
             "Startup reconciliation skipped: could not fetch open orders "
@@ -415,7 +426,7 @@ def run_startup_reconciliation(
                 if fills_lookback is not None
                 else None
             )
-            audit_missed_fills(since=since)
+            audit_missed_fills(rest_client=rest_client, since=since)
         except Exception:
             logger.exception("Missed-fills audit raised; continuing")
 
@@ -683,6 +694,7 @@ def _fetch_client_order_ids_for_exchange_order_ids(
 
 def audit_missed_fills(
     *,
+    rest_client: ReconciliationRestClient,
     since: Optional[datetime] = None,
     until: Optional[datetime] = None,
     product_id: Optional[str] = None,
@@ -716,8 +728,6 @@ def audit_missed_fills(
         unavailable. Returning ``None`` is non-fatal so dev environments
         without live API credentials still start.
     """
-    from configuration import REST_CLIENT  # late import to avoid cycles
-
     if since is None:
         since = datetime.now(timezone.utc) - DEFAULT_MISSED_FILLS_LOOKBACK
     since_iso = since.isoformat()
@@ -739,7 +749,7 @@ def audit_missed_fills(
     while pages < _FILLS_MAX_PAGES:
         pages += 1
         try:
-            page = REST_CLIENT.list_fills(
+            page = rest_client.list_fills(
                 start_date=since_iso,
                 end_date=until_iso,
                 product_id=product_id,

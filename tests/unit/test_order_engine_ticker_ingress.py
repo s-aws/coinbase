@@ -269,6 +269,9 @@ def test_ticker_worker_publishes_resets_before_retained_tick_and_forwards_time(
     engine.event_queue = {ChannelType.TICKER.value: Queue()}
     engine.ticker_lock = threading.RLock()
     engine.ticker = {}
+    engine.orderbook = SimpleNamespace(
+        get_trading_product_id=lambda product_id: product_id,
+    )
     engine.fee_manager = None
     engine.log_message = lambda *_args, **_kwargs: None
     engine.build_event_log_payload = (
@@ -320,11 +323,6 @@ def test_ticker_worker_publishes_resets_before_retained_tick_and_forwards_time(
 
     engine.stealth_order_bridge = RecordingStealthBridge()
 
-    monkeypatch.setattr(
-        order_engine_module,
-        "get_trading_product_id",
-        lambda product_id: product_id,
-    )
     monkeypatch.setattr(
         order_engine_module,
         "broadcast_ticker",
@@ -389,6 +387,9 @@ def test_ticker_worker_suppresses_only_stale_product_side_effects(monkeypatch):
     engine.ticker_lock = threading.RLock()
     previous_stale_ticker = _ticker_event("SOL-USD", "11")["tickers"][0]
     engine.ticker = {"SOL-USD": previous_stale_ticker}
+    engine.orderbook = SimpleNamespace(
+        get_trading_product_id=lambda product_id: product_id,
+    )
     engine.log_message = lambda *_args, **_kwargs: None
     engine.build_event_log_payload = (
         lambda event, **details: {"event": event, **details}
@@ -438,11 +439,6 @@ def test_ticker_worker_suppresses_only_stale_product_side_effects(monkeypatch):
         )
     )
 
-    monkeypatch.setattr(
-        order_engine_module,
-        "get_trading_product_id",
-        lambda product_id: product_id,
-    )
     monkeypatch.setattr(
         order_engine_module,
         "broadcast_ticker",

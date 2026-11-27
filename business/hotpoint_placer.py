@@ -149,9 +149,16 @@ def place_hotpoint_order(
         if isinstance(product_meta, _Product):
             base_min_size = float(product_meta.base_min_size or 0)
             base_increment = float(product_meta.base_increment or 0)
+            validation_metadata = {
+                "price_increment": product_meta.price_increment,
+                "base_increment": product_meta.base_increment,
+                "base_min_size": product_meta.base_min_size,
+                "quote_min_size": product_meta.quote_min_size,
+            }
         else:
             base_min_size = float(product_meta.get("base_min_size") or 0)
             base_increment = float(product_meta.get("base_increment") or 0)
+            validation_metadata = product_meta
 
         if base_min_size <= 0.0:
             log("warning", {
@@ -184,6 +191,7 @@ def place_hotpoint_order(
             product_id=event.product_id,
             side=event.side,
             policy=PriceRoundingPolicy.NEAREST,
+            product_metadata=validation_metadata,
         )
         if not price_check:
             log("warning", {

@@ -140,6 +140,7 @@ class TestStealthMutationClaims:
         from core.stealth_order_manager import StealthOrderManager
 
         mgr = StealthOrderManager.__new__(StealthOrderManager)
+        mgr._product_metadata_reader = lambda _product_id: {"price_increment": "0.01"}
         # Real implementation must initialise the ledger in __init__; for
         # the bare instance we mimic that here so the test isolates the
         # ledger contract from the rest of __init__.
@@ -234,6 +235,7 @@ class TestRepricingSkipsHeldMoveClaim:
         from core.stealth_order_manager import StealthOrderManager
 
         mgr = StealthOrderManager.__new__(StealthOrderManager)
+        mgr._product_metadata_reader = lambda _product_id: {"price_increment": "0.01"}
         mgr._mutation_claims = ClaimLedger(StealthMutationKind)
         mgr.in_memory_orders = {
             "sid_1": {
@@ -351,6 +353,7 @@ class TestBuildStealthMovePlanRejectsPartialFills:
         from core.stealth_order_manager import StealthOrderManager
 
         mgr = StealthOrderManager.__new__(StealthOrderManager)
+        mgr._product_metadata_reader = lambda _product_id: {"price_increment": "0.01"}
         mgr.log_callback = lambda *a, **k: None
         with patch.object(
             mgr,
@@ -380,6 +383,7 @@ class TestBuildStealthMovePlanRejectsPartialFills:
         from core.stealth_order_manager import StealthOrderManager
 
         mgr = StealthOrderManager.__new__(StealthOrderManager)
+        mgr._product_metadata_reader = lambda _product_id: {"price_increment": "0.01"}
         mgr.log_callback = lambda *a, **k: None
         with patch.object(
             mgr,
@@ -421,6 +425,7 @@ class TestExecuteStealthMoveResetsState:
         from core.stealth_order_manager import StealthOrderManager
 
         mgr = StealthOrderManager.__new__(StealthOrderManager)
+        mgr._product_metadata_reader = lambda _product_id: {"price_increment": "0.01"}
         mgr._mutation_claims = ClaimLedger(StealthMutationKind)
         mgr._placed_order_index = {}
         mgr.log_callback = lambda *a, **k: None
@@ -468,7 +473,7 @@ class TestExecuteStealthMoveResetsState:
         with patch.object(mgr, "_get_stealth_order", return_value=order), \
              patch.object(mgr, "_update_stealth_order") as update_mock, \
              patch.object(mgr, "_record_reveal_event"), \
-             patch("configuration.REST_CLIENT") as rest_mock, \
+             patch.object(mgr, "rest_client", create=True) as rest_mock, \
              patch("core.stealth_order_manager.insert_order_parent"), \
              patch("core.stealth_order_manager.resolve_stealth_chain_root",
                    return_value="root_parent_coid"):
@@ -504,6 +509,7 @@ class TestExecuteStealthMoveResetsState:
         from core.stealth_order_manager import StealthOrderManager
 
         mgr = StealthOrderManager.__new__(StealthOrderManager)
+        mgr._product_metadata_reader = lambda _product_id: {"price_increment": "0.01"}
         mgr._mutation_claims = ClaimLedger(StealthMutationKind)
         mgr._placed_order_index = {}
         mgr.log_callback = lambda *a, **k: None
@@ -539,7 +545,7 @@ class TestExecuteStealthMoveResetsState:
         with patch.object(mgr, "_get_stealth_order", return_value=order), \
              patch.object(mgr, "_update_stealth_order"), \
              patch.object(mgr, "_record_reveal_event"), \
-             patch("configuration.REST_CLIENT") as rest_mock, \
+             patch.object(mgr, "rest_client", create=True) as rest_mock, \
              patch("core.stealth_order_manager.insert_order_parent"), \
              patch("core.stealth_order_manager.resolve_stealth_chain_root",
                    return_value="root_parent_coid"):
@@ -728,6 +734,7 @@ class TestStealthOrderMovesAuditTable:
         from core.stealth_order_manager import StealthOrderManager
 
         mgr = StealthOrderManager.__new__(StealthOrderManager)
+        mgr._product_metadata_reader = lambda _product_id: {"price_increment": "0.01"}
         mgr._mutation_claims = ClaimLedger(StealthMutationKind)
         mgr._placed_order_index = {}
         mgr.log_callback = lambda *a, **k: None
@@ -772,7 +779,7 @@ class TestStealthOrderMovesAuditTable:
         with patch.object(mgr, "_get_stealth_order", return_value=order), \
              patch.object(mgr, "_update_stealth_order"), \
              patch.object(mgr, "_record_reveal_event"), \
-             patch("configuration.REST_CLIENT") as rest_mock, \
+             patch.object(mgr, "rest_client", create=True) as rest_mock, \
              patch("core.stealth_order_manager.insert_order_parent"), \
              patch("core.stealth_order_manager.resolve_stealth_chain_root",
                    return_value="root_parent_coid"), \
@@ -800,7 +807,7 @@ class TestStealthOrderMovesAuditTable:
         with patch.object(mgr, "_get_stealth_order", return_value=order), \
              patch.object(mgr, "_update_stealth_order"), \
              patch.object(mgr, "_record_reveal_event"), \
-             patch("configuration.REST_CLIENT") as rest_mock, \
+             patch.object(mgr, "rest_client", create=True) as rest_mock, \
              patch("core.stealth_order_manager.insert_order_parent", return_value=1), \
              patch("core.stealth_order_manager.resolve_stealth_chain_root",
                    return_value="root_parent_coid"), \
@@ -823,7 +830,7 @@ class TestStealthOrderMovesAuditTable:
         mgr, order, plan = self._build_executor_fixture()
         with patch.object(mgr, "_get_stealth_order", return_value=order), \
              patch.object(mgr, "_update_stealth_order"), \
-             patch("configuration.REST_CLIENT") as rest_mock, \
+             patch.object(mgr, "rest_client", create=True) as rest_mock, \
              patch("core.stealth_order_manager.insert_order_parent"), \
              patch("core.stealth_order_manager.resolve_stealth_chain_root",
                    return_value="root_parent_coid"), \
@@ -849,7 +856,7 @@ class TestStealthOrderMovesAuditTable:
 
         mgr, order, plan = self._build_executor_fixture()
         with patch.object(mgr, "_get_stealth_order", return_value=order), \
-             patch("configuration.REST_CLIENT") as rest_mock, \
+             patch.object(mgr, "rest_client", create=True) as rest_mock, \
              patch("database.order.insert_stealth_order_move") as audit_mock:
             rest_mock.cancel_orders.side_effect = RuntimeError("cancel boom")
             with pytest.raises(StealthMoveError) as exc_info:

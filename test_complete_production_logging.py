@@ -9,7 +9,7 @@ from datetime import datetime
 from database.database import PostgresDB
 from database.order import insert_order_parent
 from core.order_engine import OrderEngine
-from configuration import OrderBook
+from core.orderbook import OrderBook
 
 # Configure logging to show INFO messages clearly
 logging.basicConfig(

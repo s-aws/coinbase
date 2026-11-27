@@ -570,7 +570,7 @@ class FeeManager:
         deliberately fall back to SPOT. Caller holds ``_lock``.
         """
         try:
-            from configuration import normalize_product_type as _normalize_product_type
+            from calculation.resolver import normalize_product_type
 
             order_for_normalize = {}
             if product_id:
@@ -582,7 +582,7 @@ class FeeManager:
                     product_type_hint,
                 )
             products = self.orderbook.product if self.orderbook else None
-            normalized = _normalize_product_type(order_for_normalize, products=products)
+            normalized = normalize_product_type(order_for_normalize, products=products)
             if normalized == ProductType.FUTURE.value:
                 return ProductType.FUTURE
         except Exception:

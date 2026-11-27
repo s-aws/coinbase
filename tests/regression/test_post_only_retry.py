@@ -48,6 +48,14 @@ _STEALTH_MANAGER_SRC = (
 ).read_text(encoding="utf-8")
 
 
+def _manager(metadata=None):
+    product_metadata = metadata or {"price_increment": "0.01"}
+    return StealthOrderManager(
+        db_client=None,
+        product_metadata_reader=lambda _product_id: product_metadata,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Static-source guards
 # ---------------------------------------------------------------------------
@@ -99,64 +107,50 @@ def test_retry_loop_uses_fresh_client_order_id_per_attempt():
 
 
 @pytest.mark.regression
-def test_next_safer_tick_buy_retreats_below_ask(monkeypatch):
+def test_next_safer_tick_buy_retreats_below_ask():
     """A BUY post-only rejection means our bid was >= ask. The only
     safe re-submit moves the bid LOWER (further from the ask)."""
-    from configuration import PRODUCT_METADATA
-    monkeypatch.setitem(PRODUCT_METADATA, "TEST-USD", {"price_increment": "0.01"})
-    new_price = StealthOrderManager._next_safer_tick(
+    new_price = _manager()._next_safer_tick(
         price=100.50, side="BUY", product_id="TEST-USD"
     )
     assert new_price == pytest.approx(100.49)
 
 
 @pytest.mark.regression
-def test_next_safer_tick_sell_retreats_above_bid(monkeypatch):
+def test_next_safer_tick_sell_retreats_above_bid():
     """A SELL post-only rejection means our ask was <= bid. The only
     safe re-submit moves the ask HIGHER (further from the bid)."""
-    from configuration import PRODUCT_METADATA
-    monkeypatch.setitem(PRODUCT_METADATA, "TEST-USD", {"price_increment": "0.01"})
-    new_price = StealthOrderManager._next_safer_tick(
+    new_price = _manager()._next_safer_tick(
         price=100.50, side="SELL", product_id="TEST-USD"
     )
     assert new_price == pytest.approx(100.51)
 
 
 @pytest.mark.regression
-def test_next_safer_tick_rejects_unknown_side(monkeypatch):
+def test_next_safer_tick_rejects_unknown_side():
     """Unknown side must fail closed instead of guessing a direction."""
-    from configuration import PRODUCT_METADATA
-    monkeypatch.setitem(PRODUCT_METADATA, "TEST-USD", {"price_increment": "0.01"})
     with pytest.raises(ValueError, match="unsupported order side"):
-        StealthOrderManager._next_safer_tick(
+        _manager()._next_safer_tick(
             price=100.50, side="WHATEVER", product_id="TEST-USD"
         )
 
 
 @pytest.mark.regression
-def test_next_safer_tick_quantizes_to_increment(monkeypatch):
+def test_next_safer_tick_quantizes_to_increment():
     """If the input price is off-grid, the result must still snap to
     the tick grid before retreating."""
     # 100.503 → quantized to 100.50, then BUY retreat by 0.01 = 100.49
-    from configuration import PRODUCT_METADATA
-    monkeypatch.setitem(PRODUCT_METADATA, "TEST-USD", {"price_increment": "0.01"})
-    new_price = StealthOrderManager._next_safer_tick(
+    new_price = _manager()._next_safer_tick(
         price=100.503, side="BUY", product_id="TEST-USD"
     )
     assert new_price == pytest.approx(100.49)
 
 
 @pytest.mark.regression
-def test_next_safer_tick_rejects_invalid_increment(monkeypatch):
+def test_next_safer_tick_rejects_invalid_increment():
     """Malformed metadata must fail closed rather than return a raw price."""
-    from configuration import PRODUCT_METADATA
-    monkeypatch.setitem(
-        PRODUCT_METADATA,
-        "TEST-USD",
-        {"price_increment": "not-a-number"},
-    )
     with pytest.raises(ValueError, match="invalid price_increment"):
-        StealthOrderManager._next_safer_tick(
+        _manager({"price_increment": "not-a-number"})._next_safer_tick(
             price=100.50, side="BUY", product_id="TEST-USD"
         )
 

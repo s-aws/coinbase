@@ -31,26 +31,23 @@ from core.models import RepricingPolicy
 from core.stealth_order_manager import StealthOrderManager
 
 
-@pytest.fixture(autouse=True)
-def _btc_product_metadata(monkeypatch):
-    from configuration import PRODUCT_METADATA
-
-    monkeypatch.setitem(
-        PRODUCT_METADATA,
-        "BTC-USDC",
-        {
-            "price_increment": "1",
-            "base_increment": "0.00000001",
-            "base_min_size": "0.00000001",
-            "quote_min_size": "0",
-        },
-    )
+_PRODUCT_METADATA = {
+    "BTC-USDC": {
+        "price_increment": "1",
+        "base_increment": "0.00000001",
+        "base_min_size": "0.00000001",
+        "quote_min_size": "0",
+    }
+}
 
 
 def _build_manager_with_filled_child(retreat_distance: float, retreat_jitter: float):
     """Build a StealthOrderManager with one filled child whose policy
     carries the requested retreat configuration."""
-    manager = StealthOrderManager(db_client=None)
+    manager = StealthOrderManager(
+        db_client=None,
+        product_metadata_reader=_PRODUCT_METADATA.get,
+    )
 
     policy = {
         "enabled": True,

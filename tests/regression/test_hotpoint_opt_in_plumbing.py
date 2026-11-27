@@ -24,24 +24,22 @@ import pytest
 from core.stealth_order_manager import StealthOrderManager
 
 
-@pytest.fixture(autouse=True)
-def _btc_product_metadata(monkeypatch):
-    from configuration import PRODUCT_METADATA
-
-    monkeypatch.setitem(
-        PRODUCT_METADATA,
-        "BTC-USDC",
-        {
-            "price_increment": "1",
-            "base_increment": "0.00000001",
-            "base_min_size": "0.00000001",
-            "quote_min_size": "0",
-        },
-    )
+_PRODUCT_METADATA = {
+    "BTC-USDC": {
+        "price_increment": "1",
+        "base_increment": "0.00000001",
+        "base_min_size": "0.00000001",
+        "quote_min_size": "0",
+    }
+}
 
 
 def _make_manager():
-    mgr = StealthOrderManager(db_client=None, log_callback=MagicMock())
+    mgr = StealthOrderManager(
+        db_client=None,
+        log_callback=MagicMock(),
+        product_metadata_reader=_PRODUCT_METADATA.get,
+    )
     mgr._save_stealth_order_to_db = MagicMock()
     mgr._update_stealth_order = MagicMock()
     return mgr

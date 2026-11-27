@@ -63,7 +63,7 @@ from queue import Queue, Full, Empty
 from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor
 from types import ModuleType
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Protocol, Tuple
 from weakref import WeakValueDictionary
 from coinbase.websocket import (
     WSClient,
@@ -73,15 +73,12 @@ from coinbase.websocket import (
 
 from external import CoinbaseWebSocketClient
 
-from configuration import (
-    DEFAULT_MAX_ORDER_REPLACEMENT,
+from calculation.order_movement import (
     calculate_new_order_move_from_snapshot,
     apply_calculated_position_update,
-    get_futures_positions,
-    get_trading_product_id,
 )
 
-from core.constants import get_local_now
+from core.constants import DEFAULT_MAX_ORDER_REPLACEMENT, get_local_now
 from core.enums import (
     ChannelType,
     EngineState,
@@ -140,6 +137,16 @@ from core.user_feed_processor import (
 _COINBASE_MESSAGE_TIMESTAMP_KEY = "_coinbase_message_timestamp"
 _TICKER_CONTINUITY_RESET_COUNTS_KEY = "_ticker_continuity_reset_counts"
 _TICKER_RECEIVED_MONOTONIC_KEY = "_ticker_received_monotonic"
+
+
+class OrderEngineRestClient(Protocol):
+    """REST capabilities consumed by the engine and its owned workers."""
+
+    def get_transaction_summary(self, **kwargs) -> Any: ...
+
+    def cancel_orders(self, *, order_ids: list[str]) -> Any: ...
+
+    def limit_order_gtc(self, **kwargs) -> Any: ...
 
 
 # Dashboard integration (optional - will fail gracefully if dashboard_server not available)
@@ -269,6 +276,8 @@ class OrderEngine:
         queue_maxsize=10000,
         stealth_order_bridge=None,
         websocket_hooks=None,
+        rest_client: Optional[OrderEngineRestClient] = None,
+        futures_positions_reader: Optional[Callable[[], Dict[str, dict]]] = None,
     ) -> None:
         """Initialize the OrderEngine with configuration and state.
         
@@ -294,6 +303,8 @@ class OrderEngine:
         self.api_secret = api_secret
         self.order_post_only = order_post_only
         self.stealth_order_bridge = stealth_order_bridge
+        self.rest_client = rest_client
+        self._futures_positions_reader = futures_positions_reader
         
         # WebSocket hook registry for extensible message handling
         self.websocket_hooks = websocket_hooks or get_global_hook_registry()
@@ -429,12 +440,11 @@ class OrderEngine:
         )
         
         # Profit Tracking: FeeManager and ProfitValidator for profitable order validation
-        from configuration import REST_CLIENT
         from calculation.fee_manager import FeeManager
         from calculation.profit_validator import ProfitValidator
         
         self.fee_manager = FeeManager(
-            REST_CLIENT,
+            self.rest_client,
             log_callback=self.log_message,
             orderbook=self.orderbook,
         )
@@ -759,7 +769,6 @@ class OrderEngine:
         background failure must never block engine startup.
         """
         try:
-            from configuration import REST_CLIENT
             from core import constants as _constants
             from business.hotpoint_decay_sweeper import HotpointDecaySweeper
             from business.hotpoint_detector import compute_bucket_id
@@ -812,7 +821,7 @@ class OrderEngine:
                             30,
                         )),
                         list_open_fn=get_open_auto_placed_hotpoint_rows,
-                        rest_client=REST_CLIENT,
+                        rest_client=self.rest_client,
                         shutdown_event=self._shutdown_event,
                         log_callback=self.log_message,
                     )
@@ -891,7 +900,6 @@ class OrderEngine:
                         return
 
                     from business.hotpoint_placer import place_hotpoint_order
-                    from configuration import REST_CLIENT
                     from database.order import insert_order_parent
 
                     product_meta = self.orderbook.product.get(delta.product_id, {})
@@ -904,7 +912,7 @@ class OrderEngine:
                             rate_limiter=rate_limiter,
                             product_meta=product_meta,
                             policy=policy,
-                            rest_client=REST_CLIENT,
+                            rest_client=self.rest_client,
                             insert_order_parent_fn=insert_order_parent,
                             kill_switch_enabled=self.is_hotpoint_auto_place_enabled(),
                             log_callback=self.log_message,
@@ -1904,7 +1912,9 @@ class OrderEngine:
                 return
 
         try:
-            refreshed_positions = get_futures_positions()
+            if self._futures_positions_reader is None:
+                raise RuntimeError("futures positions reader is not configured")
+            refreshed_positions = self._futures_positions_reader()
         except Exception as e:
             self.log_message("error", f"Failed to refresh futures positions for {product_id}: {e}")
             return
@@ -5944,7 +5954,9 @@ class OrderEngine:
                             )
                             for tickr in event["tickers"]:
                                 product_id = tickr.get("product_id")
-                                trading_product_id = get_trading_product_id(product_id)
+                                trading_product_id = (
+                                    self.orderbook.get_trading_product_id(product_id)
+                                )
 
                                 # Publish the websocket snapshot at the front
                                 # of local ticker handling.  Dashboard/metrics

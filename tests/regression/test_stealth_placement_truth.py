@@ -23,22 +23,35 @@ from core.exceptions import OrderCreationError, StealthOrderPersistenceError
 from core.stealth_order_manager import StealthOrderManager
 
 
-@pytest.fixture
-def five_tick_product(monkeypatch):
-    from configuration import PRODUCT_METADATA
+_FIVE_TICK_PRODUCT = "TEST-5-CDE"
+_PRODUCT_METADATA = {
+    _FIVE_TICK_PRODUCT: {
+        "price_increment": "5",
+        "base_increment": "1",
+        "base_min_size": "1",
+        "quote_min_size": "0",
+    }
+}
 
-    product_id = "TEST-5-CDE"
-    monkeypatch.setitem(
-        PRODUCT_METADATA,
-        product_id,
-        {
-            "price_increment": "5",
-            "base_increment": "1",
-            "base_min_size": "1",
-            "quote_min_size": "0",
-        },
+
+def _manager(*, rest_client=None):
+    return StealthOrderManager(
+        db_client=None,
+        rest_client=rest_client,
+        product_metadata_reader=_PRODUCT_METADATA.get,
     )
-    return product_id
+
+
+@pytest.fixture
+def five_tick_product():
+    _PRODUCT_METADATA[_FIVE_TICK_PRODUCT] = {
+        "price_increment": "5",
+        "base_increment": "1",
+        "base_min_size": "1",
+        "quote_min_size": "0",
+    }
+    yield _FIVE_TICK_PRODUCT
+    _PRODUCT_METADATA.pop(_FIVE_TICK_PRODUCT, None)
 
 
 def _triggered_order(product_id: str, *, side: str = "BUY"):
@@ -66,7 +79,16 @@ def _triggered_order(product_id: str, *, side: str = "BUY"):
 
 
 def _manager_for_reveal(product_id: str, response_or_exception, monkeypatch):
-    manager = StealthOrderManager(db_client=None)
+    def place_limit_order(**kwargs):
+        if isinstance(response_or_exception, BaseException):
+            raise response_or_exception
+        if callable(response_or_exception):
+            return response_or_exception(kwargs)
+        return response_or_exception
+
+    manager = _manager(
+        rest_client=SimpleNamespace(place_limit_order=place_limit_order),
+    )
     sid, order = _triggered_order(product_id)
     manager.in_memory_orders[sid] = order
     post_calls = []
@@ -107,17 +129,6 @@ def _manager_for_reveal(product_id: str, response_or_exception, monkeypatch):
         lambda client_order_id, price: True,
     )
 
-    def place_limit_order(**kwargs):
-        if isinstance(response_or_exception, BaseException):
-            raise response_or_exception
-        if callable(response_or_exception):
-            return response_or_exception(kwargs)
-        return response_or_exception
-
-    monkeypatch.setattr(
-        "configuration.REST_CLIENT",
-        SimpleNamespace(place_limit_order=place_limit_order),
-    )
     return manager, sid, order, post_calls, lifecycle, parent_statuses
 
 
@@ -138,7 +149,7 @@ def test_create_normalizes_before_every_local_write(
         "core.stealth_order_manager.insert_order_parent",
         lambda **kwargs: parent_rows.append(dict(kwargs)) or 1,
     )
-    manager = StealthOrderManager(db_client=None)
+    manager = _manager()
     manager._dispatch_lifecycle_event = lambda *args, **kwargs: None
     condition = {
         "type": "price",
@@ -168,7 +179,7 @@ def test_creation_parent_persistence_failure_never_activates_order(
     monkeypatch,
 ):
     stealth_order_id = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
-    manager = StealthOrderManager(db_client=None)
+    manager = _manager()
     saved_orders = []
     manager._save_stealth_order_to_db = (
         lambda order: saved_orders.append(dict(order)) or True
@@ -198,7 +209,7 @@ def test_creation_stealth_persistence_failure_never_touches_parent(
     monkeypatch,
 ):
     stealth_order_id = "bbbbbbbb-cccc-4ddd-8eee-ffffffffffff"
-    manager = StealthOrderManager(db_client=None)
+    manager = _manager()
     manager._save_stealth_order_to_db = lambda order: False
     parent_inserts = []
     monkeypatch.setattr(
@@ -226,7 +237,7 @@ def test_creation_activation_failure_marks_new_parent_failed_and_inactive(
     monkeypatch,
 ):
     stealth_order_id = "cccccccc-dddd-4eee-8fff-aaaaaaaaaaaa"
-    manager = StealthOrderManager(db_client=None)
+    manager = _manager()
     manager._save_stealth_order_to_db = lambda order: True
     manager._update_stealth_order = lambda order: False
     parent_statuses = []
@@ -261,7 +272,7 @@ def test_duplicate_creation_does_not_terminalize_existing_parent(
     monkeypatch,
 ):
     stealth_order_id = "dddddddd-eeee-4fff-8aaa-bbbbbbbbbbbb"
-    manager = StealthOrderManager(db_client=None)
+    manager = _manager()
     manager._save_stealth_order_to_db = lambda order: True
     persisted_statuses = []
     manager._update_stealth_order = lambda order: persisted_statuses.append(
@@ -987,7 +998,7 @@ def test_follow_up_reveal_direction_schema_migration_is_additive(monkeypatch):
 @pytest.mark.regression
 def test_follow_up_reveal_direction_is_persisted_on_insert(five_tick_product):
     db = _ReadOnlyDB([])
-    manager = StealthOrderManager(db_client=None)
+    manager = _manager()
     manager.db_client = db
     _, order = _triggered_order(five_tick_product)
     order["follow_up_reveal_direction"] = FollowUpRevealDirection.SAME.value
@@ -1004,7 +1015,7 @@ def test_reveal_pricing_policy_write_paths_normalize_and_preserve_absence(
     five_tick_product,
 ):
     db = _ReadOnlyDB([])
-    manager = StealthOrderManager(db_client=None)
+    manager = _manager()
     manager.db_client = db
     _, order = _triggered_order(five_tick_product)
     order["reveal_pricing_policy"] = " TOP_OF_BOOK "
@@ -1041,7 +1052,7 @@ def test_hydration_restores_reveal_pricing_policy_and_post_only(
     row = _stored_row(five_tick_product, price=77115.0)
     row["reveal_pricing_policy"] = RevealPricingPolicy.TOP_OF_BOOK.value
     db = _ReadOnlyDB([row])
-    manager = StealthOrderManager(db_client=None)
+    manager = _manager()
     manager.db_client = db
     manager._get_current_market_data = lambda _product_id: {
         "price": 77110.0,
@@ -1074,7 +1085,7 @@ def test_hydration_missing_reveal_pricing_policy_fails_safe(
 ):
     row = _stored_row(five_tick_product, price=77115.0)
     db = _ReadOnlyDB([row])
-    manager = StealthOrderManager(db_client=None)
+    manager = _manager()
     manager.db_client = db
 
     assert manager.load_all_active_orders_from_db() == 1
@@ -1093,7 +1104,7 @@ def test_hydration_restores_follow_up_reveal_direction(
     row = _stored_row(five_tick_product, price=77115.0)
     row["follow_up_reveal_direction"] = FollowUpRevealDirection.SAME.value
     db = _ReadOnlyDB([row])
-    manager = StealthOrderManager(db_client=None)
+    manager = _manager()
     manager.db_client = db
 
     if load_mode == "startup":
@@ -1114,7 +1125,7 @@ def test_hydration_missing_follow_up_reveal_direction_fails_safe(
     load_mode,
 ):
     db = _ReadOnlyDB([_stored_row(five_tick_product, price=77115.0)])
-    manager = StealthOrderManager(db_client=None)
+    manager = _manager()
     manager.db_client = db
 
     if load_mode == "startup":
@@ -1131,7 +1142,7 @@ def test_hydration_missing_follow_up_reveal_direction_fails_safe(
 @pytest.mark.regression
 def test_hydration_flags_off_grid_price_without_database_write(five_tick_product):
     db = _ReadOnlyDB([_stored_row(five_tick_product)])
-    manager = StealthOrderManager(db_client=None)
+    manager = _manager()
     manager.db_client = db
 
     assert manager.load_all_active_orders_from_db() == 1
@@ -1153,7 +1164,7 @@ def test_hydration_preserves_persisted_error(five_tick_product):
             failure_reason="INVALID_PRICE_INCREMENT",
         )
     ])
-    manager = StealthOrderManager(db_client=None)
+    manager = _manager()
     manager.db_client = db
 
     manager.load_all_active_orders_from_db()
@@ -1200,7 +1211,7 @@ def test_hydration_restores_only_explicitly_accepted_placement_ownership(
         },
     ]
     db = _ReadOnlyDB([row])
-    manager = StealthOrderManager(db_client=None)
+    manager = _manager()
     manager.db_client = db
 
     manager.load_all_active_orders_from_db()
@@ -1234,7 +1245,7 @@ def test_hydration_does_not_erase_live_or_terminal_truth_for_off_grid_history(
     db = _ReadOnlyDB([
         _stored_row(five_tick_product, price=77119.0, status=status)
     ])
-    manager = StealthOrderManager(db_client=None)
+    manager = _manager()
     manager.db_client = db
 
     manager.load_all_active_orders_from_db()
@@ -1249,7 +1260,7 @@ def test_hydration_does_not_erase_live_or_terminal_truth_for_off_grid_history(
 def test_hydration_defers_when_metadata_is_unavailable_without_claiming_invalidity():
     product_id = "METADATA-NOT-LOADED"
     db = _ReadOnlyDB([_stored_row(product_id, price=101.0)])
-    manager = StealthOrderManager(db_client=None)
+    manager = _manager()
     manager.db_client = db
 
     manager.load_all_active_orders_from_db()
@@ -1268,7 +1279,7 @@ def test_persistence_boundary_rejects_off_grid_without_correction(
     five_tick_product,
 ):
     db = _ReadOnlyDB([])
-    manager = StealthOrderManager(db_client=None)
+    manager = _manager()
     manager.db_client = db
     _, order = _triggered_order(five_tick_product)
     order["limit_price"] = 77119.0
@@ -1285,7 +1296,7 @@ def test_terminal_failure_reason_uses_primary_stealth_order_persistence(
     five_tick_product,
 ):
     db = _ReadOnlyDB([])
-    manager = StealthOrderManager(db_client=None)
+    manager = _manager()
     manager.db_client = db
     _, order = _triggered_order(five_tick_product)
     order["status"] = StealthOrderStatus.ERROR.value
@@ -1331,15 +1342,13 @@ def test_non_price_lifecycle_update_does_not_rewrite_price_when_metadata_drops(
     five_tick_product,
     monkeypatch,
 ):
-    from configuration import PRODUCT_METADATA
-
     db = _ReadOnlyDB([])
-    manager = StealthOrderManager(db_client=None)
+    manager = _manager()
     manager.db_client = db
     _, order = _triggered_order(five_tick_product)
     order["_persisted_limit_price"] = order["limit_price"]
     order["status"] = StealthOrderStatus.EXECUTED.value
-    monkeypatch.delitem(PRODUCT_METADATA, five_tick_product)
+    monkeypatch.delitem(_PRODUCT_METADATA, five_tick_product)
 
     assert manager._update_stealth_order(order) is True
 

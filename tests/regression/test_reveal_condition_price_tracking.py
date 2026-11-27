@@ -305,7 +305,7 @@ def test_revealed_composite_offsets_change_only_after_matching_cancel_ack(monkey
     manager._update_stealth_order.side_effect = lambda row: persisted.append(deepcopy(row)) or True
     rest_client = Mock()
     rest_client.cancel_orders.return_value = [{"success": True, "order_id": "exchange-1"}]
-    monkeypatch.setattr("configuration.REST_CLIENT", rest_client)
+    manager.rest_client = rest_client
     controller = Mock()
     controller.track_inflight.return_value = nullcontext()
     monkeypatch.setattr(manager_module, "get_runtime_controller", lambda: controller)

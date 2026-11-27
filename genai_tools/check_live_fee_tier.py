@@ -30,13 +30,17 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
-from configuration import REST_CLIENT
+from configuration import load_runtime_settings
 from core.constants import get_derivatives_per_side_fee
 from core.enums import ContractExpiryType, ProductType, ProductVenue
+from external.runtime import build_rest_client
 
 
 SPOT_PRODUCT_ID = "BTC-USD"
 FUTURE_PRODUCT_ID = "BIP-20DEC30-CDE"
+
+_SETTINGS = load_runtime_settings()
+REST_CLIENT = build_rest_client(_SETTINGS.api_key, _SETTINGS.api_secret)
 
 
 def _dump(label: str, payload: Any) -> None:

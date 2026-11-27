@@ -1,13 +1,16 @@
 """Calculation utilities - Resolver functions for orders and products."""
 
+from collections.abc import Mapping
 from typing import Optional, Dict, Any
 
 from core.enums import ProductType, OrderSide
-from core.models import Order, Product
 from calculation.formatter import safe_float
 
 
-def normalize_product_type(order: Dict[str, Any], products: Optional[Dict[str, Product]] = None) -> str:
+def normalize_product_type(
+    order: Mapping[str, Any],
+    products: Optional[Mapping[str, Any]] = None,
+) -> str:
     """Normalize product type from an order payload and configured products.
     
     Determines if an order is for SPOT or FUTURE trading by checking multiple
@@ -34,9 +37,12 @@ def normalize_product_type(order: Dict[str, Any], products: Optional[Dict[str, P
     product_id = order.get("product_id")
     if products and product_id in products:
         product = products[product_id]
-        if isinstance(product, Product):
-            return product.product_type.value
-        configured_product_type = str(product.get("product_type") or "").upper()
+        if isinstance(product, Mapping):
+            configured_value = product.get("product_type") or product.get("type")
+        else:
+            configured_value = getattr(product, "product_type", None)
+            configured_value = getattr(configured_value, "value", configured_value)
+        configured_product_type = str(configured_value or "").upper()
         if configured_product_type in {ProductType.SPOT.value, ProductType.FUTURE.value}:
             return configured_product_type
     

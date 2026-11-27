@@ -2,7 +2,7 @@
 
 from unittest.mock import Mock
 
-from configuration import OrderBook
+from core.orderbook import OrderBook
 from core.enums import FollowUpKind, OrderStatus, StealthOrderStatus
 from core.order_engine import OrderEngine
 
