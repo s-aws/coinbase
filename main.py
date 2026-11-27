@@ -25,10 +25,11 @@ from configuration import (
 )
 from core.constants import get_derivatives_per_side_fee
 from core.enums import EngineState, ProductType
+from core.execution_core import ExecutionCore
 from core.order_engine import OrderEngine
 from core.orderbook import OrderBook
 from core.periodic_reconciler import PeriodicReconciler
-from core.runtime_controller import get_runtime_controller
+from core.runtime_controller import RuntimeController, get_runtime_controller
 from core.startup_reconciler import run_startup_reconciliation
 from core.stealth_order_manager import StealthOrderManager
 from dashboard_server import (
@@ -71,8 +72,9 @@ class ApplicationRuntime:
     orderbook: OrderBook
     stealth_manager: StealthOrderManager
     stealth_bridge: StealthOrderBridge
+    execution_core: ExecutionCore
     engine: OrderEngine
-    controller: Any
+    controller: RuntimeController
 
 
 def _read_strict_boolean_env(
@@ -279,6 +281,11 @@ def build_application_runtime(settings: RuntimeSettings) -> ApplicationRuntime:
     )
     stealth_bridge.order_engine = engine
     stealth_manager.profit_validator = engine.profit_validator
+    controller = get_runtime_controller()
+    execution_core = ExecutionCore(
+        runtime_controller=controller,
+        stealth_orders=stealth_bridge,
+    )
 
     configure_runtime_dependencies(
         rest_client=rest_client,
@@ -300,8 +307,9 @@ def build_application_runtime(settings: RuntimeSettings) -> ApplicationRuntime:
         orderbook=orderbook,
         stealth_manager=stealth_manager,
         stealth_bridge=stealth_bridge,
+        execution_core=execution_core,
         engine=engine,
-        controller=get_runtime_controller(),
+        controller=controller,
     )
 
 

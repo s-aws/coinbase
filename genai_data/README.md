@@ -68,7 +68,8 @@ A stealth order is a local execution plan, not a normal exchange order. It may s
 
 - `main.py` - sole process composition root; loads settings and explicitly
   wires the REST adapter, shared orderbook, dashboard transport, stealth
-  bridge/manager, order engine, runtime controller, and reconcilers.
+  bridge/manager, Execution Core facade, order engine, runtime controller, and
+  reconcilers.
 - `scripts/validate_release.sh` - clean-worktree full-suite, graph, and diff
   gate with no live/runtime mutation.
 - `scripts/deploy_runtime.sh` - foreground deployment owner that validates the
@@ -84,6 +85,10 @@ A stealth order is a local execution plan, not a normal exchange order. It may s
   transport; it receives runtime dependencies from `main.py` and is not a
   standalone process entrypoint.
 - `core/order_engine.py` - event ingestion, order lifecycle, follow-up logic.
+- `core/execution_core.py` - transport-neutral application shell. Its current
+  stage exposes typed runtime status/pause/resume and detached active stealth
+  queries; originating commands remain unavailable until atomic admission is
+  implemented in a separately approved stage.
 - `core/user_feed_processor.py` - private-feed generations, reduction,
   backpressure, per-order FIFO dispatch, and runtime metrics.
 - `core/stealth_order_manager.py` - stealth lifecycle and reveal/reprice/move logic.

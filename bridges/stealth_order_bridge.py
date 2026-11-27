@@ -2314,23 +2314,28 @@ class StealthOrderBridge:
         # Persist to database
         self._save_reveal_event_to_db(reveal_data)
     
-    def get_stealth_orders(self, status: str = None) -> Dict[str, Dict[str, Any]]:
+    def get_stealth_orders(
+        self,
+        status: Optional[StealthOrderStatus] = None,
+    ) -> Dict[str, Dict[str, Any]]:
         """
-        Get all stealth orders, optionally filtered by status.
+        Get detached stealth orders, optionally filtered by status.
         
         Args:
-            status: Optional status filter (HIDDEN, PENDING, TRIGGERED, REVEALED, EXECUTED, CANCELLED)
+            status: Optional typed logical lifecycle status filter.
             
         Returns:
-            Dict mapping stealth_order_id to order data
+            Dict mapping root client_order_id to caller-owned order data.
         """
-        with self.stealth_manager._get_orders_cache_lock():
-            all_orders = dict(self.stealth_manager.in_memory_orders)
+        if status is not None and not isinstance(status, StealthOrderStatus):
+            raise TypeError("status must be a StealthOrderStatus or None")
+
+        all_orders = self.stealth_manager.snapshot_stealth_orders()
         
-        if status:
+        if status is not None:
             return {
                 sid: order for sid, order in all_orders.items()
-                if order.get("status") == status
+                if order.get("status") == status.value
             }
         
         return all_orders

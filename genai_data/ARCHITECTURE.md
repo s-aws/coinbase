@@ -1,6 +1,6 @@
 # System Architecture
 
-Reconciled with the `prod` checkout on 2026-11-26. Current source and tests
+Reconciled with the `prod` checkout on 2026-11-27. Current source and tests
 remain the evidence for runtime behavior.
 
 ## Overview
@@ -14,20 +14,30 @@ The runtime is centered on a single `OrderEngine` instance (`core/order_engine.p
   `bridges/stealth_event_deadline_scheduler.py`: ordered stealth condition
   evaluation, deadline scheduling, and reveal orchestration.
 - `core/runtime_controller.py`: lifecycle admission gate and inflight drain coordinator.
+- `core/execution_core.py`: typed in-process application boundary for runtime
+  administration and detached execution queries.
 - `core/startup_reconciler.py` + `core/periodic_reconciler.py`: exchange-vs-local drift audits.
 - `calculation/fee_manager.py`: dynamic maker/taker fee telemetry and adaptive factors.
 
 `main.py` is the sole process composition root. `main()` loads the environment
 and product-file settings; `build_application_runtime()` constructs one REST
 adapter, one shared `OrderBook`, the manager/bridge/engine graph, and the
-dashboard and reconciliation adapters. Consumer modules receive narrow REST,
-metadata, product-resolution, or position readers instead of importing live
-objects from configuration. The composition root also installs graceful
-shutdown hooks. It assumes the database-only
+Execution Core, dashboard, and reconciliation adapters. Consumer modules
+receive narrow REST, metadata, product-resolution, or position readers instead
+of importing live objects from configuration. The composition root also
+installs graceful shutdown hooks. It assumes the database-only
 `scripts/bootstrap_runtime_database.sh` step (normally composed by
 `scripts/deploy_runtime.sh`) has already run the additive `database.schema`
 implementation successfully and does not run full schema DDL during process
 startup.
+
+The first Execution Core stage is intentionally non-originating. It exposes
+typed runtime status, pause, and resume operations plus enum-filtered deep
+snapshots of active stealth state. Snapshot callers cannot mutate authoritative
+nested order data through their result, but the snapshot is not a
+transactionally coherent multi-order database view. Placement, cancellation,
+and strategy mutation remain on their existing paths until their later staged
+reviews; the dashboard is not yet an Execution Core adapter.
 
 ## Runtime Layers
 

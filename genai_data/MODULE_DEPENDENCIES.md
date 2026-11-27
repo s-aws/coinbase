@@ -55,6 +55,12 @@ contract therefore classifies modules, with exact overrides, into these zones:
 | domain | shared vocabulary and calculation/policy code | domain, logging |
 | logging | shared logging adapter | logging |
 
+Stage 5.1 places `core.execution_core` in the execution zone. It depends only
+on domain enums and consumer-owned protocols; `main.py` supplies the shared
+runtime controller and stealth bridge. The facade receives no persistence,
+exchange, dashboard, or integration capability, and this shell retires none of
+the exact item-5 debt entries yet.
+
 These directions describe the target modular monolith. Existing reverse edges
 are exact debt entries rather than broad package exemptions. Item 4 retired
 every forbidden configuration edge and the former runtime import cycle; its

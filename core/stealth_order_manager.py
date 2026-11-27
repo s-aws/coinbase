@@ -471,6 +471,19 @@ class StealthOrderManager:
                 and (product_id is None or order.get("product_id") == product_id)
             ]
 
+    def snapshot_stealth_orders(self) -> Dict[str, Dict[str, Any]]:
+        """Return a fully detached copy of the logical order cache.
+
+        Cache membership is captured under the short structural lock.  Nested
+        lifecycle fields can change concurrently, so this is intentionally not
+        a transactional multi-order view; its contract is that callers cannot
+        mutate authoritative in-memory state through the returned objects.
+        """
+
+        with self._get_orders_cache_lock():
+            order_references = dict(self.in_memory_orders)
+        return deepcopy(order_references)
+
     def clear_in_memory_orders(self) -> None:
         """Clear the structural order cache under its dedicated short lock."""
 
@@ -6822,12 +6835,10 @@ class StealthOrderManager:
         return serialized
     
     def get_serializable_orders(self) -> Dict[str, Any]:
-        """Get all orders in JSON-serializable format."""
-        with self._get_orders_cache_lock():
-            order_items = tuple(self.in_memory_orders.items())
+        """Get detached orders in JSON-serializable format."""
         return {
             oid: self._serialize_order_for_json(order)
-            for oid, order in order_items
+            for oid, order in self.snapshot_stealth_orders().items()
         }
     
     def sync_target_movement_to_cache(self, stealth_order_id: str, target_movement: float, target_movement_type: str) -> bool:

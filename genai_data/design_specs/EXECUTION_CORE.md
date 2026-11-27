@@ -2,14 +2,15 @@
 
 | Field | Value |
 |---|---|
-| Status | `ACCEPTED` |
-| Operator approval | Accepted 2026-11-26; each implementation stage requires separate approval |
+| Status | `IMPLEMENTING` |
+| Operator approval | Accepted 2026-11-26; stage 5.1 approved 2026-11-27; later stages require separate approval |
 | Checklist or objective | Modular-monolith boundary checklist item 5 |
-| Last evidence review | 2026-11-26, current worktree based on `4be8594a` |
-| Implementation | Not started |
+| Last evidence review | 2026-11-27, current worktree based on `89c72573` |
+| Implementation | Stage 5.1 implemented and validated; stages 5.2-5.6 not started |
 
-> This accepted design records approved intent. It authorizes no item-5 source
-> implementation by itself and does not establish current runtime behavior.
+> This spec records the accepted item-5 design. Current behavior is established
+> only by the implementation mapping and tests below. Approval of stage 5.1
+> does not authorize any later implementation stage.
 
 ## Problem
 
@@ -28,12 +29,13 @@ rules.
 
 - `main.py::build_application_runtime` is the sole composition root and already
   constructs the shared REST client, `OrderBook`, `StealthOrderManager`,
-  `StealthOrderBridge`, `OrderEngine`, and `RuntimeController`.
+  `StealthOrderBridge`, `ExecutionCore`, `OrderEngine`, and `RuntimeController`.
 - `StealthOrderManager.create_stealth_order` declares the manager path to be the
   only creation path and models a conventional order as an immediate reveal.
-- `StealthOrderBridge` already coordinates spans, schedules, and serialized
-  manager access, but `get_stealth_orders` copies only the outer mapping; nested
-  authoritative dictionaries remain shared.
+- `StealthOrderBridge` coordinates spans, schedules, and serialized manager
+  access. Stage 5.1 routes both its query and the manager's serializable query
+  through one manager-owned deep-detachment path; neither result shares nested
+  authoritative dictionaries.
 - `OrderEngine` owns exchange event processing, fills, follow-ups, and
   parent/child execution behavior, while directly importing dashboard
   publication functions, integration registries, persistence helpers, and the
@@ -212,9 +214,17 @@ and separate operator approval before source changes.
 
 ### 5.1 Contract and facade shell
 
+Status: implemented and validated 2026-11-27.
+
 Add the typed command/query boundary, detached query results, focused contract
 tests, and explicit `main.py` composition. Move no lifecycle behavior and perform
 no database or exchange call in the facade.
+
+Approved scope refinement: stage 5.1 exposes runtime status, pause, resume, and
+detached active stealth-order queries only. It deliberately exposes no
+originating placement or strategy command before stage 5.2 supplies the atomic
+application-admission boundary. Detached order results are caller-owned but are
+not advertised as a transactionally coherent multi-order database snapshot.
 
 Primary blast radius: one new execution module, `main.py`, the runtime aggregate,
 focused tests, documentation, and graph records.
@@ -314,13 +324,40 @@ stage may return the spec to review rather than silently widening its scope.
 
 ## Implementation Mapping
 
-No item-5 implementation exists yet. Populate this section only when an approved
-stage begins, linking each accepted contract to its source owner and tests.
+Stage 5.1 is mapped as follows:
+
+- `core/execution_core.py::ExecutionCore` owns the narrow transport-neutral
+  shell. It exposes typed runtime status and transition results plus an
+  enum-filtered detached stealth-order query. It has no database, exchange,
+  dashboard, registry, or lifecycle-state-machine dependency.
+- `core/stealth_order_manager.py::StealthOrderManager.snapshot_stealth_orders`
+  owns deep detachment from the authoritative cache. It captures structural
+  membership under the existing short cache lock and promises isolation from
+  caller mutation, not cross-order transactional consistency.
+- `bridges/stealth_order_bridge.py::StealthOrderBridge.get_stealth_orders`
+  delegates to that one snapshot path and accepts `StealthOrderStatus`, not an
+  untyped status string.
+- `main.py::build_application_runtime` constructs one `ExecutionCore` from the
+  shared bridge and `RuntimeController` and retains it in `ApplicationRuntime`.
+  The dashboard is not migrated or given another global in this stage.
+- `tests/regression/test_execution_core_contract.py` verifies immutable admin
+  results, rejection-as-data, enum filtering, nested detachment, internal
+  client-ID indexing, serializable snapshot isolation, and composition.
+
+No originating command, atomic-admission category, lifecycle mutation,
+database/exchange call, dashboard handler, or item-5 reverse-import debt entry
+changes in stage 5.1.
+
+Validation: the complete local non-external gate passed 1,883 tests with 17
+skipped and 11 external tests deselected. Repository-graph build/check passed
+with 468 files, 7,590 symbols, 1,568 indexed tests, 183 semantic records, no
+parse findings, no fatal errors, and no check mismatches.
 
 Relevant current navigation:
 
 - `genai_data/MODULE_DEPENDENCIES.md`
 - `module_boundaries.toml`
+- `core/execution_core.py::ExecutionCore`
 - `main.py::build_application_runtime`
 - `core/runtime_controller.py::RuntimeController.track_admitted_inflight`
 - `core/stealth_order_manager.py::StealthOrderManager.create_stealth_order`

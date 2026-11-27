@@ -2,13 +2,15 @@
 
 ## Status
 
-- Last updated (ET): 2026-11-26.
-- Current committed baseline: local `prod` and `origin/prod` are at `4be8594a`
-  (`modernization`), containing modular-monolith checklist items 1 through 4
-  and the durable design-spec framework.
-- Current operator-approved documentation objective: establish the durable
-  design-spec lifecycle and record the accepted Execution Core design. The
-  accepted spec does not itself approve checklist-item-5 source implementation.
+- Last updated (ET): 2026-11-27.
+- Current committed baseline: local `prod` and `origin/prod` are at `89c72573`
+  (`execution core`), containing modular-monolith checklist items 1 through 4,
+  the durable design-spec framework, and the accepted item-5 design.
+- Current operator-approved implementation objective: Execution Core stage 5.1
+  is complete and validated in the current working tree. It adds only a
+  non-originating typed facade shell, detached active-order queries, explicit
+  `main.py` composition, contract coverage, and matching documentation and
+  graph evidence. No later stage is approved for source changes.
 - Completed implementation objective: make `main.py` the sole process
   composition root and make configuration imports passive. One REST adapter,
   one shared `OrderBook`, and explicit consumer readers are now wired in
@@ -77,11 +79,14 @@ approval before code changes.
 5. Add an Execution Core command/query facade while retaining lifecycle and
    transactional writes under one owner. The reviewed proposal and staged blast
    radius are recorded in `design_specs/EXECUTION_CORE.md`; its status is
-   `ACCEPTED`. Ordinary placement is managed limit-only with immediate reveal
-   for conventional timing; other exchange order types are deferred until their
-   lifecycle is integrated. The dormant `ConditionalExecutionWrapper` and its
-   exclusive persistence surface will be removed rather than ported. No source
-   implementation stage is yet approved.
+   `IMPLEMENTING`. Stage 5.1 is complete and validated: the typed facade exposes
+   runtime status/pause/resume and detached active-order queries, is composed in
+   `main.py`, and exposes no originating command. Ordinary placement remains
+   managed limit-only with immediate reveal for conventional timing, but its
+   facade command waits for the separately approved atomic-admission stage 5.2.
+   Other exchange order types remain deferred. The dormant
+   `ConditionalExecutionWrapper` and its exclusive persistence surface will be
+   removed rather than ported in its later approved stage.
 6. Extract public market-data ownership into an in-process component.
 7. Separate operator WebSocket transport from application commands and read
    projections.
@@ -125,6 +130,12 @@ approval before code changes.
   Core design changed documentation and context only. The complete local
   non-external gate still passed 1,879 tests with 17 skipped and 11 external
   tests deselected; acceptance does not authorize item-5 source work.
+- Execution Core stage 5.1 added four contract tests and no originating command.
+  The complete local non-external gate passed 1,883 tests with 17 skipped and 11
+  external tests deselected. Python compilation and `git diff --check` passed;
+  repository-graph build/check reported 468 files, 7,590 symbols, 1,568 indexed
+  tests, 183 semantic records, no parse findings, no fatal errors, and no
+  mismatches.
 - Historical fresh-target proof at rollout time: all 12 trading tables contained
   zero rows before bootstrap; only `market_candle_1m` and `market_tick` retained
   operator-created telemetry/backfill data.
