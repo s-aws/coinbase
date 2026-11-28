@@ -244,10 +244,10 @@ def test_main_composes_one_execution_core_from_existing_owners(
         name="DashboardExecutionProjectionSink",
         return_value=projection_sink,
     )
-    fill_ledger_persistence = object()
+    execution_persistence = object()
     persistence_factory = Mock(
         name="DatabaseOrderPersistenceAdapter",
-        return_value=fill_ledger_persistence,
+        return_value=execution_persistence,
     )
     futures_positions = object()
     fetch_futures_positions = Mock(
@@ -352,7 +352,8 @@ def test_main_composes_one_execution_core_from_existing_owners(
     assert engine_arguments == {
         "orderbook": orderbook,
         "db_module": main.order_db,
-        "fill_ledger_persistence": fill_ledger_persistence,
+        "fill_ledger_persistence": execution_persistence,
+        "event_stream_persistence": execution_persistence,
         "subscription": subscription,
         "api_key": "test-key",
         "api_secret": "test-secret",
@@ -436,7 +437,7 @@ def test_event_stream_fill_subscriber_keeps_default_hook_order(
     class Publisher:
         enabled = True
 
-        def __init__(self, _db_module):
+        def __init__(self, _persistence):
             pass
 
         def set_fee_info_provider(self, _provider):
@@ -476,7 +477,7 @@ def test_event_stream_fill_subscriber_keeps_default_hook_order(
     )
 
     engine._register_default_fill_hook()
-    engine._initialize_event_stream_integration()
+    engine._initialize_event_stream_integration(object())
     engine.fill_event_hooks.call_post_fill_hooks(
         {
             "side": "BUY",

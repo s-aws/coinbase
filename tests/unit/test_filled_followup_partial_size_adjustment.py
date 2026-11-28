@@ -39,6 +39,7 @@ def _build_engine() -> OrderEngine:
         orderbook=orderbook,
         db_module=db_module,
         fill_ledger_persistence=Mock(),
+        event_stream_persistence=Mock(),
         subscription=subscription,
         api_key="test_key",
         api_secret="test_secret",

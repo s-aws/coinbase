@@ -23,6 +23,113 @@ class DatabaseOrderPersistenceAdapter:
             )
         self._db_client = db_client
 
+    def ensure_event_stream_storage(self) -> None:
+        """Preserve the event publisher's established startup DDL sequence."""
+
+        order_db.create_order_event_stream_table(db_client=self._db_client)
+        order_db.create_stealth_order_lifecycle_history_table(
+            db_client=self._db_client
+        )
+        order_db.create_stealth_order_reveal_history_table(
+            db_client=self._db_client
+        )
+        order_db.create_stealth_order_snapshots_table(db_client=self._db_client)
+        order_db.create_partial_fill_progress_table(db_client=self._db_client)
+
+    def append_order_event(
+        self,
+        *,
+        event_id: str,
+        event_type: str,
+        source_channel: str,
+        event_time_exchange: Any,
+        product_id: Optional[str],
+        client_order_id: Optional[str],
+        order_id: Optional[str],
+        parent_client_order_id: Optional[str],
+        stealth_order_id: Optional[str],
+        event_status_from: Optional[str],
+        event_status_to: Optional[str],
+        side: Optional[str],
+        price: Optional[float],
+        size: Optional[float],
+        cumulative_filled_size: Optional[float],
+        leaves_size: Optional[float],
+        fee: Optional[float],
+        fee_currency: Optional[str],
+        trigger_type: Optional[str],
+        trigger_payload_json: Optional[Dict[str, Any]],
+        raw_payload_json: Optional[Dict[str, Any]],
+        idempotency_key: Optional[str],
+    ) -> Optional[int]:
+        return order_db.insert_order_event(
+            event_id=event_id,
+            event_type=event_type,
+            source_channel=source_channel,
+            event_time_exchange=event_time_exchange,
+            product_id=product_id,
+            client_order_id=client_order_id,
+            order_id=order_id,
+            parent_client_order_id=parent_client_order_id,
+            stealth_order_id=stealth_order_id,
+            event_status_from=event_status_from,
+            event_status_to=event_status_to,
+            side=side,
+            price=price,
+            size=size,
+            cumulative_filled_size=cumulative_filled_size,
+            leaves_size=leaves_size,
+            fee=fee,
+            fee_currency=fee_currency,
+            trigger_type=trigger_type,
+            trigger_payload_json=trigger_payload_json,
+            raw_payload_json=raw_payload_json,
+            idempotency_key=idempotency_key,
+            db_client=self._db_client,
+        )
+
+    def append_stealth_lifecycle_event(
+        self,
+        *,
+        stealth_order_id: str,
+        lifecycle_event: str,
+        context: Dict[str, Any],
+    ) -> Optional[int]:
+        return order_db.insert_stealth_order_lifecycle_event(
+            stealth_order_id=stealth_order_id,
+            lifecycle_event=lifecycle_event,
+            context=context,
+            db_client=self._db_client,
+        )
+
+    def append_stealth_snapshot(
+        self,
+        *,
+        stealth_order_id: str,
+        lifecycle_event: str,
+        context: Dict[str, Any],
+    ) -> Optional[int]:
+        return order_db.insert_stealth_order_snapshot(
+            stealth_order_id=stealth_order_id,
+            lifecycle_event=lifecycle_event,
+            context=context,
+            db_client=self._db_client,
+        )
+
+    def update_stealth_lifecycle_marker(
+        self,
+        *,
+        stealth_order_id: str,
+        lifecycle_event: str,
+        failure_reason: Optional[str],
+    ) -> bool:
+        return order_db.update_stealth_order_lifecycle_event(
+            stealth_order_id=stealth_order_id,
+            lifecycle_event=lifecycle_event,
+            failure_reason=failure_reason,
+            db_client=self._db_client,
+        )
+
     def ensure_fill_ledger(self) -> None:
         order_db.create_fill_ledger_table(db_client=self._db_client)
 

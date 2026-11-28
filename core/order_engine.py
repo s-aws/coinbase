@@ -28,6 +28,7 @@ Example: initialize and run
     ...     orderbook=ORDERBOOK,
     ...     db_module=DB_MODULE,
     ...     fill_ledger_persistence=FILL_LEDGER_PERSISTENCE,
+    ...     event_stream_persistence=EVENT_STREAM_PERSISTENCE,
     ...     subscription=Subscription,
     ...     api_key=API_KEY,
     ...     api_secret=API_SECRET,
@@ -128,6 +129,7 @@ from core.execution_ports import (
     NO_OP_ORDER_PLACEMENT_HOOKS,
     NO_OP_STEALTH_LIFECYCLE_HOOKS,
     NO_OP_WEBSOCKET_HOOKS,
+    OrderEventStreamPersistence,
     OrderPlacementHooks,
     StealthLifecycleHooks,
     WebSocketHooks,
@@ -222,6 +224,7 @@ class OrderEngine:
         ...     orderbook=ORDERBOOK,
         ...     db_module=DB_MODULE,
         ...     fill_ledger_persistence=FILL_LEDGER_PERSISTENCE,
+        ...     event_stream_persistence=EVENT_STREAM_PERSISTENCE,
         ...     subscription=Subscription,
         ...     api_key=API_KEY,
         ...     api_secret=API_SECRET,
@@ -252,6 +255,7 @@ class OrderEngine:
         orderbook,
         db_module: ModuleType,
         fill_ledger_persistence: FillLedgerPersistence,
+        event_stream_persistence: OrderEventStreamPersistence,
         subscription,
         api_key,
         api_secret,
@@ -276,6 +280,7 @@ class OrderEngine:
             orderbook: OrderBook instance for state tracking.
             db_module: Database client module.
             fill_ledger_persistence: Narrow fill-ledger persistence capability.
+            event_stream_persistence: Best-effort event audit persistence.
             subscription: Subscription config object.
             api_key: Coinbase API key.
             api_secret: Coinbase API secret.
@@ -503,7 +508,7 @@ class OrderEngine:
         )
 
         # Reconstructive timeline event stream integration via existing hooks.
-        self._initialize_event_stream_integration()
+        self._initialize_event_stream_integration(event_stream_persistence)
 
         # Hotpoint Auto-Replicate subsystem: `business/hotpoint_*.py`.
         # Detector and rate limiter live
@@ -547,12 +552,15 @@ class OrderEngine:
 
         self.orderbook.db_module = self.db_module
 
-    def _initialize_event_stream_integration(self) -> None:
+    def _initialize_event_stream_integration(
+        self,
+        persistence: OrderEventStreamPersistence,
+    ) -> None:
         """Initialize order event stream and wire it into existing hook registries."""
         try:
             from business.order_event_stream import OrderEventStreamPublisher
 
-            self.event_stream_publisher = OrderEventStreamPublisher(self.db_module)
+            self.event_stream_publisher = OrderEventStreamPublisher(persistence)
             self.event_stream_publisher.set_fee_info_provider(
                 self.fee_manager.get_fee_info if self.fee_manager else None
             )

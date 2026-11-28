@@ -3,12 +3,15 @@
 from business.order_event_stream import OrderEventStreamPublisher
 from integration.order_placement_hooks import OrderPlacementHookRegistry
 from database import order as db_order
+from database.execution_persistence import DatabaseOrderPersistenceAdapter
 
 
 def main() -> None:
     placement_hooks = OrderPlacementHookRegistry()
 
-    publisher = OrderEventStreamPublisher(db_order)
+    publisher = OrderEventStreamPublisher(
+        DatabaseOrderPersistenceAdapter(db_order.DB_CLIENT)
+    )
     publisher.register_hook_integrations(
         websocket_hooks=None,
         fill_event_hooks=None,

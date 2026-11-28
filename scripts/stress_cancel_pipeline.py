@@ -188,6 +188,9 @@ def build_pipeline_engine(
         fill_ledger_persistence=DatabaseOrderPersistenceAdapter(
             order_database.DB_CLIENT
         ),
+        event_stream_persistence=DatabaseOrderPersistenceAdapter(
+            order_database.DB_CLIENT
+        ),
         subscription=subscription,
         api_key="offline",
         api_secret="offline",

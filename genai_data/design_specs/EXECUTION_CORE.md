@@ -3,14 +3,14 @@
 | Field | Value |
 |---|---|
 | Status | `IMPLEMENTING` |
-| Operator approval | Accepted 2026-11-26; stages 5.1-5.4A approved 2026-11-27; stage 5.4B.1 approved 2026-11-28; stages 5.4B.2-5.6 require separate approval |
+| Operator approval | Accepted 2026-11-26; stages 5.1-5.4A approved 2026-11-27; stages 5.4B.1-5.4B.2 approved 2026-11-28; stages 5.4B.3-5.6 require separate approval |
 | Checklist or objective | Modular-monolith boundary checklist item 5 |
-| Last evidence review | 2026-11-28, current worktree based on `4a880fe6` |
-| Implementation | Stages 5.1-5.4B.1 implemented and validated; stages 5.4B.2-5.6 not started |
+| Last evidence review | 2026-11-28, current worktree based on `eabc5dff` |
+| Implementation | Stages 5.1-5.4B.2 implemented and validated; stages 5.4B.3-5.6 not started |
 
 > This spec records the accepted item-5 design. Current behavior is established
-> only by the implementation mapping and tests below. Approval through stage
-> 5.4B.1 does not authorize stages 5.4B.2-5.6.
+> only by the implementation mapping and tests below. Approval through 5.4B.2
+> does not authorize stages 5.4B.3-5.6.
 
 ## Problem
 
@@ -46,9 +46,9 @@ rules.
   command category; the unsupported raw-placement path remains removed.
 - `dashboard_server.py` currently handles 17 supported request types; six are
   classified locally as originating work.
-- `module_boundaries.toml` now assigns six exact reverse imports to checklist
-  item 5. The repository-wide frozen totals are 14 reverse imports, zero
-  cycles, 32 broad capabilities, and seven reflection signatures.
+- `module_boundaries.toml` now assigns five exact reverse imports to checklist
+  item 5. The repository-wide frozen totals are 13 reverse imports, zero
+  cycles, 31 broad capabilities, and seven reflection signatures.
 - Constructor changes are broad even when production wiring is small:
   `OrderEngine` construction appears in 22 Python files and
   `StealthOrderManager` construction appears in 31.
@@ -60,6 +60,10 @@ rules.
   moves all fill-ledger SQL behind one narrow structural persistence port and
   retained `database.order` helpers. `main.py` supplies the concrete adapter;
   `OrderEngine` retains fail-soft repository initialization.
+- Stage 5.4B.2 moves the event publisher's storage initialization and four
+  independent audit write paths behind `OrderEventStreamPersistence`, supplied
+  by the same adapter. Synchronous hook ordering, fail-soft behavior, and
+  per-helper transaction scope remain unchanged.
 
 The exact import-debt inventory remains authoritative in
 `module_boundaries.toml`; this spec does not copy that list.
@@ -275,8 +279,8 @@ profitability behavior.
 
 #### 5.4B Peripheral persistence ports
 
-Status: 5.4B.1 implemented and validated 2026-11-28; 5.4B.2-5.4B.4 reviewed
-but not approved for implementation.
+Status: 5.4B.1-5.4B.2 implemented and validated 2026-11-28; 5.4B.3-5.4B.4
+reviewed but not approved for implementation.
 
 Define narrow consumer-owned persistence protocols for the bridge, fill
 ledger, move manager, and event stream. Consolidate existing fill-ledger SQL
@@ -297,8 +301,29 @@ historical fail-soft default.
 `main.py` constructs one adapter from the canonical `DB_CLIENT` and passes its
 fill capability explicitly into `OrderEngine`. The engine still catches
 repository initialization failure and continues without lot tracking. The
-remaining event-stream, bridge, and move persistence ports are separately
-gated as 5.4B.2-5.4B.4.
+remaining bridge and move persistence ports are separately gated as
+5.4B.3-5.4B.4.
+
+##### 5.4B.2 Event-stream persistence port
+
+`OrderEventStreamPersistence` is a consumer-owned structural protocol with one
+storage-initialization operation and four independent append/update operations.
+`DatabaseOrderPersistenceAdapter` preserves the publisher's existing five-call
+DDL sequence and delegates every write to the retained `database.order`
+helpers using its explicit database client.
+
+`OrderEventStreamPublisher` contains no database import or broad module-shaped
+capability. It still generates event IDs and idempotency keys, normalizes event
+payloads, and invokes event, lifecycle-history, conditional snapshot, and
+latest-marker writes in the established order. Each operation remains
+best-effort and retains its own existing transaction/failure boundary; this
+stage deliberately adds no transaction, outbox, retry, or durability claim.
+
+`main.py` passes the same concrete adapter as both the fill-ledger and event
+stream capability. Runtime storage initialization still includes reveal-history
+and partial-fill-progress helpers even though their ownership is broader than
+the publisher; removing that compatibility coupling requires a separate
+startup/persistence review.
 
 #### 5.4C Authoritative-owner persistence ports
 
@@ -506,8 +531,8 @@ Stage 5.4B.1 adds:
   constructors and test fixtures must also provide the capability. The engine's
   fail-soft initialization policy is unchanged.
 - The resulting frozen totals are 14 reverse imports, zero runtime import
-  cycles, 32 broad capabilities, and seven reflection signatures. Stages
-  5.4B.2-5.4B.4 and 5.4C remain separately gated.
+  cycles, 32 broad capabilities, and seven reflection signatures. At this
+  checkpoint, stages 5.4B.2-5.4B.4 and 5.4C remained separately gated.
 
 Stage 5.4B.1 validation: Python compilation and `git diff --check` passed. The
 complete local non-external gate passed 1,898 tests with 17 skipped and 11
@@ -516,6 +541,28 @@ reverse imports, zero cycles, 32 broad capabilities, and seven reflection
 signatures. Repository-graph build/check reported 455 files, 8,668 symbols,
 1,545 indexed tests, and 186 semantic records with no parse findings, fatal
 errors, or mismatches.
+
+Stage 5.4B.2 adds:
+
+- The event publisher consumes `OrderEventStreamPersistence` and has no
+  database import or module-shaped persistence capability.
+- `DatabaseOrderPersistenceAdapter` retains the exact five-helper storage
+  initialization order and delegates the event, lifecycle-history, snapshot,
+  and latest-marker operations to canonical helpers with one explicit database
+  client.
+- Event IDs, idempotency keys, payload normalization, hook registration order,
+  synchronous dispatch, and duplicate/error return behavior are unchanged.
+  Lifecycle audit writes remain independent, best effort, and non-atomic.
+- `main.py` supplies the same adapter for fill-ledger and event-stream
+  persistence. The resulting frozen totals are 13 reverse imports, zero
+  runtime import cycles, 31 broad capabilities, and seven reflection
+  signatures. Stages 5.4B.3-5.4B.4 and 5.4C remain separately gated.
+
+Stage 5.4B.2 validation: Python compilation and the executable boundary
+contract passed. The complete local non-external gate passed 1,905 tests with
+17 skipped and 11 external tests deselected. Repository-graph build/check
+reported 456 files, 8,697 symbols, 1,552 indexed tests, and 186 semantic
+records with no parse findings, fatal errors, or mismatches.
 
 Relevant current navigation:
 

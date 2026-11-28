@@ -1,6 +1,6 @@
 # System Architecture
 
-Reconciled with the `prod` checkout on 2026-11-27. Current source and tests
+Reconciled with the `prod` checkout on 2026-11-28. Current source and tests
 remain the evidence for runtime behavior.
 
 ## Overview
@@ -29,8 +29,8 @@ resolves the four
 existing hook registries once and injects the same placement and lifecycle
 instances wherever they are consumed. It also installs one synchronous
 dashboard projection sink in `OrderEngine`. Consumer modules receive narrow
-REST, metadata, product-resolution, position, hook, projection, or fill-ledger
-persistence capabilities
+REST, metadata, product-resolution, position, hook, projection, fill-ledger, or
+event-audit persistence capabilities
 instead of importing concrete adapters or live objects from configuration. The
 composition root also installs graceful shutdown hooks. It assumes the database-only
 `scripts/bootstrap_runtime_database.sh` step (normally composed by
@@ -49,13 +49,14 @@ dashboard is an adapter over those methods. Cancellation, queries, and wind-down
 remain available under their existing non-originating contracts. Lifecycle and
 persistence mutations remain owned by the bridge, manager, and engine.
 
-`core/execution_ports.py` owns the structural contracts for fill-ledger
-persistence, order/position/status/log/ticker/spread projections, and WebSocket,
-fill, placement, and stealth-lifecycle hooks. `OrderEngine` and
+`core/execution_ports.py` owns the structural contracts for fill-ledger and
+event-stream persistence, order/position/status/log/ticker/spread projections,
+and WebSocket, fill, placement, and stealth-lifecycle hooks. `OrderEngine` and
 `StealthOrderManager` default to explicit stateless no-ops for projection and
 hook capabilities only when constructed outside the canonical runtime. The
-fill-ledger persistence capability is required explicitly. `main.py` supplies
-the production database, dashboard, and registry adapters. The
+fill-ledger and event-stream persistence capabilities are required explicitly.
+`main.py` supplies one production database adapter for both ports plus the
+dashboard and registry adapters. The
 default fill logger is registered before the event-stream subscriber, retaining
 the established callback order. Hook exception semantics remain owned by the
 existing registries, including best-effort stealth lifecycle auditing.
@@ -129,8 +130,8 @@ modules, new reverse-zone imports, new import cycles, new broad/untyped
 constructor capability surfaces, and new reflection mechanisms that can hide
 those surfaces.
 
-The contract records 14 reverse-zone import edges, no strongly connected
-runtime import component, 32 broad constructor capability surfaces, and seven
+The contract records 13 reverse-zone import edges, no strongly connected
+runtime import component, 31 broad constructor capability surfaces, and seven
 reflection/namespace escape signatures. Item 4 retired the configuration edges
 and former import cycle; the supported operator-surface cleanup retired six
 more import-debt edges and one reflection signature. Execution Core stage 5.3
@@ -139,7 +140,10 @@ manager hook capability by introducing narrow injected ports. Stage 5.4A
 retired the unused parallel conditional lifecycle, its database reverse import,
 and its broad database-client capability. Stage 5.4B.1 restores the active
 fill-ledger query contract and moves its SQL access behind a narrow structural
-port and canonical database adapter. Remaining exact debt is assigned to
+port and canonical database adapter. Stage 5.4B.2 moves event-stream and
+best-effort lifecycle-audit writes behind a second narrow protocol implemented
+by that same adapter, without combining their transactions or failure paths.
+Remaining exact debt is assigned to
 modular-monolith checklist items 5-8 and is not a package-wide permission for
 additional coupling.
 

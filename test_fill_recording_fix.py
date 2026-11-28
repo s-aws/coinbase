@@ -40,6 +40,7 @@ def test_fill_recording_with_proper_size_resolution():
             orderbook=orderbook,
             db_module=db,
             fill_ledger_persistence=DatabaseOrderPersistenceAdapter(db),
+            event_stream_persistence=DatabaseOrderPersistenceAdapter(db),
             subscription=MockSubscription(),
             api_key="test_key",
             api_secret="test_secret",

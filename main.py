@@ -243,6 +243,7 @@ def build_application_runtime(settings: RuntimeSettings) -> ApplicationRuntime:
         orderbook=orderbook,
         db_module=db_module,
         fill_ledger_persistence=execution_persistence,
+        event_stream_persistence=execution_persistence,
         subscription=Subscription.from_products(settings.products),
         api_key=settings.api_key,
         api_secret=settings.api_secret,

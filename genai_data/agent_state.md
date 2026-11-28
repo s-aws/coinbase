@@ -3,8 +3,8 @@
 ## Status
 
 - Last updated (ET): 2026-11-28.
-- Current committed baseline: local `prod` and `origin/prod` are at `4a880fe6`.
-  Execution Core stage 5.4B.1 is the current uncommitted change.
+- Implementation base for the current closeout: local `prod` was at
+  `eabc5dff`; `origin/prod` was at `5584f791` when review began.
 - Completed implementation objective: Execution Core stage 5.3. Typed
   projection and hook ports are injected into the engine and manager;
   `main.py` composes the existing dashboard publishers and registry
@@ -13,11 +13,13 @@
 - Completed implementation objective: Execution Core stage 5.4A. The unused
   parallel conditional lifecycle, its exclusive schema/configuration, and its
   dedicated test/manual-tool surfaces are removed.
-- Active implementation objective: Execution Core stage 5.4B.1. The active
-  fill-ledger repository consumes a narrow structural persistence port, all of
-  its SQL is consolidated behind canonical database helpers and one composed
-  adapter, and its missing instrument query is restored. Stages 5.4B.2-5.4C
-  remain separately gated persistence-port work.
+- Completed implementation objective: Execution Core stage 5.4B.2. The event
+  stream consumes a narrow structural persistence port implemented by the same
+  composed adapter as the fill ledger. It has no database import or broad
+  module capability; storage initialization and four independent best-effort
+  audit writes retain their established ordering and failure semantics.
+  Stages 5.4B.3-5.4C remain separately gated persistence-port work, and no later
+  implementation objective is active.
 - Completed implementation objective: Operator Console stages 1 and 2A. The
   server, both retained HTML clients, and runtime healthcheck use one strict
   versioned JSON-RPC contract with explicit dispatch, correlation, named
@@ -88,8 +90,8 @@
 
 ## Modular Monolith Boundary Checklist
 
-Items 1 through 4 are complete. Item 5 stages 5.1-5.4B.1 are implemented and
-validated; stages 5.4B.2 onward still require separate operator approval before
+Items 1 through 4 are complete. Item 5 stages 5.1-5.4B.2 are implemented and
+validated; stages 5.4B.3 onward still require separate operator approval before
 code changes.
 
 1. Remove the abandoned `StateManager` and generic repository implementation:
@@ -105,7 +107,7 @@ code changes.
    runtime import cycle, 35 broad/untyped constructor capability surfaces, and
    seven reflection/namespace escape signatures. Stage 5.3 subsequently
    reduced those totals to 16/34/7, stage 5.4A reduced them to 15/33/7, and
-   stage 5.4B.1 reduces them to 14/32/7.
+   stage 5.4B.1 reduced them to 14/32/7. Stage 5.4B.2 reduces them to 13/31/7.
    The contract explicitly does not claim to prove arbitrary runtime aliases or
    dynamic dispatch.
 5. Add an Execution Core command/query facade while retaining lifecycle and
@@ -131,9 +133,13 @@ code changes.
    database import and raw SQL, and injects one required `FillLedgerPersistence`
    capability backed by `DatabaseOrderPersistenceAdapter`. Duplicate inserts,
    database failures, engine fail-soft initialization, cursor locks, and
-   per-helper transaction scopes retain their established semantics. The event
-   stream, bridge, move manager, authoritative manager/engine persistence, and
-   WebSocket factory remain separately gated.
+   per-helper transaction scopes retain their established semantics. Stage
+   5.4B.2 moves event-stream initialization and its independent event,
+   lifecycle-history, snapshot, and latest-marker writes behind
+   `OrderEventStreamPersistence`, implemented by the same adapter. It preserves
+   synchronous callback order, best-effort delivery, and per-helper transaction
+   scope. The bridge, move manager, authoritative manager/engine persistence,
+   and WebSocket factory remain separately gated.
 6. Extract public market-data ownership into an in-process component.
 7. Separate operator WebSocket transport from application commands and read
    projections. The approved console Stage 1 framing and Stage 2A complete
@@ -222,6 +228,16 @@ code changes.
   boundary contract passed at 14 reverse imports, zero cycles, 32 broad
   capabilities, and seven reflection signatures. Repository-graph build/check
   reported 455 files, 8,668 symbols, 1,545 indexed tests, and 186 semantic
+  records with no parse findings, fatal errors, or mismatches.
+- Execution Core stage 5.4B.2 moves the event publisher's five-call storage
+  initialization and four independent audit writes behind
+  `OrderEventStreamPersistence`, implemented by the existing concrete adapter.
+  It removes one reverse import and one broad constructor capability without
+  changing schema, callback order, idempotency, locks, transactions, or
+  best-effort failure behavior. Python compilation and the executable boundary
+  contract passed. The complete local non-external gate passed 1,905 tests with
+  17 skipped and 11 external tests deselected. Repository-graph build/check
+  reported 456 files, 8,697 symbols, 1,552 indexed tests, and 186 semantic
   records with no parse findings, fatal errors, or mismatches.
 - Operator Console stage 1 replaced the ad-hoc dashboard wire variants with one
   strict JSON-RPC 2.0 contract, migrated both retained pages and the runtime

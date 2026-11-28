@@ -325,6 +325,10 @@ The heap is disposable derived state, never lifecycle truth.
 - `business/fill_ledger.py`: append-only fill ledger repository. It consumes
   `FillLedgerPersistence`, contains no SQL, and owns duplicate-success plus
   fail-soft query/insert policy.
+- `business/order_event_stream.py`: synchronous best-effort audit publisher. It
+  consumes `OrderEventStreamPersistence`, contains no database import, and
+  preserves independent event, lifecycle-history, snapshot, and latest-marker
+  writes through existing hooks.
 - `business/fill_reconciler.py`: WS-derived vs REST fill matching and status stamping.
 
 ### Order Lifecycle and Strategy
@@ -378,9 +382,11 @@ functions for core trading tables.
 
 ### `database/execution_persistence.py`
 Concrete structural adapter composed by `main.py`. Its fill-ledger methods
-delegate to canonical `database.order` functions and add no SQL, lock, or
-transaction scope. Later approved peripheral persistence ports extend this one
-adapter rather than introduce parallel implementations.
+and event-audit methods delegate to canonical `database.order` functions and
+add no SQL, lock, or transaction scope. Event-stream storage initialization
+retains its five existing helper calls and partial-failure behavior. Later
+approved peripheral persistence ports extend this one adapter rather than
+introduce parallel implementations.
 
 ### `database/schema.py`
 Single ordered additive bootstrap for all required runtime trading tables.

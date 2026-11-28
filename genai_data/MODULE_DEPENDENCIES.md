@@ -1,6 +1,6 @@
 # Module Dependency Contract
 
-Reconciled with the current checkout on 2026-11-27. Current source and tests
+Reconciled with the current checkout on 2026-11-28. Current source and tests
 remain the evidence for runtime behavior.
 
 ## Purpose and Authority
@@ -54,7 +54,7 @@ contract therefore classifies modules, with exact overrides, into these zones:
 | domain | shared vocabulary and calculation/policy code | domain, logging |
 | logging | shared logging adapter | logging |
 
-Stages 5.1-5.4B.1 place `core.execution_core` and `core.execution_ports` in the
+Stages 5.1-5.4B.2 place `core.execution_core` and `core.execution_ports` in the
 execution zone. The facade depends on
 domain enums/models, the runtime admission contract, and consumer-owned stealth
 command/query protocols; `main.py` supplies the shared runtime controller and
@@ -70,9 +70,12 @@ capability. Stage 5.4B.1 then introduces the consumer-owned
 `database.execution_persistence.DatabaseOrderPersistenceAdapter`. The fill
 repository contains no SQL or database import; the adapter delegates to the
 canonical `database.order` helpers without widening their lock or transaction
-scope. `main.py` supplies the required capability to `OrderEngine`. The frozen
-totals are 14 reverse imports, zero runtime import cycles, 32 broad constructor
-capabilities, and seven reflection signatures.
+scope. Stage 5.4B.2 adds `OrderEventStreamPersistence` to the same adapter and
+removes the publisher's database module and lazy database import. Event,
+lifecycle-history, snapshot, and latest-marker writes remain independent and
+best effort. `main.py` supplies both required capabilities to `OrderEngine`.
+The frozen totals are 13 reverse imports, zero runtime import cycles, 31 broad
+constructor capabilities, and seven reflection signatures.
 
 Operator Console stages 1 and 2A place `operator_api` in the operator zone. It
 owns JSON-RPC framing plus committed inbound param, method-correlated outbound

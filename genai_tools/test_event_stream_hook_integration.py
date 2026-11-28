@@ -8,6 +8,7 @@ from integration.websocket_hooks import WebSocketHookRegistry
 from integration.fill_event_hooks import FillEventHookRegistry
 from integration.order_placement_hooks import OrderPlacementHookRegistry
 from database import order as db_order
+from database.execution_persistence import DatabaseOrderPersistenceAdapter
 
 
 def main() -> None:
@@ -15,7 +16,9 @@ def main() -> None:
     fill_hooks = FillEventHookRegistry()
     placement_hooks = OrderPlacementHookRegistry()
 
-    publisher = OrderEventStreamPublisher(db_order)
+    publisher = OrderEventStreamPublisher(
+        DatabaseOrderPersistenceAdapter(db_order.DB_CLIENT)
+    )
     publisher.register_hook_integrations(
         websocket_hooks=ws_hooks,
         fill_event_hooks=fill_hooks,

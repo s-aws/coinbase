@@ -42,6 +42,7 @@ def test_order_engine_with_lot_tracking():
             orderbook=orderbook,
             db_module=db,
             fill_ledger_persistence=DatabaseOrderPersistenceAdapter(db),
+            event_stream_persistence=DatabaseOrderPersistenceAdapter(db),
             subscription=subscription,
             api_key=api_key,
             api_secret=api_secret,

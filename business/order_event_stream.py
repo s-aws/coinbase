@@ -14,8 +14,10 @@ from core.enums import (
     EventTriggerType,
     LiquidityAssumption,
     OrderStatus,
+    StealthLifecycleEvent,
     StealthOrderStatus,
 )
+from core.execution_ports import OrderEventStreamPersistence
 from calculation.formatter import safe_float
 from business.placement_response import classify_placement_response
 from logging_service import get_logger
@@ -27,8 +29,8 @@ logger = get_logger("OrderEventStream")
 class OrderEventStreamPublisher:
     """Append-only event stream publisher for reconstructive timelines."""
 
-    def __init__(self, db_module) -> None:
-        self.db_module = db_module
+    def __init__(self, persistence: OrderEventStreamPersistence) -> None:
+        self.persistence = persistence
         self.enabled = False
         self._fee_info_provider = None
         self._initialize_table()
@@ -117,11 +119,7 @@ class OrderEventStreamPublisher:
 
     def _initialize_table(self) -> None:
         try:
-            self.db_module.create_order_event_stream_table()
-            self.db_module.create_stealth_order_lifecycle_history_table()
-            self.db_module.create_stealth_order_reveal_history_table()
-            self.db_module.create_stealth_order_snapshots_table()
-            self.db_module.create_partial_fill_progress_table()
+            self.persistence.ensure_event_stream_storage()
             self.enabled = True
             logger.info("order_event_stream integration enabled")
         except Exception as exc:
@@ -156,7 +154,7 @@ class OrderEventStreamPublisher:
             if fee_manager_audit is not None:
                 raw_payload["fee_manager_audit"] = fee_manager_audit
 
-            inserted_id = self.db_module.insert_order_event(
+            inserted_id = self.persistence.append_order_event(
                 event_id=event_id,
                 event_type=event_type,
                 source_channel=source_channel,
@@ -205,8 +203,8 @@ class OrderEventStreamPublisher:
                                     written to order_event_stream under the event_type
                                     ``stealth_<event_lower>`` (e.g. ``stealth_reveal_failed``).
                                     Also persists last_lifecycle_event + failure_reason to
-                                    the stealth_orders table via
-                                    update_stealth_order_lifecycle_event().
+                                    the stealth_orders table through the injected
+                                    audit persistence capability.
         """
         if not self.enabled:
             return
@@ -367,16 +365,9 @@ class OrderEventStreamPublisher:
         Three side effects:
         1. Writes an immutable row to order_event_stream for the play-by-play audit trail.
         2. Writes a dedicated row to stealth_order_lifecycle_history for state-change audit.
-        3. Calls update_stealth_order_lifecycle_event() to persist last_lifecycle_event
-           and failure_reason for diagnostics and restart-time inspection.
+        3. Updates last_lifecycle_event and failure_reason for diagnostics and
+           restart-time inspection.
         """
-        from core.enums import StealthLifecycleEvent
-        from database.order import (
-            insert_stealth_order_snapshot,
-            insert_stealth_order_lifecycle_event,
-            update_stealth_order_lifecycle_event,
-        )
-
         event_str = event.value if hasattr(event, "value") else str(event)
         event_type = f"stealth_{event_str.lower()}"
         failure_reason = context.get("failure_reason")
@@ -398,7 +389,7 @@ class OrderEventStreamPublisher:
         )
 
         try:
-            insert_stealth_order_lifecycle_event(
+            self.persistence.append_stealth_lifecycle_event(
                 stealth_order_id=stealth_order_id,
                 lifecycle_event=event_str,
                 context=context,
@@ -417,7 +408,7 @@ class OrderEventStreamPublisher:
             StealthLifecycleEvent.REVEAL_SUCCEEDED.value,
         }:
             try:
-                insert_stealth_order_snapshot(
+                self.persistence.append_stealth_snapshot(
                     stealth_order_id=stealth_order_id,
                     lifecycle_event=event_str,
                     context=context,
@@ -431,7 +422,7 @@ class OrderEventStreamPublisher:
         # Persist the latest lifecycle marker for operational diagnostics and
         # restart-time inspection. This audit path remains best effort.
         try:
-            update_stealth_order_lifecycle_event(
+            self.persistence.update_stealth_lifecycle_marker(
                 stealth_order_id=stealth_order_id,
                 lifecycle_event=event_str,
                 failure_reason=failure_reason,

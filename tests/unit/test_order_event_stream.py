@@ -8,7 +8,7 @@ from business.order_event_stream import OrderEventStreamPublisher
 from core.enums import StealthLifecycleEvent
 
 
-class FakeDBModule:
+class FakeEventStreamPersistence:
     def __init__(self):
         self.created_event_stream_table = False
         self.created_lifecycle_history_table = False
@@ -16,85 +16,120 @@ class FakeDBModule:
         self.created_snapshots_table = False
         self.created_partial_fill_progress_table = False
         self.inserted_events = []
+        self.inserted_lifecycle_events = []
+        self.inserted_snapshots = []
+        self.updated_lifecycle_markers = []
 
-    def create_order_event_stream_table(self):
+    def ensure_event_stream_storage(self):
         self.created_event_stream_table = True
-
-    def create_stealth_order_lifecycle_history_table(self):
         self.created_lifecycle_history_table = True
-
-    def create_stealth_order_reveal_history_table(self):
         self.created_reveal_history_table = True
-
-    def create_stealth_order_snapshots_table(self):
         self.created_snapshots_table = True
-
-    def create_partial_fill_progress_table(self):
         self.created_partial_fill_progress_table = True
 
-    def insert_order_event(self, **kwargs):
+    def append_order_event(self, **kwargs):
         self.inserted_events.append(kwargs)
         return 1
 
-
-def test_initialize_table_creates_lifecycle_history_table():
-    db_module = FakeDBModule()
-
-    publisher = OrderEventStreamPublisher(db_module)
-
-    assert publisher.enabled is True
-    assert db_module.created_event_stream_table is True
-    assert db_module.created_lifecycle_history_table is True
-    assert db_module.created_reveal_history_table is True
-    assert db_module.created_snapshots_table is True
-
-
-def test_stealth_lifecycle_hook_writes_history_and_updates_latest(monkeypatch):
-    db_module = FakeDBModule()
-    publisher = OrderEventStreamPublisher(db_module)
-
-    captured = {
-        "history": None,
-        "snapshot": None,
-        "latest": None,
-    }
-
-    def fake_insert_stealth_order_lifecycle_event(stealth_order_id, lifecycle_event, context):
-        captured["history"] = {
-            "stealth_order_id": stealth_order_id,
-            "lifecycle_event": lifecycle_event,
-            "context": context,
-        }
+    def append_stealth_lifecycle_event(self, **kwargs):
+        self.inserted_lifecycle_events.append(kwargs)
         return 42
 
-    def fake_update_stealth_order_lifecycle_event(stealth_order_id, lifecycle_event, failure_reason=None):
-        captured["latest"] = {
-            "stealth_order_id": stealth_order_id,
-            "lifecycle_event": lifecycle_event,
-            "failure_reason": failure_reason,
-        }
-        return True
-
-    def fake_insert_stealth_order_snapshot(stealth_order_id, lifecycle_event, context):
-        captured["snapshot"] = {
-            "stealth_order_id": stealth_order_id,
-            "lifecycle_event": lifecycle_event,
-            "context": context,
-        }
+    def append_stealth_snapshot(self, **kwargs):
+        self.inserted_snapshots.append(kwargs)
         return 77
 
-    monkeypatch.setattr(
-        "database.order.insert_stealth_order_lifecycle_event",
-        fake_insert_stealth_order_lifecycle_event,
+    def update_stealth_lifecycle_marker(self, **kwargs):
+        self.updated_lifecycle_markers.append(kwargs)
+        return True
+
+
+def test_initialize_table_creates_lifecycle_history_table():
+    persistence = FakeEventStreamPersistence()
+
+    publisher = OrderEventStreamPublisher(persistence)
+
+    assert publisher.enabled is True
+    assert persistence.created_event_stream_table is True
+    assert persistence.created_lifecycle_history_table is True
+    assert persistence.created_reveal_history_table is True
+    assert persistence.created_snapshots_table is True
+    assert persistence.created_partial_fill_progress_table is True
+
+
+def test_initialize_table_failure_disables_event_stream():
+    class FailingInitialization(FakeEventStreamPersistence):
+        def ensure_event_stream_storage(self):
+            raise RuntimeError("schema unavailable")
+
+    publisher = OrderEventStreamPublisher(FailingInitialization())
+
+    assert publisher.enabled is False
+
+
+def test_publish_event_preserves_duplicate_and_error_as_false():
+    class DuplicatePersistence(FakeEventStreamPersistence):
+        def append_order_event(self, **kwargs):
+            return None
+
+    duplicate_publisher = OrderEventStreamPublisher(DuplicatePersistence())
+    assert duplicate_publisher.publish_event(
+        event_type="order_open",
+        source_channel="ws_user",
+        payload={"client_order_id": "cid-duplicate"},
+        idempotency_key="duplicate-key",
+    ) is False
+
+    class FailingPersistence(FakeEventStreamPersistence):
+        def append_order_event(self, **kwargs):
+            raise RuntimeError("database unavailable")
+
+    failing_publisher = OrderEventStreamPublisher(FailingPersistence())
+    assert failing_publisher.publish_event(
+        event_type="order_open",
+        source_channel="ws_user",
+        payload={"client_order_id": "cid-error"},
+        idempotency_key="error-key",
+    ) is False
+
+
+def test_lifecycle_audit_writes_remain_independent_and_fail_soft():
+    class FailingAuditPersistence(FakeEventStreamPersistence):
+        def __init__(self):
+            super().__init__()
+            self.attempts = []
+
+        def append_order_event(self, **kwargs):
+            self.attempts.append("event")
+            raise RuntimeError("event failed")
+
+        def append_stealth_lifecycle_event(self, **kwargs):
+            self.attempts.append("history")
+            raise RuntimeError("history failed")
+
+        def append_stealth_snapshot(self, **kwargs):
+            self.attempts.append("snapshot")
+            raise RuntimeError("snapshot failed")
+
+        def update_stealth_lifecycle_marker(self, **kwargs):
+            self.attempts.append("marker")
+            raise RuntimeError("marker failed")
+
+    persistence = FailingAuditPersistence()
+    publisher = OrderEventStreamPublisher(persistence)
+
+    publisher._stealth_lifecycle_hook(
+        "550e8400-e29b-41d4-a716-446655440000",
+        StealthLifecycleEvent.CONDITION_MET,
+        {"status": "TRIGGERED", "timestamp": datetime(2026, 11, 28, 12, 0)},
     )
-    monkeypatch.setattr(
-        "database.order.update_stealth_order_lifecycle_event",
-        fake_update_stealth_order_lifecycle_event,
-    )
-    monkeypatch.setattr(
-        "database.order.insert_stealth_order_snapshot",
-        fake_insert_stealth_order_snapshot,
-    )
+
+    assert persistence.attempts == ["event", "history", "snapshot", "marker"]
+
+
+def test_stealth_lifecycle_hook_writes_history_and_updates_latest():
+    persistence = FakeEventStreamPersistence()
+    publisher = OrderEventStreamPublisher(persistence)
 
     context = {
         "product_id": "BTC-USDC",
@@ -118,43 +153,28 @@ def test_stealth_lifecycle_hook_writes_history_and_updates_latest(monkeypatch):
         context,
     )
 
-    assert len(db_module.inserted_events) == 1
-    assert db_module.inserted_events[0]["event_type"] == "stealth_condition_met"
-    assert db_module.inserted_events[0]["raw_payload_json"]["lifecycle_event"] == "CONDITION_MET"
+    assert len(persistence.inserted_events) == 1
+    assert persistence.inserted_events[0]["event_type"] == "stealth_condition_met"
+    assert persistence.inserted_events[0]["raw_payload_json"]["lifecycle_event"] == "CONDITION_MET"
 
-    assert captured["history"] is not None
-    assert captured["history"]["stealth_order_id"] == "550e8400-e29b-41d4-a716-446655440000"
-    assert captured["history"]["lifecycle_event"] == "CONDITION_MET"
-    assert captured["history"]["context"]["status"] == "TRIGGERED"
-    assert captured["history"]["context"]["exchange_order_id"] == "exchange-oid-123"
+    history = persistence.inserted_lifecycle_events[0]
+    assert history["stealth_order_id"] == "550e8400-e29b-41d4-a716-446655440000"
+    assert history["lifecycle_event"] == "CONDITION_MET"
+    assert history["context"]["status"] == "TRIGGERED"
+    assert history["context"]["exchange_order_id"] == "exchange-oid-123"
 
-    assert captured["snapshot"] is not None
-    assert captured["snapshot"]["lifecycle_event"] == "CONDITION_MET"
-    assert captured["snapshot"]["context"]["status"] == "TRIGGERED"
+    snapshot = persistence.inserted_snapshots[0]
+    assert snapshot["lifecycle_event"] == "CONDITION_MET"
+    assert snapshot["context"]["status"] == "TRIGGERED"
 
-    assert captured["latest"] is not None
-    assert captured["latest"]["lifecycle_event"] == "CONDITION_MET"
-    assert captured["latest"]["failure_reason"] is None
+    latest = persistence.updated_lifecycle_markers[0]
+    assert latest["lifecycle_event"] == "CONDITION_MET"
+    assert latest["failure_reason"] is None
 
 
-def test_stealth_lifecycle_hook_skips_snapshot_for_created(monkeypatch):
-    db_module = FakeDBModule()
-    publisher = OrderEventStreamPublisher(db_module)
-
-    called = {"snapshot": 0}
-
-    monkeypatch.setattr(
-        "database.order.insert_stealth_order_lifecycle_event",
-        lambda stealth_order_id, lifecycle_event, context: 1,
-    )
-    monkeypatch.setattr(
-        "database.order.update_stealth_order_lifecycle_event",
-        lambda stealth_order_id, lifecycle_event, failure_reason=None: True,
-    )
-    monkeypatch.setattr(
-        "database.order.insert_stealth_order_snapshot",
-        lambda stealth_order_id, lifecycle_event, context: called.__setitem__("snapshot", called["snapshot"] + 1),
-    )
+def test_stealth_lifecycle_hook_skips_snapshot_for_created():
+    persistence = FakeEventStreamPersistence()
+    publisher = OrderEventStreamPublisher(persistence)
 
     publisher._stealth_lifecycle_hook(
         "550e8400-e29b-41d4-a716-446655440000",
@@ -162,28 +182,12 @@ def test_stealth_lifecycle_hook_skips_snapshot_for_created(monkeypatch):
         {"status": "HIDDEN", "timestamp": datetime(2026, 4, 25, 6, 30, 0)},
     )
 
-    assert called["snapshot"] == 0
+    assert persistence.inserted_snapshots == []
 
 
-def test_condition_reset_writes_a_state_snapshot(monkeypatch):
-    db_module = FakeDBModule()
-    publisher = OrderEventStreamPublisher(db_module)
-    snapshots = []
-
-    monkeypatch.setattr(
-        "database.order.insert_stealth_order_lifecycle_event",
-        lambda stealth_order_id, lifecycle_event, context: 1,
-    )
-    monkeypatch.setattr(
-        "database.order.update_stealth_order_lifecycle_event",
-        lambda stealth_order_id, lifecycle_event, failure_reason=None: True,
-    )
-    monkeypatch.setattr(
-        "database.order.insert_stealth_order_snapshot",
-        lambda stealth_order_id, lifecycle_event, context: snapshots.append(
-            (stealth_order_id, lifecycle_event, context)
-        ) or 1,
-    )
+def test_condition_reset_writes_a_state_snapshot():
+    persistence = FakeEventStreamPersistence()
+    publisher = OrderEventStreamPublisher(persistence)
 
     publisher._stealth_lifecycle_hook(
         "550e8400-e29b-41d4-a716-446655440000",
@@ -194,14 +198,15 @@ def test_condition_reset_writes_a_state_snapshot(monkeypatch):
         },
     )
 
-    assert len(snapshots) == 1
-    assert snapshots[0][1] == "CONDITION_RESET"
-    assert snapshots[0][2]["status"] == "HIDDEN"
+    assert len(persistence.inserted_snapshots) == 1
+    snapshot = persistence.inserted_snapshots[0]
+    assert snapshot["lifecycle_event"] == "CONDITION_RESET"
+    assert snapshot["context"]["status"] == "HIDDEN"
 
 
 def test_publish_event_enriches_payload_with_fee_manager_audit():
-    db_module = FakeDBModule()
-    publisher = OrderEventStreamPublisher(db_module)
+    persistence = FakeEventStreamPersistence()
+    publisher = OrderEventStreamPublisher(persistence)
 
     publisher.set_fee_info_provider(
         lambda product_id=None: {
@@ -240,9 +245,9 @@ def test_publish_event_enriches_payload_with_fee_manager_audit():
     )
 
     assert ok is True
-    assert len(db_module.inserted_events) == 1
+    assert len(persistence.inserted_events) == 1
 
-    inserted = db_module.inserted_events[0]
+    inserted = persistence.inserted_events[0]
     fee_audit = inserted["raw_payload_json"].get("fee_manager_audit")
     assert fee_audit is not None
     assert fee_audit["product_id"] == "BTC-USDC"
@@ -273,7 +278,7 @@ def test_fee_audit_parses_local_and_websocket_post_only_values(
     expected_liquidity,
     expected_rate,
 ):
-    publisher = OrderEventStreamPublisher(FakeDBModule())
+    publisher = OrderEventStreamPublisher(FakeEventStreamPersistence())
     publisher.set_fee_info_provider(
         lambda product_id=None: {
             "product_type": "SPOT",
@@ -296,8 +301,8 @@ def test_fee_audit_parses_local_and_websocket_post_only_values(
 
 
 def test_post_submission_hook_publishes_only_explicitly_accepted_placement():
-    db_module = FakeDBModule()
-    publisher = OrderEventStreamPublisher(db_module)
+    persistence = FakeEventStreamPersistence()
+    publisher = OrderEventStreamPublisher(persistence)
     order = {
         "client_order_id": "placement-cid-1",
         "product_id": "BTC-USDC",
@@ -317,8 +322,8 @@ def test_post_submission_hook_publishes_only_explicitly_accepted_placement():
         },
     )
 
-    assert len(db_module.inserted_events) == 1
-    inserted = db_module.inserted_events[0]
+    assert len(persistence.inserted_events) == 1
+    inserted = persistence.inserted_events[0]
     assert inserted["event_type"] == "order_submitted"
     assert inserted["client_order_id"] == "placement-cid-1"
     assert inserted["order_id"] == "exchange-order-1"
@@ -343,8 +348,8 @@ def test_post_submission_hook_publishes_only_explicitly_accepted_placement():
     ],
 )
 def test_post_submission_hook_does_not_publish_unaccepted_placement(result):
-    db_module = FakeDBModule()
-    publisher = OrderEventStreamPublisher(db_module)
+    persistence = FakeEventStreamPersistence()
+    publisher = OrderEventStreamPublisher(persistence)
 
     publisher._post_submission_hook(
         {
@@ -354,4 +359,4 @@ def test_post_submission_hook_does_not_publish_unaccepted_placement(result):
         result,
     )
 
-    assert db_module.inserted_events == []
+    assert persistence.inserted_events == []

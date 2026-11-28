@@ -348,7 +348,10 @@ def get_stealth_order_by_id(stealth_order_id: str) -> Optional[Dict[str, Any]]:
             )
 
 
-def create_stealth_order_snapshots_table() -> None:
+def create_stealth_order_snapshots_table(
+    *,
+    db_client: Optional[PostgresDB] = None,
+) -> None:
     """Create the stealth_order_snapshots table if it doesn't exist.
     
     Historical snapshots of stealth order state for auditing and analysis.
@@ -410,7 +413,8 @@ def create_stealth_order_snapshots_table() -> None:
         FOREIGN KEY (stealth_order_id) REFERENCES stealth_orders(stealth_order_id) ON DELETE CASCADE
     );
     """
-    with DB_CLIENT.get_cursor() as cursor:
+    client = db_client if db_client is not None else DB_CLIENT
+    with client.get_cursor() as cursor:
         cursor.execute(create_table_query)
         print("stealth_order_snapshots table done.")
 
@@ -419,6 +423,8 @@ def insert_stealth_order_snapshot(
     stealth_order_id: str,
     lifecycle_event: str,
     context: Optional[Dict[str, Any]] = None,
+    *,
+    db_client: Optional[PostgresDB] = None,
 ) -> Optional[int]:
     """Insert an event-scoped stealth snapshot for audit replay.
 
@@ -490,7 +496,8 @@ def insert_stealth_order_snapshot(
             market_spread,
             context.get("market_volume_1m"),
         )
-        rows = DB_CLIENT.execute_query(query, params)
+        client = db_client if db_client is not None else DB_CLIENT
+        rows = client.execute_query(query, params)
         return rows[0]["id"] if rows else None
     except Exception as exc:
         logger.warning(
@@ -500,7 +507,10 @@ def insert_stealth_order_snapshot(
         return None
 
 
-def create_stealth_order_reveal_history_table() -> None:
+def create_stealth_order_reveal_history_table(
+    *,
+    db_client: Optional[PostgresDB] = None,
+) -> None:
     """Create the stealth_order_reveal_history table if it doesn't exist.
     
     Detailed history of each reveal event with market conditions and trigger reasons.
@@ -567,7 +577,8 @@ def create_stealth_order_reveal_history_table() -> None:
         UNIQUE (stealth_order_id, reveal_number)
     );
     """
-    with DB_CLIENT.get_cursor() as cursor:
+    client = db_client if db_client is not None else DB_CLIENT
+    with client.get_cursor() as cursor:
         cursor.execute(create_table_query)
         cursor.execute(
             "ALTER TABLE stealth_order_reveal_history ADD COLUMN IF NOT EXISTS exchange_order_id VARCHAR(64)"
@@ -600,7 +611,10 @@ def create_stealth_order_reveal_history_table() -> None:
         print("stealth_order_reveal_history table done.")
 
 
-def create_stealth_order_lifecycle_history_table() -> None:
+def create_stealth_order_lifecycle_history_table(
+    *,
+    db_client: Optional[PostgresDB] = None,
+) -> None:
     """Create the stealth_order_lifecycle_history table if it doesn't exist.
 
     Stores one immutable row per stealth lifecycle transition so state changes can
@@ -648,7 +662,8 @@ def create_stealth_order_lifecycle_history_table() -> None:
     CREATE INDEX IF NOT EXISTS idx_stealth_lifecycle_history_event
         ON stealth_order_lifecycle_history (lifecycle_event);
     """
-    with DB_CLIENT.get_cursor() as cursor:
+    client = db_client if db_client is not None else DB_CLIENT
+    with client.get_cursor() as cursor:
         cursor.execute(create_table_query)
         cursor.execute(
             "ALTER TABLE stealth_order_lifecycle_history ADD COLUMN IF NOT EXISTS exchange_order_id VARCHAR(64)"
@@ -2873,7 +2888,10 @@ def insert_order_match_audit(
         return None
 
 
-def create_order_event_stream_table() -> None:
+def create_order_event_stream_table(
+    *,
+    db_client: Optional[PostgresDB] = None,
+) -> None:
     """Create append-only order_event_stream table for timeline reconstruction.
 
     This table captures a normalized event timeline across order submission,
@@ -2911,7 +2929,8 @@ def create_order_event_stream_table() -> None:
     CREATE INDEX IF NOT EXISTS idx_order_event_stream_client_order_id ON order_event_stream(client_order_id);
     CREATE INDEX IF NOT EXISTS idx_order_event_stream_event_type ON order_event_stream(event_type);
     """
-    with DB_CLIENT.get_cursor() as cursor:
+    client = db_client if db_client is not None else DB_CLIENT
+    with client.get_cursor() as cursor:
         cursor.execute(create_table_query)
         print("order_event_stream table done.")
 
@@ -2939,6 +2958,8 @@ def insert_order_event(
     trigger_payload_json: Dict[str, Any] = None,
     raw_payload_json: Dict[str, Any] = None,
     idempotency_key: str = None,
+    *,
+    db_client: Optional[PostgresDB] = None,
 ) -> Optional[int]:
     """Insert one immutable event record into order_event_stream.
 
@@ -3005,7 +3026,8 @@ def insert_order_event(
     )
 
     try:
-        results = DB_CLIENT.execute_query(query, params)
+        client = db_client if db_client is not None else DB_CLIENT
+        results = client.execute_query(query, params)
         if results:
             return results[0].get("id")
         return None
@@ -3224,6 +3246,8 @@ def update_stealth_order_lifecycle_event(
     stealth_order_id: str,
     lifecycle_event: str,
     failure_reason: Optional[str] = None,
+    *,
+    db_client: Optional[PostgresDB] = None,
 ) -> bool:
     """Persist the most recent StealthLifecycleEvent for a stealth order.
 
@@ -3268,7 +3292,8 @@ def update_stealth_order_lifecycle_event(
             """
             params = (lifecycle_event, stealth_order_id)
 
-        rows = DB_CLIENT.execute_update(query, params)
+        client = db_client if db_client is not None else DB_CLIENT
+        rows = client.execute_update(query, params)
         return rows > 0
     except Exception as exc:
         logger.error(
@@ -3282,6 +3307,8 @@ def insert_stealth_order_lifecycle_event(
     stealth_order_id: str,
     lifecycle_event: str,
     context: Optional[Dict[str, Any]] = None,
+    *,
+    db_client: Optional[PostgresDB] = None,
 ) -> Optional[int]:
     """Insert one immutable lifecycle transition row for a stealth order.
 
@@ -3305,7 +3332,8 @@ def insert_stealth_order_lifecycle_event(
     }
 
     try:
-        existing_rows = DB_CLIENT.execute_query(
+        client = db_client if db_client is not None else DB_CLIENT
+        existing_rows = client.execute_query(
             """
             SELECT last_lifecycle_event
             FROM stealth_orders
@@ -3376,7 +3404,7 @@ def insert_stealth_order_lifecycle_event(
             json.dumps(context, default=str),
         )
 
-        with DB_CLIENT.get_cursor() as cursor:
+        with client.get_cursor() as cursor:
             cursor.execute(query, params)
             result = cursor.fetchone()
             return result[0] if result else None
@@ -3469,7 +3497,10 @@ def get_stealth_order_lifecycle_history(
 # partial_fill_progress table â€“ restart-resilient partial fill watermarks
 # ---------------------------------------------------------------------------
 
-def create_partial_fill_progress_table() -> None:
+def create_partial_fill_progress_table(
+    *,
+    db_client: Optional[PostgresDB] = None,
+) -> None:
     """Create the partial_fill_progress table for restart-resilient partial fill tracking.
 
     Each row holds the high-watermark state for one active order that has been
@@ -3516,7 +3547,8 @@ def create_partial_fill_progress_table() -> None:
     CREATE INDEX IF NOT EXISTS idx_partial_fill_progress_parent
         ON partial_fill_progress (parent_client_order_id);
     """
-    with DB_CLIENT.get_cursor() as cursor:
+    client = db_client if db_client is not None else DB_CLIENT
+    with client.get_cursor() as cursor:
         cursor.execute(create_table_query)
         print("partial_fill_progress table done.")
 

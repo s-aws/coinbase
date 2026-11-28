@@ -69,6 +69,63 @@ class FillLedgerPersistence(Protocol):
     ) -> List[Dict[str, Any]]: ...
 
 
+class OrderEventStreamPersistence(Protocol):
+    """Best-effort audit persistence consumed by the event-stream publisher."""
+
+    def ensure_event_stream_storage(self) -> None: ...
+
+    def append_order_event(
+        self,
+        *,
+        event_id: str,
+        event_type: str,
+        source_channel: str,
+        event_time_exchange: Any,
+        product_id: Optional[str],
+        client_order_id: Optional[str],
+        order_id: Optional[str],
+        parent_client_order_id: Optional[str],
+        stealth_order_id: Optional[str],
+        event_status_from: Optional[str],
+        event_status_to: Optional[str],
+        side: Optional[str],
+        price: Optional[float],
+        size: Optional[float],
+        cumulative_filled_size: Optional[float],
+        leaves_size: Optional[float],
+        fee: Optional[float],
+        fee_currency: Optional[str],
+        trigger_type: Optional[str],
+        trigger_payload_json: Optional[Dict[str, Any]],
+        raw_payload_json: Optional[Dict[str, Any]],
+        idempotency_key: Optional[str],
+    ) -> Optional[int]: ...
+
+    def append_stealth_lifecycle_event(
+        self,
+        *,
+        stealth_order_id: str,
+        lifecycle_event: str,
+        context: Dict[str, Any],
+    ) -> Optional[int]: ...
+
+    def append_stealth_snapshot(
+        self,
+        *,
+        stealth_order_id: str,
+        lifecycle_event: str,
+        context: Dict[str, Any],
+    ) -> Optional[int]: ...
+
+    def update_stealth_lifecycle_marker(
+        self,
+        *,
+        stealth_order_id: str,
+        lifecycle_event: str,
+        failure_reason: Optional[str],
+    ) -> bool: ...
+
+
 class ExecutionProjectionSink(Protocol):
     """Bounded, synchronous projection capability used by ``OrderEngine``."""
 
