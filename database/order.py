@@ -927,11 +927,17 @@ def get_parent_orders_by_client_ids(
     return DB_CLIENT.execute_query(query, (unique_ids,))
 
 
-def get_parent_order(client_order_id: str) -> Optional[Dict[str, Any]]:
+def get_parent_order(
+    client_order_id: str,
+    *,
+    db_client: Optional[PostgresDB] = None,
+) -> Optional[Dict[str, Any]]:
     """Retrieve a single parent order by client_order_id.
     
     Args:
         client_order_id: The client_order_id to look up.
+        db_client: Explicit database client for composed adapters. Defaults to
+            the compatibility module client for existing callers.
     
     Returns:
         Parent order dict if found, None otherwise.
@@ -942,7 +948,8 @@ def get_parent_order(client_order_id: str) -> Optional[Dict[str, Any]]:
     """
     try:
         query = "SELECT * FROM order_parent WHERE client_order_id = %s"
-        results = DB_CLIENT.execute_query(query, (client_order_id,))
+        client = db_client if db_client is not None else DB_CLIENT
+        results = client.execute_query(query, (client_order_id,))
         return results[0] if results else None
     except Exception as e:
         error_msg = str(e).lower()

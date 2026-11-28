@@ -38,6 +38,7 @@ from core.enums import (
     StealthWakePurpose,
     TickerPublicationDisposition,
 )
+from core.execution_ports import SpanParentOrderReader
 from core.stealth_order_manager import StealthOrderManager
 from core.models import (
     MarketData,
@@ -95,6 +96,7 @@ class StealthOrderBridge:
         *,
         rest_client: BridgeRestClient,
         trading_product_resolver: Callable[[str], str],
+        span_parent_order_reader: SpanParentOrderReader,
         scheduler: Optional[StealthEventDeadlineScheduler] = None,
     ):
         """
@@ -103,11 +105,14 @@ class StealthOrderBridge:
         Args:
             stealth_manager: StealthOrderManager instance
             order_engine: OrderEngine instance for market data and order placement
+            span_parent_order_reader: Canonical parent-row reader used only for
+                deterministic span retry verification.
         """
         self.stealth_manager = stealth_manager
         self.order_engine = order_engine
         self.rest_client = rest_client
         self._trading_product_resolver = trading_product_resolver
+        self._span_parent_order_reader = span_parent_order_reader
         # Pass order_engine's log_message to stealth_manager for consistent logging
         if hasattr(order_engine, 'log_message'):
             self.stealth_manager.log_callback = order_engine.log_message
@@ -2438,9 +2443,9 @@ class StealthOrderBridge:
         # Strategy economics and root-only flags are canonical on order_parent,
         # not stealth_orders. Verify both durable rows before treating a retry
         # as idempotently complete.
-        from database.order import get_parent_order
-
-        parent_row = get_parent_order(spec.client_order_id)
+        parent_row = self._span_parent_order_reader.get_parent_order(
+            spec.client_order_id
+        )
         if not parent_row:
             mismatches.append("order_parent")
             return mismatches

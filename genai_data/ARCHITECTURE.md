@@ -130,7 +130,7 @@ modules, new reverse-zone imports, new import cycles, new broad/untyped
 constructor capability surfaces, and new reflection mechanisms that can hide
 those surfaces.
 
-The contract records 13 reverse-zone import edges, no strongly connected
+The contract records 12 reverse-zone import edges, no strongly connected
 runtime import component, 31 broad constructor capability surfaces, and seven
 reflection/namespace escape signatures. Item 4 retired the configuration edges
 and former import cycle; the supported operator-surface cleanup retired six
@@ -143,6 +143,10 @@ fill-ledger query contract and moves its SQL access behind a narrow structural
 port and canonical database adapter. Stage 5.4B.2 moves event-stream and
 best-effort lifecycle-audit writes behind a second narrow protocol implemented
 by that same adapter, without combining their transactions or failure paths.
+Stage 5.4B.3 moves the bridge's deterministic span parent-row lookup behind
+`SpanParentOrderReader`, also implemented by the same adapter. The read remains
+inside the existing all-rung action-lock scope and retains fail-closed preflight
+behavior without moving SQL or transaction ownership.
 Remaining exact debt is assigned to
 modular-monolith checklist items 5-8 and is not a package-wide permission for
 additional coupling.

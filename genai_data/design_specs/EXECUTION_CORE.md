@@ -3,14 +3,14 @@
 | Field | Value |
 |---|---|
 | Status | `IMPLEMENTING` |
-| Operator approval | Accepted 2026-11-26; stages 5.1-5.4A approved 2026-11-27; stages 5.4B.1-5.4B.2 approved 2026-11-28; stages 5.4B.3-5.6 require separate approval |
+| Operator approval | Accepted 2026-11-26; stages 5.1-5.4A approved 2026-11-27; stages 5.4B.1-5.4B.3 approved 2026-11-28; stages 5.4B.4-5.6 require separate approval |
 | Checklist or objective | Modular-monolith boundary checklist item 5 |
-| Last evidence review | 2026-11-28, current worktree based on `eabc5dff` |
-| Implementation | Stages 5.1-5.4B.2 implemented and validated; stages 5.4B.3-5.6 not started |
+| Last evidence review | 2026-11-28, current worktree based on `b65a6475` |
+| Implementation | Stages 5.1-5.4B.3 implemented and validated; stages 5.4B.4-5.6 not started |
 
 > This spec records the accepted item-5 design. Current behavior is established
-> only by the implementation mapping and tests below. Approval through 5.4B.2
-> does not authorize stages 5.4B.3-5.6.
+> only by the implementation mapping and tests below. Approval through 5.4B.3
+> does not authorize stages 5.4B.4-5.6.
 
 ## Problem
 
@@ -46,8 +46,8 @@ rules.
   command category; the unsupported raw-placement path remains removed.
 - `dashboard_server.py` currently handles 17 supported request types; six are
   classified locally as originating work.
-- `module_boundaries.toml` now assigns five exact reverse imports to checklist
-  item 5. The repository-wide frozen totals are 13 reverse imports, zero
+- `module_boundaries.toml` now assigns four exact reverse imports to checklist
+  item 5. The repository-wide frozen totals are 12 reverse imports, zero
   cycles, 31 broad capabilities, and seven reflection signatures.
 - Constructor changes are broad even when production wiring is small:
   `OrderEngine` construction appears in 22 Python files and
@@ -64,6 +64,10 @@ rules.
   independent audit write paths behind `OrderEventStreamPersistence`, supplied
   by the same adapter. Synchronous hook ordering, fail-soft behavior, and
   per-helper transaction scope remain unchanged.
+- Stage 5.4B.3 moves the bridge's deterministic span-retry parent-row lookup
+  behind `SpanParentOrderReader`, supplied by the same adapter. The lookup
+  remains inside the all-rung lock scope and database errors remain fail-closed
+  preflight failures.
 
 The exact import-debt inventory remains authoritative in
 `module_boundaries.toml`; this spec does not copy that list.
@@ -279,8 +283,8 @@ profitability behavior.
 
 #### 5.4B Peripheral persistence ports
 
-Status: 5.4B.1-5.4B.2 implemented and validated 2026-11-28; 5.4B.3-5.4B.4
-reviewed but not approved for implementation.
+Status: 5.4B.1-5.4B.3 implemented and validated 2026-11-28; 5.4B.4 reviewed
+but not approved for implementation.
 
 Define narrow consumer-owned persistence protocols for the bridge, fill
 ledger, move manager, and event stream. Consolidate existing fill-ledger SQL
@@ -324,6 +328,23 @@ stream capability. Runtime storage initialization still includes reveal-history
 and partial-fill-progress helpers even though their ownership is broader than
 the publisher; removing that compatibility coupling requires a separate
 startup/persistence review.
+
+##### 5.4B.3 Span parent-order reader
+
+`SpanParentOrderReader` is a one-operation consumer-owned structural protocol.
+`StealthOrderBridge` requires it explicitly and uses it only while verifying
+that an existing deterministic span rung still agrees with its canonical
+`order_parent` row. The read remains inside the established all-rung action-lock
+scope; a missing row remains a conflict and a lookup exception remains a
+preflight failure that prevents new writes.
+
+`DatabaseOrderPersistenceAdapter` delegates the lookup to the retained
+`database.order.get_parent_order` helper with its explicit database client.
+The helper retains its module-client default for existing callers, SQL,
+exception mapping, cursor lock, and per-call transaction behavior. `main.py`
+passes the same adapter already used for fill-ledger and event-stream
+persistence. The dormant bridge-local reveal-history save stub is not part of
+this port; manager-owned reveal-event recording remains the active path.
 
 #### 5.4C Authoritative-owner persistence ports
 
@@ -563,6 +584,26 @@ contract passed. The complete local non-external gate passed 1,905 tests with
 17 skipped and 11 external tests deselected. Repository-graph build/check
 reported 456 files, 8,697 symbols, 1,552 indexed tests, and 186 semantic
 records with no parse findings, fatal errors, or mismatches.
+
+Stage 5.4B.3 adds:
+
+- The bridge consumes `SpanParentOrderReader` and contains no database import.
+- The existing adapter delegates the parent-row lookup to the canonical helper
+  with its explicit database client; no SQL or transaction boundary moves.
+- Existing-row verification remains inside all deterministic rung locks.
+  Missing rows and lookup failures remain fail-closed preflight failures, and
+  no new rung is written after either condition.
+- `main.py` supplies the same adapter for span reads, fill-ledger persistence,
+  and event-stream persistence. The resulting frozen totals are 12 reverse
+  imports, zero runtime import cycles, 31 broad capabilities, and seven
+  reflection signatures. Stage 5.4B.4 and 5.4C remain separately gated.
+
+Stage 5.4B.3 validation: Python compilation, `git diff --check`, and the
+executable boundary contract passed. The complete local non-external gate
+passed 1,910 tests with 17 skipped and 11 external tests deselected.
+Repository-graph build/check reported 457 files, 8,712 symbols, 1,556 indexed
+tests, and 186 semantic records with no parse findings, fatal errors, or
+mismatches.
 
 Relevant current navigation:
 

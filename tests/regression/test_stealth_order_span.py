@@ -217,9 +217,23 @@ class _FakeSpanManager:
         return client_order_id
 
 
+class _FakeSpanParentOrderReader:
+    def __init__(self, parent_rows):
+        self.parent_rows = parent_rows
+        self.failure = None
+
+    def get_parent_order(self, client_order_id):
+        if self.failure is not None:
+            raise self.failure
+        return self.parent_rows.get(client_order_id)
+
+
 def _bridge(manager):
     bridge = StealthOrderBridge.__new__(StealthOrderBridge)
     bridge.stealth_manager = manager
+    bridge._span_parent_order_reader = _FakeSpanParentOrderReader(
+        manager.parent_rows
+    )
     bridge._order_action_locks_guard = threading.Lock()
     bridge._order_action_locks = {}
     return bridge
@@ -230,12 +244,8 @@ def test_bridge_retry_returns_existing_rungs_without_duplicate_creation():
     bridge = _bridge(manager)
     request = _request()
 
-    with patch(
-        "database.order.get_parent_order",
-        side_effect=lambda client_order_id: manager.parent_rows.get(client_order_id),
-    ):
-        first = bridge.create_stealth_order_span(request)
-        second = bridge.create_stealth_order_span(request)
+    first = bridge.create_stealth_order_span(request)
+    second = bridge.create_stealth_order_span(request)
 
     assert first["status"] == "success"
     assert first["created_count"] == 3
@@ -250,16 +260,33 @@ def test_reusing_span_id_with_changed_immutable_fields_is_a_conflict():
     bridge = _bridge(manager)
     request = _request()
 
-    with patch(
-        "database.order.get_parent_order",
-        side_effect=lambda client_order_id: manager.parent_rows.get(client_order_id),
-    ):
-        bridge.create_stealth_order_span(request)
-        conflict = bridge.create_stealth_order_span({**request, "notes": "changed"})
+    bridge.create_stealth_order_span(request)
+    conflict = bridge.create_stealth_order_span({**request, "notes": "changed"})
 
     assert conflict["status"] == "error"
     assert conflict["orders"][0]["status"] == "failed"
     assert "notes" in conflict["orders"][0]["error"]
+    assert manager.create_calls == 3
+
+
+def test_parent_lookup_failure_stops_span_retry_before_any_new_write():
+    manager = _FakeSpanManager()
+    bridge = _bridge(manager)
+    request = _request()
+    bridge.create_stealth_order_span(request)
+    bridge._span_parent_order_reader.failure = RuntimeError(
+        "parent lookup unavailable"
+    )
+
+    retry = bridge.create_stealth_order_span(request)
+
+    assert retry["status"] == "error"
+    assert retry["orders"][0]["status"] == "failed"
+    assert "parent lookup unavailable" in retry["orders"][0]["error"]
+    assert [order["status"] for order in retry["orders"][1:]] == [
+        "not_attempted",
+        "not_attempted",
+    ]
     assert manager.create_calls == 3
 
 

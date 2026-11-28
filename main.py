@@ -238,6 +238,7 @@ def build_application_runtime(settings: RuntimeSettings) -> ApplicationRuntime:
         None,
         rest_client=rest_client,
         trading_product_resolver=orderbook.get_trading_product_id,
+        span_parent_order_reader=execution_persistence,
     )
     engine = OrderEngine(
         orderbook=orderbook,

@@ -9,7 +9,7 @@ construction; the canonical runtime always installs the real adapters.
 
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, List, Optional, Protocol
+from typing import Any, Callable, Dict, List, Mapping, Optional, Protocol
 
 from core.enums import OrderStatus, StealthLifecycleEvent
 
@@ -22,6 +22,15 @@ LifecycleCallback = Callable[
     [str, StealthLifecycleEvent, Dict[str, Any]],
     None,
 ]
+
+
+class SpanParentOrderReader(Protocol):
+    """Canonical parent-row lookup needed to verify deterministic span retries."""
+
+    def get_parent_order(
+        self,
+        client_order_id: str,
+    ) -> Optional[Mapping[str, Any]]: ...
 
 
 class FillLedgerPersistence(Protocol):

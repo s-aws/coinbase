@@ -38,6 +38,16 @@ from core.runtime_controller import EngineNotAdmittingError, RuntimeController
 from core.stealth_order_manager import StealthOrderManager
 
 
+class _UnusedSpanParentOrderReader:
+    def get_parent_order(self, client_order_id: str):
+        raise AssertionError(
+            f"unexpected span parent lookup for {client_order_id}"
+        )
+
+
+_UNUSED_SPAN_PARENT_ORDER_READER = _UnusedSpanParentOrderReader()
+
+
 @pytest.fixture(autouse=True)
 def _completed_runtime_by_default(monkeypatch):
     """Make each bridge test choose its runtime state explicitly."""
@@ -378,6 +388,7 @@ def _new_bridge(
         order_engine=None,
         rest_client=object(),
         trading_product_resolver=lambda product_id: product_id,
+        span_parent_order_reader=_UNUSED_SPAN_PARENT_ORDER_READER,
         scheduler=scheduler,
     )
     # Most tests exercise the handler contract directly without bridge.start().
@@ -1493,6 +1504,7 @@ def test_stale_invalidation_overflow_uses_existing_continuity_recovery() -> None
         order_engine=None,
         rest_client=object(),
         trading_product_resolver=lambda product_id: product_id,
+        span_parent_order_reader=_UNUSED_SPAN_PARENT_ORDER_READER,
         scheduler=scheduler,
     )
     bridge._decisions_ready.set()
@@ -1599,6 +1611,7 @@ def test_fifo_overflow_replaces_backlog_and_resets_hold_before_newest_tick() -> 
         order_engine=None,
         rest_client=object(),
         trading_product_resolver=lambda product_id: product_id,
+        span_parent_order_reader=_UNUSED_SPAN_PARENT_ORDER_READER,
         scheduler=scheduler,
     )
     bridge._decisions_ready.set()
@@ -1654,6 +1667,7 @@ def test_fifo_overflow_resets_every_product_whose_events_are_discarded() -> None
         order_engine=None,
         rest_client=object(),
         trading_product_resolver=lambda product_id: product_id,
+        span_parent_order_reader=_UNUSED_SPAN_PARENT_ORDER_READER,
         scheduler=scheduler,
     )
     bridge._decisions_ready.set()
@@ -2577,6 +2591,7 @@ def test_pre_activation_ticker_cannot_claim_due_anchor(monkeypatch) -> None:
         order_engine=None,
         rest_client=object(),
         trading_product_resolver=lambda product_id: product_id,
+        span_parent_order_reader=_UNUSED_SPAN_PARENT_ORDER_READER,
         scheduler=scheduler,
     )
     controller = MutableRuntimeController(EngineState.RUNNING)
@@ -2695,6 +2710,7 @@ def test_pre_deadline_ticker_cannot_claim_anchor_after_handler_delay(
         order_engine=None,
         rest_client=object(),
         trading_product_resolver=lambda product_id: product_id,
+        span_parent_order_reader=_UNUSED_SPAN_PARENT_ORDER_READER,
         scheduler=scheduler,
     )
     bridge._decisions_ready.set()
@@ -2745,6 +2761,7 @@ def test_worker_anchor_handoff_retains_original_deadline_eligibility(
         order_engine=None,
         rest_client=object(),
         trading_product_resolver=lambda product_id: product_id,
+        span_parent_order_reader=_UNUSED_SPAN_PARENT_ORDER_READER,
         scheduler=scheduler,
     )
     bridge._decisions_ready.set()
@@ -3319,6 +3336,7 @@ def test_passive_reconciliation_does_not_recover_pending_rearms(
         order_engine=engine,
         rest_client=object(),
         trading_product_resolver=lambda product_id: product_id,
+        span_parent_order_reader=_UNUSED_SPAN_PARENT_ORDER_READER,
         scheduler=scheduler,
     )
     bridge._decisions_ready.clear()
@@ -3355,6 +3373,7 @@ def test_pending_rearm_reconciliation_routes_exact_terminal_order(
         order_engine=engine,
         rest_client=object(),
         trading_product_resolver=lambda product_id: product_id,
+        span_parent_order_reader=_UNUSED_SPAN_PARENT_ORDER_READER,
         scheduler=scheduler,
     )
     rest_client = Mock()
@@ -3451,6 +3470,7 @@ def test_pending_rearm_reconciliation_routes_fill_while_not_admitting(
         order_engine=engine,
         rest_client=object(),
         trading_product_resolver=lambda product_id: product_id,
+        span_parent_order_reader=_UNUSED_SPAN_PARENT_ORDER_READER,
         scheduler=scheduler,
     )
     rest_client = Mock()
@@ -3489,6 +3509,7 @@ def test_pending_rearm_reconciliation_retains_malformed_terminal(
         order_engine=engine,
         rest_client=object(),
         trading_product_resolver=lambda product_id: product_id,
+        span_parent_order_reader=_UNUSED_SPAN_PARENT_ORDER_READER,
         scheduler=scheduler,
     )
     rest_client = Mock()
@@ -3717,6 +3738,7 @@ def test_admission_retry_wake_has_one_100ms_successor(
         order_engine=None,
         rest_client=object(),
         trading_product_resolver=lambda product_id: product_id,
+        span_parent_order_reader=_UNUSED_SPAN_PARENT_ORDER_READER,
         scheduler=scheduler,
     )
     bridge._decisions_ready.set()
@@ -3971,6 +3993,7 @@ def test_due_time_persistence_failure_never_reveals_and_rebuilds_wake(
         order_engine=None,
         rest_client=object(),
         trading_product_resolver=lambda product_id: product_id,
+        span_parent_order_reader=_UNUSED_SPAN_PARENT_ORDER_READER,
         scheduler=scheduler,
     )
     bridge._decisions_ready.set()
@@ -4056,6 +4079,7 @@ def test_real_manager_continuous_hold_rebuilds_and_reveals_on_next_tick(
         order_engine=None,
         rest_client=object(),
         trading_product_resolver=lambda product_id: product_id,
+        span_parent_order_reader=_UNUSED_SPAN_PARENT_ORDER_READER,
         scheduler=scheduler,
     )
     bridge.record_reveal_event = Mock()

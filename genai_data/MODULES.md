@@ -289,7 +289,8 @@ Responsibilities:
 - declarative span coordination: deterministic all-SID lock acquisition,
   idempotent existing-rung verification, stop-on-first-failure materialization,
   and explicit success/partial/error results through the canonical single-order
-  creation path
+  creation path; canonical parent-row verification is supplied through the
+  required `SpanParentOrderReader` capability
 - terminal fail-closed scheduler stop/readiness clear on worker or schedule
   failure; one diagnostic is logged and an unsafe later resume is paused again
 - reveal event recording
@@ -381,12 +382,12 @@ Canonical table definitions, idempotent forward migrations, and write/read
 functions for core trading tables.
 
 ### `database/execution_persistence.py`
-Concrete structural adapter composed by `main.py`. Its fill-ledger methods
-and event-audit methods delegate to canonical `database.order` functions and
-add no SQL, lock, or transaction scope. Event-stream storage initialization
-retains its five existing helper calls and partial-failure behavior. Later
-approved peripheral persistence ports extend this one adapter rather than
-introduce parallel implementations.
+Concrete structural adapter composed by `main.py`. Its span parent-row,
+fill-ledger, and event-audit methods delegate to canonical `database.order`
+functions and add no SQL, lock, or transaction scope. Event-stream storage
+initialization retains its five existing helper calls and partial-failure
+behavior. Later approved peripheral persistence ports extend this one adapter
+rather than introduce parallel implementations.
 
 ### `database/schema.py`
 Single ordered additive bootstrap for all required runtime trading tables.

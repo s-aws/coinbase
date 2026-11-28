@@ -332,6 +332,7 @@ def rehide_bridge(rehide_case):
         order_engine=None,
         rest_client=object(),
         trading_product_resolver=lambda product_id: product_id,
+        span_parent_order_reader=MagicMock(),
     )
     bridge._decisions_ready.set()
     yield bridge, manager, controller

@@ -23,6 +23,17 @@ class DatabaseOrderPersistenceAdapter:
             )
         self._db_client = db_client
 
+    def get_parent_order(
+        self,
+        client_order_id: str,
+    ) -> Optional[Dict[str, Any]]:
+        """Read one canonical parent row for deterministic span validation."""
+
+        return order_db.get_parent_order(
+            client_order_id,
+            db_client=self._db_client,
+        )
+
     def ensure_event_stream_storage(self) -> None:
         """Preserve the event publisher's established startup DDL sequence."""
 

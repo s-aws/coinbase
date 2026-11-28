@@ -239,6 +239,7 @@ def test_main_composes_one_execution_core_from_existing_owners(
         name="StealthOrderManager",
         return_value=manager,
     )
+    bridge_factory = Mock(name="StealthOrderBridge", return_value=bridge)
     engine_factory = Mock(name="OrderEngine", return_value=engine)
     projection_sink_factory = Mock(
         name="DashboardExecutionProjectionSink",
@@ -317,7 +318,7 @@ def test_main_composes_one_execution_core_from_existing_owners(
     monkeypatch.setattr(
         main,
         "StealthOrderBridge",
-        Mock(return_value=bridge),
+        bridge_factory,
     )
     monkeypatch.setattr(main, "OrderEngine", engine_factory)
     monkeypatch.setattr(main, "Subscription", subscription_type)
@@ -343,6 +344,13 @@ def test_main_composes_one_execution_core_from_existing_owners(
         stealth_lifecycle_hooks=stealth_lifecycle_hooks,
         rest_client=rest_client,
         product_metadata_reader=orderbook.get_product_metadata,
+    )
+    bridge_factory.assert_called_once_with(
+        manager,
+        None,
+        rest_client=rest_client,
+        trading_product_resolver=orderbook.get_trading_product_id,
+        span_parent_order_reader=execution_persistence,
     )
     engine_factory.assert_called_once()
     engine_arguments = dict(engine_factory.call_args.kwargs)
