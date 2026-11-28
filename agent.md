@@ -135,6 +135,15 @@ export COINBASE_ENABLE_WEBSOCKET_EXTERNAL="true"
 
 ---
 
+## Task Completion and Git History
+
+At the end of every completed task that changes tracked project files, create
+one Git commit containing only that task's changes. The commit message must be
+a single-line summary. Do not create empty commits for read-only tasks, amend
+unrelated history, or push unless the user explicitly requests it.
+
+---
+
 ## genai_tools Workflow
 
 Human-authored source in `genai_tools/` is versioned so diagnostic methods are
