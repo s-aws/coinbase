@@ -102,6 +102,7 @@ from core.enums import (  # noqa: E402
 from core.order_engine import OrderEngine  # noqa: E402
 from core.orderbook import OrderBook as CoreOrderBook  # noqa: E402
 from database import order as order_database  # noqa: E402
+from database.execution_persistence import DatabaseOrderPersistenceAdapter  # noqa: E402
 from database.schema import initialize_database_schema  # noqa: E402
 from integration.websocket_hooks import WebSocketHookRegistry  # noqa: E402
 from scripts.stress_cancel_burst import (  # noqa: E402
@@ -184,6 +185,9 @@ def build_pipeline_engine(
     engine = OrderEngine(
         orderbook=pipeline_orderbook,
         db_module=order_database,
+        fill_ledger_persistence=DatabaseOrderPersistenceAdapter(
+            order_database.DB_CLIENT
+        ),
         subscription=subscription,
         api_key="offline",
         api_secret="offline",

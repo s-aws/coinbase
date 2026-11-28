@@ -4,6 +4,7 @@ This verifies that fill_repo is initialized and ready.
 """
 
 from database.database import PostgresDB
+from database.execution_persistence import DatabaseOrderPersistenceAdapter
 from core.orderbook import OrderBook
 import json
 
@@ -40,6 +41,7 @@ def test_order_engine_with_lot_tracking():
         engine = OrderEngine(
             orderbook=orderbook,
             db_module=db,
+            fill_ledger_persistence=DatabaseOrderPersistenceAdapter(db),
             subscription=subscription,
             api_key=api_key,
             api_secret=api_secret,

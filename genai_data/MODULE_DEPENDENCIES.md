@@ -54,7 +54,7 @@ contract therefore classifies modules, with exact overrides, into these zones:
 | domain | shared vocabulary and calculation/policy code | domain, logging |
 | logging | shared logging adapter | logging |
 
-Stages 5.1-5.4A place `core.execution_core` and `core.execution_ports` in the
+Stages 5.1-5.4B.1 place `core.execution_core` and `core.execution_ports` in the
 execution zone. The facade depends on
 domain enums/models, the runtime admission contract, and consumer-owned stealth
 command/query protocols; `main.py` supplies the shared runtime controller and
@@ -65,8 +65,14 @@ dashboard/registry adapters, and retires seven exact item-5 reverse imports.
 The same stage removes one previously broad manager hook capability because its
 constructor parameter is now typed. Stage 5.4A removes the dormant conditional
 execution lifecycle, its reverse database import, and its broad database-client
-capability. The frozen totals are 15 reverse imports, zero runtime import
-cycles, 33 broad constructor capabilities, and seven reflection signatures.
+capability. Stage 5.4B.1 then introduces the consumer-owned
+`FillLedgerPersistence` protocol and a concrete
+`database.execution_persistence.DatabaseOrderPersistenceAdapter`. The fill
+repository contains no SQL or database import; the adapter delegates to the
+canonical `database.order` helpers without widening their lock or transaction
+scope. `main.py` supplies the required capability to `OrderEngine`. The frozen
+totals are 14 reverse imports, zero runtime import cycles, 32 broad constructor
+capabilities, and seven reflection signatures.
 
 Operator Console stages 1 and 2A place `operator_api` in the operator zone. It
 owns JSON-RPC framing plus committed inbound param, method-correlated outbound

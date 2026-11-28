@@ -2665,7 +2665,10 @@ def execute_pending_move(
         return 0
 
 
-def create_fill_ledger_table() -> None:
+def create_fill_ledger_table(
+    *,
+    db_client: Optional[PostgresDB] = None,
+) -> None:
     """
     Create the fill_ledger table for lot-based profit tracking.
 
@@ -2754,7 +2757,8 @@ def create_fill_ledger_table() -> None:
         reconciled_at TIMESTAMP
     );
     """
-    with DB_CLIENT.get_cursor() as cursor:
+    client = db_client if db_client is not None else DB_CLIENT
+    with client.get_cursor() as cursor:
         cursor.execute(create_only)
         # Forward-migrate legacy column name only if it still exists.
         # We pre-check via information_schema rather than wrapping ALTER ...
@@ -3022,6 +3026,10 @@ def insert_fill_record(
     client_order_id: str = None,
     exchange_trade_id: Optional[str] = None,
     exchange_entry_id: Optional[str] = None,
+    reconciliation_status: str = "WS_DERIVED",
+    *,
+    db_client: Optional[PostgresDB] = None,
+    raise_on_error: bool = False,
 ) -> Optional[int]:
     """
     Insert a fill record into the fill_ledger table.
@@ -3043,9 +3051,15 @@ def insert_fill_record(
         client_order_id: Originating order's client_order_id
         exchange_trade_id: REST-confirmed exchange trade id (set by reconciler)
         exchange_entry_id: REST-confirmed entry id (set by reconciler)
+        reconciliation_status: Reconciliation lifecycle marker.
+        db_client: Explicit database connection owner; defaults to ``DB_CLIENT``.
+        raise_on_error: Re-raise database failures so a consumer can distinguish
+            an error from an accepted idempotent duplicate. The compatibility
+            default preserves the helper's historical fail-soft behavior.
 
     Returns:
-        The inserted row id on success, ``None`` on duplicate or error.
+        The inserted row id on success, ``None`` on duplicate or, when
+        ``raise_on_error`` is false, error.
     """
     query = """
     INSERT INTO fill_ledger (
@@ -3059,9 +3073,10 @@ def insert_fill_record(
         timestamp,
         fees,
         commission_percentage,
-        client_order_id
+        client_order_id,
+        reconciliation_status
     )
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     ON CONFLICT (derived_trade_key) DO NOTHING
     RETURNING id
     """
@@ -3077,10 +3092,12 @@ def insert_fill_record(
         fees,
         commission_percentage,
         client_order_id,
+        reconciliation_status,
     )
 
+    client = db_client if db_client is not None else DB_CLIENT
     try:
-        results = DB_CLIENT.execute_query(query, params)
+        results = client.execute_query(query, params)
         if results:
             inserted_id = results[0]["id"]
             logger.info(
@@ -3097,28 +3114,67 @@ def insert_fill_record(
             f"  Fill details - instrument: {instrument}, side: {side}, "
             f"quantity: {quantity}, price: {price}"
         )
+        if raise_on_error:
+            raise
         return None
 
 
-def get_fills_by_instrument(instrument: str) -> List[Dict[str, Any]]:
+def get_fills_by_instrument(
+    instrument: str,
+    side: Optional[str] = None,
+    *,
+    db_client: Optional[PostgresDB] = None,
+) -> List[Dict[str, Any]]:
     """
     Retrieve all fills for a given instrument.
     
     Args:
         instrument: Product ID (e.g., 'BTC-USDC')
+        side: Optional BUY/SELL filter.
+        db_client: Explicit database connection owner; defaults to ``DB_CLIENT``.
     
     Returns:
         List of fill records for the instrument, ordered by timestamp.
     """
+    if side is not None:
+        query = """
+        SELECT * FROM fill_ledger
+        WHERE instrument = %s AND side = %s
+        ORDER BY timestamp ASC
+        """
+        params = (instrument, side.upper())
+    else:
+        query = """
+        SELECT * FROM fill_ledger
+        WHERE instrument = %s
+        ORDER BY timestamp ASC
+        """
+        params = (instrument,)
+    client = db_client if db_client is not None else DB_CLIENT
+    return client.execute_query(query, params)
+
+
+def get_fill_by_derived_trade_key(
+    derived_trade_key: str,
+    *,
+    db_client: Optional[PostgresDB] = None,
+) -> Optional[Dict[str, Any]]:
+    """Return one fill by its application-derived idempotency key."""
+
     query = """
-    SELECT * FROM fill_ledger 
-    WHERE instrument = %s 
-    ORDER BY timestamp ASC
+    SELECT * FROM fill_ledger
+    WHERE derived_trade_key = %s
     """
-    return DB_CLIENT.execute_query(query, (instrument,))
+    client = db_client if db_client is not None else DB_CLIENT
+    results = client.execute_query(query, (derived_trade_key,))
+    return results[0] if results else None
 
 
-def get_fills_by_order(client_order_id: str) -> List[Dict[str, Any]]:
+def get_fills_by_order(
+    client_order_id: str,
+    *,
+    db_client: Optional[PostgresDB] = None,
+) -> List[Dict[str, Any]]:
     """
     Retrieve all fills for a specific order.
     
@@ -3133,10 +3189,16 @@ def get_fills_by_order(client_order_id: str) -> List[Dict[str, Any]]:
     WHERE client_order_id = %s 
     ORDER BY timestamp ASC
     """
-    return DB_CLIENT.execute_query(query, (client_order_id,))
+    client = db_client if db_client is not None else DB_CLIENT
+    return client.execute_query(query, (client_order_id,))
 
 
-def get_fills_since(instrument: str, since_timestamp) -> List[Dict[str, Any]]:
+def get_fills_since(
+    instrument: str,
+    since_timestamp,
+    *,
+    db_client: Optional[PostgresDB] = None,
+) -> List[Dict[str, Any]]:
     """
     Retrieve fills for an instrument since a given timestamp.
     
@@ -3154,7 +3216,8 @@ def get_fills_since(instrument: str, since_timestamp) -> List[Dict[str, Any]]:
     WHERE instrument = %s AND timestamp >= %s 
     ORDER BY timestamp ASC
     """
-    return DB_CLIENT.execute_query(query, (instrument, since_timestamp))
+    client = db_client if db_client is not None else DB_CLIENT
+    return client.execute_query(query, (instrument, since_timestamp))
 
 
 def update_stealth_order_lifecycle_event(

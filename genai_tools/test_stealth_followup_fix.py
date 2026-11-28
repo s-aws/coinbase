@@ -34,6 +34,7 @@ def test_stealth_revealed_order_not_marked_external():
     order_engine = OrderEngine(
         orderbook=orderbook,
         db_module=mock_db_module,
+        fill_ledger_persistence=MagicMock(),
         subscription=mock_subscription,
         api_key="test_key",
         api_secret="test_secret",

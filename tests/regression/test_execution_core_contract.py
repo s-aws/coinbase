@@ -244,6 +244,11 @@ def test_main_composes_one_execution_core_from_existing_owners(
         name="DashboardExecutionProjectionSink",
         return_value=projection_sink,
     )
+    fill_ledger_persistence = object()
+    persistence_factory = Mock(
+        name="DatabaseOrderPersistenceAdapter",
+        return_value=fill_ledger_persistence,
+    )
     futures_positions = object()
     fetch_futures_positions = Mock(
         name="fetch_futures_positions",
@@ -270,6 +275,11 @@ def test_main_composes_one_execution_core_from_existing_owners(
 
     monkeypatch.setattr(main, "build_rest_client", Mock(return_value=rest_client))
     monkeypatch.setattr(main, "order_db", SimpleNamespace(DB_CLIENT=db_client))
+    monkeypatch.setattr(
+        main,
+        "DatabaseOrderPersistenceAdapter",
+        persistence_factory,
+    )
     monkeypatch.setattr(main, "_load_startup_products", Mock(return_value={}))
     monkeypatch.setattr(main, "_load_startup_positions", Mock(return_value={}))
     monkeypatch.setattr(main, "OrderBook", Mock(return_value=orderbook))
@@ -326,6 +336,7 @@ def test_main_composes_one_execution_core_from_existing_owners(
     runtime = main.build_application_runtime(settings)
 
     projection_sink_factory.assert_called_once_with()
+    persistence_factory.assert_called_once_with(db_client)
     manager_factory.assert_called_once_with(
         db_client,
         order_placement_hooks=placement_hooks,
@@ -341,6 +352,7 @@ def test_main_composes_one_execution_core_from_existing_owners(
     assert engine_arguments == {
         "orderbook": orderbook,
         "db_module": main.order_db,
+        "fill_ledger_persistence": fill_ledger_persistence,
         "subscription": subscription,
         "api_key": "test-key",
         "api_secret": "test-secret",

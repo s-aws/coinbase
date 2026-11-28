@@ -9,7 +9,7 @@ construction; the canonical runtime always installs the real adapters.
 
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, Optional, Protocol
+from typing import Any, Callable, Dict, List, Optional, Protocol
 
 from core.enums import OrderStatus, StealthLifecycleEvent
 
@@ -22,6 +22,51 @@ LifecycleCallback = Callable[
     [str, StealthLifecycleEvent, Dict[str, Any]],
     None,
 ]
+
+
+class FillLedgerPersistence(Protocol):
+    """Narrow persistence capability consumed by the fill-ledger repository."""
+
+    def ensure_fill_ledger(self) -> None: ...
+
+    def append_fill_record(
+        self,
+        *,
+        derived_trade_key: str,
+        instrument: str,
+        side: str,
+        quantity: float,
+        price: float,
+        timestamp: Any,
+        fees: float,
+        commission_percentage: float,
+        client_order_id: Optional[str],
+        exchange_trade_id: Optional[str],
+        exchange_entry_id: Optional[str],
+        reconciliation_status: str,
+    ) -> Optional[int]: ...
+
+    def list_fills_by_instrument(
+        self,
+        instrument: str,
+        side: Optional[str] = None,
+    ) -> List[Dict[str, Any]]: ...
+
+    def find_fill_by_derived_trade_key(
+        self,
+        derived_trade_key: str,
+    ) -> Optional[Dict[str, Any]]: ...
+
+    def list_fills_by_order(
+        self,
+        client_order_id: str,
+    ) -> List[Dict[str, Any]]: ...
+
+    def list_fills_since(
+        self,
+        instrument: str,
+        since: Any,
+    ) -> List[Dict[str, Any]]: ...
 
 
 class ExecutionProjectionSink(Protocol):

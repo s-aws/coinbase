@@ -3,14 +3,14 @@
 | Field | Value |
 |---|---|
 | Status | `IMPLEMENTING` |
-| Operator approval | Accepted 2026-11-26; stages 5.1-5.3 and 5.4A approved 2026-11-27; stages 5.4B-5.6 require separate approval |
+| Operator approval | Accepted 2026-11-26; stages 5.1-5.4A approved 2026-11-27; stage 5.4B.1 approved 2026-11-28; stages 5.4B.2-5.6 require separate approval |
 | Checklist or objective | Modular-monolith boundary checklist item 5 |
-| Last evidence review | 2026-11-27, current worktree based on `dbd7dba3` |
-| Implementation | Stages 5.1-5.4A implemented and validated; stages 5.4B-5.6 not started |
+| Last evidence review | 2026-11-28, current worktree based on `4a880fe6` |
+| Implementation | Stages 5.1-5.4B.1 implemented and validated; stages 5.4B.2-5.6 not started |
 
 > This spec records the accepted item-5 design. Current behavior is established
 > only by the implementation mapping and tests below. Approval through stage
-> 5.4A does not authorize stages 5.4B-5.6.
+> 5.4B.1 does not authorize stages 5.4B.2-5.6.
 
 ## Problem
 
@@ -46,8 +46,9 @@ rules.
   command category; the unsupported raw-placement path remains removed.
 - `dashboard_server.py` currently handles 17 supported request types; six are
   classified locally as originating work.
-- `module_boundaries.toml` now assigns seven exact reverse imports to checklist
-  item 5, down from 15 before stage 5.3 and eight after stage 5.3.
+- `module_boundaries.toml` now assigns six exact reverse imports to checklist
+  item 5. The repository-wide frozen totals are 14 reverse imports, zero
+  cycles, 32 broad capabilities, and seven reflection signatures.
 - Constructor changes are broad even when production wiring is small:
   `OrderEngine` construction appears in 22 Python files and
   `StealthOrderManager` construction appears in 31.
@@ -55,6 +56,10 @@ rules.
   `OrderInterceptionLayer`, their tests/manual demonstrations, and the exclusive
   `conditional_orders` schema. Managed stealth reveal conditions, fill-ledger
   behavior, and active profitability validation remain intact.
+- Stage 5.4B.1 restores the fill repository's missing instrument query and
+  moves all fill-ledger SQL behind one narrow structural persistence port and
+  retained `database.order` helpers. `main.py` supplies the concrete adapter;
+  `OrderEngine` retains fail-soft repository initialization.
 
 The exact import-debt inventory remains authoritative in
 `module_boundaries.toml`; this spec does not copy that list.
@@ -270,12 +275,30 @@ profitability behavior.
 
 #### 5.4B Peripheral persistence ports
 
-Status: reviewed but not approved for implementation.
+Status: 5.4B.1 implemented and validated 2026-11-28; 5.4B.2-5.4B.4 reviewed
+but not approved for implementation.
 
 Define narrow consumer-owned persistence protocols for the bridge, fill
 ledger, move manager, and event stream. Consolidate existing fill-ledger SQL
 behind retained database functions, implement a structural persistence adapter,
 and compose it in `main.py` without changing failure or transaction semantics.
+
+##### 5.4B.1 Fill-ledger persistence port
+
+`FillLedgerPersistence` is a consumer-owned structural protocol.
+`DatabaseOrderPersistenceAdapter` delegates its six operations to retained
+`database.order` helpers and adds no SQL or transaction scope. The repository
+again implements `get_fills_by_instrument`, all query variants share canonical
+database functions, and inserts preserve the explicit reconciliation status.
+An idempotent duplicate remains success; a strict adapter failure remains false
+at the repository boundary; the compatibility database helper retains its
+historical fail-soft default.
+
+`main.py` constructs one adapter from the canonical `DB_CLIENT` and passes its
+fill capability explicitly into `OrderEngine`. The engine still catches
+repository initialization failure and continues without lot tracking. The
+remaining event-stream, bridge, and move persistence ports are separately
+gated as 5.4B.2-5.4B.4.
 
 #### 5.4C Authoritative-owner persistence ports
 
@@ -460,14 +483,39 @@ Stage 5.4A adds:
   equality-based boundary contract. The resulting frozen totals are 15 reverse
   imports, zero runtime import cycles, 33 broad capabilities, and seven
   reflection signatures.
-- Stages 5.4B and 5.4C remain unimplemented and separately gated; no active
-  persistence owner or transaction/failure policy is moved in 5.4A.
+- Stages 5.4B and 5.4C remained unimplemented and separately gated at this
+  checkpoint; no active persistence owner or transaction/failure policy was
+  moved in 5.4A.
 
 Stage 5.4A validation: Python compilation, the executable boundary contract,
 and `git diff --check` passed. The complete local non-external gate passed 1,891
 tests with 17 skipped and 11 external tests deselected. Repository-graph
 build/check reported 453 files, 8,641 symbols, 1,538 indexed tests, and 186
 semantic records with no parse findings, fatal errors, or mismatches.
+
+Stage 5.4B.1 adds:
+
+- The fill repository consumes `FillLedgerPersistence` and contains no SQL or
+  database import. Its formerly unreachable instrument-query body is restored
+  as a real method used by `PositionLotBuilder`.
+- `DatabaseOrderPersistenceAdapter` delegates to the retained fill helpers in
+  `database.order`; each helper keeps its original per-call lock and transaction
+  scope. The adapter requests strict insert errors so the repository preserves
+  duplicate-success/error-failure semantics.
+- `main.py` supplies the explicit adapter to `OrderEngine`; unsupported direct
+  constructors and test fixtures must also provide the capability. The engine's
+  fail-soft initialization policy is unchanged.
+- The resulting frozen totals are 14 reverse imports, zero runtime import
+  cycles, 32 broad capabilities, and seven reflection signatures. Stages
+  5.4B.2-5.4B.4 and 5.4C remain separately gated.
+
+Stage 5.4B.1 validation: Python compilation and `git diff --check` passed. The
+complete local non-external gate passed 1,898 tests with 17 skipped and 11
+external tests deselected. The executable boundary contract now freezes 14
+reverse imports, zero cycles, 32 broad capabilities, and seven reflection
+signatures. Repository-graph build/check reported 455 files, 8,668 symbols,
+1,545 indexed tests, and 186 semantic records with no parse findings, fatal
+errors, or mismatches.
 
 Relevant current navigation:
 

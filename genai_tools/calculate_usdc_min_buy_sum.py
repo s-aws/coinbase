@@ -152,6 +152,7 @@ def build_local_spot_pnl_report(
     from business.spot_cost_basis import fetch_coinbase_average_cost_records
     from business.spot_portfolio_sweep import build_spot_portfolio_pnl_report
     from database.database import PostgresDB
+    from database.execution_persistence import DatabaseOrderPersistenceAdapter
 
     cost_basis = {}
     if os.getenv("COINBASE_API_KEY") and os.getenv("COINBASE_API_SECRET"):
@@ -164,7 +165,9 @@ def build_local_spot_pnl_report(
         )
 
     report = build_spot_portfolio_pnl_report(
-        fill_ledger_repo=FillLedgerRepository(PostgresDB()),
+        fill_ledger_repo=FillLedgerRepository(
+            DatabaseOrderPersistenceAdapter(PostgresDB())
+        ),
         products=products,
         product_ids=product_ids,
         coinbase_average_costs=(

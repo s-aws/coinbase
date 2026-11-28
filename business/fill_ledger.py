@@ -19,7 +19,7 @@ Example:
     >>> from business.fill_ledger import FillLedger, FillLedgerRepository
     >>> from core.constants import get_local_now
     >>>
-    >>> repo = FillLedgerRepository(db_client)
+    >>> repo = FillLedgerRepository(fill_persistence)
     >>> fill = FillLedger(
     ...     trade_id='trade-001',
     ...     instrument='BTC-USDC',
@@ -38,13 +38,10 @@ from dataclasses import dataclass, field
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 from core.enums import OrderSide
+from core.execution_ports import FillLedgerPersistence
 from logging_service import get_logger
 
 logger = get_logger("FillLedger")
-
-# Import database functions
-from database.order import create_fill_ledger_table
-
 
 @dataclass
 class FillLedger:
@@ -156,20 +153,23 @@ class FillLedger:
 class FillLedgerRepository:
     """Repository for fill ledger operations - data access abstraction."""
     
-    def __init__(self, db_client):
-        """Initialize with database client.
+    def __init__(self, persistence: FillLedgerPersistence):
+        """Initialize with the consumer-owned persistence capability.
         
         Args:
-            db_client: PostgresDB instance for database operations
+            persistence: Narrow fill-ledger persistence implementation.
         """
-        self.db_client = db_client
+        if persistence is None:
+            raise ValueError(
+                "FillLedgerRepository requires explicit fill-ledger persistence"
+            )
+        self.persistence = persistence
         self._ensure_table_exists()
     
     def _ensure_table_exists(self) -> None:
         """Ensure fill_ledger table exists by calling database function."""
         try:
-            # Call database function to create table with proper schema
-            create_fill_ledger_table()
+            self.persistence.ensure_fill_ledger()
             logger.info("Fill ledger table ready")
         except Exception as e:
             logger.error(f"Failed to create fill_ledger table: {type(e).__name__}: {e}")
@@ -188,33 +188,22 @@ class FillLedgerRepository:
             unexpected error.
         """
         try:
-            query = """
-            INSERT INTO fill_ledger
-            (derived_trade_key, exchange_trade_id, exchange_entry_id,
-             instrument, side, quantity, price, timestamp, fees,
-             commission_percentage, client_order_id, reconciliation_status)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (derived_trade_key) DO NOTHING
-            """
-
-            params = (
-                fill.derived_trade_key,
-                fill.exchange_trade_id,
-                fill.exchange_entry_id,
-                fill.instrument,
-                fill.side,
-                fill.quantity,
-                fill.price,
-                fill.timestamp,
-                fill.fees,
-                fill.commission_percentage,
-                fill.client_order_id,
-                fill.reconciliation_status,
+            inserted_id = self.persistence.append_fill_record(
+                derived_trade_key=fill.derived_trade_key,
+                exchange_trade_id=fill.exchange_trade_id,
+                exchange_entry_id=fill.exchange_entry_id,
+                instrument=fill.instrument,
+                side=fill.side,
+                quantity=fill.quantity,
+                price=fill.price,
+                timestamp=fill.timestamp,
+                fees=fill.fees,
+                commission_percentage=fill.commission_percentage,
+                client_order_id=fill.client_order_id,
+                reconciliation_status=fill.reconciliation_status,
             )
 
-            rows_affected = self.db_client.execute_update(query, params)
-
-            if rows_affected > 0:
+            if inserted_id is not None:
                 logger.info(
                     f"[LOT-TRACK] Fill appended to ledger: "
                     f"derived_trade_key={fill.derived_trade_key}, "
@@ -286,6 +275,7 @@ class FillLedgerRepository:
         )
         return self.append_fill(fill)
 
+    def get_fills_by_instrument(self, instrument: str) -> List[FillLedger]:
         """Get all fills for an instrument in chronological order.
         
         Args:
@@ -295,13 +285,7 @@ class FillLedgerRepository:
             List of FillLedger records ordered by timestamp
         """
         try:
-            query = """
-            SELECT * FROM fill_ledger
-            WHERE instrument = %s
-            ORDER BY timestamp ASC
-            """
-            
-            results = self.db_client.execute_query(query, (instrument,))
+            results = self.persistence.list_fills_by_instrument(instrument)
             
             fills = []
             for row in results:
@@ -327,20 +311,10 @@ class FillLedgerRepository:
             List of FillLedger records ordered by timestamp
         """
         try:
-            if side:
-                query = """
-                SELECT * FROM fill_ledger
-                WHERE instrument = %s AND side = %s
-                ORDER BY timestamp ASC
-                """
-                results = self.db_client.execute_query(query, (product_id, side.upper()))
-            else:
-                query = """
-                SELECT * FROM fill_ledger
-                WHERE instrument = %s
-                ORDER BY timestamp ASC
-                """
-                results = self.db_client.execute_query(query, (product_id,))
+            results = self.persistence.list_fills_by_instrument(
+                product_id,
+                side=side.upper() if side else None,
+            )
             
             fills = [FillLedger.from_dict(row) for row in results]
             if fills:
@@ -365,11 +339,9 @@ class FillLedgerRepository:
             FillLedger record or None if not found
         """
         try:
-            query = "SELECT * FROM fill_ledger WHERE derived_trade_key = %s"
-            results = self.db_client.execute_query(query, (trade_id,))
-            
-            if results:
-                return FillLedger.from_dict(results[0])
+            result = self.persistence.find_fill_by_derived_trade_key(trade_id)
+            if result:
+                return FillLedger.from_dict(result)
             return None
             
         except Exception as e:
@@ -386,13 +358,7 @@ class FillLedgerRepository:
             List of FillLedger records ordered by timestamp
         """
         try:
-            query = """
-            SELECT * FROM fill_ledger
-            WHERE client_order_id = %s
-            ORDER BY timestamp ASC
-            """
-            
-            results = self.db_client.execute_query(query, (client_order_id,))
+            results = self.persistence.list_fills_by_order(client_order_id)
             fills = [FillLedger.from_dict(row) for row in results]
             
             return fills
@@ -412,13 +378,7 @@ class FillLedgerRepository:
             List of FillLedger records ordered by timestamp
         """
         try:
-            query = """
-            SELECT * FROM fill_ledger
-            WHERE instrument = %s AND timestamp >= %s
-            ORDER BY timestamp ASC
-            """
-            
-            results = self.db_client.execute_query(query, (instrument, since))
+            results = self.persistence.list_fills_since(instrument, since)
             fills = [FillLedger.from_dict(row) for row in results]
             
             return fills

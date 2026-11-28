@@ -40,6 +40,7 @@ from dashboard_server import (
     start_dashboard_server,
 )
 from database import order as order_db
+from database.execution_persistence import DatabaseOrderPersistenceAdapter
 from external.runtime import (
     build_rest_client,
     fetch_futures_positions,
@@ -205,6 +206,7 @@ def build_application_runtime(settings: RuntimeSettings) -> ApplicationRuntime:
 
     rest_client = build_rest_client(settings.api_key, settings.api_secret)
     db_module = order_db
+    execution_persistence = DatabaseOrderPersistenceAdapter(db_module.DB_CLIENT)
     products = _load_startup_products(rest_client, settings.products)
     positions = _load_startup_positions(rest_client)
     orderbook = OrderBook(
@@ -240,6 +242,7 @@ def build_application_runtime(settings: RuntimeSettings) -> ApplicationRuntime:
     engine = OrderEngine(
         orderbook=orderbook,
         db_module=db_module,
+        fill_ledger_persistence=execution_persistence,
         subscription=Subscription.from_products(settings.products),
         api_key=settings.api_key,
         api_secret=settings.api_secret,

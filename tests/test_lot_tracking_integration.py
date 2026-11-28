@@ -18,6 +18,7 @@ from business.lot_builder import PositionLotBuilder
 from business.profit_threshold_engine import ProfitThresholdEngine, ExecutionTarget
 from core.enums import OrderSide
 from database.database import PostgresDB
+from database.execution_persistence import DatabaseOrderPersistenceAdapter
 
 
 class TestFillLedger(unittest.TestCase):
@@ -35,7 +36,9 @@ class TestFillLedger(unittest.TestCase):
         )
         # Initialize tables on test database
         self._init_test_db_tables()
-        self.fill_repo = FillLedgerRepository(self.db)
+        self.fill_repo = FillLedgerRepository(
+            DatabaseOrderPersistenceAdapter(self.db)
+        )
     
     def tearDown(self):
         """Clean up test database."""
@@ -125,7 +128,9 @@ class TestPositionLotBuilder(unittest.TestCase):
         """Set up test infrastructure."""
         self.db = PostgresDB(host="127.0.0.1", port=9876, database="postgres")
         self._init_test_db_tables()
-        self.fill_repo = FillLedgerRepository(self.db)
+        self.fill_repo = FillLedgerRepository(
+            DatabaseOrderPersistenceAdapter(self.db)
+        )
         self.builder = PositionLotBuilder(self.fill_repo)
     
     def _init_test_db_tables(self):

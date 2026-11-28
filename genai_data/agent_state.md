@@ -2,18 +2,22 @@
 
 ## Status
 
-- Last updated (ET): 2026-11-27.
-- Current committed baseline: local `prod` and `origin/prod` are at `dbd7dba3`.
-  Execution Core stage 5.4A is the current uncommitted change.
+- Last updated (ET): 2026-11-28.
+- Current committed baseline: local `prod` and `origin/prod` are at `4a880fe6`.
+  Execution Core stage 5.4B.1 is the current uncommitted change.
 - Completed implementation objective: Execution Core stage 5.3. Typed
   projection and hook ports are injected into the engine and manager;
   `main.py` composes the existing dashboard publishers and registry
   implementations; callback order and failure policy are preserved; and the
   exact boundary debt is reduced from 23/35/7 to 16/34/7.
-- Active implementation objective: Execution Core stage 5.4A. The unused
+- Completed implementation objective: Execution Core stage 5.4A. The unused
   parallel conditional lifecycle, its exclusive schema/configuration, and its
-  dedicated test/manual-tool surfaces are removed. Stages 5.4B and 5.4C remain
-  separately gated persistence-port work.
+  dedicated test/manual-tool surfaces are removed.
+- Active implementation objective: Execution Core stage 5.4B.1. The active
+  fill-ledger repository consumes a narrow structural persistence port, all of
+  its SQL is consolidated behind canonical database helpers and one composed
+  adapter, and its missing instrument query is restored. Stages 5.4B.2-5.4C
+  remain separately gated persistence-port work.
 - Completed implementation objective: Operator Console stages 1 and 2A. The
   server, both retained HTML clients, and runtime healthcheck use one strict
   versioned JSON-RPC contract with explicit dispatch, correlation, named
@@ -84,9 +88,9 @@
 
 ## Modular Monolith Boundary Checklist
 
-Items 1 through 4 are complete. Item 5 stages 5.1-5.3 are complete and stage
-5.4A is implemented; stages 5.4B onward still require separate operator
-approval before code changes.
+Items 1 through 4 are complete. Item 5 stages 5.1-5.4B.1 are implemented and
+validated; stages 5.4B.2 onward still require separate operator approval before
+code changes.
 
 1. Remove the abandoned `StateManager` and generic repository implementation:
    complete and validated; canonical product-type coverage is retained.
@@ -100,7 +104,8 @@ approval before code changes.
    cleanup, the source-only contract froze 23 reverse-zone import edges, no
    runtime import cycle, 35 broad/untyped constructor capability surfaces, and
    seven reflection/namespace escape signatures. Stage 5.3 subsequently
-   reduced those totals to 16/34/7, and stage 5.4A reduces them to 15/33/7.
+   reduced those totals to 16/34/7, stage 5.4A reduced them to 15/33/7, and
+   stage 5.4B.1 reduces them to 14/32/7.
    The contract explicitly does not claim to prove arbitrary runtime aliases or
    dynamic dispatch.
 5. Add an Execution Core command/query facade while retaining lifecycle and
@@ -122,7 +127,13 @@ approval before code changes.
    and their configuration/test/manual surfaces. Managed stealth reveal
    conditions plus active fill-ledger, lot, threshold, and profitability
    behavior remain. Other exchange order types remain deferred. Persistence
-   ports for the six active consumers remain stages 5.4B and 5.4C.
+   Stage 5.4B.1 restores the fill-ledger instrument query, removes its direct
+   database import and raw SQL, and injects one required `FillLedgerPersistence`
+   capability backed by `DatabaseOrderPersistenceAdapter`. Duplicate inserts,
+   database failures, engine fail-soft initialization, cursor locks, and
+   per-helper transaction scopes retain their established semantics. The event
+   stream, bridge, move manager, authoritative manager/engine persistence, and
+   WebSocket factory remain separately gated.
 6. Extract public market-data ownership into an in-process component.
 7. Separate operator WebSocket transport from application commands and read
    projections. The approved console Stage 1 framing and Stage 2A complete
@@ -200,8 +211,18 @@ approval before code changes.
   passed. The complete local non-external gate passed 1,891 tests with 17
   skipped and 11 external tests deselected. Repository-graph build/check
   reported 453 files, 8,641 symbols, 1,538 indexed tests, and 186 semantic
-  records with no parse findings, fatal errors, or mismatches. Stages 5.4B and
-  5.4C remain separately gated and unimplemented.
+  records with no parse findings, fatal errors, or mismatches.
+- Execution Core stage 5.4B.1 restores
+  `FillLedgerRepository.get_fills_by_instrument`, moves fill-ledger SQL behind
+  `FillLedgerPersistence` plus `DatabaseOrderPersistenceAdapter`, and removes
+  one reverse import and one broad constructor capability without changing
+  duplicate/error or transaction semantics. Python compilation and
+  `git diff --check` passed. The complete local non-external gate passed 1,898
+  tests with 17 skipped and 11 external tests deselected. The executable
+  boundary contract passed at 14 reverse imports, zero cycles, 32 broad
+  capabilities, and seven reflection signatures. Repository-graph build/check
+  reported 455 files, 8,668 symbols, 1,545 indexed tests, and 186 semantic
+  records with no parse findings, fatal errors, or mismatches.
 - Operator Console stage 1 replaced the ad-hoc dashboard wire variants with one
   strict JSON-RPC 2.0 contract, migrated both retained pages and the runtime
   healthcheck, and added a committed method/backup schema. The complete local

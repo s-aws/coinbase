@@ -13,6 +13,7 @@ import sys
 import logging
 from datetime import datetime
 from database.database import PostgresDB
+from database.execution_persistence import DatabaseOrderPersistenceAdapter
 from core.stealth_order_manager import StealthOrderManager
 from business.post_fill_hook import initialize_fill_ledger
 from logging_service import get_logger
@@ -38,7 +39,7 @@ def demo_stealth_order_lifecycle():
         print("[SETUP] Initializing components...")
         print("-" * 60)
         stealth_manager = StealthOrderManager(db_client=db)
-        fill_repo = initialize_fill_ledger(db)
+        fill_repo = initialize_fill_ledger(DatabaseOrderPersistenceAdapter(db))
         print()
         
         # Step 1: Create stealth order

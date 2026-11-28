@@ -4,6 +4,7 @@ Simplified test showing the fixed fill recording with INFO logging.
 
 import uuid
 from database.database import PostgresDB
+from database.execution_persistence import DatabaseOrderPersistenceAdapter
 from database.order import insert_order_parent
 from core.orderbook import OrderBook
 from core.order_engine import OrderEngine
@@ -38,6 +39,7 @@ def test_fill_with_websocket_fields():
         engine = OrderEngine(
             orderbook=orderbook,
             db_module=db,
+            fill_ledger_persistence=DatabaseOrderPersistenceAdapter(db),
             subscription=MockSubscription(),
             api_key="test_key",
             api_secret="test_secret",

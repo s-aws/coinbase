@@ -27,6 +27,7 @@ Example: initialize and run
     >>> engine = OrderEngine(
     ...     orderbook=ORDERBOOK,
     ...     db_module=DB_MODULE,
+    ...     fill_ledger_persistence=FILL_LEDGER_PERSISTENCE,
     ...     subscription=Subscription,
     ...     api_key=API_KEY,
     ...     api_secret=API_SECRET,
@@ -121,6 +122,7 @@ from business.order_progress import OrderProgressTracker, OrderSnapshotDelta
 from core.execution_ports import (
     ExecutionProjectionSink,
     FillEventHooks,
+    FillLedgerPersistence,
     NO_OP_EXECUTION_PROJECTION_SINK,
     NO_OP_FILL_EVENT_HOOKS,
     NO_OP_ORDER_PLACEMENT_HOOKS,
@@ -219,6 +221,7 @@ class OrderEngine:
         >>> engine = OrderEngine(
         ...     orderbook=ORDERBOOK,
         ...     db_module=DB_MODULE,
+        ...     fill_ledger_persistence=FILL_LEDGER_PERSISTENCE,
         ...     subscription=Subscription,
         ...     api_key=API_KEY,
         ...     api_secret=API_SECRET,
@@ -248,6 +251,7 @@ class OrderEngine:
         self,
         orderbook,
         db_module: ModuleType,
+        fill_ledger_persistence: FillLedgerPersistence,
         subscription,
         api_key,
         api_secret,
@@ -271,6 +275,7 @@ class OrderEngine:
         Args:
             orderbook: OrderBook instance for state tracking.
             db_module: Database client module.
+            fill_ledger_persistence: Narrow fill-ledger persistence capability.
             subscription: Subscription config object.
             api_key: Coinbase API key.
             api_secret: Coinbase API secret.
@@ -476,7 +481,7 @@ class OrderEngine:
         try:
             from business.post_fill_hook import initialize_fill_ledger
 
-            self.fill_repo = initialize_fill_ledger(self.db_module.DB_CLIENT)
+            self.fill_repo = initialize_fill_ledger(fill_ledger_persistence)
             # The default logger is registered before the event-stream
             # subscriber, preserving the established callback order.
             self._register_default_fill_hook()

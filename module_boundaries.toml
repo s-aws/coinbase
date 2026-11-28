@@ -33,7 +33,6 @@ expected_import_cycles = []
 # getattr/hasattr with literal member names as well as ordinary attribute use.
 broad_capability_debt = [
     "bridges.stealth_order_bridge:StealthOrderBridge.order_engine<-order_engine|members=log_message,process_recovered_terminal_order|call=false|dynamic=false|passes=-",
-    "business.fill_ledger:FillLedgerRepository.db_client<-db_client|members=execute_query,execute_update|call=false|dynamic=false|passes=-",
     "business.fill_reconciler:FillReconciler.db<-db_client|members=execute_query,execute_update|call=false|dynamic=false|passes=-",
     "business.hotpoint_decay_sweeper:HotpointDecaySweeper._rest_client<-rest_client|members=cancel_orders|call=false|dynamic=false|passes=-",
     "business.hotpoint_detector:HotpointDetector._clock<-clock|members=-|call=true|dynamic=false|passes=-",
@@ -50,7 +49,7 @@ broad_capability_debt = [
     "core.exceptions:StateInconsistencyError.expected<-expected|members=-|call=false|dynamic=false|passes=-",
     "core.order_engine:OrderEngine.api_key<-api_key|members=-|call=false|dynamic=false|passes=dict",
     "core.order_engine:OrderEngine.api_secret<-api_secret|members=-|call=false|dynamic=false|passes=dict",
-    "core.order_engine:OrderEngine.db_module<-db_module|members=DB_CLIENT,adopt_child_to_parent,child_order_exists,get_parent_order,get_parent_orders,insert_order_parent,update_order_parent_execution_statuses|call=false|dynamic=false|passes=<assign>,OrderEventStreamPublisher",
+    "core.order_engine:OrderEngine.db_module<-db_module|members=adopt_child_to_parent,child_order_exists,get_parent_order,get_parent_orders,insert_order_parent,update_order_parent_execution_statuses|call=false|dynamic=false|passes=<assign>,OrderEventStreamPublisher",
     "core.order_engine:OrderEngine.max_rotate_seen_events_bucket_seconds<-max_rotate_seen_events_bucket_seconds|members=-|call=false|dynamic=false|passes=EventBridge,self._shutdown_event.wait",
     "core.order_engine:OrderEngine.max_seen_event_buckets<-max_seen_event_buckets|members=-|call=false|dynamic=false|passes=EventBridge",
     "core.order_engine:OrderEngine.order_post_only<-order_post_only|members=-|call=false|dynamic=false|passes=-",
@@ -138,7 +137,6 @@ logging = ["logging"]
 item_4_passive_configuration = []
 item_5_execution_facade = [
     "bridges.stealth_order_bridge -> database.order",
-    "business.fill_ledger -> database.order",
     "business.move_manager -> database.order",
     "business.order_event_stream -> database.order",
     "core.order_engine -> database.order",

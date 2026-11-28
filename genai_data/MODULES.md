@@ -1,6 +1,6 @@
 # Modules Reference
 
-Reconciled with the `prod` checkout on 2026-11-27. Current source and tests
+Reconciled with the `prod` checkout on 2026-11-28. Current source and tests
 remain the evidence for runtime behavior.
 
 This file maps current code ownership by module.
@@ -20,7 +20,9 @@ Use it to find the single canonical behavior path before editing.
   `scripts/bootstrap_runtime_database.sh`
 - Runtime schema/fresh-state/reset orchestration: `database/schema.py`
 - Dashboard request handlers/state broadcast: `dashboard_server.py`
-- Execution projection and hook capability contracts: `core/execution_ports.py`
+- Execution persistence, projection, and hook capability contracts:
+  `core/execution_ports.py`
+- Concrete execution persistence adapter: `database/execution_persistence.py`
 - Fill ledger + reconciliation: `business/fill_ledger.py`, `business/fill_reconciler.py`
 - Per-snapshot fill progress deltas: `business/order_progress.py`
 - Size/profit/price calculation helpers: `calculation/*`
@@ -320,7 +322,9 @@ The heap is disposable derived state, never lifecycle truth.
 
 ### Fill and Reconciliation
 - `business/order_progress.py`: per-order cumulative watermark and delta derivation.
-- `business/fill_ledger.py`: append-only fill ledger repository.
+- `business/fill_ledger.py`: append-only fill ledger repository. It consumes
+  `FillLedgerPersistence`, contains no SQL, and owns duplicate-success plus
+  fail-soft query/insert policy.
 - `business/fill_reconciler.py`: WS-derived vs REST fill matching and status stamping.
 
 ### Order Lifecycle and Strategy
@@ -371,6 +375,12 @@ latter subsystem and cancel/re-entry distance policy are absent here.
 ### `database/order.py`
 Canonical table definitions, idempotent forward migrations, and write/read
 functions for core trading tables.
+
+### `database/execution_persistence.py`
+Concrete structural adapter composed by `main.py`. Its fill-ledger methods
+delegate to canonical `database.order` functions and add no SQL, lock, or
+transaction scope. Later approved peripheral persistence ports extend this one
+adapter rather than introduce parallel implementations.
 
 ### `database/schema.py`
 Single ordered additive bootstrap for all required runtime trading tables.

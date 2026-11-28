@@ -8,6 +8,7 @@ import uuid
 import sys
 import logging
 from database.database import PostgresDB
+from database.execution_persistence import DatabaseOrderPersistenceAdapter
 from database.order import insert_order_parent
 from core.orderbook import OrderBook
 from core.order_engine import OrderEngine
@@ -42,6 +43,7 @@ def test_lot_track_logging():
         engine = OrderEngine(
             orderbook=orderbook,
             db_module=db,
+            fill_ledger_persistence=DatabaseOrderPersistenceAdapter(db),
             subscription=MockSubscription(),
             api_key="test_key",
             api_secret="test_secret",

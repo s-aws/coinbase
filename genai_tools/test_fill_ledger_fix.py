@@ -11,6 +11,7 @@ from datetime import datetime
 import uuid
 from business.post_fill_hook import initialize_fill_ledger, on_order_filled
 from database.database import PostgresDB
+from database.execution_persistence import DatabaseOrderPersistenceAdapter
 from database.order import insert_order_parent
 
 def test_fill_recording():
@@ -42,7 +43,7 @@ def test_fill_recording():
 
     # Step 2: Record a fill for that order
     print(f"\n2️⃣  Recording fill for the order...")
-    fill_repo = initialize_fill_ledger(db)
+    fill_repo = initialize_fill_ledger(DatabaseOrderPersistenceAdapter(db))
 
     fill_success = on_order_filled(
         fill_repo=fill_repo,

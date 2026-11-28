@@ -18,7 +18,7 @@ Design:
 Example (offline backfill — production uses OrderProgressTracker):
     >>> from business.post_fill_hook import initialize_fill_ledger, on_order_filled
     >>>
-    >>> fill_repo = initialize_fill_ledger(db_client)
+    >>> fill_repo = initialize_fill_ledger(fill_persistence)
     >>> ok = on_order_filled(
     ...     fill_repo=fill_repo,
     ...     product_id='BTC-USDC',
@@ -38,24 +38,27 @@ from business.fill_ledger import FillLedger, FillLedgerRepository
 from business.lot_config import get_profit_target_for_product
 from core.enums import OrderSide
 from core.constants import get_local_now
+from core.execution_ports import FillLedgerPersistence
 from logging_service import get_logger
 
 logger = get_logger("PostFillHook")
 
 
-def initialize_fill_ledger(db_client) -> FillLedgerRepository:
+def initialize_fill_ledger(
+    persistence: FillLedgerPersistence,
+) -> FillLedgerRepository:
     """Initialize the fill ledger repository.
     
     This should be called once during application startup.
     
     Args:
-        db_client: PostgresDB instance
+        persistence: Narrow fill-ledger persistence implementation.
     
     Returns:
         FillLedgerRepository ready for use
     """
     logger.info("[LOT-TRACK] Initializing fill ledger repository with database persistence")
-    fill_repo = FillLedgerRepository(db_client)
+    fill_repo = FillLedgerRepository(persistence)
     logger.info("[LOT-TRACK] Fill ledger repository initialized successfully")
     return fill_repo
 

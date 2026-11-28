@@ -11,9 +11,10 @@ from __future__ import annotations
 
 import unittest
 from datetime import datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from business.fill_ledger import FillLedgerRepository
+from business.lot_builder import PositionLotBuilder
 from business.order_progress import OrderSnapshotDelta
 
 
@@ -54,15 +55,12 @@ def _make_delta(
 class TestAppendDerivedFill(unittest.TestCase):
 
     def setUp(self):
-        # Bypass _ensure_table_exists which would touch the real DB.
-        with patch.object(
-            FillLedgerRepository, "_ensure_table_exists", lambda self: None
-        ):
-            self.db = MagicMock()
-            self.repo = FillLedgerRepository(self.db)
+        self.persistence = MagicMock()
+        self.persistence.append_fill_record.return_value = 1
+        self.persistence.list_fills_by_instrument.return_value = []
+        self.repo = FillLedgerRepository(self.persistence)
 
     def test_append_derived_fill_writes_expected_columns(self):
-        self.db.execute_update.return_value = 1
         delta = _make_delta(
             coid="parent-1",
             product_id="ETH-USDC",
@@ -75,38 +73,24 @@ class TestAppendDerivedFill(unittest.TestCase):
         ok = self.repo.append_derived_fill(delta)
 
         self.assertTrue(ok)
-        self.db.execute_update.assert_called_once()
-        _, params = self.db.execute_update.call_args[0]
-        # Param order matches append_fill INSERT signature.
-        (
-            derived_trade_key,
-            exchange_trade_id,
-            exchange_entry_id,
-            instrument,
-            side,
-            quantity,
-            price,
-            _ts,
-            fees,
-            commission_percentage,
-            client_order_id,
-            reconciliation_status,
-        ) = params
-        self.assertEqual(derived_trade_key, delta.derived_trade_key)
-        self.assertIsNone(exchange_trade_id)
-        self.assertIsNone(exchange_entry_id)
-        self.assertEqual(instrument, "ETH-USDC")
-        self.assertEqual(side, "SELL")
-        self.assertEqual(quantity, 2.5)
-        self.assertEqual(price, 3200.0)
-        self.assertEqual(fees, 0.07)
-        self.assertEqual(commission_percentage, 0.0)
-        self.assertEqual(client_order_id, "parent-1")
-        self.assertEqual(reconciliation_status, "WS_DERIVED")
+        self.persistence.append_fill_record.assert_called_once_with(
+            derived_trade_key=delta.derived_trade_key,
+            exchange_trade_id=None,
+            exchange_entry_id=None,
+            instrument="ETH-USDC",
+            side="SELL",
+            quantity=2.5,
+            price=3200.0,
+            timestamp=delta.observed_at,
+            fees=0.07,
+            commission_percentage=0.0,
+            client_order_id="parent-1",
+            reconciliation_status="WS_DERIVED",
+        )
 
     def test_append_derived_fill_returns_true_on_idempotent_duplicate(self):
-        # ON CONFLICT DO NOTHING -> 0 rows affected; treated as success.
-        self.db.execute_update.return_value = 0
+        # ON CONFLICT DO NOTHING -> no inserted id; treated as success.
+        self.persistence.append_fill_record.return_value = None
         delta = _make_delta()
 
         self.assertTrue(self.repo.append_derived_fill(delta))
@@ -117,18 +101,64 @@ class TestAppendDerivedFill(unittest.TestCase):
         ok = self.repo.append_derived_fill(delta)
 
         self.assertTrue(ok)
-        self.db.execute_update.assert_not_called()
+        self.persistence.append_fill_record.assert_not_called()
 
     def test_append_derived_fill_handles_none(self):
         ok = self.repo.append_derived_fill(None)
         self.assertFalse(ok)
-        self.db.execute_update.assert_not_called()
+        self.persistence.append_fill_record.assert_not_called()
 
     def test_append_derived_fill_returns_false_on_db_error(self):
-        self.db.execute_update.side_effect = RuntimeError("boom")
+        self.persistence.append_fill_record.side_effect = RuntimeError("boom")
         delta = _make_delta()
 
         self.assertFalse(self.repo.append_derived_fill(delta))
+
+    def test_get_fills_by_instrument_restores_lot_builder_contract(self):
+        row = {
+            "derived_trade_key": "11111111-2222-3333-4444-555555555555",
+            "instrument": "BTC-USDC",
+            "side": "BUY",
+            "quantity": 0.25,
+            "price": 50000.0,
+            "timestamp": datetime(2026, 4, 26, 12, 0, 0),
+            "reconciliation_status": "WS_DERIVED",
+        }
+        self.persistence.list_fills_by_instrument.return_value = [row]
+
+        fills = self.repo.get_fills_by_instrument("BTC-USDC")
+
+        self.assertEqual(len(fills), 1)
+        self.assertEqual(fills[0].derived_trade_key, row["derived_trade_key"])
+        self.persistence.list_fills_by_instrument.assert_called_once_with(
+            "BTC-USDC"
+        )
+
+    def test_lot_builder_uses_restored_instrument_query(self):
+        self.persistence.list_fills_by_instrument.return_value = [
+            {
+                "derived_trade_key": "11111111-2222-3333-4444-555555555555",
+                "instrument": "BTC-USDC",
+                "side": "BUY",
+                "quantity": 0.25,
+                "price": 50000.0,
+                "timestamp": datetime(2026, 4, 26, 12, 0, 0),
+                "reconciliation_status": "WS_DERIVED",
+            }
+        ]
+
+        position = PositionLotBuilder(self.repo).build_position_lots("BTC-USDC")
+
+        self.assertEqual(len(position.lots), 1)
+        self.assertEqual(position.total_quantity, 0.25)
+
+    def test_get_fills_by_product_normalizes_optional_side(self):
+        self.repo.get_fills_by_product("BTC-USDC", side="buy")
+
+        self.persistence.list_fills_by_instrument.assert_called_once_with(
+            "BTC-USDC",
+            side="BUY",
+        )
 
 
 if __name__ == "__main__":

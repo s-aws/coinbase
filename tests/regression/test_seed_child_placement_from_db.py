@@ -84,6 +84,7 @@ def _build_engine():
     engine = OrderEngine(
         orderbook=orderbook,
         db_module=db_module,
+        fill_ledger_persistence=Mock(),
         subscription=subscription,
         api_key="test_key",
         api_secret="test_secret",

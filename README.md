@@ -327,12 +327,14 @@ and verifies terminal cleanup without retained per-order state.
 | --- | --- |
 | `main.py` | Production startup, readiness, reconciliation, and shutdown ordering |
 | `core/order_engine.py` | WebSocket connections and parent/child/fill lifecycle |
+| `core/execution_ports.py` | Narrow execution persistence, projection, and hook contracts |
 | `core/user_feed_processor.py` | Authenticated envelope sequencing, reduction, bounded per-order dispatch, and metrics |
 | `core/stealth_order_manager.py` | Canonical stealth lifecycle and exchange mutation logic |
 | `bridges/stealth_order_bridge.py` | Stealth hydration, scheduling, and engine integration |
 | `bridges/stealth_event_deadline_scheduler.py` | Ordered market-event FIFO and derived deadline heap |
 | `calculation/` | Price, size, fee, and profitability calculations |
 | `database/order.py` | Canonical trading schema and persistence helpers |
+| `database/execution_persistence.py` | Concrete adapter from execution persistence ports to canonical database helpers |
 | `database/schema.py` | Canonical ordered additive schema, fresh-state, and required-table verification |
 | `scripts/validate_release.sh` | Clean-worktree full-suite, graph, and diff release gate |
 | `scripts/bootstrap_runtime_database.sh` | Guarded runtime identity/fresh-state check and schema deployment entry point |

@@ -40,6 +40,7 @@ def test_stealth_revealed_order_preserves_target_movement():
     engine = OrderEngine(
         orderbook=orderbook,
         db_module=db_module,
+        fill_ledger_persistence=Mock(),
         subscription=subscription,
         api_key="test_key",
         api_secret="test_secret",
@@ -165,6 +166,7 @@ def test_process_user_order_backfills_stealth_exchange_order_id_before_hold_retu
     engine = OrderEngine(
         orderbook=orderbook,
         db_module=db_module,
+        fill_ledger_persistence=Mock(),
         subscription=subscription,
         api_key="test_key",
         api_secret="test_secret",
@@ -220,6 +222,7 @@ def test_seed_parent_order_cache_from_db_hydrates_existing_stealth_parent():
     engine = OrderEngine(
         orderbook=orderbook,
         db_module=db_module,
+        fill_ledger_persistence=Mock(),
         subscription=subscription,
         api_key="test_key",
         api_secret="test_secret",
