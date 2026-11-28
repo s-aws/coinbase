@@ -28,6 +28,7 @@ If a recommendation would land softer than the evidence warrants, the recommenda
 2. Rehydrate at session start from:
    - `agent.md`
    - `ai-context.md`
+   - `genai_data/AGENT_CHANGE_WORKFLOW.md`
    - `genai_data/README.md`
    - `genai_data/ORDER_ID_HANDLING.md`
    - `genai_data/agent_state.md`
@@ -56,6 +57,9 @@ If a recommendation would land softer than the evidence warrants, the recommenda
    by `genai_data/design_specs/README.md`. Keep `agent_state.md` limited to the
    active objective, decisions, risks, and next actions; link the spec instead
    of copying it.
+10. Follow `genai_data/AGENT_CHANGE_WORKFLOW.md` for every non-trivial
+    investigation, plan, approval boundary, implementation, validation, and
+    closeout. Approval applies only to the immediately proposed stage and scope.
 
 ## Session Start Checklist
 
@@ -63,6 +67,7 @@ If a recommendation would land softer than the evidence warrants, the recommenda
 2. Open `genai_data/agent_state.md`.
 3. Confirm:
    - Current objective
+   - Workflow stage and approval boundary
    - Hard constraints
    - In-scope files
    - Pending risks
@@ -83,6 +88,9 @@ If a recommendation would land softer than the evidence warrants, the recommenda
 5. Never infer implementation approval from the existence or status of a design
    spec. `agent_state.md` must name the active implementation objective, and
    every approval boundary required by the spec still applies.
+6. If a new finding changes behavior, scope, transaction semantics,
+   existing-data compatibility, operator workflow, or blast radius, stop before
+   expanded implementation and obtain approval for the revised plan.
 
 ## Handoff Standard
 

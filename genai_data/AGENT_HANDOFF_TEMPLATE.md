@@ -1,5 +1,14 @@
 # Agent Handoff Template
 
+## Workflow State
+
+- Stage:
+- Checklist item or design-spec stage:
+- Approved scope:
+- Explicit non-goals:
+- Not yet approved:
+- Next approval required:
+
 ## Objective
 
 - Current objective in one sentence:

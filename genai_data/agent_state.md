@@ -3,6 +3,9 @@
 ## Status
 
 - Last updated (ET): 2026-11-28.
+- Completed documentation objective: the reviewed change workflow is now a
+  required repository contract for non-trivial investigation, planning,
+  approval, implementation, validation, and closeout across sessions.
 - Implementation base for this stage: local `prod` was at `0ebaa003` and
   `origin/prod` was at `b65a6475` when implementation began.
 - Completed implementation objective: Execution Core stage 5.3. Typed
@@ -64,6 +67,21 @@
 - The automation reuses `scripts/run_tests.sh`, `database.schema`, and
   `python -m main` rather than introduce parallel validation, schema, or engine
   paths.
+
+## Active Workflow State
+
+- Stage: `AWAITING_IMPLEMENTATION_APPROVAL`.
+- Checklist item: cancelled-parent move follow-up items 1 and 2, reviewed as one
+  coupled pending-move completion contract.
+- Approved scope completed here: codify the reviewed change workflow only.
+- Not yet approved: pending-move source, schema, transaction, or runtime changes.
+- Proposed implementation boundary: one atomic automatic-pending-move
+  finalization, one pending row per root, exact-row completion, injected engine
+  lookup, and root-cancellation-only triggering; manual move atomicity and move
+  status eligibility remain separate checklist work.
+- Next approval required: confirm that the replacement remains a persisted and
+  in-memory root only, without adding a live managed Coinbase placement, then
+  approve or revise the pending-move implementation plan.
 
 ## Completed Automation Checklist
 
@@ -296,6 +314,13 @@ requires its own focused search, blast-radius review, and operator approval:
   deselected. Repository-graph build/check reported 458 files, 8,738 symbols,
   1,560 indexed tests, and 188 semantic records with no parse findings, fatal
   errors, or check mismatches.
+- The reviewed change workflow codifies stage-specific approval, focused
+  investigation, blast-radius planning, exact-scope implementation,
+  validation, graph reconciliation, and commit/handoff closeout. The complete
+  local non-external gate passed 1,914 tests with 17 skipped and 11 external
+  tests deselected. Repository-graph build/check reported 459 files, 8,754
+  symbols, 1,560 indexed tests, and 189 semantic records with no parse
+  findings, fatal errors, or check mismatches.
 - Operator Console stage 1 replaced the ad-hoc dashboard wire variants with one
   strict JSON-RPC 2.0 contract, migrated both retained pages and the runtime
   healthcheck, and added a committed method/backup schema. The complete local

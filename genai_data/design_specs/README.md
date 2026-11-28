@@ -26,7 +26,9 @@ behavior. A design spec has authority only within its declared status:
 
 The existence of a spec never activates work by itself. `agent_state.md` must
 name the active objective, and any per-stage approval required by the spec still
-applies.
+applies. `genai_data/AGENT_CHANGE_WORKFLOW.md` governs investigation, planning,
+approval boundaries, implementation, validation, and closeout for every spec
+stage.
 
 ## Current Spec Index
 
@@ -55,6 +57,10 @@ Read only the task-relevant spec. Do not bulk-load this directory.
    repository graph are reconciled and validated.
 7. Remove rejected or superseded specs from the active tree after recording the
    replacement where applicable. Git history is the durable archive.
+
+Approval of investigation, findings, or a design status is not implementation
+approval unless the immediately proposed stage and implementation boundary were
+explicitly approved under the reviewed change workflow.
 
 ## Content Rules
 

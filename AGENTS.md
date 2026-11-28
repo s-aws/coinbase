@@ -6,9 +6,10 @@ This project runs on **Linux**. Repository setup and validation commands use Bas
 
 1. **[agent.md](agent.md)** - Project-specific constraints (flat hierarchy, never-edit files, testing commands, dashboard architecture)
 2. **[ai-context.md](ai-context.md)** - Index and authority rules for versioned context in `genai_data/`
-3. Read only the task-relevant `genai_data/` files routed by `ai-context.md`; do not load the directory wholesale.
-4. Inspect a `genai_tools/` file only when the task names it or evidence gathering requires it. The directory is never authoritative context.
-5. **Codex only:** route non-trivial repository work through `codex_repo_graph/ENTRYPOINT.md`; other agents do not need to load that directory.
+3. **[genai_data/AGENT_CHANGE_WORKFLOW.md](genai_data/AGENT_CHANGE_WORKFLOW.md)** - Mandatory investigation, planning, approval, implementation, validation, and closeout contract for non-trivial work
+4. Read only the task-relevant `genai_data/` files routed by `ai-context.md`; do not load the directory wholesale.
+5. Inspect a `genai_tools/` file only when the task names it or evidence gathering requires it. The directory is never authoritative context.
+6. **Codex only:** route non-trivial repository work through `codex_repo_graph/ENTRYPOINT.md`; other agents do not need to load that directory.
 
 ## Hard Constraints (non-negotiable)
 
@@ -17,6 +18,8 @@ This project runs on **Linux**. Repository setup and validation commands use Bas
 - Single code path per behavior; do not introduce parallel implementations.
 - Use enums (`core/enums.py`), not magic strings.
 - Respect existing module locks; never bypass thread-safety.
+- Approval is stage- and scope-specific. Investigation or plan approval never
+  implies implementation approval; follow `genai_data/AGENT_CHANGE_WORKFLOW.md`.
 - All non-agent-file changes must pass `pytest tests/regression/ -v` before being considered done.
   Exception: if the change set is limited to agent-instruction/context files only (`AGENTS.md`, `agent.md`, `ai-context.md`, `genai_data/AGENT_*.md`, `genai_data/agent_state.md`), regression tests may be skipped.
 

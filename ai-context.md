@@ -24,9 +24,10 @@ CONTEXT_DIRECTORY=genai_data/
 
 ## Core read order
 
-1. `genai_data/README.md` - Project overview and navigation
-2. `genai_data/ORDER_ID_HANDLING.md` - `client_order_id` vs `order_id` rules (critical)
-3. `genai_data/agent_state.md` - Active handoff only when its own status says one exists
+1. `genai_data/AGENT_CHANGE_WORKFLOW.md` - Mandatory workflow and approval boundaries for non-trivial work
+2. `genai_data/README.md` - Project overview and navigation
+3. `genai_data/ORDER_ID_HANDLING.md` - `client_order_id` vs `order_id` rules (critical)
+4. `genai_data/agent_state.md` - Active workflow state and handoff only when its own status says one exists
 
 Then read only what the task needs:
 

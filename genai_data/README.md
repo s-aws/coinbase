@@ -31,6 +31,7 @@ named for the active task. A design spec describes intended change and cannot
 establish current runtime behavior.
 
 Agent process files:
+- `AGENT_CHANGE_WORKFLOW.md`
 - `AGENT_CONSISTENCY_PROTOCOL.md`
 - `agent_state.md`
 - `AGENT_HANDOFF_TEMPLATE.md`
