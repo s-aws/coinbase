@@ -54,7 +54,7 @@ contract therefore classifies modules, with exact overrides, into these zones:
 | domain | shared vocabulary and calculation/policy code | domain, logging |
 | logging | shared logging adapter | logging |
 
-Stages 5.1-5.3 place `core.execution_core` and `core.execution_ports` in the
+Stages 5.1-5.4A place `core.execution_core` and `core.execution_ports` in the
 execution zone. The facade depends on
 domain enums/models, the runtime admission contract, and consumer-owned stealth
 command/query protocols; `main.py` supplies the shared runtime controller and
@@ -63,9 +63,10 @@ capability. Stage 5.2 moves dashboard origination behind the facade. Stage 5.3
 adds narrow projection and hook protocols, makes `main.py` resolve concrete
 dashboard/registry adapters, and retires seven exact item-5 reverse imports.
 The same stage removes one previously broad manager hook capability because its
-constructor parameter is now typed. The frozen totals are 16 reverse imports,
-zero runtime import cycles, 34 broad constructor capabilities, and seven
-reflection signatures.
+constructor parameter is now typed. Stage 5.4A removes the dormant conditional
+execution lifecycle, its reverse database import, and its broad database-client
+capability. The frozen totals are 15 reverse imports, zero runtime import
+cycles, 33 broad constructor capabilities, and seven reflection signatures.
 
 Operator Console stages 1 and 2A place `operator_api` in the operator zone. It
 owns JSON-RPC framing plus committed inbound param, method-correlated outbound

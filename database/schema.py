@@ -12,7 +12,6 @@ from psycopg2 import sql
 
 from database.database import PostgresDB
 from database.order import (
-    create_conditional_orders_table,
     create_fill_ledger_table,
     create_order_event_stream_table,
     create_order_match_audit_table,
@@ -36,7 +35,6 @@ SCHEMA_INITIALIZERS: tuple[tuple[str, Callable[[], None]], ...] = (
     ("order_moves", create_order_moves_table),
     ("stealth_order_moves", create_stealth_order_moves_table),
     ("fill_ledger", create_fill_ledger_table),
-    ("conditional_orders", create_conditional_orders_table),
     ("order_event_stream", create_order_event_stream_table),
     ("partial_fill_progress", create_partial_fill_progress_table),
     ("order_match_audit", create_order_match_audit_table),

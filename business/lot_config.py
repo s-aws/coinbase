@@ -6,7 +6,6 @@ execution system. It provides:
 
 - Default profit margin targets for new lots
 - Lot selection strategies (FIFO, LIFO, BEST_PROFIT)
-- Conditional execution modes (ADVISORY, ENFORCING)
 - Product-specific and strategy-specific profit targets
 - Fill ledger retention and auto-append policies
 - Configuration query functions with fallback defaults
@@ -29,7 +28,6 @@ Architecture:
     - Lots are created from fills (business/fill_ledger.py)
     - Exit strategy determines which lots to sell (business/lot_builder.py)
     - Profit targets validate viability (calculation/profit_validator.py)
-    - Conditional execution enforces constraints (business/conditional_execution.py)
 """
 
 # ============================================================================
@@ -44,21 +42,8 @@ DEFAULT_PROFIT_MARGIN_PCT = 0.5
 # Options: 'FIFO' (default), 'LIFO', 'BEST_PROFIT'
 LOT_EXIT_STRATEGY = 'FIFO'
 
-# Conditional execution mode
-# Options: 'ADVISORY' (log warnings but allow), 'ENFORCING' (block unprofitable)
-CONDITIONAL_EXECUTION_MODE = 'ADVISORY'
-
 # Enable lot-based profit awareness
 ENABLE_LOT_TRACKING = True
-
-# Enable conditional execution wrapper
-ENABLE_CONDITIONAL_EXECUTION = True
-
-# Maximum conditional orders in memory
-MAX_CONDITIONAL_ORDERS = 1000
-
-# Conditional order evaluation frequency (milliseconds)
-CONDITIONAL_ORDER_EVALUATION_INTERVAL_MS = 100
 
 # Fee estimation for new lots (if actual fees unavailable)
 # This is used when creating hypothetical lots before actual fills

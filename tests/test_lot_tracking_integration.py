@@ -5,11 +5,8 @@ Tests the complete flow:
 1. Fill ledger persistence
 2. Position lot construction from fills
 3. Profit threshold computation
-4. Order interception and wrapping
-5. Conditional execution evaluation
 
-These tests validate the system works correctly end-to-end without
-modifying core order engine logic.
+These tests preserve the active lot-tracking and profitability primitives.
 """
 
 import unittest
@@ -19,8 +16,6 @@ from business.fill_ledger import FillLedger, FillLedgerRepository
 from business.position_lot import PositionLot, LotPosition
 from business.lot_builder import PositionLotBuilder
 from business.profit_threshold_engine import ProfitThresholdEngine, ExecutionTarget
-from business.order_interception_layer import OrderInterceptionLayer
-from business.conditional_execution import ConditionalExecutionWrapper, ConditionalOrder
 from core.enums import OrderSide
 from database.database import PostgresDB
 
@@ -266,171 +261,6 @@ class TestProfitThresholdEngine(unittest.TestCase):
         self.assertTrue(meta['all_profitable'])
 
 
-class TestOrderInterceptionLayer(unittest.TestCase):
-    """Test order interception for profit constraints."""
-    
-    def setUp(self):
-        """Set up interception layer."""
-        self.db = PostgresDB(host="127.0.0.1", port=9876, database="postgres")
-        self._init_test_db_tables()
-        self.fill_repo = FillLedgerRepository(self.db)
-        self.layer = OrderInterceptionLayer(self.fill_repo, profit_margin_pct=0.5)
-    
-    def _init_test_db_tables(self):
-        """Initialize fill_ledger table on test database."""
-        create_table_query = """
-        CREATE TABLE IF NOT EXISTS fill_ledger (
-            id SERIAL PRIMARY KEY,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            derived_trade_key UUID UNIQUE NOT NULL,
-            instrument VARCHAR(32) NOT NULL,
-            side VARCHAR(10) NOT NULL CHECK (side IN ('BUY', 'SELL')),
-            quantity DECIMAL(16, 8) NOT NULL,
-            price DECIMAL(16, 2) NOT NULL,
-            timestamp TIMESTAMP NOT NULL,
-            fees DECIMAL(16, 8) DEFAULT 0,
-            commission_percentage DECIMAL(5, 4) DEFAULT 0,
-            client_order_id VARCHAR(40)
-        );
-        CREATE INDEX IF NOT EXISTS idx_fill_ledger_instrument ON fill_ledger(instrument);
-        CREATE INDEX IF NOT EXISTS idx_fill_ledger_timestamp ON fill_ledger(timestamp);
-        CREATE INDEX IF NOT EXISTS idx_fill_ledger_client_order_id ON fill_ledger(client_order_id);
-        """
-        try:
-            with self.db.get_cursor() as cursor:
-                cursor.execute(create_table_query)
-                cursor.execute("TRUNCATE TABLE fill_ledger RESTART IDENTITY")
-        except Exception:
-            pass
-    
-    def test_intercept_exit_order(self):
-        """Test order interception for exit orders."""
-        # Note: This requires fills to be in the test database
-        # In a real test, we'd insert test fills first
-        
-        # Intercept an exit order
-        product_id = "BTC-USDC"
-        side = OrderSide.SELL
-        size = 0.05
-        price = 50300.0
-        
-        enriched_order, metadata = self.layer.intercept_order(
-            product_id=product_id,
-            side=side,
-            size=size,
-            price=price,
-            market_price=price
-        )
-        
-        # Verify order was processed
-        self.assertIsNotNone(enriched_order)
-        self.assertIsNotNone(metadata)
-
-
-class TestConditionalExecution(unittest.TestCase):
-    """Test conditional order execution."""
-    
-    def setUp(self):
-        """Set up conditional execution wrapper."""
-        self.db = PostgresDB(host="127.0.0.1", port=9876, database="postgres")
-        self._init_test_db_tables()
-        self.fill_repo = FillLedgerRepository(self.db)
-        self.interception = OrderInterceptionLayer(self.fill_repo)
-        self.wrapper = ConditionalExecutionWrapper(self.interception)
-    
-    def _init_test_db_tables(self):
-        """Initialize fill_ledger table on test database."""
-        create_table_query = """
-        CREATE TABLE IF NOT EXISTS fill_ledger (
-            id SERIAL PRIMARY KEY,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            derived_trade_key UUID UNIQUE NOT NULL,
-            instrument VARCHAR(32) NOT NULL,
-            side VARCHAR(10) NOT NULL CHECK (side IN ('BUY', 'SELL')),
-            quantity DECIMAL(16, 8) NOT NULL,
-            price DECIMAL(16, 2) NOT NULL,
-            timestamp TIMESTAMP NOT NULL,
-            fees DECIMAL(16, 8) DEFAULT 0,
-            commission_percentage DECIMAL(5, 4) DEFAULT 0,
-            client_order_id VARCHAR(40)
-        );
-        CREATE INDEX IF NOT EXISTS idx_fill_ledger_instrument ON fill_ledger(instrument);
-        CREATE INDEX IF NOT EXISTS idx_fill_ledger_timestamp ON fill_ledger(timestamp);
-        CREATE INDEX IF NOT EXISTS idx_fill_ledger_client_order_id ON fill_ledger(client_order_id);
-        """
-        try:
-            with self.db.get_cursor() as cursor:
-                cursor.execute(create_table_query)
-                cursor.execute("TRUNCATE TABLE fill_ledger RESTART IDENTITY")
-        except Exception:
-            pass
-    
-    def test_wrap_with_profit_condition(self):
-        """Test wrapping order with profit condition."""
-        conditional = self.wrapper.wrap_with_profit_condition(
-            product_id="BTC-USDC",
-            side=OrderSide.SELL,
-            size=0.1,
-            price=50300.0,
-            min_profitable_price=50280.15,
-            notes="FIFO exit from lot-1"
-        )
-        
-        self.assertIsNotNone(conditional)
-        self.assertEqual(conditional.side, OrderSide.SELL)
-        self.assertEqual(conditional.size, 0.1)
-        self.assertEqual(conditional.min_profitable_price, 50280.15)
-    
-    def test_evaluate_sell_condition(self):
-        """Test condition evaluation for sell orders."""
-        # Create conditional sell order
-        conditional = self.wrapper.wrap_with_profit_condition(
-            product_id="BTC-USDC",
-            side=OrderSide.SELL,
-            size=0.1,
-            price=50300.0,
-            min_profitable_price=50280.15
-        )
-        
-        # Test market below threshold - should NOT trigger
-        ready = self.wrapper.evaluate_condition(
-            market_price=50200.0,
-            product_id="BTC-USDC"
-        )
-        self.assertEqual(len(ready), 0)
-        
-        # Test market above threshold - should trigger
-        ready = self.wrapper.evaluate_condition(
-            market_price=50300.0,
-            product_id="BTC-USDC"
-        )
-        self.assertEqual(len(ready), 1)
-        self.assertEqual(ready[0].conditional_order_id, conditional.conditional_order_id)
-    
-    def test_mark_filled(self):
-        """Test marking conditional order as filled."""
-        conditional = self.wrapper.wrap_with_profit_condition(
-            product_id="BTC-USDC",
-            side=OrderSide.SELL,
-            size=0.1,
-            price=50300.0,
-            min_profitable_price=50280.15
-        )
-        
-        # Mark as filled
-        success = self.wrapper.mark_filled(
-            conditional_order_id=conditional.conditional_order_id,
-            execution_price=50350.0
-        )
-        
-        self.assertTrue(success)
-        
-        # Verify status
-        cond = self.wrapper.conditional_orders[conditional.conditional_order_id]
-        self.assertEqual(cond.execution_price, 50350.0)
-        self.assertFalse(cond.is_active)
-
-
 def run_integration_tests():
     """Run all integration tests."""
     loader = unittest.TestLoader()
@@ -439,8 +269,6 @@ def run_integration_tests():
     suite.addTests(loader.loadTestsFromTestCase(TestFillLedger))
     suite.addTests(loader.loadTestsFromTestCase(TestPositionLotBuilder))
     suite.addTests(loader.loadTestsFromTestCase(TestProfitThresholdEngine))
-    suite.addTests(loader.loadTestsFromTestCase(TestOrderInterceptionLayer))
-    suite.addTests(loader.loadTestsFromTestCase(TestConditionalExecution))
     
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)

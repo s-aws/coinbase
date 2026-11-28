@@ -285,9 +285,6 @@ Per-snapshot derived-counter audit rows for websocket order progress.
 ### `order_event_stream`
 Normalized event timeline across placement, status changes, triggers, and hooks.
 
-### `conditional_orders`
-Conditional order persistence for condition-based execution wrappers.
-
 ### `partial_fill_progress`
 Restart-safe per-order watermark state for partial-fill follow-up flow.
 

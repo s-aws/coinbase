@@ -3,14 +3,14 @@
 | Field | Value |
 |---|---|
 | Status | `IMPLEMENTING` |
-| Operator approval | Accepted 2026-11-26; stages 5.1-5.3 approved 2026-11-27; stages 5.4-5.6 require separate approval |
+| Operator approval | Accepted 2026-11-26; stages 5.1-5.3 and 5.4A approved 2026-11-27; stages 5.4B-5.6 require separate approval |
 | Checklist or objective | Modular-monolith boundary checklist item 5 |
-| Last evidence review | 2026-11-27, current worktree based on `f0b2cf23` |
-| Implementation | Stages 5.1-5.3 implemented and validated; stages 5.4-5.6 not started |
+| Last evidence review | 2026-11-27, current worktree based on `dbd7dba3` |
+| Implementation | Stages 5.1-5.4A implemented and validated; stages 5.4B-5.6 not started |
 
 > This spec records the accepted item-5 design. Current behavior is established
 > only by the implementation mapping and tests below. Approval through stage
-> 5.3 does not authorize stages 5.4-5.6.
+> 5.4A does not authorize stages 5.4B-5.6.
 
 ## Problem
 
@@ -46,13 +46,15 @@ rules.
   command category; the unsupported raw-placement path remains removed.
 - `dashboard_server.py` currently handles 17 supported request types; six are
   classified locally as originating work.
-- `module_boundaries.toml` now assigns eight exact reverse imports to checklist
-  item 5, down from 15 before stage 5.3.
+- `module_boundaries.toml` now assigns seven exact reverse imports to checklist
+  item 5, down from 15 before stage 5.3 and eight after stage 5.3.
 - Constructor changes are broad even when production wiring is small:
   `OrderEngine` construction appears in 22 Python files and
   `StealthOrderManager` construction appears in 31.
-- `ConditionalExecutionWrapper` has no production caller. Its references are
-  its own module, one integration test, and two manual root-level logging tests.
+- Stage 5.4A removed the unused `ConditionalExecutionWrapper`, its wrapper-only
+  `OrderInterceptionLayer`, their tests/manual demonstrations, and the exclusive
+  `conditional_orders` schema. Managed stealth reveal conditions, fill-ledger
+  behavior, and active profitability validation remain intact.
 
 The exact import-debt inventory remains authoritative in
 `module_boundaries.toml`; this spec does not copy that list.
@@ -255,12 +257,35 @@ publication adapters, integration registries, and their numerous fixtures.
 
 ### 5.4 Persistence ports and dormant conditional cleanup
 
-Remove `ConditionalExecutionWrapper` and its exclusive persistence surface
-instead of creating a port for a lifecycle with no production caller. Audit the
-wrapper-only `OrderInterceptionLayer` at the same boundary. Then define narrow
-consumer-owned persistence protocols for the bridge, manager, engine, fill
-ledger, move manager, and event stream. Implement structural adapters over the
-retained database functions and construct them in `main.py`.
+#### 5.4A Dormant lifecycle retirement
+
+Status: implemented and validated 2026-11-27.
+
+Remove `ConditionalExecutionWrapper`, its wrapper-only
+`OrderInterceptionLayer`, and their exclusive persistence, configuration,
+test, and manual-tool surfaces. Reduce the fresh canonical schema from 12 to 11
+required tables without issuing a destructive migration. Preserve managed
+stealth reveal conditions plus active fill-ledger, lot, threshold, and
+profitability behavior.
+
+#### 5.4B Peripheral persistence ports
+
+Status: reviewed but not approved for implementation.
+
+Define narrow consumer-owned persistence protocols for the bridge, fill
+ledger, move manager, and event stream. Consolidate existing fill-ledger SQL
+behind retained database functions, implement a structural persistence adapter,
+and compose it in `main.py` without changing failure or transaction semantics.
+
+#### 5.4C Authoritative-owner persistence ports
+
+Status: reviewed but not approved for implementation.
+
+Define narrow manager and engine persistence protocols, move their raw SQL and
+module-shaped database access behind the retained database implementation, and
+remove the dead `OrderBook.db_module` capability. Preserve lock ownership,
+fail-closed creation ordering, atomic database guards, and best-effort audit
+policy.
 
 Primary blast radius: six execution owners, database adapter wiring, constructor
 fixtures, transaction/failure tests, the conditional module and schema helpers,
@@ -417,6 +442,32 @@ boundary audit passed. The complete local non-external gate passed 1,895 tests
 with 17 skipped and 11 external tests deselected. Repository-graph build/check
 reported 461 files, 8,693 symbols, 1,542 indexed tests, and 186 semantic records
 with no parse findings, fatal errors, or mismatches.
+
+Stage 5.4A adds:
+
+- The dormant `ConditionalExecutionWrapper` and wrapper-only
+  `OrderInterceptionLayer` are removed. Their exclusive configuration flags,
+  test demonstrations, and manual database inspection/setup tools are removed
+  with them; no second conditional execution path remains.
+- `database.order` no longer defines `conditional_orders` or its CRUD helpers,
+  and `database.schema` now owns an 11-table canonical required set. This is an
+  additive fresh-deployment contract change: no runtime migration or table
+  drop is issued against an existing database.
+- Managed stealth reveal conditions remain the single conditional strategy
+  path. Active fill-ledger, lot construction, threshold processing, and
+  profitability validation code and coverage remain in place.
+- The retired module's broad capability and reverse import are removed from the
+  equality-based boundary contract. The resulting frozen totals are 15 reverse
+  imports, zero runtime import cycles, 33 broad capabilities, and seven
+  reflection signatures.
+- Stages 5.4B and 5.4C remain unimplemented and separately gated; no active
+  persistence owner or transaction/failure policy is moved in 5.4A.
+
+Stage 5.4A validation: Python compilation, the executable boundary contract,
+and `git diff --check` passed. The complete local non-external gate passed 1,891
+tests with 17 skipped and 11 external tests deselected. Repository-graph
+build/check reported 453 files, 8,641 symbols, 1,538 indexed tests, and 186
+semantic records with no parse findings, fatal errors, or mismatches.
 
 Relevant current navigation:
 

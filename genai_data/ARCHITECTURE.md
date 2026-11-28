@@ -125,15 +125,17 @@ modules, new reverse-zone imports, new import cycles, new broad/untyped
 constructor capability surfaces, and new reflection mechanisms that can hide
 those surfaces.
 
-The contract records 16 reverse-zone import edges, no strongly connected
-runtime import component, 34 broad constructor capability surfaces, and seven
+The contract records 15 reverse-zone import edges, no strongly connected
+runtime import component, 33 broad constructor capability surfaces, and seven
 reflection/namespace escape signatures. Item 4 retired the configuration edges
 and former import cycle; the supported operator-surface cleanup retired six
 more import-debt edges and one reflection signature. Execution Core stage 5.3
 then retired seven execution-to-dashboard/integration imports and one broad
-manager hook capability by introducing narrow injected ports. Remaining exact
-debt is assigned to modular-monolith checklist items 5-8 and is not a
-package-wide permission for additional coupling.
+manager hook capability by introducing narrow injected ports. Stage 5.4A
+retired the unused parallel conditional lifecycle, its database reverse import,
+and its broad database-client capability. Remaining exact debt is assigned to
+modular-monolith checklist items 5-8 and is not a package-wide permission for
+additional coupling.
 
 Static inspection cannot prove arbitrary Python aliasing, monkeypatching,
 returned objects, or runtime dispatch. Full component isolation requires the
@@ -513,8 +515,11 @@ Canonical required-table definitions live in `database/order.py`:
 - `fill_ledger`
 - `order_match_audit`
 - `order_event_stream`
-- `conditional_orders`
 - `partial_fill_progress`
+
+The canonical set contains 11 required tables. The retired parallel
+`ConditionalExecutionWrapper` and its exclusive `conditional_orders` table are
+not part of the managed stealth reveal-condition lifecycle.
 
 `database/schema.py::initialize_database_schema()` invokes those definitions
 in dependency order, `verify_database_schema()` checks the required set,

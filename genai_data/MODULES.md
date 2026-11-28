@@ -326,7 +326,11 @@ The heap is disposable derived state, never lifecycle truth.
 ### Order Lifecycle and Strategy
 - `business/event_processor.py`
 - `business/move_manager.py`
-- `business/conditional_execution.py`
+
+The unused parallel `ConditionalExecutionWrapper` and its
+`OrderInterceptionLayer` were retired in Execution Core stage 5.4A. Active
+conditional behavior is expressed by managed stealth reveal conditions rather
+than a second order lifecycle.
 
 ### Stealth and Profitability
 - `business/stealth_condition_evaluator.py`

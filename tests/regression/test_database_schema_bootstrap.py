@@ -58,6 +58,9 @@ def fresh_runtime_schema(monkeypatch):
 
 
 def test_database_schema_bootstrap_is_complete_and_idempotent():
+    assert len(REQUIRED_TABLES) == 11
+    assert "conditional_orders" not in REQUIRED_TABLES
+
     initialize_database_schema()
     initialize_database_schema()
     verify_database_schema()
@@ -202,7 +205,7 @@ def test_runtime_database_bootstrap_verifies_target_and_required_schema(
     assert f"Configured runtime database: {configured_target}" in result.stdout
     assert "Connected database identity:" in result.stdout
     assert "Fresh trading-state check:" in result.stdout
-    assert "12 required tables verified" in result.stdout
+    assert "11 required tables verified" in result.stdout
     assert (
         f"Runtime database schema bootstrap complete for {configured_target}."
         in result.stdout

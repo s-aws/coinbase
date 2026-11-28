@@ -6,7 +6,6 @@ def main() -> None:
     db = PostgresDB()
     try:
         tables = [
-            "conditional_orders",
             "fill_ledger",
             "order_moves",
             "order_parent",
@@ -84,7 +83,6 @@ def main() -> None:
             "stealth_orders": "SELECT * FROM stealth_orders LIMIT 10",
             "stealth_order_reveal_history": "SELECT * FROM stealth_order_reveal_history LIMIT 10",
             "stealth_order_snapshots": "SELECT * FROM stealth_order_snapshots LIMIT 10",
-            "conditional_orders": "SELECT * FROM conditional_orders LIMIT 10",
         }
 
         for table_name, query in queries.items():

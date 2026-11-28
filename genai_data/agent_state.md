@@ -3,15 +3,17 @@
 ## Status
 
 - Last updated (ET): 2026-11-27.
-- Current committed baseline: local `prod` and `origin/prod` are at `f0b2cf23`.
-  The completed Execution Core stage 5.3 is the current uncommitted change.
+- Current committed baseline: local `prod` and `origin/prod` are at `dbd7dba3`.
+  Execution Core stage 5.4A is the current uncommitted change.
 - Completed implementation objective: Execution Core stage 5.3. Typed
   projection and hook ports are injected into the engine and manager;
   `main.py` composes the existing dashboard publishers and registry
   implementations; callback order and failure policy are preserved; and the
   exact boundary debt is reduced from 23/35/7 to 16/34/7.
-- No later Execution Core stage is active. Stage 5.4 requires its own focused
-  source/test search, blast-radius discussion, and operator approval.
+- Active implementation objective: Execution Core stage 5.4A. The unused
+  parallel conditional lifecycle, its exclusive schema/configuration, and its
+  dedicated test/manual-tool surfaces are removed. Stages 5.4B and 5.4C remain
+  separately gated persistence-port work.
 - Completed implementation objective: Operator Console stages 1 and 2A. The
   server, both retained HTML clients, and runtime healthcheck use one strict
   versioned JSON-RPC contract with explicit dispatch, correlation, named
@@ -82,10 +84,9 @@
 
 ## Modular Monolith Boundary Checklist
 
-Items 1 through 4 are complete. Item 5 stages 5.1-5.3 are approved and
-implemented; later stages still require a focused source/test search,
-blast-radius evaluation, context discussion, and separate operator approval
-before code changes.
+Items 1 through 4 are complete. Item 5 stages 5.1-5.3 are complete and stage
+5.4A is implemented; stages 5.4B onward still require separate operator
+approval before code changes.
 
 1. Remove the abandoned `StateManager` and generic repository implementation:
    complete and validated; canonical product-type coverage is retained.
@@ -99,8 +100,9 @@ before code changes.
    cleanup, the source-only contract froze 23 reverse-zone import edges, no
    runtime import cycle, 35 broad/untyped constructor capability surfaces, and
    seven reflection/namespace escape signatures. Stage 5.3 subsequently
-   reduces those totals to 16/34/7. The contract explicitly does not claim to
-   prove arbitrary runtime aliases or dynamic dispatch.
+   reduced those totals to 16/34/7, and stage 5.4A reduces them to 15/33/7.
+   The contract explicitly does not claim to prove arbitrary runtime aliases or
+   dynamic dispatch.
 5. Add an Execution Core command/query facade while retaining lifecycle and
    transactional writes under one owner. The reviewed proposal and staged blast
    radius are recorded in `design_specs/EXECUTION_CORE.md`; its status is
@@ -115,9 +117,12 @@ before code changes.
    existing projection and hook adapters; execution owners consume narrow typed
    capabilities and use explicit no-ops only when isolated. Callback order,
    failure policy, lifecycle ownership, and best-effort audit delivery are
-   unchanged. Other exchange order types remain deferred. The dormant
-   `ConditionalExecutionWrapper` and its exclusive persistence surface will be
-   removed rather than ported in its later approved stage.
+   unchanged. Stage 5.4A removes the dormant `ConditionalExecutionWrapper`,
+   wrapper-only `OrderInterceptionLayer`, exclusive `conditional_orders` table,
+   and their configuration/test/manual surfaces. Managed stealth reveal
+   conditions plus active fill-ledger, lot, threshold, and profitability
+   behavior remain. Other exchange order types remain deferred. Persistence
+   ports for the six active consumers remain stages 5.4B and 5.4C.
 6. Extract public market-data ownership into an in-process component.
 7. Separate operator WebSocket transport from application commands and read
    projections. The approved console Stage 1 framing and Stage 2A complete
@@ -185,6 +190,18 @@ before code changes.
   1,895 tests with 17 skipped and 11 external tests deselected. Repository-
   graph build/check reported 461 files, 8,693 symbols, 1,542 indexed tests, and
   186 semantic records with no parse findings, fatal errors, or mismatches.
+- Execution Core stage 5.4A removes the dormant parallel conditional lifecycle,
+  its exclusive schema/configuration, and its dedicated test/manual-tool
+  surfaces without changing the managed stealth reveal, fill-ledger, lot,
+  threshold, or profitability paths. The canonical fresh schema now contains
+  11 required tables, with no destructive migration. Python compilation, the
+  executable boundary contract at 15 reverse imports, zero cycles, 33 broad
+  capabilities, and seven reflection signatures, and `git diff --check`
+  passed. The complete local non-external gate passed 1,891 tests with 17
+  skipped and 11 external tests deselected. Repository-graph build/check
+  reported 453 files, 8,641 symbols, 1,538 indexed tests, and 186 semantic
+  records with no parse findings, fatal errors, or mismatches. Stages 5.4B and
+  5.4C remain separately gated and unimplemented.
 - Operator Console stage 1 replaced the ad-hoc dashboard wire variants with one
   strict JSON-RPC 2.0 contract, migrated both retained pages and the runtime
   healthcheck, and added a committed method/backup schema. The complete local
@@ -207,17 +224,18 @@ before code changes.
   no parse findings, no fatal errors, and no check mismatches. The final suite
   and graph validation both passed after the source, documentation, and graph
   reconciliation were complete.
-- Historical fresh-target proof at rollout time: all 12 trading tables contained
+- Historical fresh-target proof at rollout time: all 12 then-required trading tables contained
   zero rows before bootstrap; only `market_candle_1m` and `market_tick` retained
   operator-created telemetry/backfill data.
 - Historical guarded additive bootstrap: pass; connected identity was database
-  `coinbase`, user `postgres`, server `127.0.0.1:5432`, and all 12 required
-  tables verified.
+  `coinbase`, user `postgres`, server `127.0.0.1:5432`, and all 12
+  then-required tables verified.
 - Historical live startup: `STARTING -> PAUSED`; dashboard authority reported
   admission closed, no stop in progress, no pending startup pause, and zero
   in-flight work. Startup reconciliation found no exchange/DB order drift,
   parent/child hydration was empty and in sync, and authenticated user snapshots
-  contained zero open orders. All 12 trading tables remained empty after startup.
+  contained zero open orders. All 12 then-required trading tables remained empty
+  after startup.
 - The missed-fill audit classified 148 recent REST fills across 106 orders as
   unowned pre-wipe/off-engine history, so it did not backfill them. This is not
   current local order state and will age out of the audit window.
