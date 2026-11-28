@@ -431,7 +431,7 @@ def test_duplicate_delivery_of_100_cancellations_creates_one_follow_up_per_root(
         for placement in placements
     ]
 
-    with patch("database.order.has_pending_move", return_value=False), patch(
+    with patch(
         "database.order.get_parent_order",
         return_value={
             "target_movement": 0.001,

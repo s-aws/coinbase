@@ -15,21 +15,31 @@ A moved cancelled parent creates a new root with its own UUID client ID and an
 children are not automatically moved or reparented.
 
 Premarking records a pending move (`move_on_cancel=true`) before cancellation.
-The engine cancellation handler checks that pending move before normal
-replacement logic. `OrderEngine` uses one private construction path for both
-manual and cancel-triggered `MoveManager` use, and `main.py` supplies the same
-adapter used by the other execution persistence ports. The
+The engine cancellation handler checks that pending move through its injected
+persistence capability before normal replacement logic, but only when the
+cancelled `client_order_id` is the original root itself; cancellation of a
+child or distinct exchange placement cannot consume the root's pending move.
+`OrderEngine` uses one private construction path for both manual and
+cancel-triggered `MoveManager` use, and `main.py` supplies the same adapter used
+by the other execution persistence ports. The
 abandoned dashboard CRUD/history commands were removed; `MoveManager` remains
 the single lifecycle implementation for existing internal callers and future
 reviewed command surfaces. This cancelled-parent mechanism is separate from a
 revealed stealth placement move.
 
-The move workflow still uses separate parent-create, move-audit, and pending
-completion helper calls. Stage 5.4B.4 changed dependency direction only: it did
-not add atomicity, retry, rollback, or stronger success semantics. A subsequent
-focused repair corrected pending-move exception logging so database failures
-remain the original logged failure and retain the established fail-soft `None`
-result; it did not change write or transaction behavior.
+Automatic pending completion has one guarded persistence path. A partial unique
+index permits one unfinished pending row per original root. Finalization claims
+the exact pending row and, in one database statement, inserts the replacement
+root and completes that same `order_moves` row. A stale, missing, or concurrently
+completed row creates no replacement and is reported as failure. The committed
+replacement is added to the in-memory orderbook but is not placed on Coinbase;
+normal reviewed lifecycle commands would be required for any later placement.
+
+Manual `move_order` still creates the replacement parent and completed audit row
+through separate transactions. Its move-status eligibility and risk of an
+orphan after audit failure remain separate checklist work. A prior focused
+repair corrected pending-create exception logging so database failures retain
+the original fail-soft `None` result.
 
 ## Revealed stealth move
 

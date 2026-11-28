@@ -4528,11 +4528,20 @@ class OrderEngine:
             self.release_follow_up_processing("cancelled", client_order_id)
             return
 
-        _, parent_client_order_id = self.resolve_parent_client_order_id(client_order_id)
+        is_parent, parent_client_order_id = self.resolve_parent_client_order_id(
+            client_order_id
+        )
 
-        # Check for pending move (automation) - executes instead of normal follow-up
-        from database.order import has_pending_move
-        if has_pending_move(parent_client_order_id):
+        # A pre-marked move belongs to the original root itself. A child or
+        # exchange-placement cancellation may resolve to that root for ordinary
+        # follow-up policy, but it must never consume the root's pending move.
+        if (
+            is_parent
+            and parent_client_order_id
+            and self.cancelled_move_persistence.has_pending_move(
+                parent_client_order_id
+            )
+        ):
             try:
                 move_manager = self._new_move_manager()
                 move_result = move_manager.execute_pending_move_for_order(parent_client_order_id)

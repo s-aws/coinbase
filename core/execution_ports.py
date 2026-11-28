@@ -94,12 +94,21 @@ class CancelledOrderMovePersistence(Protocol):
         notes: Optional[str],
     ) -> Optional[int]: ...
 
-    def complete_pending_move(
+    def finalize_pending_move(
         self,
         *,
+        pending_move_id: int,
         original_parent_client_order_id: str,
         new_parent_client_order_id: str,
-    ) -> int: ...
+        product_id: str,
+        side: str,
+        size: float,
+        price: float,
+        target_movement: float,
+        target_movement_type: str,
+        max_order_replacement: int,
+        status: str,
+    ) -> Optional[int]: ...
 
 
 class FillLedgerPersistence(Protocol):

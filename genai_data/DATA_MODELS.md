@@ -266,7 +266,12 @@ Contains placement IDs, exchange IDs, trigger context, and reference-price audit
 Immutable lifecycle transition history rows for stealth state machine events.
 
 ### `order_moves`
-Parent-order move/premark audit table.
+Parent-order move/premark audit table. A partial unique index permits one
+unfinished `move_on_cancel` row per original root. Automatic cancellation
+finalization updates that exact row and inserts its replacement `order_parent`
+root in one guarded database statement; it does not create a second completed
+audit row or a live exchange placement. Manual moves retain their separate
+parent-create and audit writes.
 
 ### `stealth_order_moves`
 Move-revealed audit table for stealth orders.

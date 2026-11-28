@@ -366,11 +366,13 @@ client default for compatibility callers. No SQL, lock, transaction boundary,
 return convention, or exception/fail-soft policy moved. `main.py` passes the
 same adapter already used for fill-ledger, event-stream, and span persistence.
 
-The stage removes only the unreachable duplicate tail in
-`execute_pending_move_for_order`; it does not repair or reinterpret active move
-behavior. In particular, parent creation and move-audit writes remain separate,
-pending execution still follows the established multi-write sequence, and the
-engine's direct pending-move precheck remains for Stage 5.4C.
+The stage originally removed only the unreachable duplicate tail in
+`execute_pending_move_for_order`; at stage completion it did not repair or
+reinterpret active move behavior. A separately approved follow-up now gives
+automatic pending execution one exact-row atomic finalizer and routes the
+engine precheck through the injected capability. It does not change the stage's
+manual-move boundary: manual parent creation and move-audit writes remain
+separate, and their status/orphan risks remain separately gated.
 
 #### 5.4C Authoritative-owner persistence ports
 

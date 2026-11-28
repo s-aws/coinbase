@@ -12,7 +12,9 @@ Test Coverage:
 
 import pytest
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, Any
+from unittest.mock import MagicMock
 
 from business.move_manager import MoveManager
 from database import order as order_db
@@ -591,6 +593,138 @@ class TestPendingMoves:
         assert new_parent is not None
         assert new_parent["side"] == "SELL"
         assert float(new_parent["size"]) == 0.5
+
+        # The pending audit row itself is finalized; no second completed row
+        # is inserted for the same automatic move.
+        moves = get_order_moves_by_original_parent(parent_order)
+        assert len(moves) == 1
+        assert moves[0]["id"] == pre_result["move_id"] == exec_result["move_id"]
+        assert (
+            moves[0]["new_parent_client_order_id"]
+            == exec_result["new_parent_client_order_id"]
+        )
+        assert moves[0]["move_on_cancel"] is False
+
+    def test_pending_move_exact_row_guard_prevents_orphan_parent(
+        self,
+        move_manager,
+        parent_order,
+    ):
+        pre_result = move_manager.pre_mark_for_move(
+            original_parent_client_order_id=parent_order,
+            new_order_details={
+                "product_id": "BTC-USDC",
+                "side": "SELL",
+                "size": 0.5,
+                "price": 43000.0,
+                "target_movement": 0.01,
+            },
+        )
+        assert pre_result["success"] is True
+
+        rejected_parent_id = str(uuid.uuid4())
+        move_id = order_db.finalize_pending_move(
+            pending_move_id=pre_result["move_id"] + 1,
+            original_parent_client_order_id=parent_order,
+            new_parent_client_order_id=rejected_parent_id,
+            product_id="BTC-USDC",
+            side="SELL",
+            size=0.5,
+            price=43000.0,
+            target_movement=0.01,
+            max_order_replacement=3,
+        )
+
+        assert move_id is None
+        assert get_parent_order(rejected_parent_id) is None
+        pending = order_db.get_pending_move(parent_order)
+        assert pending is not None
+        assert pending["id"] == pre_result["move_id"]
+
+    def test_pending_move_unique_guard_allows_one_row_per_root(
+        self,
+        parent_order,
+    ):
+        config = {
+            "product_id": "BTC-USDC",
+            "side": "SELL",
+            "size": 0.5,
+            "price": 43000.0,
+            "target_movement": 0.01,
+        }
+        first_move_id = order_db.create_pending_move(parent_order, config)
+        second_move_id = order_db.create_pending_move(parent_order, config)
+
+        assert first_move_id is not None
+        assert second_move_id is None
+        moves = get_order_moves_by_original_parent(parent_order)
+        assert [move["id"] for move in moves] == [first_move_id]
+
+    def test_zero_row_atomic_finalize_is_reported_as_failure(self, parent_order):
+        pending_move = {
+            "id": 42,
+            "reason": "scheduled",
+            "notes": (
+                "Pending move config: "
+                '{"product_id":"BTC-USDC","side":"SELL",'
+                '"size":0.5,"price":43000.0,"target_movement":0.01}'
+            ),
+            "new_parent_client_order_id": None,
+        }
+        persistence = MagicMock()
+        persistence.get_pending_move.return_value = pending_move
+        persistence.get_parent_order.return_value = {"id": 1}
+        persistence.get_order_move.return_value = pending_move
+        persistence.finalize_pending_move.return_value = None
+        orderbook = _orderbook()
+        manager = MoveManager(orderbook=orderbook, persistence=persistence)
+
+        result = manager.execute_pending_move_for_order(parent_order)
+
+        assert result["success"] is False
+        assert result["move_id"] == 42
+        assert "not committed" in result["error"].lower()
+        attempted_parent_id = (
+            persistence.finalize_pending_move.call_args.kwargs[
+                "new_parent_client_order_id"
+            ]
+        )
+        assert attempted_parent_id not in orderbook.parent_order_ids
+
+    def test_concurrent_pending_execution_commits_one_replacement(
+        self,
+        move_manager,
+        parent_order,
+    ):
+        pre_result = move_manager.pre_mark_for_move(
+            original_parent_client_order_id=parent_order,
+            new_order_details={
+                "product_id": "BTC-USDC",
+                "side": "SELL",
+                "size": 0.5,
+                "price": 43000.0,
+                "target_movement": 0.01,
+            },
+        )
+        assert pre_result["success"] is True
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            results = list(
+                executor.map(
+                    move_manager.execute_pending_move_for_order,
+                    [parent_order, parent_order],
+                )
+            )
+
+        successful = [result for result in results if result["success"]]
+        assert len(successful) == 1
+        moves = get_order_moves_by_original_parent(parent_order)
+        assert len(moves) == 1
+        assert moves[0]["id"] == pre_result["move_id"]
+        assert (
+            moves[0]["new_parent_client_order_id"]
+            == successful[0]["new_parent_client_order_id"]
+        )
 
     def test_execute_pending_move_no_pending(self, move_manager, parent_order):
         """Test executing when no pending move exists."""

@@ -65,12 +65,15 @@ def _build_engine_for_partial_fill_tests() -> OrderEngine:
     subscription = Mock()
     subscription.channels = []
 
+    cancelled_move_persistence = Mock()
+    cancelled_move_persistence.has_pending_move.return_value = False
+
     engine = OrderEngine(
         orderbook=orderbook,
         db_module=db_module,
         fill_ledger_persistence=Mock(),
         event_stream_persistence=Mock(),
-        cancelled_move_persistence=Mock(),
+        cancelled_move_persistence=cancelled_move_persistence,
         subscription=subscription,
         api_key="test_key",
         api_secret="test_secret",

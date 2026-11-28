@@ -90,6 +90,37 @@ class MoveManager:
         normalized["price"] = float(price_check.effective_price)
         return normalized
 
+    def _cache_new_parent(
+        self,
+        *,
+        client_order_id: str,
+        product_id: str,
+        side: str,
+        max_order_replacement: int,
+        target_movement: float,
+        target_movement_type: str,
+    ) -> None:
+        """Publish a committed replacement root to the shared orderbook."""
+
+        try:
+            self.orderbook.register_parent(
+                client_order_id,
+                {
+                    "client_order_id": client_order_id,
+                    "product_id": product_id,
+                    "side": side,
+                    "max_order_replacement": max_order_replacement,
+                    "current_order_replacement": 0,
+                    "target_movement": target_movement,
+                    "target_movement_type": target_movement_type,
+                    "orders": [],
+                },
+            )
+        except Exception as exc:
+            print(f"Warning: Failed to update orderbook state: {exc}")
+            # Persistence remains authoritative; restart hydration can recover
+            # the committed root if this best-effort publication fails.
+
     def can_move_order(self, original_parent_client_order_id: str) -> Tuple[bool, str]:
         """Check if an order can be moved.
         
@@ -276,23 +307,14 @@ class MoveManager:
                     "error": "Failed to insert move record"
                 }
 
-            # Update orderbook in-memory state if available
-            if self.orderbook:
-                try:
-                    # Add new parent to orderbook
-                    self.orderbook.parent_order_ids[new_parent_client_order_id] = {
-                        "client_order_id": new_parent_client_order_id,
-                        "product_id": product_id,
-                        "side": side,
-                        "max_order_replacement": max_order_replacement,
-                        "current_order_replacement": 0,
-                        "target_movement": target_movement,
-                        "target_movement_type": target_movement_type,
-                        "orders": []
-                    }
-                except Exception as e:
-                    print(f"Warning: Failed to update orderbook state: {e}")
-                    # This is non-critical, continue with success
+            self._cache_new_parent(
+                client_order_id=new_parent_client_order_id,
+                product_id=product_id,
+                side=side,
+                max_order_replacement=max_order_replacement,
+                target_movement=target_movement,
+                target_movement_type=target_movement_type,
+            )
 
             return {
                 "success": True,
@@ -584,36 +606,105 @@ class MoveManager:
                     "error": "Could not extract move configuration"
                 }
 
-            # Execute the move using normal move_order logic
-            result = self.move_order(
-                original_parent_client_order_id=original_parent_client_order_id,
-                new_order_details=new_order_details,
-                reason=f"automated_{pending_move['reason']}",
-                notes=f"Auto-executed: {pending_move.get('notes', '')}"
+            can_move, validation_reason = self.can_move_order(
+                original_parent_client_order_id
             )
-
-            if result["success"]:
-                # Mark the pending move as executed
-                self._persistence.complete_pending_move(
-                    original_parent_client_order_id=original_parent_client_order_id,
-                    new_parent_client_order_id=result["new_parent_client_order_id"]
-                )
-
-                return {
-                    "success": True,
-                    "message": f"Pending move executed automatically",
-                    "new_parent_client_order_id": result["new_parent_client_order_id"],
-                    "move_id": result["move_id"],
-                    "error": None
-                }
-            else:
+            if not can_move:
                 return {
                     "success": False,
-                    "message": f"Failed to execute pending move: {result['error']}",
+                    "message": validation_reason,
                     "new_parent_client_order_id": None,
                     "move_id": pending_move["id"],
-                    "error": result["error"]
+                    "error": validation_reason,
                 }
+
+            required_fields = [
+                "product_id",
+                "side",
+                "size",
+                "price",
+                "target_movement",
+            ]
+            missing_fields = [
+                field for field in required_fields
+                if field not in new_order_details
+            ]
+            if missing_fields:
+                error_msg = (
+                    "Missing required fields in pending new_order_details: "
+                    f"{', '.join(missing_fields)}"
+                )
+                return {
+                    "success": False,
+                    "message": error_msg,
+                    "new_parent_client_order_id": None,
+                    "move_id": pending_move["id"],
+                    "error": error_msg,
+                }
+
+            normalized_details = self._normalize_new_order_details(
+                new_order_details
+            )
+            new_parent_client_order_id = str(uuid.uuid4())
+            product_id = normalized_details["product_id"]
+            side = normalized_details["side"]
+            size = float(normalized_details["size"])
+            price = float(normalized_details["price"])
+            target_movement = float(normalized_details["target_movement"])
+            target_movement_type = normalized_details.get(
+                "target_movement_type",
+                "P",
+            )
+            max_order_replacement = int(
+                normalized_details.get(
+                    "max_order_replacement",
+                    DEFAULT_MAX_ORDER_REPLACEMENT,
+                )
+            )
+
+            move_id = self._persistence.finalize_pending_move(
+                pending_move_id=int(pending_move["id"]),
+                original_parent_client_order_id=(
+                    original_parent_client_order_id
+                ),
+                new_parent_client_order_id=new_parent_client_order_id,
+                product_id=product_id,
+                side=side,
+                size=size,
+                price=price,
+                target_movement=target_movement,
+                target_movement_type=target_movement_type,
+                max_order_replacement=max_order_replacement,
+                status=OrderStatus.PENDING.value,
+            )
+
+            if move_id is None:
+                return {
+                    "success": False,
+                    "message": (
+                        "Failed to atomically finalize the exact pending move"
+                    ),
+                    "new_parent_client_order_id": None,
+                    "move_id": pending_move["id"],
+                    "error": "Pending move finalization was not committed",
+                }
+
+            self._cache_new_parent(
+                client_order_id=new_parent_client_order_id,
+                product_id=product_id,
+                side=side,
+                max_order_replacement=max_order_replacement,
+                target_movement=target_movement,
+                target_movement_type=target_movement_type,
+            )
+
+            return {
+                "success": True,
+                "message": "Pending move executed automatically",
+                "new_parent_client_order_id": new_parent_client_order_id,
+                "move_id": move_id,
+                "error": None,
+            }
 
         except Exception as e:
             error_msg = f"Exception executing pending move: {str(e)}"

@@ -152,7 +152,7 @@ def _wire_cancel_path(
     })
     engine.child_order_already_exists = Mock(return_value=False)
     engine.resolve_parent_client_order_id = Mock(
-        return_value=(stealth_root_id, stealth_root_id)
+        return_value=(False, stealth_root_id)
     )
     engine.register_child_order = Mock()
 
@@ -160,6 +160,56 @@ def _wire_cancel_path(
     engine.db_module.get_parent_order = Mock(return_value=parent_db_row)
 
     return stealth_bridge, stealth_record
+
+
+@pytest.mark.regression
+def test_pending_move_executes_only_for_the_cancelled_root():
+    engine = _build_engine_for_partial_fill_tests()
+    root_id = "a9d4090c-d5e2-4383-a0b8-80805d0210d6"
+    engine.orderbook.parent_order_ids[root_id] = {
+        "orders": [],
+        "externally_created": False,
+    }
+    engine.cancelled_move_persistence.has_pending_move.return_value = True
+    move_manager = Mock()
+    move_manager.execute_pending_move_for_order.return_value = {
+        "success": True,
+        "new_parent_client_order_id": (
+            "c139975a-b9e0-4b3d-84cd-7d7796535bfa"
+        ),
+        "move_id": 7,
+        "error": None,
+    }
+    engine._new_move_manager = Mock(return_value=move_manager)
+    engine.compute_order_template = Mock()
+
+    engine.handle_cancelled_order({"client_order_id": root_id})
+
+    engine.cancelled_move_persistence.has_pending_move.assert_called_once_with(
+        root_id
+    )
+    move_manager.execute_pending_move_for_order.assert_called_once_with(root_id)
+    engine.compute_order_template.assert_not_called()
+
+
+@pytest.mark.regression
+def test_child_cancellation_cannot_consume_the_roots_pending_move():
+    engine = _build_engine_for_partial_fill_tests()
+    root_id = "f20ea96c-77dc-41e8-99c9-083cecefe818"
+    child_id = "d2519387-1365-4ff8-9a93-c0379e827bf4"
+    engine.orderbook.parent_order_ids[root_id] = {
+        "orders": [child_id],
+        "externally_created": False,
+    }
+    engine.orderbook.child_order_ids[child_id] = root_id
+    engine.cancelled_move_persistence.has_pending_move.return_value = True
+    engine._new_move_manager = Mock()
+    engine.compute_order_template = Mock(return_value=None)
+
+    engine.handle_cancelled_order({"client_order_id": child_id})
+
+    engine.cancelled_move_persistence.has_pending_move.assert_not_called()
+    engine._new_move_manager.assert_not_called()
 
 
 @pytest.mark.regression
@@ -186,8 +236,7 @@ def test_cancel_followup_passes_stealth_order_id_not_placement_uuid():
         return_value="new-follow-up-id"
     )
 
-    # has_pending_move is imported lazily inside the method.
-    with patch("database.order.has_pending_move", return_value=False), patch(
+    with patch(
         "database.order.get_parent_order",
         return_value={
             "target_movement": 0.001,
@@ -247,7 +296,7 @@ def test_cancel_followup_none_return_does_not_register_phantom_child():
         wraps=engine.complete_follow_up_processing
     )
 
-    with patch("database.order.has_pending_move", return_value=False), patch(
+    with patch(
         "database.order.get_parent_order",
         return_value={
             "target_movement": 0.001,
@@ -300,16 +349,15 @@ def test_cancel_followup_waits_for_terminal_execution_persistence():
         wraps=engine.complete_follow_up_processing
     )
 
-    with patch("database.order.has_pending_move", return_value=False):
-        engine.handle_cancelled_order(
-            {
-                "client_order_id": placement_uuid,
-                "product_id": "BIP-20DEC30-CDE",
-                "side": "SELL",
-                "status": StealthOrderStatus.CANCELLED.value,
-                "price": 80355.0,
-            }
-        )
+    engine.handle_cancelled_order(
+        {
+            "client_order_id": placement_uuid,
+            "product_id": "BIP-20DEC30-CDE",
+            "side": "SELL",
+            "status": StealthOrderStatus.CANCELLED.value,
+            "price": 80355.0,
+        }
+    )
 
     engine.release_follow_up_processing.assert_called_once_with(
         FollowUpKind.CANCELLED,
@@ -343,7 +391,7 @@ def test_cancel_followup_exception_releases_replacement_slot():
         wraps=engine.complete_follow_up_processing
     )
 
-    with patch("database.order.has_pending_move", return_value=False), patch(
+    with patch(
         "database.order.get_parent_order",
         return_value={
             "target_movement": 0.001,
@@ -397,7 +445,7 @@ def test_cancel_followup_respects_exhausted_replacement_cap():
         wraps=engine.complete_follow_up_processing
     )
 
-    with patch("database.order.has_pending_move", return_value=False), patch(
+    with patch(
         "database.order.get_parent_order",
         return_value={
             "target_movement": 0.001,

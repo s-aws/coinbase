@@ -151,6 +151,12 @@ cancelled-parent workflow behind `CancelledOrderMovePersistence`; `MoveManager`
 contains no database import, `OrderEngine` uses one construction path, and the
 same adapter delegates to canonical helpers without combining their existing
 transactions or changing their failure policy.
+The later approved pending-move repair adds one narrow exception to that
+historical multi-call behavior: automatic move-on-cancel finalization now
+claims one exact pending row and inserts its replacement root in the same
+database statement. A partial unique index permits one unfinished pending row
+per original root. Manual moves retain their separate writes, and no automatic
+path places the replacement on Coinbase.
 Remaining exact debt is assigned to
 modular-monolith checklist items 5-8 and is not a package-wide permission for
 additional coupling.

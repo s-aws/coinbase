@@ -70,18 +70,29 @@
 
 ## Active Workflow State
 
-- Stage: `AWAITING_IMPLEMENTATION_APPROVAL`.
-- Checklist item: cancelled-parent move follow-up items 1 and 2, reviewed as one
-  coupled pending-move completion contract.
-- Approved scope completed here: codify the reviewed change workflow only.
-- Not yet approved: pending-move source, schema, transaction, or runtime changes.
-- Proposed implementation boundary: one atomic automatic-pending-move
-  finalization, one pending row per root, exact-row completion, injected engine
-  lookup, and root-cancellation-only triggering; manual move atomicity and move
-  status eligibility remain separate checklist work.
-- Next approval required: confirm that the replacement remains a persisted and
-  in-memory root only, without adding a live managed Coinbase placement, then
-  approve or revise the pending-move implementation plan.
+- Stage: `COMPLETE`.
+- Completed checklist item: cancelled-parent move follow-up items 1 and 2,
+  implemented as one coupled pending-move completion contract.
+- Approval activating implementation: the operator's 2026-11-28 `approved`
+  immediately following the workflow closeout and its explicit pending-move
+  implementation gate.
+- Approved behavior: one guarded database operation claims the exact pending
+  row, creates one replacement root, and completes that same audit row; one
+  pending row is allowed per original root; the engine uses its injected move
+  persistence lookup and only cancellation of the root itself may trigger the
+  pending move.
+- Replacement boundary: the new root is persisted and added to the in-memory
+  orderbook only. No live managed Coinbase placement is created.
+- Validation: the complete local non-external gate passed 1,920 tests with 17
+  skipped and 11 external tests deselected; Python compilation and
+  `git diff --check` passed. Repository-graph build/check passed with 459 files,
+  8,761 symbols, 1,566 indexed tests, and 190 semantic records.
+- Not approved: manual move atomicity, move-status eligibility, generic
+  cancellation/follow-up policy, UI/API/CLI changes, deployment behavior, and
+  automatic placement of the replacement.
+- Next recommended review: checklist item 4, which documents moveable statuses
+  but does not enforce them. Item 5 remains the separate manual orphan-risk
+  transaction review.
 
 ## Completed Automation Checklist
 
@@ -184,13 +195,18 @@ code changes.
 
 ### Cancelled-Parent Move Follow-up Checklist
 
-Stage 5.4B.4 intentionally did not repair these reviewed behavior faults. Each
-requires its own focused search, blast-radius review, and operator approval:
+Stage 5.4B.4 originally left these reviewed behavior faults unchanged. Later
+work still requires its own focused search, blast-radius review, and operator
+approval; completed items record their separately approved repairs:
 
-1. Pending execution calls `move_order`, which inserts a completed move row,
-   and then completes the pending row, potentially leaving two completed rows.
-2. `execute_pending_move_for_order` ignores the pending-row update count, so a
-   zero-row completion can still be reported as success.
+1. Complete: automatic pending execution now claims the exact pending row and
+   atomically creates the replacement root while completing that same audit
+   row; it no longer calls manual `move_order` or creates a second completed
+   row.
+2. Complete: a stale, missing, or concurrently completed pending row creates no
+   replacement and is reported as failure. A partial unique index permits one
+   unfinished pending row per original root, and only root cancellation may
+   trigger it through the engine's injected persistence capability.
 3. Complete: `database.order.create_pending_move` now logs only defined pending
    configuration fields when insertion fails, preserving the original database
    failure and its established fail-soft `None` result.
@@ -343,6 +359,14 @@ requires its own focused search, blast-radius review, and operator approval:
   no parse findings, no fatal errors, and no check mismatches. The final suite
   and graph validation both passed after the source, documentation, and graph
   reconciliation were complete.
+- Cancelled-parent move follow-up items 1 and 2 now permit one unfinished
+  pending row per root and atomically insert one replacement root while
+  completing that exact audit row. Only root cancellation can trigger the
+  injected workflow, and no live Coinbase placement occurs. The complete local
+  non-external gate passed 1,920 tests with 17 skipped and 11 external tests
+  deselected. Python compilation and `git diff --check` passed. Repository-
+  graph build/check reported 459 files, 8,761 symbols, 1,566 indexed tests, and
+  190 semantic records with no parse findings, fatal errors, or mismatches.
 - Historical fresh-target proof at rollout time: all 12 then-required trading tables contained
   zero rows before bootstrap; only `market_candle_1m` and `market_tick` retained
   operator-created telemetry/backfill data.

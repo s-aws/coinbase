@@ -2136,6 +2136,10 @@ def create_order_moves_table() -> None:
     - reason: Optional reason for the move (e.g., "user_move", "auto_move")
     - notes: Optional additional details about the move
     - created_at: Timestamp when the move record was created
+
+    A partial unique index permits at most one unfinished move-on-cancel row
+    per original root. Completed manual and automatic audit rows remain
+    historical and are not constrained by that index.
     """
     create_table_query = """
     CREATE TABLE IF NOT EXISTS order_moves (
@@ -2151,8 +2155,15 @@ def create_order_moves_table() -> None:
         FOREIGN KEY (new_parent_client_order_id) REFERENCES order_parent(client_order_id) ON DELETE CASCADE
     );
     """
+    create_pending_guard_query = """
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_order_moves_pending_parent
+        ON order_moves (original_parent_client_order_id)
+        WHERE move_on_cancel = TRUE
+          AND new_parent_client_order_id IS NULL;
+    """
     with DB_CLIENT.get_cursor() as cursor:
         cursor.execute(create_table_query)
+        cursor.execute(create_pending_guard_query)
         print("order_moves table done.")
 
 
@@ -2662,6 +2673,10 @@ def create_pending_move(
         notes
     )
     VALUES (%s, %s, %s, %s)
+    ON CONFLICT (original_parent_client_order_id)
+        WHERE move_on_cancel = TRUE
+          AND new_parent_client_order_id IS NULL
+    DO NOTHING
     RETURNING id
     """
     params = (original_parent_client_order_id, True, reason, notes)
@@ -2686,58 +2701,123 @@ def create_pending_move(
         return None
 
 
-def execute_pending_move(
+def finalize_pending_move(
+    pending_move_id: int,
     original_parent_client_order_id: str,
     new_parent_client_order_id: str,
+    product_id: str,
+    side: str,
+    size: float,
+    price: float,
+    target_movement: float,
+    target_movement_type: str = "P",
+    max_order_replacement: int = 0,
+    status: str = "PENDING",
     *,
     db_client: Optional[PostgresDB] = None,
-) -> int:
+) -> Optional[int]:
     """
-    Execute a pending move by setting the new parent and marking as executed.
+    Atomically create and attach the replacement for one exact pending move.
     
-    Called when a pre-marked order cancels and the new parent has been created.
-    Sets new_parent_client_order_id, moved_at timestamp, and move_on_cancel to FALSE.
+    The exact pending row is claimed before any replacement row can be inserted.
+    One database statement then inserts the replacement root and completes that
+    same audit row. A missing, stale, or concurrently completed pending row
+    produces no replacement parent and returns ``None``.
     
     Args:
-        original_parent_client_order_id: The original parent being moved.
-        new_parent_client_order_id: The new parent that was created.
+        pending_move_id: Database ID of the pending ``order_moves`` row.
+        original_parent_client_order_id: The original root being moved.
+        new_parent_client_order_id: UUID for the replacement root.
+        product_id: Replacement trading product.
+        side: Replacement order side.
+        size: Replacement base size.
+        price: Replacement configured limit price.
+        target_movement: Replacement profit target.
+        target_movement_type: Percentage or absolute target discriminator.
+        max_order_replacement: Replacement follow-up capacity.
+        status: Initial local replacement status.
         db_client: Explicit database client for composed adapters. Defaults to
             the compatibility module client for existing callers.
     
     Returns:
-        Number of rows updated (0 or 1).
-        
-    Example:
-        >>> result = execute_pending_move(
-        ...     original_parent_client_order_id="0_parent_uuid",
-        ...     new_parent_client_order_id="new_parent_uuid"
-        ... )
-        >>> if result > 0:
-        ...     print("Pending move executed")
+        The completed pending move ID, or ``None`` when the exact pending row
+        could not be claimed or the transaction failed.
     """
     query = """
-    UPDATE order_moves
-    SET new_parent_client_order_id = %s,
-        moved_at = CURRENT_TIMESTAMP,
-        move_on_cancel = FALSE
-    WHERE original_parent_client_order_id = %s
-      AND move_on_cancel = TRUE
-      AND new_parent_client_order_id IS NULL
+    WITH pending_move AS (
+        SELECT id
+          FROM order_moves
+         WHERE id = %s
+           AND original_parent_client_order_id = %s
+           AND move_on_cancel = TRUE
+           AND new_parent_client_order_id IS NULL
+         FOR UPDATE
+    ),
+    inserted_parent AS (
+        INSERT INTO order_parent (
+            client_order_id,
+            product_id,
+            side,
+            size,
+            price,
+            status,
+            target_movement,
+            target_movement_type,
+            max_order_replacement,
+            current_order_replacement
+        )
+        SELECT %s, %s, %s, %s, %s, %s, %s, %s, %s, 0
+          FROM pending_move
+        RETURNING id
+    ),
+    completed_move AS (
+        UPDATE order_moves AS move
+           SET new_parent_client_order_id = %s,
+               moved_at = CURRENT_TIMESTAMP,
+               move_on_cancel = FALSE
+          FROM pending_move, inserted_parent
+         WHERE move.id = pending_move.id
+        RETURNING move.id
+    )
+    SELECT id FROM completed_move
     """
-    params = (new_parent_client_order_id, original_parent_client_order_id)
+    params = (
+        int(pending_move_id),
+        original_parent_client_order_id,
+        new_parent_client_order_id,
+        product_id,
+        side,
+        float(size),
+        float(price),
+        status,
+        float(target_movement),
+        target_movement_type,
+        int(max_order_replacement),
+        new_parent_client_order_id,
+    )
     
     try:
         client = db_client if db_client is not None else DB_CLIENT
-        result = client.execute_update(query, params)
-        if result > 0:
+        results = client.execute_query(query, params)
+        if results:
+            move_id = int(results[0]["id"])
             logger.info(
-                f"Pending move executed: {original_parent_client_order_id} "
-                f"-> {new_parent_client_order_id}"
+                f"Pending move finalized atomically: "
+                f"{original_parent_client_order_id} -> "
+                f"{new_parent_client_order_id} (DB ID: {move_id})"
             )
-        return result
+            return move_id
+        logger.warning(
+            f"Pending move finalization did not claim exact row "
+            f"{pending_move_id} for {original_parent_client_order_id}"
+        )
+        return None
     except Exception as e:
-        logger.error(f"Error executing pending move for {original_parent_client_order_id}: {type(e).__name__}: {e}")
-        return 0
+        logger.error(
+            f"Error finalizing pending move {pending_move_id} for "
+            f"{original_parent_client_order_id}: {type(e).__name__}: {e}"
+        )
+        return None
 
 
 def create_fill_ledger_table(

@@ -20,7 +20,7 @@ def test_database_adapter_delegates_cancelled_move_capability(monkeypatch):
         "get_pending_move": MagicMock(return_value={"id": 4}),
         "has_pending_move": MagicMock(return_value=True),
         "create_pending_move": MagicMock(return_value=4),
-        "execute_pending_move": MagicMock(return_value=1),
+        "finalize_pending_move": MagicMock(return_value=4),
     }
     for name, helper in helpers.items():
         monkeypatch.setattr(execution_persistence.order_db, name, helper)
@@ -54,10 +54,19 @@ def test_database_adapter_delegates_cancelled_move_capability(monkeypatch):
         reason="scheduled",
         notes="operator",
     ) == 4
-    assert adapter.complete_pending_move(
+    assert adapter.finalize_pending_move(
+        pending_move_id=4,
         original_parent_client_order_id="original",
         new_parent_client_order_id="replacement",
-    ) == 1
+        product_id="BTC-USD",
+        side="BUY",
+        size=1.0,
+        price=100.0,
+        target_movement=0.01,
+        target_movement_type="P",
+        max_order_replacement=3,
+        status="PENDING",
+    ) == 4
 
     helpers["get_parent_order"].assert_called_once_with(
         "original",
@@ -106,9 +115,18 @@ def test_database_adapter_delegates_cancelled_move_capability(monkeypatch):
         notes="operator",
         db_client=db_client,
     )
-    helpers["execute_pending_move"].assert_called_once_with(
+    helpers["finalize_pending_move"].assert_called_once_with(
+        pending_move_id=4,
         original_parent_client_order_id="original",
         new_parent_client_order_id="replacement",
+        product_id="BTC-USD",
+        side="BUY",
+        size=1.0,
+        price=100.0,
+        target_movement=0.01,
+        target_movement_type="P",
+        max_order_replacement=3,
+        status="PENDING",
         db_client=db_client,
     )
 
@@ -176,12 +194,18 @@ def test_cancelled_move_helpers_honor_explicit_database_client(monkeypatch):
     ) == 6
 
     explicit_client.reset_mock()
-    explicit_client.execute_update.return_value = 1
-    assert order_db.execute_pending_move(
-        "original",
-        "replacement",
+    explicit_client.execute_query.return_value = [{"id": 6}]
+    assert order_db.finalize_pending_move(
+        pending_move_id=6,
+        original_parent_client_order_id="original",
+        new_parent_client_order_id="replacement",
+        product_id="BTC-USD",
+        side="BUY",
+        size=1.0,
+        price=100.0,
+        target_movement=0.01,
         db_client=explicit_client,
-    ) == 1
+    ) == 6
 
     compatibility_client.execute_query.assert_not_called()
     compatibility_client.execute_update.assert_not_called()

@@ -158,7 +158,6 @@ def test_exchange_cancel_replaces_but_project_cancel_suppresses(monkeypatch, sto
     if stopped:
         _stop(order)
     bridge.create_follow_up_stealth_order.return_value = CHILD
-    monkeypatch.setattr("database.order.has_pending_move", lambda *_args: False)
     monkeypatch.setattr("database.order.get_parent_order", lambda *_args: {})
 
     engine.handle_cancelled_order({"client_order_id": PLACEMENT})
@@ -175,7 +174,6 @@ def test_cancel_race_refunds_reserved_replacement_slot(monkeypatch):
     )
     bridge.create_follow_up_stealth_order.side_effect = lambda **_kwargs: _stop(order)
     engine.complete_follow_up_processing = Mock()
-    monkeypatch.setattr("database.order.has_pending_move", lambda *_args: False)
     monkeypatch.setattr("database.order.get_parent_order", lambda *_args: {})
 
     engine.handle_cancelled_order({"client_order_id": PLACEMENT})

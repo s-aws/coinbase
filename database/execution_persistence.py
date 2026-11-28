@@ -130,15 +130,33 @@ class DatabaseOrderPersistenceAdapter:
             db_client=self._db_client,
         )
 
-    def complete_pending_move(
+    def finalize_pending_move(
         self,
         *,
+        pending_move_id: int,
         original_parent_client_order_id: str,
         new_parent_client_order_id: str,
-    ) -> int:
-        return order_db.execute_pending_move(
+        product_id: str,
+        side: str,
+        size: float,
+        price: float,
+        target_movement: float,
+        target_movement_type: str,
+        max_order_replacement: int,
+        status: str,
+    ) -> Optional[int]:
+        return order_db.finalize_pending_move(
+            pending_move_id=pending_move_id,
             original_parent_client_order_id=original_parent_client_order_id,
             new_parent_client_order_id=new_parent_client_order_id,
+            product_id=product_id,
+            side=side,
+            size=size,
+            price=price,
+            target_movement=target_movement,
+            target_movement_type=target_movement_type,
+            max_order_replacement=max_order_replacement,
+            status=status,
             db_client=self._db_client,
         )
 
