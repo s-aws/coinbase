@@ -9,7 +9,9 @@ from unittest.mock import Mock
 
 import pytest
 
+import dashboard_server
 import main
+from business import order_event_stream
 from bridges.stealth_order_bridge import StealthOrderBridge
 from core.enums import (
     EngineState,
@@ -29,12 +31,19 @@ from core.execution_core import (
     RuntimeStatusSnapshot,
     RuntimeTransitionResult,
 )
+from core.execution_ports import (
+    NO_OP_ORDER_PLACEMENT_HOOKS,
+    NO_OP_STEALTH_LIFECYCLE_HOOKS,
+    NO_OP_WEBSOCKET_HOOKS,
+)
 from core.models import StealthMoveResult
+from core.order_engine import OrderEngine
 from core.runtime_controller import (
     INFLIGHT_APPLICATION_COMMAND,
     RuntimeController,
 )
 from core.stealth_order_manager import StealthOrderManager
+from integration.fill_event_hooks import FillEventHookRegistry
 
 
 pytestmark = pytest.mark.regression
@@ -221,6 +230,25 @@ def test_main_composes_one_execution_core_from_existing_owners(
     bridge = Mock(name="stealth_bridge")
     engine = Mock(name="engine")
     engine.profit_validator = object()
+    websocket_hooks = object()
+    fill_event_hooks = object()
+    placement_hooks = object()
+    stealth_lifecycle_hooks = object()
+    projection_sink = object()
+    manager_factory = Mock(
+        name="StealthOrderManager",
+        return_value=manager,
+    )
+    engine_factory = Mock(name="OrderEngine", return_value=engine)
+    projection_sink_factory = Mock(
+        name="DashboardExecutionProjectionSink",
+        return_value=projection_sink,
+    )
+    futures_positions = object()
+    fetch_futures_positions = Mock(
+        name="fetch_futures_positions",
+        return_value=futures_positions,
+    )
     controller = Mock(name="runtime_controller")
     execution_core = object()
     execution_core_factory = Mock(
@@ -248,19 +276,40 @@ def test_main_composes_one_execution_core_from_existing_owners(
     monkeypatch.setattr(
         main,
         "get_global_placement_hook_registry",
-        Mock(return_value=object()),
+        Mock(return_value=placement_hooks),
     )
     monkeypatch.setattr(
         main,
-        "StealthOrderManager",
-        Mock(return_value=manager),
+        "get_global_hook_registry",
+        Mock(return_value=websocket_hooks),
     )
+    monkeypatch.setattr(
+        main,
+        "get_global_fill_event_hook_registry",
+        Mock(return_value=fill_event_hooks),
+    )
+    monkeypatch.setattr(
+        main,
+        "get_global_stealth_lifecycle_hook_registry",
+        Mock(return_value=stealth_lifecycle_hooks),
+    )
+    monkeypatch.setattr(
+        main,
+        "DashboardExecutionProjectionSink",
+        projection_sink_factory,
+    )
+    monkeypatch.setattr(
+        main,
+        "fetch_futures_positions",
+        fetch_futures_positions,
+    )
+    monkeypatch.setattr(main, "StealthOrderManager", manager_factory)
     monkeypatch.setattr(
         main,
         "StealthOrderBridge",
         Mock(return_value=bridge),
     )
-    monkeypatch.setattr(main, "OrderEngine", Mock(return_value=engine))
+    monkeypatch.setattr(main, "OrderEngine", engine_factory)
     monkeypatch.setattr(main, "Subscription", subscription_type)
     monkeypatch.setattr(
         main,
@@ -276,6 +325,36 @@ def test_main_composes_one_execution_core_from_existing_owners(
 
     runtime = main.build_application_runtime(settings)
 
+    projection_sink_factory.assert_called_once_with()
+    manager_factory.assert_called_once_with(
+        db_client,
+        order_placement_hooks=placement_hooks,
+        stealth_lifecycle_hooks=stealth_lifecycle_hooks,
+        rest_client=rest_client,
+        product_metadata_reader=orderbook.get_product_metadata,
+    )
+    engine_factory.assert_called_once()
+    engine_arguments = dict(engine_factory.call_args.kwargs)
+    futures_positions_reader = engine_arguments.pop(
+        "futures_positions_reader"
+    )
+    assert engine_arguments == {
+        "orderbook": orderbook,
+        "db_module": main.order_db,
+        "subscription": subscription,
+        "api_key": "test-key",
+        "api_secret": "test-secret",
+        "order_post_only": True,
+        "stealth_order_bridge": bridge,
+        "websocket_hooks": websocket_hooks,
+        "fill_event_hooks": fill_event_hooks,
+        "order_placement_hooks": placement_hooks,
+        "stealth_lifecycle_hooks": stealth_lifecycle_hooks,
+        "projection_sink": projection_sink,
+        "rest_client": rest_client,
+    }
+    assert futures_positions_reader() is futures_positions
+    fetch_futures_positions.assert_called_once_with(rest_client)
     execution_core_factory.assert_called_once_with(
         runtime_controller=controller,
         stealth_commands=bridge,
@@ -291,6 +370,114 @@ def test_main_composes_one_execution_core_from_existing_owners(
         execution_core=execution_core,
         state_publish_interval_seconds=1.0,
     )
+
+
+def test_dashboard_projection_adapter_uses_existing_publishers(
+    monkeypatch,
+) -> None:
+    update_order = Mock()
+    update_position = Mock()
+    update_status = Mock()
+    add_log = Mock()
+    publish_ticker = Mock()
+    record_spread = Mock()
+    monkeypatch.setattr(dashboard_server, "update_order", update_order)
+    monkeypatch.setattr(dashboard_server, "update_position", update_position)
+    monkeypatch.setattr(dashboard_server, "update_engine_status", update_status)
+    monkeypatch.setattr(dashboard_server, "add_log_entry", add_log)
+    monkeypatch.setattr(dashboard_server, "broadcast_ticker", publish_ticker)
+    monkeypatch.setattr(dashboard_server, "record_spread_tick", record_spread)
+    sink = dashboard_server.DashboardExecutionProjectionSink()
+
+    sink.publish_order_update("client-order", {"status": "OPEN"})
+    sink.publish_position_update("BTC-USD", {"amount": 1.0})
+    sink.publish_engine_status({"running": True})
+    sink.publish_log_entry("INFO", "ready", {"phase": "startup"})
+    sink.publish_ticker("BTC-USD", 100.0, 95.0, "2026-11-27T00:00:00Z")
+    sink.record_spread("BTC-USD", 99.0, 101.0)
+
+    update_order.assert_called_once_with(
+        "client-order",
+        {"status": "OPEN"},
+    )
+    update_position.assert_called_once_with("BTC-USD", {"amount": 1.0})
+    update_status.assert_called_once_with({"running": True})
+    add_log.assert_called_once_with(
+        "INFO",
+        "ready",
+        {"phase": "startup"},
+    )
+    publish_ticker.assert_called_once_with(
+        "BTC-USD",
+        100.0,
+        price_24h=95.0,
+        cb_time="2026-11-27T00:00:00Z",
+    )
+    record_spread.assert_called_once_with("BTC-USD", 99.0, 101.0)
+
+
+def test_event_stream_fill_subscriber_keeps_default_hook_order(
+    monkeypatch,
+) -> None:
+    callback_order: list[str] = []
+
+    class Publisher:
+        enabled = True
+
+        def __init__(self, _db_module):
+            pass
+
+        def set_fee_info_provider(self, _provider):
+            pass
+
+        def register_hook_integrations(
+            self,
+            *,
+            websocket_hooks,
+            fill_event_hooks,
+            order_placement_hooks,
+            stealth_lifecycle_hooks,
+        ):
+            assert websocket_hooks is NO_OP_WEBSOCKET_HOOKS
+            assert order_placement_hooks is NO_OP_ORDER_PLACEMENT_HOOKS
+            assert stealth_lifecycle_hooks is NO_OP_STEALTH_LIFECYCLE_HOOKS
+            fill_event_hooks.register_post_fill(
+                lambda _fill, _trade_id: callback_order.append("audit")
+            )
+
+    monkeypatch.setattr(
+        order_event_stream,
+        "OrderEventStreamPublisher",
+        Publisher,
+    )
+    engine = object.__new__(OrderEngine)
+    engine.db_module = object()
+    engine.fee_manager = SimpleNamespace(get_fee_info=lambda: {})
+    engine.websocket_hooks = NO_OP_WEBSOCKET_HOOKS
+    engine.fill_event_hooks = FillEventHookRegistry()
+    engine.order_placement_hooks = NO_OP_ORDER_PLACEMENT_HOOKS
+    engine.stealth_lifecycle_hooks = NO_OP_STEALTH_LIFECYCLE_HOOKS
+    engine.log_message = lambda _level, message: (
+        callback_order.append("default")
+        if "Fill hook recorded" in message
+        else None
+    )
+
+    engine._register_default_fill_hook()
+    engine._initialize_event_stream_integration()
+    engine.fill_event_hooks.call_post_fill_hooks(
+        {
+            "side": "BUY",
+            "quantity": 1.0,
+            "instrument": "BTC-USD",
+            "price": 100.0,
+            "fees": 0.1,
+            "client_order_id": "client-order",
+        },
+        "trade-id",
+    )
+
+    assert callback_order == ["default", "audit"]
 
 
 def _originating_command_cases():

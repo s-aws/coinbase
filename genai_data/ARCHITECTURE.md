@@ -24,10 +24,13 @@ The runtime is centered on a single `OrderEngine` instance (`core/order_engine.p
 `main.py` is the sole process composition root. `main()` loads the environment
 and product-file settings; `build_application_runtime()` constructs one REST
 adapter, one shared `OrderBook`, the manager/bridge/engine graph, and the
-Execution Core, dashboard, and reconciliation adapters. Consumer modules
-receive narrow REST, metadata, product-resolution, or position readers instead
-of importing live objects from configuration. The composition root also
-installs graceful shutdown hooks. It assumes the database-only
+Execution Core, dashboard, and reconciliation adapters. It resolves the four
+existing hook registries once and injects the same placement and lifecycle
+instances wherever they are consumed. It also installs one synchronous
+dashboard projection sink in `OrderEngine`. Consumer modules receive narrow
+REST, metadata, product-resolution, position, hook, or projection capabilities
+instead of importing concrete adapters or live objects from configuration. The
+composition root also installs graceful shutdown hooks. It assumes the database-only
 `scripts/bootstrap_runtime_database.sh` step (normally composed by
 `scripts/deploy_runtime.sh`) has already run the additive `database.schema`
 implementation successfully and does not run full schema DDL during process
@@ -43,6 +46,15 @@ and revealed-order move. Each uses one atomic
 dashboard is an adapter over those methods. Cancellation, queries, and wind-down
 remain available under their existing non-originating contracts. Lifecycle and
 persistence mutations remain owned by the bridge, manager, and engine.
+
+`core/execution_ports.py` owns the structural contracts for order/position/
+status/log/ticker/spread projections and WebSocket, fill, placement, and
+stealth-lifecycle hooks. `OrderEngine` and `StealthOrderManager` default to
+explicit stateless no-ops only when constructed outside the canonical runtime;
+`main.py` always supplies the production dashboard and registry adapters. The
+default fill logger is registered before the event-stream subscriber, retaining
+the established callback order. Hook exception semantics remain owned by the
+existing registries, including best-effort stealth lifecycle auditing.
 
 ## Runtime Layers
 
@@ -67,7 +79,8 @@ persistence mutations remain owned by the bridge, manager, and engine.
 2. **Domain Layer**
 - `OrderEngine` handles flat parent/child cache hydration, placement-to-execution
   status projection, follow-up creation, partial-fill state, and ownership
-  classification.
+  classification. Runtime/operator publication goes through its injected
+  projection sink rather than a reverse import of `dashboard_server.py`.
 - `StealthOrderManager` handles stealth creation, condition checks, reveal, repricing/rearm, manual Rehide, intentional cancellation, and move-revealed execution.
 
 3. **Persistence Layer**
@@ -112,19 +125,27 @@ modules, new reverse-zone imports, new import cycles, new broad/untyped
 constructor capability surfaces, and new reflection mechanisms that can hide
 those surfaces.
 
-The contract records 23 reverse-zone import edges, no strongly connected
-runtime import component, 35 broad constructor capability surfaces, and seven
-reflection/namespace escape signatures. Item 4 retired the configuration
-edges and former import cycle; the supported operator-surface cleanup retired
-six more import-debt edges and one reflection signature. Remaining exact debt is assigned to
-modular-monolith checklist items 5-8 and is not a package-wide permission for
-additional coupling.
+The contract records 16 reverse-zone import edges, no strongly connected
+runtime import component, 34 broad constructor capability surfaces, and seven
+reflection/namespace escape signatures. Item 4 retired the configuration edges
+and former import cycle; the supported operator-surface cleanup retired six
+more import-debt edges and one reflection signature. Execution Core stage 5.3
+then retired seven execution-to-dashboard/integration imports and one broad
+manager hook capability by introducing narrow injected ports. Remaining exact
+debt is assigned to modular-monolith checklist items 5-8 and is not a
+package-wide permission for additional coupling.
 
 Static inspection cannot prove arbitrary Python aliasing, monkeypatching,
 returned objects, or runtime dispatch. Full component isolation requires the
 narrow protocols/facades and explicit composition planned by later checklist
 items. See `MODULE_DEPENDENCIES.md` for the dependency matrix, debt policy, and
 maintenance procedure.
+
+Projection dispatch remains synchronous. Order, position, and lifecycle status
+publication can occur inside existing engine critical sections, and ticker and
+spread publication occurs under `ticker_lock`. The dashboard sink therefore
+delegates only to bounded in-memory mutation or event-loop scheduling; future
+adapters must not add blocking network or database work at these call sites.
 
 ## Threading Model
 

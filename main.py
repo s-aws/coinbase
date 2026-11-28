@@ -33,6 +33,7 @@ from core.runtime_controller import RuntimeController, get_runtime_controller
 from core.startup_reconciler import run_startup_reconciliation
 from core.stealth_order_manager import StealthOrderManager
 from dashboard_server import (
+    DashboardExecutionProjectionSink,
     add_log_entry,
     configure_runtime_dependencies,
     set_stealth_order_bridge,
@@ -47,6 +48,13 @@ from external.runtime import (
 from integration.order_placement_hooks import (
     get_global_placement_hook_registry,
 )
+from integration.fill_event_hooks import (
+    get_global_fill_event_hook_registry,
+)
+from integration.stealth_lifecycle_hooks import (
+    get_global_stealth_lifecycle_hook_registry,
+)
+from integration.websocket_hooks import get_global_hook_registry
 from logging_service import set_backend
 
 
@@ -209,10 +217,17 @@ def build_application_runtime(settings: RuntimeSettings) -> ApplicationRuntime:
         db_module=db_module,
     )
 
+    websocket_hooks = get_global_hook_registry()
+    fill_event_hooks = get_global_fill_event_hook_registry()
     placement_hooks = get_global_placement_hook_registry()
+    stealth_lifecycle_hooks = (
+        get_global_stealth_lifecycle_hook_registry()
+    )
+    projection_sink = DashboardExecutionProjectionSink()
     stealth_manager = StealthOrderManager(
         db_module.DB_CLIENT,
         order_placement_hooks=placement_hooks,
+        stealth_lifecycle_hooks=stealth_lifecycle_hooks,
         rest_client=rest_client,
         product_metadata_reader=orderbook.get_product_metadata,
     )
@@ -230,6 +245,11 @@ def build_application_runtime(settings: RuntimeSettings) -> ApplicationRuntime:
         api_secret=settings.api_secret,
         order_post_only=settings.order_post_only,
         stealth_order_bridge=stealth_bridge,
+        websocket_hooks=websocket_hooks,
+        fill_event_hooks=fill_event_hooks,
+        order_placement_hooks=placement_hooks,
+        stealth_lifecycle_hooks=stealth_lifecycle_hooks,
+        projection_sink=projection_sink,
         rest_client=rest_client,
         futures_positions_reader=lambda: fetch_futures_positions(rest_client),
     )

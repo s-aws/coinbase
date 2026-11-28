@@ -3,14 +3,14 @@
 | Field | Value |
 |---|---|
 | Status | `IMPLEMENTING` |
-| Operator approval | Accepted 2026-11-26; stages 5.1 and 5.2 approved 2026-11-27; stages 5.3-5.6 require separate approval |
+| Operator approval | Accepted 2026-11-26; stages 5.1-5.3 approved 2026-11-27; stages 5.4-5.6 require separate approval |
 | Checklist or objective | Modular-monolith boundary checklist item 5 |
-| Last evidence review | 2026-11-27, current worktree based on `c84d3b0d` |
-| Implementation | Stages 5.1 and 5.2 implemented and validated; stages 5.3-5.6 not started |
+| Last evidence review | 2026-11-27, current worktree based on `f0b2cf23` |
+| Implementation | Stages 5.1-5.3 implemented and validated; stages 5.4-5.6 not started |
 
 > This spec records the accepted item-5 design. Current behavior is established
 > only by the implementation mapping and tests below. Approval through stage
-> 5.2 does not authorize stages 5.3-5.6.
+> 5.3 does not authorize stages 5.4-5.6.
 
 ## Problem
 
@@ -37,16 +37,17 @@ rules.
   through one manager-owned deep-detachment path; neither result shares nested
   authoritative dictionaries.
 - `OrderEngine` owns exchange event processing, fills, follow-ups, and
-  parent/child execution behavior, while directly importing dashboard
-  publication functions, integration registries, persistence helpers, and the
-  external WebSocket implementation.
+  parent/child execution behavior. Stage 5.3 removes its dashboard and
+  integration-registry imports; persistence helpers and the external WebSocket
+  implementation remain for later stages.
 - `RuntimeController.track_admitted_inflight` provides the atomic
   admission-and-registration boundary. Stage 5.2 routes all six supported
   dashboard-originating strategy commands through it under one application
   command category; the unsupported raw-placement path remains removed.
 - `dashboard_server.py` currently handles 17 supported request types; six are
   classified locally as originating work.
-- `module_boundaries.toml` assigns 15 exact reverse imports to checklist item 5.
+- `module_boundaries.toml` now assigns eight exact reverse imports to checklist
+  item 5, down from 15 before stage 5.3.
 - Constructor changes are broad even when production wiring is small:
   `OrderEngine` construction appears in 22 Python files and
   `StealthOrderManager` construction appears in 31.
@@ -243,6 +244,8 @@ metrics.
 
 ### 5.3 Projection and hook ports
 
+Status: implemented and validated 2026-11-27.
+
 Inject a typed execution projection sink and explicit hook capabilities into
 `OrderEngine` and the manager. Compose dashboard and no-op adapters in `main.py`.
 Preserve callback ordering and current best-effort audit behavior.
@@ -325,7 +328,7 @@ stage may return the spec to review rather than silently widening its scope.
 
 ## Implementation Mapping
 
-Stages 5.1 and 5.2 are mapped as follows:
+Stages 5.1 through 5.3 are mapped as follows:
 
 - `core/execution_core.py::ExecutionCore` owns the narrow transport-neutral
   shell. It exposes typed runtime status and transition results plus an
@@ -371,6 +374,35 @@ Stage 5.2 adds:
 No lifecycle state machine, database schema, exchange adapter, worker admission
 guard, or item-5 reverse-import debt entry changes in stage 5.2.
 
+Stage 5.3 adds:
+
+- `core/execution_ports.py` defines consumer-owned structural protocols for the
+  execution projection sink and WebSocket, fill, placement, and stealth
+  lifecycle hook capabilities. Stateless no-op implementations support
+  deliberately isolated construction without service-locator fallback.
+- `main.py::build_application_runtime` is the sole production lookup and
+  composition point. It resolves the four existing registries once, shares the
+  placement and lifecycle instances between manager and engine, and injects one
+  `DashboardExecutionProjectionSink`.
+- `OrderEngine` publishes orders, positions, engine status, logs, ticker, and
+  spread through the injected sink. It registers its default fill logger before
+  the existing event-stream subscriber, preserving callback order and registry
+  failure semantics.
+- `StealthOrderManager` dispatches placement and best-effort lifecycle audit
+  callbacks through injected capabilities. Existing registry implementations
+  and the event-stream subscriber remain unchanged.
+- The dashboard adapter delegates to the six established publisher functions;
+  it creates no parallel state or serialization path. Calls remain synchronous
+  and bounded because some engine call sites hold lifecycle or ticker locks.
+- The executable boundary baseline removes exactly seven item-5 reverse imports
+  and one broad constructor capability. The resulting frozen totals are 16
+  reverse imports, zero runtime import cycles, 34 broad capabilities, and seven
+  reflection signatures.
+
+No persistence port, WebSocket factory, hook-registry redesign, audit-durability
+change, callback scheduling change, or operator wire-contract change is part of
+stage 5.3.
+
 Validation: the complete local non-external gate passed 1,883 tests with 17
 skipped and 11 external tests deselected. Repository-graph build/check passed
 with 468 files, 7,590 symbols, 1,568 indexed tests, 183 semantic records, no
@@ -379,6 +411,12 @@ parse findings, no fatal errors, and no check mismatches.
 Stage 5.2 validation: the complete local non-external gate passed 1,842 tests
 with 17 skipped and 11 external tests deselected. Graph evidence is reconciled
 in the stage closeout change.
+
+Stage 5.3 validation: Python compilation and the executable source-only
+boundary audit passed. The complete local non-external gate passed 1,895 tests
+with 17 skipped and 11 external tests deselected. Repository-graph build/check
+reported 461 files, 8,693 symbols, 1,542 indexed tests, and 186 semantic records
+with no parse findings, fatal errors, or mismatches.
 
 Relevant current navigation:
 

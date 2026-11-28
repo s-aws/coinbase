@@ -10,6 +10,7 @@ from types import SimpleNamespace
 import core.order_engine as order_engine_module
 from business.event_processor import EventProcessor
 from core.enums import ChannelType, TickerPublicationDisposition
+from core.execution_ports import NO_OP_EXECUTION_PROJECTION_SINK
 from core.order_engine import OrderEngine
 
 
@@ -24,6 +25,7 @@ def _bare_ingress_engine(*, queue_size: int) -> OrderEngine:
         lambda event, **details: {"event": event, **details}
     )
     engine.include_debug_fields = lambda **fields: fields
+    engine.projection_sink = NO_OP_EXECUTION_PROJECTION_SINK
     return engine
 
 
@@ -323,15 +325,9 @@ def test_ticker_worker_publishes_resets_before_retained_tick_and_forwards_time(
 
     engine.stealth_order_bridge = RecordingStealthBridge()
 
-    monkeypatch.setattr(
-        order_engine_module,
-        "broadcast_ticker",
-        lambda *_args, **_kwargs: None,
-    )
-    monkeypatch.setattr(
-        order_engine_module,
-        "record_spread_tick",
-        lambda *_args, **_kwargs: None,
+    engine.projection_sink = SimpleNamespace(
+        publish_ticker=lambda *_args, **_kwargs: None,
+        record_spread=lambda *_args, **_kwargs: None,
     )
     monkeypatch.setattr(
         order_engine_module,
@@ -439,17 +435,13 @@ def test_ticker_worker_suppresses_only_stale_product_side_effects(monkeypatch):
         )
     )
 
-    monkeypatch.setattr(
-        order_engine_module,
-        "broadcast_ticker",
-        lambda *args, **kwargs: side_effects.append(
+    engine.projection_sink = SimpleNamespace(
+        publish_ticker=lambda *args, **kwargs: side_effects.append(
             ("dashboard", args, kwargs)
         ),
-    )
-    monkeypatch.setattr(
-        order_engine_module,
-        "record_spread_tick",
-        lambda *args, **_kwargs: side_effects.append(("spread", args)),
+        record_spread=lambda *args, **_kwargs: side_effects.append(
+            ("spread", args)
+        ),
     )
     monkeypatch.setattr(
         order_engine_module,

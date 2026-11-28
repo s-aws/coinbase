@@ -69,6 +69,8 @@ test cases unless the user explicitly requests them.
 - atomic Execution Core admission for all six operator-originated strategy
   commands, including transition-wins, admitted-work-finishes, drain wait, and
   exception-release cases
+- projection/hook port composition, established dashboard publisher delegation,
+  and default-fill-before-event-stream callback ordering
 - operator JSON-RPC framing and method-specific validation, exact method and
   dispatch inventory, closed result contracts for all methods, fail-closed
   malformed/invalid-format producer results, fixed-vocabulary parity,

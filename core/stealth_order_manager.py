@@ -98,6 +98,12 @@ from core.exceptions import (
     StealthOrderNotFoundError,
     StealthOrderPersistenceError,
 )
+from core.execution_ports import (
+    NO_OP_ORDER_PLACEMENT_HOOKS,
+    NO_OP_STEALTH_LIFECYCLE_HOOKS,
+    OrderPlacementHooks,
+    StealthLifecycleHooks,
+)
 from business.stealth_condition_evaluator import get_evaluator
 from core.models import MarketData, PendingRearmState, RepricingPolicy, RepricingState
 from core.runtime_controller import INFLIGHT_REST_PLACE, get_runtime_controller
@@ -252,7 +258,8 @@ class StealthOrderManager:
         self,
         db_client,
         log_callback=None,
-        order_placement_hooks=None,
+        order_placement_hooks: Optional[OrderPlacementHooks] = None,
+        stealth_lifecycle_hooks: Optional[StealthLifecycleHooks] = None,
         profit_validator=None,
         rest_client: Optional[StealthRestClient] = None,
         product_metadata_reader: Optional[
@@ -265,7 +272,8 @@ class StealthOrderManager:
         Args:
             db_client: Database client for persistence
             log_callback: Optional logging callback (log_type, message). Defaults to proper logging_service.
-            order_placement_hooks: Optional OrderPlacementHookRegistry for pre/post submission hooks.
+            order_placement_hooks: Ordered pre/post submission hooks.
+            stealth_lifecycle_hooks: Best-effort lifecycle audit hooks.
             profit_validator: Optional ProfitValidator for reveal-time profitability revalidation.
         """
         self.db_client = db_client
@@ -301,11 +309,19 @@ class StealthOrderManager:
         # emitted log line. See ``_maybe_log_no_slice``.
         self._no_slice_log_emitted_at: Dict[str, float] = {}
         
-        # Order placement hooks for extensibility
-        if order_placement_hooks is None:
-            from integration.order_placement_hooks import get_global_placement_hook_registry
-            order_placement_hooks = get_global_placement_hook_registry()
-        self.order_placement_hooks = order_placement_hooks
+        # The canonical runtime injects both adapters from ``main.py``.
+        # Isolated managers default to explicit no-op capabilities without
+        # reaching into process-global integration state.
+        self.order_placement_hooks = (
+            order_placement_hooks
+            if order_placement_hooks is not None
+            else NO_OP_ORDER_PLACEMENT_HOOKS
+        )
+        self.stealth_lifecycle_hooks = (
+            stealth_lifecycle_hooks
+            if stealth_lifecycle_hooks is not None
+            else NO_OP_STEALTH_LIFECYCLE_HOOKS
+        )
 
         # Mutation claim ledger.  Serialises in-flight mutations against
         # a single stealth order so the manual "move REVEALED" path and
@@ -4731,18 +4747,16 @@ class StealthOrderManager:
         order_data: Dict[str, Any],
         extra: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """Fire StealthLifecycleEvent hooks via the global StealthLifecycleHookRegistry.
+        """Fire one event through the injected lifecycle-hook capability.
 
         Builds the standard context dict from ``order_data`` and optional ``extra``
-        overrides, then calls the global registry. Exceptions are caught and logged
-        so that a misbehaving subscriber never disrupts the evaluation loop.
+        overrides. Exceptions are caught and logged so that a misbehaving
+        subscriber never disrupts the evaluation loop.
 
         Context keys populated:
             product_id, side, product_type (normalized), size, total_size,
             limit_price, reason, parent_order_id, timestamp, placed_order_id,
             failure_reason — all sourced from order_data or extra.
-
-        This method uses a lazy import to avoid circular imports at module load time.
 
         Args:
             stealth_order_id: UUID of the stealth order.
@@ -4752,9 +4766,6 @@ class StealthOrderManager:
         """
         try:
             from calculation.resolver import normalize_product_type
-            from integration.stealth_lifecycle_hooks import (
-                get_global_stealth_lifecycle_hook_registry,
-            )
             market_data = self._get_current_market_data(order_data.get("product_id", ""))
             market_bid = market_data.get("bid")
             market_ask = market_data.get("ask")
@@ -4796,7 +4807,7 @@ class StealthOrderManager:
             if extra:
                 context.update(extra)
 
-            get_global_stealth_lifecycle_hook_registry().call_on_transition(
+            self.stealth_lifecycle_hooks.call_on_transition(
                 stealth_order_id=stealth_order_id,
                 event=event,
                 context=context,

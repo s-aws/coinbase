@@ -3,8 +3,15 @@
 ## Status
 
 - Last updated (ET): 2026-11-27.
-- Current committed baseline: local `prod` and `origin/prod` are at `f6c9c05b`.
-  The Stage 2A work described below is the active uncommitted change.
+- Current committed baseline: local `prod` and `origin/prod` are at `f0b2cf23`.
+  The completed Execution Core stage 5.3 is the current uncommitted change.
+- Completed implementation objective: Execution Core stage 5.3. Typed
+  projection and hook ports are injected into the engine and manager;
+  `main.py` composes the existing dashboard publishers and registry
+  implementations; callback order and failure policy are preserved; and the
+  exact boundary debt is reduced from 23/35/7 to 16/34/7.
+- No later Execution Core stage is active. Stage 5.4 requires its own focused
+  source/test search, blast-radius discussion, and operator approval.
 - Completed implementation objective: Operator Console stages 1 and 2A. The
   server, both retained HTML clients, and runtime healthcheck use one strict
   versioned JSON-RPC contract with explicit dispatch, correlation, named
@@ -75,7 +82,7 @@
 
 ## Modular Monolith Boundary Checklist
 
-Items 1 through 4 are complete. Item 5 stages 5.1-5.2 are approved and
+Items 1 through 4 are complete. Item 5 stages 5.1-5.3 are approved and
 implemented; later stages still require a focused source/test search,
 blast-radius evaluation, context discussion, and separate operator approval
 before code changes.
@@ -89,21 +96,26 @@ before code changes.
    validated.
 4. Make `main.py` the sole explicit composition root and make configuration
    imports passive: complete and validated. After the approved operator-surface
-   cleanup, the source-only contract freezes 23 reverse-zone import edges, no
-   runtime import cycle, 35 broad/untyped constructor capability surfaces, and seven
-   reflection/namespace escape signatures. It explicitly does not claim to
+   cleanup, the source-only contract froze 23 reverse-zone import edges, no
+   runtime import cycle, 35 broad/untyped constructor capability surfaces, and
+   seven reflection/namespace escape signatures. Stage 5.3 subsequently
+   reduces those totals to 16/34/7. The contract explicitly does not claim to
    prove arbitrary runtime aliases or dynamic dispatch.
 5. Add an Execution Core command/query facade while retaining lifecycle and
    transactional writes under one owner. The reviewed proposal and staged blast
    radius are recorded in `design_specs/EXECUTION_CORE.md`; its status is
-   `IMPLEMENTING`. Stages 5.1-5.2 are complete and validated: the typed facade
+   `IMPLEMENTING`. Stages 5.1-5.3 are complete and validated: the typed facade
    exposes runtime status/pause/resume, detached active-order queries, and six
    explicit originating commands. `main.py` composes and installs the one
    facade; every originating command uses one atomic
    `application_command` registration, while cancellation/query/wind-down and
    autonomous worker guards retain their existing contracts. Ordinary placement
    remains managed limit-only with immediate reveal for conventional timing.
-   Other exchange order types remain deferred. The dormant
+   Stage 5.3 also makes `main.py` the sole production composition point for the
+   existing projection and hook adapters; execution owners consume narrow typed
+   capabilities and use explicit no-ops only when isolated. Callback order,
+   failure policy, lifecycle ownership, and best-effort audit delivery are
+   unchanged. Other exchange order types remain deferred. The dormant
    `ConditionalExecutionWrapper` and its exclusive persistence surface will be
    removed rather than ported in its later approved stage.
 6. Extract public market-data ownership into an in-process component.
@@ -165,6 +177,14 @@ before code changes.
   `git diff --check` passed. Repository-graph build/check reported 454 files,
   7,347 symbols, 1,515 indexed tests, 181 semantic records, no parse findings,
   no fatal errors, and no mismatches.
+- Execution Core stage 5.3 replaces seven execution-to-dashboard/integration
+  imports with typed injected projection and hook capabilities and removes one
+  broad constructor dependency. Python compilation and the source-only boundary
+  audit passed at 16 reverse imports, zero cycles, 34 broad capabilities, and
+  seven reflection signatures. The complete local non-external gate passed
+  1,895 tests with 17 skipped and 11 external tests deselected. Repository-
+  graph build/check reported 461 files, 8,693 symbols, 1,542 indexed tests, and
+  186 semantic records with no parse findings, fatal errors, or mismatches.
 - Operator Console stage 1 replaced the ad-hoc dashboard wire variants with one
   strict JSON-RPC 2.0 contract, migrated both retained pages and the runtime
   healthcheck, and added a committed method/backup schema. The complete local

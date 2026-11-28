@@ -2272,6 +2272,63 @@ def record_spread_tick(product_id: str, bid: float, ask: float):
         data['sample_count'] += 1
 
 
+class DashboardExecutionProjectionSink:
+    """Execution projection adapter over the existing dashboard publishers.
+
+    Every method stays synchronous and bounded: state publishers mutate the
+    existing protected projection and ticker delivery only schedules work on
+    the dashboard event loop.  ``OrderEngine`` may call these methods while
+    holding its own short lifecycle or ticker locks.
+    """
+
+    def publish_order_update(
+        self,
+        client_order_id: str,
+        order_data: Dict[str, Any],
+    ) -> None:
+        update_order(client_order_id, order_data)
+
+    def publish_position_update(
+        self,
+        product_id: str,
+        position_data: Dict[str, Any],
+    ) -> None:
+        update_position(product_id, position_data)
+
+    def publish_engine_status(self, status_data: Dict[str, Any]) -> None:
+        update_engine_status(status_data)
+
+    def publish_log_entry(
+        self,
+        level: str,
+        message: str,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        add_log_entry(level, message, context)
+
+    def publish_ticker(
+        self,
+        product_id: str,
+        price: float,
+        price_24h: Optional[float] = None,
+        cb_time: Any = None,
+    ) -> None:
+        broadcast_ticker(
+            product_id,
+            price,
+            price_24h=price_24h,
+            cb_time=cb_time,
+        )
+
+    def record_spread(
+        self,
+        product_id: str,
+        bid: float,
+        ask: float,
+    ) -> None:
+        record_spread_tick(product_id, bid, ask)
+
+
 def _take_spread_snapshot() -> list:
     """Return and reset the current spread window in bounded memory."""
 

@@ -69,6 +69,9 @@ Examples include:
 - all six Execution Core originating commands under deterministic pause and
   shutdown interleavings, application in-flight drain accounting, exception
   cleanup, and the non-nested Rehide guard
+- canonical composition of one shared set of projection/hook adapters,
+  dashboard projection delegation, and preserved default-fill/event-stream
+  callback order
 - stop races across fee refresh legs, sampled dashboard status publication,
   websocket ownership, and retryable engine cleanup
 - authenticated user-channel topology, connection-generation sequence fencing,

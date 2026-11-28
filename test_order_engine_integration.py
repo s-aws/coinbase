@@ -60,9 +60,11 @@ def test_order_engine_with_lot_tracking():
             print("âœ— OrderEngine missing fill_repo attribute")
             return False
         
-        # Test that the fill recording hook is available
-        from core.order_engine import LOT_TRACKING_AVAILABLE, post_fill_hook_on_order_filled
-        print(f"âœ“ Lot tracking module available: {LOT_TRACKING_AVAILABLE}")
+        # Test that the explicitly composed fill-hook capability is available.
+        print(
+            "âœ“ Fill hook capability available: "
+            f"{type(engine.fill_event_hooks).__name__}"
+        )
         
         print("\n" + "="*80)
         print("âœ… ORDERENGINE LOT TRACKING INTEGRATION TEST PASSED")

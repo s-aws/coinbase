@@ -75,7 +75,7 @@ def check_tables():
         except Exception as e:
             pass
 
-    # Check LOT_TRACKING_AVAILABLE
+    # Check the explicitly composed lot-tracking dependencies.
     print("\n" + "="*60)
     print("LOT TRACKING INITIALIZATION STATUS")
     print("="*60)
@@ -93,11 +93,10 @@ def check_tables():
         print(f"✗ fill_event_hooks: {e}")
 
     try:
-        from core.order_engine import LOT_TRACKING_AVAILABLE
-        status = "ENABLED" if LOT_TRACKING_AVAILABLE else "DISABLED"
-        print(f"✓ OrderEngine LOT_TRACKING_AVAILABLE: {status}")
+        from core.execution_ports import FillEventHooks
+        print(f"✓ OrderEngine fill-hook port imports OK: {FillEventHooks.__name__}")
     except Exception as e:
-        print(f"✗ Could not check LOT_TRACKING_AVAILABLE: {e}")
+        print(f"✗ Could not import the OrderEngine fill-hook port: {e}")
 
     db.disconnect()
     print("\n" + "="*60)

@@ -32,6 +32,7 @@ def _bare_order_engine() -> main.OrderEngine:
     engine._hotpoint_decay_sweeper = None
     engine.event_executor = Mock(name="event_executor")
     engine.fee_manager = None
+    engine.projection_sink = Mock(name="projection_sink")
     engine.subscription = type(
         "Subscription",
         (),
@@ -695,10 +696,8 @@ def test_global_shutdown_quiesces_engine_before_blocked_bridge_cleanup(
         "get_runtime_controller",
         lambda: controller,
     )
-    monkeypatch.setattr(
-        order_engine_module,
-        "update_engine_status",
-        lambda payload: published_statuses.append(dict(payload)),
+    engine.projection_sink.publish_engine_status.side_effect = (
+        lambda payload: published_statuses.append(dict(payload))
     )
 
     drainer = threading.Thread(
@@ -750,10 +749,8 @@ def test_running_shutdown_preserves_engine_workers_until_bridge_stops(
         "get_runtime_controller",
         lambda: controller,
     )
-    monkeypatch.setattr(
-        order_engine_module,
-        "update_engine_status",
-        lambda payload: published_statuses.append(dict(payload)),
+    engine.projection_sink.publish_engine_status.side_effect = (
+        lambda payload: published_statuses.append(dict(payload))
     )
 
     drainer = threading.Thread(
@@ -822,10 +819,8 @@ def test_engine_status_is_non_running_until_runtime_readiness(
         "get_runtime_controller",
         lambda: controller,
     )
-    monkeypatch.setattr(
-        order_engine_module,
-        "update_engine_status",
-        lambda payload: published.append(dict(payload)),
+    engine.projection_sink.publish_engine_status.side_effect = (
+        lambda payload: published.append(dict(payload))
     )
 
     engine._publish_engine_status(event_queue_depth=0)
@@ -883,12 +878,8 @@ def test_run_forever_readiness_publishes_operational_status_once(
         "get_runtime_controller",
         lambda: controller,
     )
-    monkeypatch.setattr(
-        order_engine_module,
-        "update_engine_status",
-        update_status,
-    )
-    monkeypatch.setattr(order_engine_module, "add_log_entry", add_log)
+    engine.projection_sink.publish_engine_status.side_effect = update_status
+    engine.projection_sink.publish_log_entry.side_effect = add_log
 
     runner = threading.Thread(
         target=lambda: engine.run_forever(
@@ -948,10 +939,8 @@ def test_stop_cannot_be_overwritten_by_stale_monitor_status(
         "get_runtime_controller",
         lambda: controller,
     )
-    monkeypatch.setattr(
-        order_engine_module,
-        "update_engine_status",
-        lambda payload: published.append(dict(payload)),
+    engine.projection_sink.publish_engine_status.side_effect = (
+        lambda payload: published.append(dict(payload))
     )
 
     monitor = threading.Thread(
@@ -984,8 +973,6 @@ def test_order_engine_stop_retries_component_cleanup(monkeypatch) -> None:
         "get_runtime_controller",
         lambda: controller,
     )
-    monkeypatch.setattr(order_engine_module, "update_engine_status", Mock())
-
     engine.stop()
     engine.stop()
 
@@ -1036,8 +1023,6 @@ def test_order_engine_stop_during_fee_refresh_prevents_websocket_start(
     engine._start_owned_thread = record_start
     monkeypatch.setattr(order_engine_module, "MARKET_TICK_RECORDER_AVAILABLE", False)
     monkeypatch.setattr(order_engine_module, "MARKET_METRICS_AVAILABLE", False)
-    monkeypatch.setattr(order_engine_module, "update_engine_status", Mock())
-    monkeypatch.setattr(order_engine_module, "add_log_entry", Mock())
     readiness = Mock(name="readiness")
     startup_errors = []
 
@@ -1104,8 +1089,6 @@ def test_shutdown_after_fee_worker_commit_skips_initial_fee_rest(
         False,
     )
     monkeypatch.setattr(order_engine_module, "MARKET_METRICS_AVAILABLE", False)
-    monkeypatch.setattr(order_engine_module, "update_engine_status", Mock())
-
     with pytest.raises(RuntimeError, match="before initial fee refresh"):
         engine.start_background_threads()
 

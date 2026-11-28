@@ -705,7 +705,7 @@ class TestRevealAuditExchangeOrderId:
 class TestLifecycleContextMarketFields:
     """Ensure lifecycle dispatch context includes current market fields."""
 
-    def test_dispatch_lifecycle_event_includes_market_fields(self, monkeypatch):
+    def test_dispatch_lifecycle_event_includes_market_fields(self):
         manager = _manager()
         captured = {}
 
@@ -715,10 +715,7 @@ class TestLifecycleContextMarketFields:
                 captured["event"] = event
                 captured["context"] = context
 
-        monkeypatch.setattr(
-            "integration.stealth_lifecycle_hooks.get_global_stealth_lifecycle_hook_registry",
-            lambda: FakeRegistry(),
-        )
+        manager.stealth_lifecycle_hooks = FakeRegistry()
 
         manager._market_cache["BIP-20DEC30-CDE"] = {
             "product_id": "BIP-20DEC30-CDE",

@@ -1,6 +1,6 @@
 # Modules Reference
 
-Reconciled with the `prod` checkout on 2026-11-26. Current source and tests
+Reconciled with the `prod` checkout on 2026-11-27. Current source and tests
 remain the evidence for runtime behavior.
 
 This file maps current code ownership by module.
@@ -20,6 +20,7 @@ Use it to find the single canonical behavior path before editing.
   `scripts/bootstrap_runtime_database.sh`
 - Runtime schema/fresh-state/reset orchestration: `database/schema.py`
 - Dashboard request handlers/state broadcast: `dashboard_server.py`
+- Execution projection and hook capability contracts: `core/execution_ports.py`
 - Fill ledger + reconciliation: `business/fill_ledger.py`, `business/fill_reconciler.py`
 - Per-snapshot fill progress deltas: `business/order_progress.py`
 - Size/profit/price calculation helpers: `calculation/*`
@@ -52,6 +53,8 @@ Bootstraps:
 - one shared `core.orderbook.OrderBook` product/position/runtime-state owner
 - explicit REST, metadata, product-resolution, and position readers for
   execution, dashboard, and reconciliation consumers
+- one dashboard execution projection sink and the shared WebSocket, fill,
+  placement, and stealth-lifecycle hook registries
 - initial non-admitting runtime state and default-on startup-pause latch
 - stealth bridge
 - order engine
@@ -84,6 +87,9 @@ It is an embedded transport, not a process composition root: `main.py`
 installs the shared `OrderBook`, publish interval, `ExecutionCore`, and stealth
 bridge. Six originating methods are parsed into typed facade commands;
 the transport does not perform its former check-then-act admission precheck.
+`DashboardExecutionProjectionSink` also adapts the six established order,
+position, engine-status, log, ticker, and spread publishers to the narrow
+execution port; it adds no second projection path.
 Direct
 script execution exits with canonical
 entrypoint guidance. `main()` owns environment resolution and passes the host
@@ -131,7 +137,8 @@ Responsibilities:
 - follow-up creation (filled/cancelled and partial-fill paths)
 - fill progress delta ingestion and persistence fan-out
 - ownership classification (`local`, `external`, `unknown`)
-- dashboard status/ticker/log broadcasts
+- order/position/status/log/ticker/spread publication through an injected
+  projection sink
 - atomic RuntimeController admission for worker-originated hotpoint placement
 - one-shot DB/REST preparation outside the lifecycle lock, bounded worker
   publication serialized against cooperative stop, and partial-start cleanup
@@ -142,6 +149,18 @@ Responsibilities:
   handlers, plus order/position failure isolation inside mixed user events
 - startup-conditional early drain quiesce, preserving fully started fill/event
   workers until stealth bridge shutdown precedes full engine cleanup
+
+The engine receives WebSocket, fill, placement, and stealth-lifecycle hook
+capabilities explicitly. A deliberately isolated constructor gets stateless
+no-ops; the supported `main.py` runtime injects the existing shared registries.
+The engine no longer imports the dashboard or integration registry modules.
+
+### `core/execution_ports.py`
+Consumer-owned structural protocols for the projection sink and four hook
+capabilities used by execution owners. It also provides stateless no-op
+implementations for headless tests or deliberately isolated embedding. These
+ports define only the member surface and do not change callback ordering,
+locking, persistence, or exception policy.
 
 ### `core/user_feed_processor.py`
 Instance-owned authenticated WebSocket pipeline.
@@ -165,7 +184,8 @@ Responsibilities:
 - same-order zero-fill rearm for revealed repricing and manual Rehide
 - durable operator stop and exchange withdrawal confirmation
 - move-revealed cancel-and-replace flow
-- lifecycle hook dispatch and audit writes
+- lifecycle hook dispatch through an injected best-effort capability and audit
+  writes owned by the existing subscriber
 - authoritative condition state transitions, including continuous price/spread
   hold reset and every condition type's `PENDING`/`TRIGGERED` commitment, with
   rollback/pause before lifecycle publication if a transition cannot be
@@ -404,6 +424,10 @@ Correlated `v1.runtime.status` poller used by deployment. A healthy result requi
 - `integration/stealth_lifecycle_hooks.py`: synchronous, fail-soft delivery to
   the best-effort stealth lifecycle audit subscriber. It is not an order store
   or a general execution-interception framework.
+
+`main.py` is the only production lookup point for these process-global
+registries. It injects their narrow capabilities into the manager and engine;
+execution modules do not resolve the singletons themselves.
 
 ## `market_intel/` (Cross-Venue Intelligence)
 

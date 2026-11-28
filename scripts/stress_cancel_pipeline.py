@@ -192,6 +192,7 @@ def build_pipeline_engine(
         max_workers=max_workers,
         queue_maxsize=queue_maxsize,
         websocket_hooks=WebSocketHookRegistry(),
+        projection_sink=dashboard_server.DashboardExecutionProjectionSink(),
     )
     engine.logging_flags = {key: False for key in engine.logging_flags}
     return engine, pipeline_orderbook

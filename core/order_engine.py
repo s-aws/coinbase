@@ -10,8 +10,8 @@ Current feature set:
 - Parent-child lifecycle management with flat hierarchy semantics.
 - Follow-up generation for FILLED/CANCELLED flows using target movement rules.
 - Stealth order integration via StealthOrderBridge and reveal-linked fills.
-- Optional lot tracking via post-fill hooks.
-- Optional dashboard broadcasting for orders, positions, ticker, and logs.
+- Optional lot tracking via injected post-fill hooks.
+- Injected projections for orders, positions, ticker, status, and logs.
 
 Critical ID semantics:
 - Use client_order_id for all internal tracking and parent-child linkage.
@@ -39,11 +39,10 @@ Example: initialize and run
 ``main.py`` owns reconciliation and readiness publication; production startup
 must run through that entry point rather than calling ``run_forever`` bare.
 
-Example: register a custom fill hook
-    >>> def my_fill_hook(fill_context: dict) -> None:
-    ...     return
-    >>> if engine.fill_event_hooks:
-    ...     engine.fill_event_hooks.register('my_fill_hook', my_fill_hook)
+Example: inject and register a custom fill hook
+    A composition root may register ``my_fill_hook`` on its concrete fill-hook
+    adapter, then pass that adapter as ``fill_event_hooks`` when constructing
+    ``OrderEngine``. The engine depends only on the structural capability.
 
 Example: resolve parent linkage
     >>> is_parent, parent_id = engine.resolve_parent_client_order_id(
@@ -119,8 +118,18 @@ from calculation.resolver import (
 from calculation.formatter import safe_float
 from bridges.event_bridge import EventBridge
 from business.order_progress import OrderProgressTracker, OrderSnapshotDelta
-from integration.websocket_hooks import WebSocketHookRegistry, get_global_hook_registry
-from integration.order_placement_hooks import get_global_placement_hook_registry
+from core.execution_ports import (
+    ExecutionProjectionSink,
+    FillEventHooks,
+    NO_OP_EXECUTION_PROJECTION_SINK,
+    NO_OP_FILL_EVENT_HOOKS,
+    NO_OP_ORDER_PLACEMENT_HOOKS,
+    NO_OP_STEALTH_LIFECYCLE_HOOKS,
+    NO_OP_WEBSOCKET_HOOKS,
+    OrderPlacementHooks,
+    StealthLifecycleHooks,
+    WebSocketHooks,
+)
 from core.user_feed_processor import (
     LIVE_USER_ORDER_REQUIRED_FIELDS as _LIVE_USER_ORDER_REQUIRED_FIELDS,
     PRIVATE_CHANNELS as _PRIVATE_CHANNELS,
@@ -149,19 +158,6 @@ class OrderEngineRestClient(Protocol):
     def limit_order_gtc(self, **kwargs) -> Any: ...
 
 
-# Dashboard integration (optional - will fail gracefully if dashboard_server not available)
-try:
-    from dashboard_server import update_order, update_position, add_log_entry, update_engine_status, broadcast_ticker, record_spread_tick
-    DASHBOARD_AVAILABLE = True
-except ImportError:
-    DASHBOARD_AVAILABLE = False
-    def update_order(*args, **kwargs): pass
-    def update_position(*args, **kwargs): pass
-    def add_log_entry(*args, **kwargs): pass
-    def update_engine_status(*args, **kwargs): pass
-    def broadcast_ticker(*args, **kwargs): pass
-    def record_spread_tick(*args, **kwargs): pass
-
 # Market-tick persistence (optional - degrades to no-op if module fails to
 # import, e.g. in DB-less smoke tests). Retained for durable market analysis.
 # See business/market_tick_recorder.py.
@@ -189,19 +185,6 @@ except ImportError:
     MARKET_METRICS_AVAILABLE = False
     def _get_market_metrics_tracker(): return None
 
-# Lot tracking integration (optional - will fail gracefully if not available).
-# Note: production fills flow through OrderProgressTracker ->
-# FillLedgerRepository.append_derived_fill(delta); the legacy
-# post_fill_hook.on_order_filled helper is retained only for offline
-# backfill scripts and is no longer imported here.
-try:
-    from integration.fill_event_hooks import get_global_fill_event_hook_registry
-    LOT_TRACKING_AVAILABLE = True
-except ImportError:
-    LOT_TRACKING_AVAILABLE = False
-    def get_global_fill_event_hook_registry(): return None
-
-
 class OrderEngine:
     """Multithreaded trading engine for Coinbase Advanced API order management.
     
@@ -228,8 +211,8 @@ class OrderEngine:
         debug_logging_enabled: Whether to include debug fields in logs.
         evt_bridge: EventBridge instance for event deduplication and bucket rotation.
         websocket_events: Event type schemas (internal reference).
-        websocket_hooks: Registry for WebSocket extension hooks.
-        fill_event_hooks: Registry for post-fill extension hooks.
+        websocket_hooks: Injected WebSocket extension capability.
+        fill_event_hooks: Injected post-fill extension capability.
     
     Example:
         >>> from core.order_engine import OrderEngine
@@ -275,7 +258,11 @@ class OrderEngine:
         max_seen_event_buckets=3,
         queue_maxsize=10000,
         stealth_order_bridge=None,
-        websocket_hooks=None,
+        websocket_hooks: Optional[WebSocketHooks] = None,
+        fill_event_hooks: Optional[FillEventHooks] = None,
+        order_placement_hooks: Optional[OrderPlacementHooks] = None,
+        stealth_lifecycle_hooks: Optional[StealthLifecycleHooks] = None,
+        projection_sink: Optional[ExecutionProjectionSink] = None,
         rest_client: Optional[OrderEngineRestClient] = None,
         futures_positions_reader: Optional[Callable[[], Dict[str, dict]]] = None,
     ) -> None:
@@ -294,7 +281,11 @@ class OrderEngine:
             max_seen_event_buckets: Number of dedup buckets (default 3).
             queue_maxsize: Max size for event queues (default 10000).
             stealth_order_bridge: Optional StealthOrderBridge for market data updates.
-            websocket_hooks: Optional WebSocketHookRegistry for extensibility (default: global registry).
+            websocket_hooks: Ordered WebSocket normalization/status hooks.
+            fill_event_hooks: Ordered fill-ledger hooks.
+            order_placement_hooks: Ordered exchange-submission hooks.
+            stealth_lifecycle_hooks: Best-effort lifecycle audit hooks.
+            projection_sink: Bounded runtime/operator projection adapter.
         """
         self.orderbook = orderbook
         self.db_module = db_module
@@ -306,8 +297,34 @@ class OrderEngine:
         self.rest_client = rest_client
         self._futures_positions_reader = futures_positions_reader
         
-        # WebSocket hook registry for extensible message handling
-        self.websocket_hooks = websocket_hooks or get_global_hook_registry()
+        # The canonical runtime injects concrete adapters from ``main.py``.
+        # No-op ports keep isolated construction deterministic without
+        # importing operator or integration modules back into the engine.
+        self.websocket_hooks = (
+            websocket_hooks
+            if websocket_hooks is not None
+            else NO_OP_WEBSOCKET_HOOKS
+        )
+        self.fill_event_hooks = (
+            fill_event_hooks
+            if fill_event_hooks is not None
+            else NO_OP_FILL_EVENT_HOOKS
+        )
+        self.order_placement_hooks = (
+            order_placement_hooks
+            if order_placement_hooks is not None
+            else NO_OP_ORDER_PLACEMENT_HOOKS
+        )
+        self.stealth_lifecycle_hooks = (
+            stealth_lifecycle_hooks
+            if stealth_lifecycle_hooks is not None
+            else NO_OP_STEALTH_LIFECYCLE_HOOKS
+        )
+        self.projection_sink = (
+            projection_sink
+            if projection_sink is not None
+            else NO_OP_EXECUTION_PROJECTION_SINK
+        )
 
         self.websocket_thread_maximum = websocket_thread_maximum
         self.max_rotate_seen_events_bucket_seconds = max_rotate_seen_events_bucket_seconds
@@ -455,19 +472,17 @@ class OrderEngine:
 
         # Lot Tracking Integration: Initialize fill ledger and hook registry
         self.fill_repo = None
-        self.fill_event_hooks = None
         self.event_stream_publisher = None
-        if LOT_TRACKING_AVAILABLE:
-            try:
-                from business.post_fill_hook import initialize_fill_ledger
-                self.fill_repo = initialize_fill_ledger(self.db_module.DB_CLIENT)
-                # Initialize fill event hook registry
-                self.fill_event_hooks = get_global_fill_event_hook_registry()
-                # Register default post-fill hook for recording fills
-                self._register_default_fill_hook()
-            except Exception as e:
-                # Log but don't fail - lot tracking is optional
-                self.log_message("warning", f"Failed to initialize fill ledger: {e}")
+        try:
+            from business.post_fill_hook import initialize_fill_ledger
+
+            self.fill_repo = initialize_fill_ledger(self.db_module.DB_CLIENT)
+            # The default logger is registered before the event-stream
+            # subscriber, preserving the established callback order.
+            self._register_default_fill_hook()
+        except Exception as e:
+            # Log but don't fail - lot tracking is optional.
+            self.log_message("warning", f"Failed to initialize fill ledger: {e}")
 
         # Single source of truth for all per-order WS-derived progress.
         # Replaces the previous parallel ``_partial_fill_state`` and
@@ -531,20 +546,16 @@ class OrderEngine:
         """Initialize order event stream and wire it into existing hook registries."""
         try:
             from business.order_event_stream import OrderEventStreamPublisher
-            from integration.stealth_lifecycle_hooks import (
-                get_global_stealth_lifecycle_hook_registry,
-            )
 
             self.event_stream_publisher = OrderEventStreamPublisher(self.db_module)
             self.event_stream_publisher.set_fee_info_provider(
                 self.fee_manager.get_fee_info if self.fee_manager else None
             )
-            order_placement_hooks = get_global_placement_hook_registry()
             self.event_stream_publisher.register_hook_integrations(
                 websocket_hooks=self.websocket_hooks,
                 fill_event_hooks=self.fill_event_hooks,
-                order_placement_hooks=order_placement_hooks,
-                stealth_lifecycle_hooks=get_global_stealth_lifecycle_hook_registry(),
+                order_placement_hooks=self.order_placement_hooks,
+                stealth_lifecycle_hooks=self.stealth_lifecycle_hooks,
             )
             if self.event_stream_publisher.enabled:
                 self.log_message("info", "[EVENT-STREAM] Hook integration enabled")
@@ -964,7 +975,7 @@ class OrderEngine:
         client_order_id = delta.client_order_id
 
         # 1. Per-match fill-ledger row + post/pre fill hooks.
-        if delta.is_new_match and self.fill_repo and LOT_TRACKING_AVAILABLE:
+        if delta.is_new_match and self.fill_repo:
             self._append_derived_fill_with_hooks(delta)
 
             # 1b. Hotpoint Auto-Replicate dispatch. Silent no-op for orders
@@ -1062,7 +1073,7 @@ class OrderEngine:
                 derived_price=delta.derived_price if delta.is_new_match else None,
                 derived_trade_key=delta.derived_trade_key if delta.is_new_match else None,
                 emitted_fill_ledger_row=bool(
-                    delta.is_new_match and self.fill_repo and LOT_TRACKING_AVAILABLE
+                    delta.is_new_match and self.fill_repo
                 ),
                 raw_payload_json=json.dumps(normalized_order, default=str),
             )
@@ -2178,7 +2189,7 @@ class OrderEngine:
         filled_size = safe_float(order.get("filled_size"), default=0.0)
         
         # Push to dashboard
-        update_order(client_order_id, {
+        self.projection_sink.publish_order_update(client_order_id, {
             "order_id": order.get("id", client_order_id),
             "client_order_id": client_order_id,
             "product_id": order.get("product_id"),
@@ -2192,13 +2203,26 @@ class OrderEngine:
         # Log the update
         product_id = order.get("product_id", "UNKNOWN")
         if status == OrderStatus.FAILED:
-            add_log_entry("ERROR", f"Order FAILED: {product_id} {order_side} - Check account balance/margin")
+            self.projection_sink.publish_log_entry(
+                "ERROR",
+                f"Order FAILED: {product_id} {order_side} - "
+                "Check account balance/margin",
+            )
         elif status == OrderStatus.OPEN:
-            add_log_entry("INFO", f"Order OPEN: {product_id} {order_side} {order_size}")
+            self.projection_sink.publish_log_entry(
+                "INFO",
+                f"Order OPEN: {product_id} {order_side} {order_size}",
+            )
         elif status == OrderStatus.CANCELLED:
-            add_log_entry("INFO", f"Order CANCELLED: {product_id} {order_side} {order_size}")
+            self.projection_sink.publish_log_entry(
+                "INFO",
+                f"Order CANCELLED: {product_id} {order_side} {order_size}",
+            )
         elif status == OrderStatus.FILLED:
-            add_log_entry("INFO", f"Order FILLED: {product_id} {order_side} {order_size}")
+            self.projection_sink.publish_log_entry(
+                "INFO",
+                f"Order FILLED: {product_id} {order_side} {order_size}",
+            )
 
     def _is_external_order(self, client_order_id: str) -> bool:
         """Check if an order is external (not created by our engine).
@@ -4092,7 +4116,7 @@ class OrderEngine:
             
             # Push position updates to dashboard
             for product_id, position_data in self.orderbook.positions.items():
-                update_position(product_id, {
+                self.projection_sink.publish_position_update(product_id, {
                     "product_id": product_id,
                     "type": position_data.get("type", "UNKNOWN"),
                     "amount": position_data.get("amount", 0),
@@ -5839,7 +5863,7 @@ class OrderEngine:
                                     # ``time`` so dashboard consumers
                                     # can detect hostâ†”CB clock skew
                                     # (engine-host vs Coinbase feed).
-                                    broadcast_ticker(
+                                    self.projection_sink.publish_ticker(
                                         product_id,
                                         price,
                                         cb_time=(
@@ -5851,7 +5875,11 @@ class OrderEngine:
                                 best_bid = float(tickr.get("best_bid", 0))
                                 best_ask = float(tickr.get("best_ask", 0))
                                 if best_bid > 0 and best_ask > 0 and product_id:
-                                    record_spread_tick(product_id, best_bid, best_ask)
+                                    self.projection_sink.record_spread(
+                                        product_id,
+                                        best_bid,
+                                        best_ask,
+                                    )
 
                                 # Persist a downsampled copy for market analysis.
                                 # Best-effort: throttled to <=1 row/s/product
@@ -6404,7 +6432,7 @@ class OrderEngine:
                 or self._shutdown_event.is_set()
             ):
                 payload["threads_active"] = 0
-            update_engine_status(payload)
+            self.projection_sink.publish_engine_status(payload)
         return payload
 
     def prepare_for_global_drain(self) -> None:
@@ -6421,7 +6449,7 @@ class OrderEngine:
             if not self._background_threads_started:
                 self._shutdown_event.set()
             try:
-                # update_engine_status merges partial payloads. For a fully
+                # The projection merges partial payloads. For a fully
                 # started engine, preserve its worker count until stop(); for
                 # incomplete startup, _commit_engine_status forces it to zero.
                 self._commit_engine_status({})
@@ -6535,7 +6563,7 @@ class OrderEngine:
                     and controller.state
                     in (EngineState.RUNNING, EngineState.PAUSED)
                 ):
-                    add_log_entry(
+                    self.projection_sink.publish_log_entry(
                         "INFO",
                         "Trading engine startup complete "
                         f"({readiness_status['engine_state']})",

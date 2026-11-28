@@ -256,7 +256,6 @@ def test_hotpoint_uses_source_stop_guard_and_does_not_skip_fill_ledger(monkeypat
     controller = RuntimeController()
     controller.complete_startup()
     monkeypatch.setattr(engine_module, "get_runtime_controller", lambda: controller)
-    monkeypatch.setattr(engine_module, "LOT_TRACKING_AVAILABLE", True)
     placer = Mock()
     monkeypatch.setattr("business.hotpoint_placer.place_hotpoint_order", placer)
 

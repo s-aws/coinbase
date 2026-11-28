@@ -93,20 +93,14 @@ def test_explicit_order_product_type_precedes_configured_metadata():
     ],
 )
 def test_stealth_lifecycle_context_uses_product_type_resolver(
-    monkeypatch, order_data, expected
+    order_data, expected
 ):
     from core.stealth_order_manager import StealthOrderManager
-    from integration import stealth_lifecycle_hooks
-
     manager = StealthOrderManager.__new__(StealthOrderManager)
     manager._get_current_market_data = Mock(return_value={})
     manager.log_callback = Mock()
     registry = SimpleNamespace(call_on_transition=Mock())
-    monkeypatch.setattr(
-        stealth_lifecycle_hooks,
-        "get_global_stealth_lifecycle_hook_registry",
-        lambda: registry,
-    )
+    manager.stealth_lifecycle_hooks = registry
 
     manager._dispatch_lifecycle_event(
         "4b998090-3fbb-472c-8f87-47df60e2d568",
