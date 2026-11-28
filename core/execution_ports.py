@@ -33,6 +33,75 @@ class SpanParentOrderReader(Protocol):
     ) -> Optional[Mapping[str, Any]]: ...
 
 
+class CancelledOrderMovePersistence(Protocol):
+    """Persistence capability owned by the cancelled-parent move workflow."""
+
+    def get_parent_order(
+        self,
+        client_order_id: str,
+    ) -> Optional[Mapping[str, Any]]: ...
+
+    def create_parent_order(
+        self,
+        *,
+        client_order_id: str,
+        product_id: str,
+        side: str,
+        size: float,
+        price: float,
+        target_movement: float,
+        target_movement_type: str,
+        max_order_replacement: int,
+        current_order_replacement: int,
+        status: str,
+    ) -> Optional[int]: ...
+
+    def record_order_move(
+        self,
+        *,
+        original_parent_client_order_id: str,
+        new_parent_client_order_id: str,
+        reason: str,
+        notes: Optional[str],
+    ) -> Optional[int]: ...
+
+    def get_order_move(
+        self,
+        original_parent_client_order_id: str,
+    ) -> Optional[Mapping[str, Any]]: ...
+
+    def list_order_moves_by_new_parent(
+        self,
+        new_parent_client_order_id: str,
+    ) -> List[Dict[str, Any]]: ...
+
+    def get_pending_move(
+        self,
+        original_parent_client_order_id: str,
+    ) -> Optional[Mapping[str, Any]]: ...
+
+    def has_pending_move(
+        self,
+        original_parent_client_order_id: str,
+    ) -> bool: ...
+
+    def create_pending_move(
+        self,
+        *,
+        original_parent_client_order_id: str,
+        new_order_details: Dict[str, Any],
+        reason: str,
+        notes: Optional[str],
+    ) -> Optional[int]: ...
+
+    def complete_pending_move(
+        self,
+        *,
+        original_parent_client_order_id: str,
+        new_parent_client_order_id: str,
+    ) -> int: ...
+
+
 class FillLedgerPersistence(Protocol):
     """Narrow persistence capability consumed by the fill-ledger repository."""
 

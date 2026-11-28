@@ -34,6 +34,114 @@ class DatabaseOrderPersistenceAdapter:
             db_client=self._db_client,
         )
 
+    def create_parent_order(
+        self,
+        *,
+        client_order_id: str,
+        product_id: str,
+        side: str,
+        size: float,
+        price: float,
+        target_movement: float,
+        target_movement_type: str,
+        max_order_replacement: int,
+        current_order_replacement: int,
+        status: str,
+    ) -> Optional[int]:
+        return order_db.insert_order_parent(
+            client_order_id=client_order_id,
+            product_id=product_id,
+            side=side,
+            size=size,
+            price=price,
+            target_movement=target_movement,
+            target_movement_type=target_movement_type,
+            max_order_replacement=max_order_replacement,
+            current_order_replacement=current_order_replacement,
+            status=status,
+            db_client=self._db_client,
+        )
+
+    def record_order_move(
+        self,
+        *,
+        original_parent_client_order_id: str,
+        new_parent_client_order_id: str,
+        reason: str,
+        notes: Optional[str],
+    ) -> Optional[int]:
+        return order_db.insert_order_move(
+            original_parent_client_order_id=original_parent_client_order_id,
+            new_parent_client_order_id=new_parent_client_order_id,
+            reason=reason,
+            notes=notes,
+            db_client=self._db_client,
+        )
+
+    def get_order_move(
+        self,
+        original_parent_client_order_id: str,
+    ) -> Optional[Dict[str, Any]]:
+        return order_db.get_order_move(
+            original_parent_client_order_id,
+            db_client=self._db_client,
+        )
+
+    def list_order_moves_by_new_parent(
+        self,
+        new_parent_client_order_id: str,
+    ) -> List[Dict[str, Any]]:
+        return order_db.get_order_moves_by_new_parent(
+            new_parent_client_order_id,
+            db_client=self._db_client,
+        )
+
+    def get_pending_move(
+        self,
+        original_parent_client_order_id: str,
+    ) -> Optional[Dict[str, Any]]:
+        return order_db.get_pending_move(
+            original_parent_client_order_id,
+            db_client=self._db_client,
+        )
+
+    def has_pending_move(
+        self,
+        original_parent_client_order_id: str,
+    ) -> bool:
+        return order_db.has_pending_move(
+            original_parent_client_order_id,
+            db_client=self._db_client,
+        )
+
+    def create_pending_move(
+        self,
+        *,
+        original_parent_client_order_id: str,
+        new_order_details: Dict[str, Any],
+        reason: str,
+        notes: Optional[str],
+    ) -> Optional[int]:
+        return order_db.create_pending_move(
+            original_parent_client_order_id=original_parent_client_order_id,
+            new_order_details=new_order_details,
+            reason=reason,
+            notes=notes,
+            db_client=self._db_client,
+        )
+
+    def complete_pending_move(
+        self,
+        *,
+        original_parent_client_order_id: str,
+        new_parent_client_order_id: str,
+    ) -> int:
+        return order_db.execute_pending_move(
+            original_parent_client_order_id=original_parent_client_order_id,
+            new_parent_client_order_id=new_parent_client_order_id,
+            db_client=self._db_client,
+        )
+
     def ensure_event_stream_storage(self) -> None:
         """Preserve the event publisher's established startup DDL sequence."""
 

@@ -32,7 +32,7 @@ applies.
 
 | Spec | Status | Scope | Read when |
 |---|---|---|---|
-| [Execution Core](EXECUTION_CORE.md) | `IMPLEMENTING` | Modular-monolith checklist item 5; stages 5.1-5.4B.3 implemented | Reviewing commands, queries, execution ownership, dependency inversion, or future dashboard/CLI command paths |
+| [Execution Core](EXECUTION_CORE.md) | `IMPLEMENTING` | Modular-monolith checklist item 5; stages 5.1-5.4B.4 implemented | Reviewing commands, queries, execution ownership, dependency inversion, or future dashboard/CLI command paths |
 | [Operator Console](OPERATOR_CONSOLE.md) | `ACCEPTED` | Stage 1 JSON-RPC and Stage 2A complete bidirectional schema implemented; no remaining stage is active | Reviewing operator UI, protocol, frontend tooling, static delivery, or deployment prerequisites |
 | [Operator Protocol](OPERATOR_PROTOCOL.md) | `IMPLEMENTED` | Stage 1 framing plus Stage 2A method-result/notification contracts and producer validation | Reviewing operator wire framing, method dispatch, identifiers, errors, results, notifications, or backup versions |
 

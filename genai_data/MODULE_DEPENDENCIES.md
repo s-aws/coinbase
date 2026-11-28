@@ -54,7 +54,7 @@ contract therefore classifies modules, with exact overrides, into these zones:
 | domain | shared vocabulary and calculation/policy code | domain, logging |
 | logging | shared logging adapter | logging |
 
-Stages 5.1-5.4B.3 place `core.execution_core` and `core.execution_ports` in the
+Stages 5.1-5.4B.4 place `core.execution_core` and `core.execution_ports` in the
 execution zone. The facade depends on
 domain enums/models, the runtime admission contract, and consumer-owned stealth
 command/query protocols; `main.py` supplies the shared runtime controller and
@@ -77,8 +77,12 @@ best effort. `main.py` supplies both required capabilities to `OrderEngine`.
 Stage 5.4B.3 adds `SpanParentOrderReader`; the bridge requires that one-method
 capability for deterministic span retry verification and no longer imports
 `database.order`. `main.py` supplies the same adapter, and the canonical helper
-retains its SQL, lock, exception, and transaction behavior. The frozen totals
-are 12 reverse imports, zero runtime import cycles, 31 broad
+retains its SQL, lock, exception, and transaction behavior. Stage 5.4B.4 adds
+`CancelledOrderMovePersistence`; `MoveManager` requires it and no longer
+imports `database.order`, while `OrderEngine` constructs the workflow through
+one path. The same adapter delegates to canonical helpers with its explicit
+database client without moving SQL, locks, transactions, or failure policy.
+The frozen totals are 11 reverse imports, zero runtime import cycles, 31 broad
 constructor capabilities, and seven reflection signatures.
 
 Operator Console stages 1 and 2A place `operator_api` in the operator zone. It

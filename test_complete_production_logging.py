@@ -43,6 +43,7 @@ def test_complete_integration_logging():
             db_module=db,
             fill_ledger_persistence=DatabaseOrderPersistenceAdapter(db),
             event_stream_persistence=DatabaseOrderPersistenceAdapter(db),
+            cancelled_move_persistence=DatabaseOrderPersistenceAdapter(db),
             subscription=MockSubscription(),
             api_key="test_key",
             api_secret="test_secret",

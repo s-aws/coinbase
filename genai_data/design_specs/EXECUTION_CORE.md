@@ -3,14 +3,14 @@
 | Field | Value |
 |---|---|
 | Status | `IMPLEMENTING` |
-| Operator approval | Accepted 2026-11-26; stages 5.1-5.4A approved 2026-11-27; stages 5.4B.1-5.4B.3 approved 2026-11-28; stages 5.4B.4-5.6 require separate approval |
+| Operator approval | Accepted 2026-11-26; stages 5.1-5.4A approved 2026-11-27; stages 5.4B.1-5.4B.4 approved 2026-11-28; stages 5.4C-5.6 require separate approval |
 | Checklist or objective | Modular-monolith boundary checklist item 5 |
-| Last evidence review | 2026-11-28, current worktree based on `b65a6475` |
-| Implementation | Stages 5.1-5.4B.3 implemented and validated; stages 5.4B.4-5.6 not started |
+| Last evidence review | 2026-11-28, Stage 5.4B.4 worktree based on `0ebaa003` |
+| Implementation | Stages 5.1-5.4B.4 implemented and validated; stages 5.4C-5.6 not started |
 
 > This spec records the accepted item-5 design. Current behavior is established
-> only by the implementation mapping and tests below. Approval through 5.4B.3
-> does not authorize stages 5.4B.4-5.6.
+> only by the implementation mapping and tests below. Approval through 5.4B.4
+> does not authorize stages 5.4C-5.6.
 
 ## Problem
 
@@ -46,8 +46,8 @@ rules.
   command category; the unsupported raw-placement path remains removed.
 - `dashboard_server.py` currently handles 17 supported request types; six are
   classified locally as originating work.
-- `module_boundaries.toml` now assigns four exact reverse imports to checklist
-  item 5. The repository-wide frozen totals are 12 reverse imports, zero
+- `module_boundaries.toml` now assigns three exact reverse imports to checklist
+  item 5. The repository-wide frozen totals are 11 reverse imports, zero
   cycles, 31 broad capabilities, and seven reflection signatures.
 - Constructor changes are broad even when production wiring is small:
   `OrderEngine` construction appears in 22 Python files and
@@ -68,6 +68,11 @@ rules.
   behind `SpanParentOrderReader`, supplied by the same adapter. The lookup
   remains inside the all-rung lock scope and database errors remain fail-closed
   preflight failures.
+- Stage 5.4B.4 injects `CancelledOrderMovePersistence` into `MoveManager` and
+  `OrderEngine`. The manager contains no database import, the engine has one
+  move-manager construction path, and the existing adapter delegates to the
+  retained helpers using its explicit database client. The existing multi-call
+  transaction and failure behavior is deliberately unchanged.
 
 The exact import-debt inventory remains authoritative in
 `module_boundaries.toml`; this spec does not copy that list.
@@ -283,8 +288,7 @@ profitability behavior.
 
 #### 5.4B Peripheral persistence ports
 
-Status: 5.4B.1-5.4B.3 implemented and validated 2026-11-28; 5.4B.4 reviewed
-but not approved for implementation.
+Status: 5.4B.1-5.4B.4 implemented and validated 2026-11-28.
 
 Define narrow consumer-owned persistence protocols for the bridge, fill
 ledger, move manager, and event stream. Consolidate existing fill-ledger SQL
@@ -345,6 +349,28 @@ exception mapping, cursor lock, and per-call transaction behavior. `main.py`
 passes the same adapter already used for fill-ledger and event-stream
 persistence. The dormant bridge-local reveal-history save stub is not part of
 this port; manager-owned reveal-event recording remains the active path.
+
+##### 5.4B.4 Cancelled-parent move persistence
+
+`CancelledOrderMovePersistence` is a consumer-owned structural protocol for
+the exact parent lookup/create, move audit/history, and pending-move operations
+used by `MoveManager`. The manager requires that capability and contains no
+database import or module-global fallback. `OrderEngine` also requires the
+capability and constructs `MoveManager` through one private factory used by
+both manual and cancel-triggered paths.
+
+`DatabaseOrderPersistenceAdapter` delegates all nine operations to the retained
+`database.order` helpers with its explicit database client. The eight remaining
+helpers accept a keyword-only explicit client while retaining their module
+client default for compatibility callers. No SQL, lock, transaction boundary,
+return convention, or exception/fail-soft policy moved. `main.py` passes the
+same adapter already used for fill-ledger, event-stream, and span persistence.
+
+The stage removes only the unreachable duplicate tail in
+`execute_pending_move_for_order`; it does not repair or reinterpret active move
+behavior. In particular, parent creation and move-audit writes remain separate,
+pending execution still follows the established multi-write sequence, and the
+engine's direct pending-move precheck remains for Stage 5.4C.
 
 #### 5.4C Authoritative-owner persistence ports
 
@@ -605,6 +631,28 @@ Repository-graph build/check reported 457 files, 8,712 symbols, 1,556 indexed
 tests, and 186 semantic records with no parse findings, fatal errors, or
 mismatches.
 
+Stage 5.4B.4 adds:
+
+- `MoveManager` consumes required `CancelledOrderMovePersistence` and contains
+  no database import.
+- `OrderEngine` uses one private construction path for manual and automatic
+  cancelled-parent moves, and `main.py` supplies the same concrete adapter as
+  the other execution persistence ports.
+- The adapter delegates all move operations to canonical helpers with one
+  explicit database client. Existing SQL, lock, transaction, return, and
+  fail-soft behavior remains in those helpers.
+- The unreachable duplicated pending-execution tail is removed without
+  changing the reachable workflow. The frozen totals are 11 reverse imports,
+  zero runtime import cycles, 31 broad capabilities, and seven reflection
+  signatures. Stage 5.4C remains separately gated.
+
+Stage 5.4B.4 validation: Python syntax parsing, `git diff --check`, and the
+executable boundary contract passed. The complete local non-external gate
+passed 1,913 tests with 17 skipped and 11 external tests deselected.
+Repository-graph build/check reported 458 files, 8,737 symbols, 1,559 indexed
+tests, and 188 semantic records with no parse findings, fatal errors, or
+mismatches.
+
 Relevant current navigation:
 
 - `genai_data/MODULE_DEPENDENCIES.md`
@@ -615,4 +663,5 @@ Relevant current navigation:
 - `core/stealth_order_manager.py::StealthOrderManager.create_stealth_order`
 - `bridges/stealth_order_bridge.py::StealthOrderBridge`
 - `core/order_engine.py::OrderEngine`
+- `business/move_manager.py::MoveManager`
 - `dashboard_server.py::handle_client_message`

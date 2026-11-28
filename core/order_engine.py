@@ -29,6 +29,7 @@ Example: initialize and run
     ...     db_module=DB_MODULE,
     ...     fill_ledger_persistence=FILL_LEDGER_PERSISTENCE,
     ...     event_stream_persistence=EVENT_STREAM_PERSISTENCE,
+    ...     cancelled_move_persistence=CANCELLED_MOVE_PERSISTENCE,
     ...     subscription=Subscription,
     ...     api_key=API_KEY,
     ...     api_secret=API_SECRET,
@@ -121,6 +122,7 @@ from calculation.formatter import safe_float
 from bridges.event_bridge import EventBridge
 from business.order_progress import OrderProgressTracker, OrderSnapshotDelta
 from core.execution_ports import (
+    CancelledOrderMovePersistence,
     ExecutionProjectionSink,
     FillEventHooks,
     FillLedgerPersistence,
@@ -225,6 +227,7 @@ class OrderEngine:
         ...     db_module=DB_MODULE,
         ...     fill_ledger_persistence=FILL_LEDGER_PERSISTENCE,
         ...     event_stream_persistence=EVENT_STREAM_PERSISTENCE,
+        ...     cancelled_move_persistence=CANCELLED_MOVE_PERSISTENCE,
         ...     subscription=Subscription,
         ...     api_key=API_KEY,
         ...     api_secret=API_SECRET,
@@ -256,6 +259,7 @@ class OrderEngine:
         db_module: ModuleType,
         fill_ledger_persistence: FillLedgerPersistence,
         event_stream_persistence: OrderEventStreamPersistence,
+        cancelled_move_persistence: CancelledOrderMovePersistence,
         subscription,
         api_key,
         api_secret,
@@ -281,6 +285,7 @@ class OrderEngine:
             db_module: Database client module.
             fill_ledger_persistence: Narrow fill-ledger persistence capability.
             event_stream_persistence: Best-effort event audit persistence.
+            cancelled_move_persistence: Required cancelled-parent move persistence.
             subscription: Subscription config object.
             api_key: Coinbase API key.
             api_secret: Coinbase API secret.
@@ -299,6 +304,7 @@ class OrderEngine:
         """
         self.orderbook = orderbook
         self.db_module = db_module
+        self.cancelled_move_persistence = cancelled_move_persistence
         self.subscription = subscription
         self.api_key = api_key
         self.api_secret = api_secret
@@ -4528,8 +4534,7 @@ class OrderEngine:
         from database.order import has_pending_move
         if has_pending_move(parent_client_order_id):
             try:
-                from business.move_manager import MoveManager
-                move_manager = MoveManager(self.orderbook)
+                move_manager = self._new_move_manager()
                 move_result = move_manager.execute_pending_move_for_order(parent_client_order_id)
                 
                 if move_result["success"]:
@@ -4752,6 +4757,16 @@ class OrderEngine:
             self.release_follow_up_processing("cancelled", client_order_id)
             raise
 
+    def _new_move_manager(self):
+        """Build the cancelled-parent move workflow with required capabilities."""
+
+        from business.move_manager import MoveManager
+
+        return MoveManager(
+            self.orderbook,
+            persistence=self.cancelled_move_persistence,
+        )
+
     def move_cancelled_order(
         self,
         original_parent_client_order_id: str,
@@ -4794,10 +4809,8 @@ class OrderEngine:
             ...     reason="user_cancelled_and_moved"
             ... )
         """
-        from business.move_manager import MoveManager
-        
         try:
-            move_manager = MoveManager(self.orderbook)
+            move_manager = self._new_move_manager()
             result = move_manager.move_order(
                 original_parent_client_order_id=original_parent_client_order_id,
                 new_order_details=new_order_details,

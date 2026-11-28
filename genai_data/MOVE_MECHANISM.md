@@ -7,17 +7,26 @@ none permits reparenting a child beneath another child.
 
 `business/move_manager.py::MoveManager` owns `can_move_order`, `move_order`,
 `pre_mark_for_move`, `execute_pending_move_for_order`, and `get_move_history`.
+It consumes the required `CancelledOrderMovePersistence` protocol and contains
+no database import. `DatabaseOrderPersistenceAdapter` delegates that capability
+to the canonical `database.order` helpers with an explicit database client.
 A moved cancelled parent creates a new root with its own UUID client ID and an
 `order_moves` audit relationship. The original row remains for audit; existing
 children are not automatically moved or reparented.
 
 Premarking records a pending move (`move_on_cancel=true`) before cancellation.
 The engine cancellation handler checks that pending move before normal
-replacement logic. `main.py` supplies the current engine/bridge wiring. The
+replacement logic. `OrderEngine` uses one private construction path for both
+manual and cancel-triggered `MoveManager` use, and `main.py` supplies the same
+adapter used by the other execution persistence ports. The
 abandoned dashboard CRUD/history commands were removed; `MoveManager` remains
 the single lifecycle implementation for existing internal callers and future
 reviewed command surfaces. This cancelled-parent mechanism is separate from a
 revealed stealth placement move.
+
+The move workflow still uses separate parent-create, move-audit, and pending
+completion helper calls. Stage 5.4B.4 changed dependency direction only: it did
+not add atomicity, retry, rollback, or stronger success semantics.
 
 ## Revealed stealth move
 
@@ -58,6 +67,7 @@ continues. External cancellation remains eligible for normal replacements.
 See `API_REFERENCE.md` for request/result fields, `DATA_MODELS.md` for pending
 intent fields, and `ORDER_ID_HANDLING.md` for client/exchange ID boundaries.
 Relevant checked-in tests include `tests/unit/test_order_moves.py`,
+`tests/unit/test_cancelled_order_move_persistence.py`,
 `tests/regression/test_stealth_move_revealed.py`,
 `tests/regression/test_anchor_reprice_phantom_parent.py`, and manual Rehide /
 operator-cancel regressions. Run the complete gate in `TESTING_STRATEGY.md`.

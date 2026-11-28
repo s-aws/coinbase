@@ -135,7 +135,6 @@ logging = ["logging"]
 [import_debt]
 item_4_passive_configuration = []
 item_5_execution_facade = [
-    "business.move_manager -> database.order",
     "core.order_engine -> database.order",
     "core.order_engine -> external",
     "core.stealth_order_manager -> database.order",

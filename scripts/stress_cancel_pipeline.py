@@ -191,6 +191,9 @@ def build_pipeline_engine(
         event_stream_persistence=DatabaseOrderPersistenceAdapter(
             order_database.DB_CLIENT
         ),
+        cancelled_move_persistence=DatabaseOrderPersistenceAdapter(
+            order_database.DB_CLIENT
+        ),
         subscription=subscription,
         api_key="offline",
         api_secret="offline",

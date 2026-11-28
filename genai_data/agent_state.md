@@ -3,8 +3,8 @@
 ## Status
 
 - Last updated (ET): 2026-11-28.
-- Implementation base for this stage: local `prod` and `origin/prod` were at
-  `b65a6475` when review began.
+- Implementation base for this stage: local `prod` was at `0ebaa003` and
+  `origin/prod` was at `b65a6475` when implementation began.
 - Completed implementation objective: Execution Core stage 5.3. Typed
   projection and hook ports are injected into the engine and manager;
   `main.py` composes the existing dashboard publishers and registry
@@ -13,13 +13,14 @@
 - Completed implementation objective: Execution Core stage 5.4A. The unused
   parallel conditional lifecycle, its exclusive schema/configuration, and its
   dedicated test/manual-tool surfaces are removed.
-- Completed implementation objective: Execution Core stage 5.4B.3. The bridge
-  consumes a required one-method `SpanParentOrderReader` implemented by the
-  same composed adapter as the fill ledger and event stream. Deterministic span
-  retry verification retains its all-rung lock scope and fail-closed preflight
-  behavior without a database import, SQL duplication, or transaction change.
-  Stages 5.4B.4-5.4C remain separately gated persistence-port work, and no
-  later implementation objective is active.
+- Completed implementation objective: Execution Core stage 5.4B.4.
+  `MoveManager` consumes required `CancelledOrderMovePersistence` and contains
+  no database import; `OrderEngine` constructs it through one path; and the
+  existing adapter delegates all nine operations to canonical helpers using
+  its explicit database client. Existing SQL, locks, multi-call transactions,
+  return conventions, and failure behavior are unchanged. Stage 5.4C remains
+  separately gated persistence-port work, and no later implementation objective
+  is active.
 - Completed implementation objective: Operator Console stages 1 and 2A. The
   server, both retained HTML clients, and runtime healthcheck use one strict
   versioned JSON-RPC contract with explicit dispatch, correlation, named
@@ -90,8 +91,8 @@
 
 ## Modular Monolith Boundary Checklist
 
-Items 1 through 4 are complete. Item 5 stages 5.1-5.4B.3 are implemented and
-validated; stages 5.4B.4 onward still require separate operator approval before
+Items 1 through 4 are complete. Item 5 stages 5.1-5.4B.4 are implemented and
+validated; stages 5.4C onward still require separate operator approval before
 code changes.
 
 1. Remove the abandoned `StateManager` and generic repository implementation:
@@ -108,7 +109,8 @@ code changes.
    seven reflection/namespace escape signatures. Stage 5.3 subsequently
    reduced those totals to 16/34/7, stage 5.4A reduced them to 15/33/7, and
    stage 5.4B.1 reduced them to 14/32/7, stage 5.4B.2 reduced them to 13/31/7,
-   and stage 5.4B.3 reduces them to 12/31/7.
+   stage 5.4B.3 reduced them to 12/31/7, and stage 5.4B.4 reduces them to
+   11/31/7.
    The contract explicitly does not claim to prove arbitrary runtime aliases or
    dynamic dispatch.
 5. Add an Execution Core command/query facade while retaining lifecycle and
@@ -142,9 +144,12 @@ code changes.
    scope. Stage 5.4B.3 moves deterministic span parent-row verification behind
    the required `SpanParentOrderReader`, also implemented by the same adapter.
    The read remains within all deterministic rung locks; missing rows and
-   database exceptions remain preflight failures before any new write. The move
-   manager, authoritative manager/engine persistence, and WebSocket factory
-   remain separately gated.
+   database exceptions remain preflight failures before any new write. Stage
+   5.4B.4 injects `CancelledOrderMovePersistence` into `MoveManager` and
+   `OrderEngine`, removes the manager's reverse database import, and reuses the
+   same concrete adapter. The manager's reachable multi-write behavior remains
+   unchanged. Authoritative manager/engine persistence and the WebSocket
+   factory remain separately gated.
 6. Extract public market-data ownership into an in-process component.
 7. Separate operator WebSocket transport from application commands and read
    projections. The approved console Stage 1 framing and Stage 2A complete
@@ -158,6 +163,22 @@ code changes.
    every stealth lifecycle audit transition eventually durable through an
    atomic outbox/delivery design with idempotent replay and per-`client_order_id`
    ordering; current hook delivery remains best effort until then.
+
+### Cancelled-Parent Move Follow-up Checklist
+
+Stage 5.4B.4 intentionally did not repair these reviewed behavior faults. Each
+requires its own focused search, blast-radius review, and operator approval:
+
+1. Pending execution calls `move_order`, which inserts a completed move row,
+   and then completes the pending row, potentially leaving two completed rows.
+2. `execute_pending_move_for_order` ignores the pending-row update count, so a
+   zero-row completion can still be reported as success.
+3. `database.order.create_pending_move` references an undefined name while
+   logging an exception, which can mask the original persistence failure.
+4. `MoveManager.can_move_order` documents status eligibility but does not
+   enforce a moveable status.
+5. Replacement-parent creation and move-audit insertion remain separate
+   transactions, so audit failure can leave an orphan replacement parent.
 
 ## Validation and Maintenance
 
@@ -254,6 +275,18 @@ code changes.
   non-external gate passed 1,910 tests with 17 skipped and 11 external tests
   deselected. Repository-graph build/check reported 457 files, 8,712 symbols,
   1,556 indexed tests, and 186 semantic records with no parse findings, fatal
+  errors, or mismatches.
+- Execution Core stage 5.4B.4 injects required
+  `CancelledOrderMovePersistence` into the move manager and engine, routes both
+  engine construction sites through one helper, and delegates the manager's
+  nine persistence operations through the existing concrete adapter. It
+  removes one reverse import without changing SQL, lock, transaction, return,
+  or failure behavior. Python syntax parsing, `git diff --check`, and the
+  executable boundary contract passed at 11 reverse imports, zero cycles, 31
+  broad capabilities, and seven reflection signatures. The complete local
+  non-external gate passed 1,913 tests with 17 skipped and 11 external tests
+  deselected. Repository-graph build/check reported 458 files, 8,737 symbols,
+  1,559 indexed tests, and 188 semantic records with no parse findings, fatal
   errors, or mismatches.
 - Operator Console stage 1 replaced the ad-hoc dashboard wire variants with one
   strict JSON-RPC 2.0 contract, migrated both retained pages and the runtime

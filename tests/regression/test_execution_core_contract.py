@@ -362,6 +362,7 @@ def test_main_composes_one_execution_core_from_existing_owners(
         "db_module": main.order_db,
         "fill_ledger_persistence": execution_persistence,
         "event_stream_persistence": execution_persistence,
+        "cancelled_move_persistence": execution_persistence,
         "subscription": subscription,
         "api_key": "test-key",
         "api_secret": "test-secret",

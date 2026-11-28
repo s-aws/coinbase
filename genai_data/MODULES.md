@@ -334,7 +334,9 @@ The heap is disposable derived state, never lifecycle truth.
 
 ### Order Lifecycle and Strategy
 - `business/event_processor.py`
-- `business/move_manager.py`
+- `business/move_manager.py`: cancelled-parent move lifecycle. It consumes
+  required `CancelledOrderMovePersistence`; concrete database delegation stays
+  in `database/execution_persistence.py`.
 
 The unused parallel `ConditionalExecutionWrapper` and its
 `OrderInterceptionLayer` were retired in Execution Core stage 5.4A. Active

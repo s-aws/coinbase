@@ -12,7 +12,7 @@ Key Concepts:
 - All child orders of the original parent are NOT automatically moved
 
 Example:
-    >>> manager = MoveManager(orderbook)
+    >>> manager = MoveManager(orderbook, persistence=MOVE_PERSISTENCE)
     >>> 
     >>> # Move a cancelled parent order to a new one
     >>> result = manager.move_order(
@@ -34,18 +34,8 @@ Example:
 import uuid
 from typing import Dict, Any, Optional, Tuple
 
-from database.order import (
-    get_parent_order,
-    insert_order_parent,
-    insert_order_move,
-    get_order_move,
-    get_pending_move,
-    has_pending_move,
-    create_pending_move,
-    execute_pending_move,
-    get_order_moves_by_new_parent,
-)
 from core.constants import DEFAULT_MAX_ORDER_REPLACEMENT
+from core.execution_ports import CancelledOrderMovePersistence
 from core.orderbook import OrderBook
 from calculation.price_validation import normalize_price_for_product
 from core.enums import OrderStatus, PriceRoundingPolicy
@@ -59,9 +49,15 @@ class MoveManager:
     
     Attributes:
         orderbook: Reference to the OrderBook for state management.
+        persistence: Required cancelled-parent move persistence capability.
     """
 
-    def __init__(self, orderbook: OrderBook):
+    def __init__(
+        self,
+        orderbook: OrderBook,
+        *,
+        persistence: CancelledOrderMovePersistence,
+    ) -> None:
         """Initialize MoveManager.
         
         Args:
@@ -69,7 +65,10 @@ class MoveManager:
         """
         if orderbook is None:
             raise ValueError("MoveManager requires an explicit orderbook")
+        if persistence is None:
+            raise ValueError("MoveManager requires explicit persistence")
         self.orderbook = orderbook
+        self._persistence = persistence
 
     def _normalize_new_order_details(
         self,
@@ -106,18 +105,22 @@ class MoveManager:
             Tuple of (can_move: bool, reason: str).
             
         Example:
-            >>> manager = MoveManager(orderbook)
+            >>> manager = MoveManager(orderbook, persistence=MOVE_PERSISTENCE)
             >>> can_move, reason = manager.can_move_order("parent_uuid")
             >>> if not can_move:
             ...     print(f"Cannot move: {reason}")
         """
         # Check if order exists
-        parent = get_parent_order(original_parent_client_order_id)
+        parent = self._persistence.get_parent_order(
+            original_parent_client_order_id
+        )
         if not parent:
             return False, f"Parent order not found: {original_parent_client_order_id}"
 
         # Check if order has already been moved (completed move, not pending)
-        existing_move = get_order_move(original_parent_client_order_id)
+        existing_move = self._persistence.get_order_move(
+            original_parent_client_order_id
+        )
         if existing_move and existing_move.get('new_parent_client_order_id'):
             # Only reject if the move is completed (has a new parent)
             return (
@@ -230,7 +233,7 @@ class MoveManager:
             max_order_replacement = int(new_order_details.get("max_order_replacement", DEFAULT_MAX_ORDER_REPLACEMENT))
 
             # Insert new parent order into database
-            parent_id = insert_order_parent(
+            parent_id = self._persistence.create_parent_order(
                 client_order_id=new_parent_client_order_id,
                 product_id=product_id,
                 side=side,
@@ -255,7 +258,7 @@ class MoveManager:
                 }
 
             # Record the move relationship
-            move_id = insert_order_move(
+            move_id = self._persistence.record_order_move(
                 original_parent_client_order_id=original_parent_client_order_id,
                 new_parent_client_order_id=new_parent_client_order_id,
                 reason=reason,
@@ -332,7 +335,7 @@ class MoveManager:
                 "reason": str or None
             }
         """
-        move = get_order_move(client_order_id)
+        move = self._persistence.get_order_move(client_order_id)
         
         if move:
             # This was an original parent that was moved
@@ -348,7 +351,9 @@ class MoveManager:
             }
 
         # Check if this is a replacement parent (moved to this order from another)
-        moves = get_order_moves_by_new_parent(client_order_id)
+        moves = self._persistence.list_order_moves_by_new_parent(
+            client_order_id
+        )
         if moves:
             latest_move = moves[0]
             return {
@@ -427,7 +432,9 @@ class MoveManager:
             ...     print(f"Pre-marked for move: {result['move_id']}")
         """
         # Validate the order exists
-        parent = get_parent_order(original_parent_client_order_id)
+        parent = self._persistence.get_parent_order(
+            original_parent_client_order_id
+        )
         if not parent:
             return {
                 "success": False,
@@ -439,7 +446,9 @@ class MoveManager:
             }
 
         # Check if already pending move
-        if has_pending_move(original_parent_client_order_id):
+        if self._persistence.has_pending_move(
+            original_parent_client_order_id
+        ):
             return {
                 "success": False,
                 "message": f"Order already has a pending move",
@@ -468,7 +477,7 @@ class MoveManager:
                 new_order_details
             )
             # Create pending move record
-            move_id = create_pending_move(
+            move_id = self._persistence.create_pending_move(
                 original_parent_client_order_id=original_parent_client_order_id,
                 new_order_details=new_order_details,
                 reason=reason,
@@ -540,7 +549,9 @@ class MoveManager:
         """
         try:
             # Get the pending move
-            pending_move = get_pending_move(original_parent_client_order_id)
+            pending_move = self._persistence.get_pending_move(
+                original_parent_client_order_id
+            )
             if not pending_move:
                 return {
                     "success": False,
@@ -583,46 +594,7 @@ class MoveManager:
 
             if result["success"]:
                 # Mark the pending move as executed
-                execute_pending_move(
-                    original_parent_client_order_id=original_parent_client_order_id,
-                    new_parent_client_order_id=result["new_parent_client_order_id"]
-                )
-
-                return {
-                    "success": True,
-                    "message": f"Pending move executed automatically",
-                    "new_parent_client_order_id": result["new_parent_client_order_id"],
-                    "move_id": result["move_id"],
-                    "error": None
-                }
-            else:
-                return {
-                    "success": False,
-                    "message": f"Failed to execute pending move: {result['error']}",
-                    "new_parent_client_order_id": None,
-                    "move_id": pending_move["id"],
-                    "error": result["error"]
-                }
-
-        except Exception as e:
-            error_msg = f"Exception executing pending move: {str(e)}"
-            return {
-                "success": False,
-                "message": error_msg,
-                "new_parent_client_order_id": None,
-                "move_id": None,
-                "error": error_msg
-            }
-            result = self.move_order(
-                original_parent_client_order_id=original_parent_client_order_id,
-                new_order_details=new_order_details,
-                reason=f"automated_{pending_move['reason']}",
-                notes=f"Auto-executed: {pending_move.get('notes', '')}"
-            )
-
-            if result["success"]:
-                # Mark the pending move as executed
-                execute_pending_move(
+                self._persistence.complete_pending_move(
                     original_parent_client_order_id=original_parent_client_order_id,
                     new_parent_client_order_id=result["new_parent_client_order_id"]
                 )

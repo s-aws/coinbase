@@ -15,6 +15,8 @@ import uuid
 from typing import Dict, Any
 
 from business.move_manager import MoveManager
+from database import order as order_db
+from database.execution_persistence import DatabaseOrderPersistenceAdapter
 from database.order import (
     insert_order_parent,
     get_parent_order,
@@ -37,13 +39,20 @@ def _orderbook() -> OrderBook:
     )
 
 
+def _move_persistence() -> DatabaseOrderPersistenceAdapter:
+    return DatabaseOrderPersistenceAdapter(order_db.DB_CLIENT)
+
+
 class TestMoveManager:
     """Test suite for MoveManager class."""
 
     @pytest.fixture
     def move_manager(self):
         """Create a MoveManager instance for testing."""
-        return MoveManager(orderbook=_orderbook())
+        return MoveManager(
+            orderbook=_orderbook(),
+            persistence=_move_persistence(),
+        )
 
     @pytest.fixture
     def original_parent_order(self):
@@ -379,7 +388,10 @@ class TestMoveIntegration:
         )
 
         # Move the order
-        move_manager = MoveManager(orderbook=_orderbook())
+        move_manager = MoveManager(
+            orderbook=_orderbook(),
+            persistence=_move_persistence(),
+        )
         result = move_manager.move_order(
             original_parent_client_order_id=original_id,
             new_order_details={
@@ -409,7 +421,10 @@ class TestMoveIntegration:
     def test_move_with_orderbook(self):
         """Test move updates orderbook state correctly."""
         orderbook = _orderbook()
-        move_manager = MoveManager(orderbook=orderbook)
+        move_manager = MoveManager(
+            orderbook=orderbook,
+            persistence=_move_persistence(),
+        )
 
         original_id = str(uuid.uuid4())
         insert_order_parent(
@@ -447,7 +462,10 @@ class TestPendingMoves:
     @pytest.fixture
     def move_manager(self):
         """Create a MoveManager instance for testing."""
-        return MoveManager(orderbook=_orderbook())
+        return MoveManager(
+            orderbook=_orderbook(),
+            persistence=_move_persistence(),
+        )
 
     @pytest.fixture
     def parent_order(self):
@@ -585,7 +603,10 @@ class TestPendingMoves:
         """Test that pending move stores configuration for later execution."""
         from database.order import get_pending_move
 
-        move_manager = MoveManager(orderbook=_orderbook())
+        move_manager = MoveManager(
+            orderbook=_orderbook(),
+            persistence=_move_persistence(),
+        )
         
         config = {
             "product_id": "ETH-USDC",

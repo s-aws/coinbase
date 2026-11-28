@@ -80,6 +80,7 @@ def _build_engine_with_mocked_orderbook() -> OrderEngine:
         db_module=db_module,
         fill_ledger_persistence=Mock(),
         event_stream_persistence=Mock(),
+        cancelled_move_persistence=Mock(),
         subscription=subscription,
         api_key="test_key",
         api_secret="test_secret",

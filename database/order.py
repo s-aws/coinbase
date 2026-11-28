@@ -689,6 +689,8 @@ def insert_order_parent(
     auto_placed_by_hotpoint: bool = False,
     reject_existing: bool = False,
     externally_created: bool = False,
+    *,
+    db_client: Optional[PostgresDB] = None,
 ) -> Optional[int]:
     """Insert a parent order into the order_parent table.
     
@@ -713,6 +715,8 @@ def insert_order_parent(
             lifecycle this row represents. Logical rows own themselves;
             distinct exchange-placement rows name their logical owner.
         externally_created: Whether this row originated outside this engine.
+        db_client: Explicit database client for composed adapters. Defaults to
+            the compatibility module client for existing callers.
     
     Returns:
         The inserted order's database ID if successful, None if failed.
@@ -721,7 +725,8 @@ def insert_order_parent(
         OrderPersistenceError: If database insertion fails.
     """
     # Check if parent order already exists (handles race condition with multiple threads)
-    existing_parent = get_parent_order(client_order_id)
+    client = db_client if db_client is not None else DB_CLIENT
+    existing_parent = get_parent_order(client_order_id, db_client=client)
     if existing_parent:
         if reject_existing:
             raise OrderPersistenceError(
@@ -777,7 +782,7 @@ def insert_order_parent(
     )
 
     try:
-        results = DB_CLIENT.execute_query(query, params)
+        results = client.execute_query(query, params)
         if results:
             inserted_id = results[0]["id"]
             row_kind = "Child" if parent_order_id else "Root parent"
@@ -2156,7 +2161,9 @@ def insert_order_move(
     new_parent_client_order_id: str = None,
     reason: str = "auto_move",
     notes: str = None,
-    move_on_cancel: bool = False
+    move_on_cancel: bool = False,
+    *,
+    db_client: Optional[PostgresDB] = None,
 ) -> Optional[int]:
     """
     Record a move when a cancelled parent order is replaced with a new parent order.
@@ -2173,6 +2180,8 @@ def insert_order_move(
         reason: Reason for the move (default 'auto_move'). Other values: 'user_move', etc.
         notes: Optional additional details about the move.
         move_on_cancel: If True, execute move automatically when order cancels (for automation).
+        db_client: Explicit database client for composed adapters. Defaults to
+            the compatibility module client for existing callers.
     
     Returns:
         The inserted move record's database ID if successful, None if failed.
@@ -2218,7 +2227,8 @@ def insert_order_move(
     )
 
     try:
-        results = DB_CLIENT.execute_query(query, params)
+        client = db_client if db_client is not None else DB_CLIENT
+        results = client.execute_query(query, params)
         if results:
             inserted_id = results[0]["id"]
             if new_parent_client_order_id:
@@ -2417,12 +2427,18 @@ def get_stealth_order_moves(
         return []
 
 
-def get_order_move(original_parent_client_order_id: str) -> Optional[Dict[str, Any]]:
+def get_order_move(
+    original_parent_client_order_id: str,
+    *,
+    db_client: Optional[PostgresDB] = None,
+) -> Optional[Dict[str, Any]]:
     """
     Retrieve a move record by the original parent order ID.
     
     Args:
         original_parent_client_order_id: The client_order_id of the original (cancelled) parent order.
+        db_client: Explicit database client for composed adapters. Defaults to
+            the compatibility module client for existing callers.
     
     Returns:
         Move record dict if found, None if not found.
@@ -2438,7 +2454,8 @@ def get_order_move(original_parent_client_order_id: str) -> Optional[Dict[str, A
     ORDER BY moved_at DESC
     LIMIT 1
     """
-    results = DB_CLIENT.execute_query(query, (original_parent_client_order_id,))
+    client = db_client if db_client is not None else DB_CLIENT
+    results = client.execute_query(query, (original_parent_client_order_id,))
     return results[0] if results else None
 
 
@@ -2467,7 +2484,11 @@ def get_order_moves_by_original_parent(original_parent_client_order_id: str) -> 
     return DB_CLIENT.execute_query(query, (original_parent_client_order_id,))
 
 
-def get_order_moves_by_new_parent(new_parent_client_order_id: str) -> List[Dict[str, Any]]:
+def get_order_moves_by_new_parent(
+    new_parent_client_order_id: str,
+    *,
+    db_client: Optional[PostgresDB] = None,
+) -> List[Dict[str, Any]]:
     """
     Retrieve all move records where a given order ID is the new parent.
     
@@ -2475,6 +2496,8 @@ def get_order_moves_by_new_parent(new_parent_client_order_id: str) -> List[Dict[
     
     Args:
         new_parent_client_order_id: The client_order_id of the new parent order.
+        db_client: Explicit database client for composed adapters. Defaults to
+            the compatibility module client for existing callers.
     
     Returns:
         List of move record dicts, ordered by moved_at timestamp (newest first).
@@ -2489,7 +2512,8 @@ def get_order_moves_by_new_parent(new_parent_client_order_id: str) -> List[Dict[
     WHERE new_parent_client_order_id = %s
     ORDER BY moved_at DESC
     """
-    return DB_CLIENT.execute_query(query, (new_parent_client_order_id,))
+    client = db_client if db_client is not None else DB_CLIENT
+    return client.execute_query(query, (new_parent_client_order_id,))
 
 
 def has_order_moved(client_order_id: str) -> bool:
@@ -2516,7 +2540,11 @@ def has_order_moved(client_order_id: str) -> bool:
     return bool(results)
 
 
-def get_pending_move(original_parent_client_order_id: str) -> Optional[Dict[str, Any]]:
+def get_pending_move(
+    original_parent_client_order_id: str,
+    *,
+    db_client: Optional[PostgresDB] = None,
+) -> Optional[Dict[str, Any]]:
     """
     Get a pre-marked (pending) move for an order that hasn't been executed yet.
     
@@ -2527,6 +2555,8 @@ def get_pending_move(original_parent_client_order_id: str) -> Optional[Dict[str,
     
     Args:
         original_parent_client_order_id: The client_order_id of the parent to check.
+        db_client: Explicit database client for composed adapters. Defaults to
+            the compatibility module client for existing callers.
     
     Returns:
         Pending move record dict if found, None if no pending move.
@@ -2543,16 +2573,23 @@ def get_pending_move(original_parent_client_order_id: str) -> Optional[Dict[str,
       AND new_parent_client_order_id IS NULL
     LIMIT 1
     """
-    results = DB_CLIENT.execute_query(query, (original_parent_client_order_id,))
+    client = db_client if db_client is not None else DB_CLIENT
+    results = client.execute_query(query, (original_parent_client_order_id,))
     return results[0] if results else None
 
 
-def has_pending_move(original_parent_client_order_id: str) -> bool:
+def has_pending_move(
+    original_parent_client_order_id: str,
+    *,
+    db_client: Optional[PostgresDB] = None,
+) -> bool:
     """
     Check if an order has a pre-marked move waiting to be executed on cancel.
     
     Args:
         original_parent_client_order_id: The client_order_id of the parent to check.
+        db_client: Explicit database client for composed adapters. Defaults to
+            the compatibility module client for existing callers.
     
     Returns:
         True if a pending move exists, False otherwise.
@@ -2561,14 +2598,19 @@ def has_pending_move(original_parent_client_order_id: str) -> bool:
         >>> if has_pending_move("parent_uuid"):
         ...     print("Order is pre-marked for automatic move on cancel")
     """
-    return get_pending_move(original_parent_client_order_id) is not None
+    return get_pending_move(
+        original_parent_client_order_id,
+        db_client=db_client,
+    ) is not None
 
 
 def create_pending_move(
     original_parent_client_order_id: str,
     new_order_details: Dict[str, Any],
     reason: str = "auto_move_scheduled",
-    notes: str = None
+    notes: str = None,
+    *,
+    db_client: Optional[PostgresDB] = None,
 ) -> Optional[int]:
     """
     Pre-mark an order for automatic move when it cancels.
@@ -2582,6 +2624,8 @@ def create_pending_move(
             - product_id, side, size, price, target_movement, target_movement_type, max_order_replacement
         reason: Reason for the pending move (default 'auto_move_scheduled').
         notes: Optional additional context.
+        db_client: Explicit database client for composed adapters. Defaults to
+            the compatibility module client for existing callers.
     
     Returns:
         The move record ID if successful, None if failed.
@@ -2623,7 +2667,8 @@ def create_pending_move(
     params = (original_parent_client_order_id, True, reason, notes)
     
     try:
-        results = DB_CLIENT.execute_query(query, params)
+        client = db_client if db_client is not None else DB_CLIENT
+        results = client.execute_query(query, params)
         if results:
             move_id = results[0]["id"]
             logger.info(
@@ -2640,7 +2685,9 @@ def create_pending_move(
 
 def execute_pending_move(
     original_parent_client_order_id: str,
-    new_parent_client_order_id: str
+    new_parent_client_order_id: str,
+    *,
+    db_client: Optional[PostgresDB] = None,
 ) -> int:
     """
     Execute a pending move by setting the new parent and marking as executed.
@@ -2651,6 +2698,8 @@ def execute_pending_move(
     Args:
         original_parent_client_order_id: The original parent being moved.
         new_parent_client_order_id: The new parent that was created.
+        db_client: Explicit database client for composed adapters. Defaults to
+            the compatibility module client for existing callers.
     
     Returns:
         Number of rows updated (0 or 1).
@@ -2675,7 +2724,8 @@ def execute_pending_move(
     params = (new_parent_client_order_id, original_parent_client_order_id)
     
     try:
-        result = DB_CLIENT.execute_update(query, params)
+        client = db_client if db_client is not None else DB_CLIENT
+        result = client.execute_update(query, params)
         if result > 0:
             logger.info(
                 f"Pending move executed: {original_parent_client_order_id} "
