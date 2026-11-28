@@ -26,7 +26,10 @@ revealed stealth placement move.
 
 The move workflow still uses separate parent-create, move-audit, and pending
 completion helper calls. Stage 5.4B.4 changed dependency direction only: it did
-not add atomicity, retry, rollback, or stronger success semantics.
+not add atomicity, retry, rollback, or stronger success semantics. A subsequent
+focused repair corrected pending-move exception logging so database failures
+remain the original logged failure and retain the established fail-soft `None`
+result; it did not change write or transaction behavior.
 
 ## Revealed stealth move
 

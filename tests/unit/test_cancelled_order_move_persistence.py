@@ -187,6 +187,31 @@ def test_cancelled_move_helpers_honor_explicit_database_client(monkeypatch):
     compatibility_client.execute_update.assert_not_called()
 
 
+def test_create_pending_move_database_error_is_not_masked(monkeypatch):
+    explicit_client = MagicMock()
+    explicit_client.execute_query.side_effect = RuntimeError("write failed")
+    error_log = MagicMock()
+    debug_log = MagicMock()
+    monkeypatch.setattr(order_db.logger, "error", error_log)
+    monkeypatch.setattr(order_db.logger, "debug", debug_log)
+
+    result = order_db.create_pending_move(
+        "original",
+        {"price": 100.0},
+        reason="scheduled",
+        db_client=explicit_client,
+    )
+
+    assert result is None
+    error_log.assert_called_once_with(
+        "Error creating pending move original: RuntimeError: write failed"
+    )
+    debug_log.assert_called_once_with(
+        "  Pending move details - new_order_details: {'price': 100.0}, "
+        "reason: scheduled"
+    )
+
+
 def test_order_engine_builds_move_manager_with_injected_persistence(monkeypatch):
     orderbook = object()
     persistence = object()

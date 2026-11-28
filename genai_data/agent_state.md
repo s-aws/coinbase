@@ -173,8 +173,9 @@ requires its own focused search, blast-radius review, and operator approval:
    and then completes the pending row, potentially leaving two completed rows.
 2. `execute_pending_move_for_order` ignores the pending-row update count, so a
    zero-row completion can still be reported as success.
-3. `database.order.create_pending_move` references an undefined name while
-   logging an exception, which can mask the original persistence failure.
+3. Complete: `database.order.create_pending_move` now logs only defined pending
+   configuration fields when insertion fails, preserving the original database
+   failure and its established fail-soft `None` result.
 4. `MoveManager.can_move_order` documents status eligibility but does not
    enforce a moveable status.
 5. Replacement-parent creation and move-audit insertion remain separate
@@ -288,6 +289,13 @@ requires its own focused search, blast-radius review, and operator approval:
   deselected. Repository-graph build/check reported 458 files, 8,737 symbols,
   1,559 indexed tests, and 188 semantic records with no parse findings, fatal
   errors, or mismatches.
+- Cancelled-parent move follow-up item 3 repairs only the pending-create
+  exception logger: database failures now log defined pending configuration
+  fields and retain the established fail-soft `None` result. The complete local
+  non-external gate passed 1,914 tests with 17 skipped and 11 external tests
+  deselected. Repository-graph build/check reported 458 files, 8,738 symbols,
+  1,560 indexed tests, and 188 semantic records with no parse findings, fatal
+  errors, or check mismatches.
 - Operator Console stage 1 replaced the ad-hoc dashboard wire variants with one
   strict JSON-RPC 2.0 contract, migrated both retained pages and the runtime
   healthcheck, and added a committed method/backup schema. The complete local

@@ -2679,7 +2679,10 @@ def create_pending_move(
         return None
     except Exception as e:
         logger.error(f"Error creating pending move {original_parent_client_order_id}: {type(e).__name__}: {e}")
-        logger.debug(f"  Move details - new_parent: {new_parent_client_order_id}, reason: {reason}")
+        logger.debug(
+            f"  Pending move details - new_order_details: {new_order_details}, "
+            f"reason: {reason}"
+        )
         return None
 
 
